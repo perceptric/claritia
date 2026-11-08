@@ -37,7 +37,7 @@ const USER = crypto.randomUUID();
 await q(`insert into workspaces (id, name) values ($1, 'forms qa check')`, [WS]);
 await q(`insert into auth.users (id, email) values ($1, 'qa-check@t.io')`, [USER]);
 await q(`insert into workspace_members (workspace_id, user_id, role) values ($1, $2, 'owner')`, [WS, USER]);
-await q(`insert into identity_settings (workspace_id, own_domains) values ($1, '{acme.com}') on conflict (workspace_id) do update set own_domains = excluded.own_domains`, [WS]);
+await q(`insert into team_domains (workspace_id, own_domains) values ($1, '{acme.com}') on conflict (workspace_id) do update set own_domains = excluded.own_domains`, [WS]);
 
 async function live(template: string, dest: { kind: "webhook" | "slack"; url: string; name: string }, change?: (f: Form) => void) {
   const body = TEMPLATES.find((t) => t.key === template)!.form();

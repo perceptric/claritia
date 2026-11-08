@@ -15,7 +15,7 @@ export async function isMember(auth: Auth, workspaceId: unknown): Promise<"owner
 export async function cleaningCtx(sb: SupabaseClient, ws: string): Promise<Ctx> {
   const [fields, settings] = await Promise.all([
     sb.from("fields").select("key, label, type, options").eq("workspace_id", ws).eq("object", "contact"),
-    sb.from("identity_settings").select("own_domains, partner_domains").eq("workspace_id", ws).maybeSingle(),
+    sb.from("team_domains").select("own_domains, partner_domains").eq("workspace_id", ws).maybeSingle(),
   ]);
   if (fields.error) throw new Error(fields.error.message);
   return {

@@ -113,7 +113,7 @@ test("a booking lands on the contact the CRM already has", async () => {
 
 test("a new guest becomes a contact once the booking stands; a failed try and team addresses never do", async () => {
   const { ws, users } = await team(1);
-  await q(`insert into identity_settings (workspace_id, own_domains) values ($1, '{acme.io}') on conflict (workspace_id) do update set own_domains = '{acme.io}'`, [ws]);
+  await q(`insert into team_domains (workspace_id, own_domains) values ($1, '{acme.io}') on conflict (workspace_id) do update set own_domains = '{acme.io}'`, [ws]);
   const t = await meetingType(ws, "one", users);
   const r = await bookType(rpc, { ws, type: t, length: 30, start: NY("09:00"), guest: { email: "Rae.Kim@Northwind.io", name: "Rae Kim Park", tz: "Europe/Berlin", answers: {} }, source: "page", payReady: false, liveBusy: none, now: NOW });
   assert.ok(r.ok);

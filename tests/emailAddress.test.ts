@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { cleanEmail, cleanHubspot, cleanIdentifier, cleanUser, hashOf } from "../src/lib/identity/clean.ts";
+import { cleanEmail, hashOf } from "../src/lib/email/address.ts";
 
 const clean = (s: string, ws = {}) => {
   const c = cleanEmail(s, ws);
@@ -34,18 +34,9 @@ test("emails: classes", () => {
 
 test("emails: invalid", () => {
   for (const s of ["", "a", "a@b", "@acme.com", "a@@acme.com", "a b@acme.com", "a@acme..com", "+@acme.com", "x".repeat(65) + "@acme.com", "a@" + "b".repeat(260) + ".com"]) assert.equal(clean(s), "invalid", s);
-  assert.equal(cleanIdentifier("email", 42).constructor, Object);
+  assert.equal(cleanEmail(42).constructor, Object);
 });
 
-test("user and HubSpot ids", () => {
-  const u = cleanUser("  U_88 ");
-  assert.ok(!("rejected" in u) && u.clean === "U_88", "case is kept");
-  for (const bad of ["", "null", "undefined", "Anonymous", "0", "none"]) assert.deepEqual(cleanUser(bad), { rejected: "blocked" }, bad);
-  assert.deepEqual(cleanUser("x".repeat(129)), { rejected: "invalid" });
-  assert.ok(!("rejected" in cleanHubspot("12345")));
-  assert.deepEqual(cleanHubspot("12a"), { rejected: "invalid" });
-  assert.deepEqual(cleanHubspot("000"), { rejected: "invalid" });
-});
 
 test("hashes are SHA-256 of the clean value", () => {
   const c = cleanEmail("Jane@Acme.com");

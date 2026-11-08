@@ -21,15 +21,12 @@ export type ContactRow = {
   source: string;
   score: number | null;
   score_band: string | null;
-  person_id: string | null;
   fields: Record<string, unknown>;
   created_at: string;
   updated_at: string;
   company_id: string | null;
   company_name: string | null;
   company_domain: string | null;
-  account_id: string | null;
-  fit: number | null;
   email_class?: string | null;
   industry?: string | null;
   size?: string | null;
@@ -48,9 +45,7 @@ export const CONTACT_FIELDS: FilterField<ContactRow>[] = [
   { key: "lead_status", label: "Lead status", type: "enum", options: LEAD_STAGES, get: (c) => c.lead_status },
   { key: "country", label: "Country", type: "text", get: (c) => c.country },
   { key: "region", label: "State or region", type: "text", get: (c) => c.region },
-  { key: "fit", label: "Fit", type: "number", get: (c) => c.fit },
   { key: "score", label: "Score", type: "number", get: (c) => c.score },
-  { key: "known", label: "Seen on site", type: "bool", get: (c) => !!c.person_id },
   { key: "source", label: "Source", type: "enum", options: SOURCES, get: (c) => c.source },
   { key: "email_class", label: "Email type", type: "enum", options: EMAIL_CLASSES, get: (c) => c.email_class },
   { key: "industry", label: "Industry", type: "text", get: (c) => c.industry },

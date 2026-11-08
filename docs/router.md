@@ -70,7 +70,7 @@ Signals, each one a setting the team can turn off:
 
 | Signal | Example | Source |
 |---|---|---|
-| Throwaway email domain | `x@mailinator.com` | The disposable list already in `src/lib/identity/clean.ts` |
+| Throwaway email domain | `x@mailinator.com` | The disposable list already in `src/lib/email/address.ts` |
 | Blocked domains and emails | Competitors, the team's own test addresses | A list in the router |
 | Fake name | "asdf", "test test", a name that's the same letters over and over, a URL in the name | Rules in TypeScript, with tests |
 | Too many fills | Same email 5 times in an hour, same IP 20 times in an hour | Counts on submissions |

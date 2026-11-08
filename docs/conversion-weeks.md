@@ -183,7 +183,6 @@ What shipped and what's left: the plan's Part 21c.
 - `wordpress/claritia-wp/`: the plugin (PHP) for Gravity Forms, Contact Form 7, WPForms.
 - `src/app/api/v1/contacts/import/route.ts`, `imports/[id]/route.ts`, `imports/[id]/undo/route.ts`, `contacts/route.ts`; `api_idempotency` handling (table lands in week 21's migration; until then, the `jobs` key holds the idempotency key).
 - Zapier, Make and n8n app definitions in `integrations/`.
-- Anonymous visit attach: a form contact with an email links the device's earlier visits through identity (existing stitch with evidence source `form`).
 
 **Tests:** a hook delivered twice makes one event; a hook with a bad signature is refused; a Typeform fill reaches a contact in under 10 s in the e2e check; the import API with the same idempotency key twice runs once.
 

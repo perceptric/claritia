@@ -1,5 +1,5 @@
 -- Which Claritia migrations from 090 on are in this database. 091, 093, 114 and 121 have nothing to look for: they're
--- safe to run again (122 replaces 121). Run each one marked false, in order.
+-- safe to run again (122 replaces 121), and 135 removed what 102 added. Run each one marked false, in order.
 select migration, applied from (values
   ('090', exists(select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'form_submit_all')),
   ('092', exists(select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'form_booking_shown_rep')),
@@ -11,7 +11,6 @@ select migration, applied from (values
   ('099', exists(select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'meeting_invite_info')),
   ('100', to_regclass('public.workflow_folders') is not null),
   ('101', exists(select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'workflow_meetings')),
-  ('102', exists(select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'visitors_list')),
   ('103', to_regclass('public.submission_results') is not null),
   ('104', exists(select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'submission_result_get')),
   ('105', exists(select 1 from information_schema.columns where table_schema = 'public' and table_name = 'form_daily' and column_name = 'results')),
@@ -31,5 +30,7 @@ select migration, applied from (values
   ('120', to_regclass('public.plan_usage') is not null),
   ('122', exists(select 1 from pg_proc where proname = 'plan_caps' and prosrc like '%''starter'' then 6 when ''pro'' then 6%')),
   ('123', exists(select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'form_to_studio')),
-  ('124', exists(select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'form_fill_channels'))
+  ('124', exists(select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'form_fill_channels')),
+  ('135', to_regclass('public.team_domains') is not null),
+  ('136', to_regclass('public.identity_settings') is null)
 ) as v(migration, applied) order by migration;

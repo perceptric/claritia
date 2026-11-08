@@ -1,4 +1,4 @@
-// Company domains (docs/account-intelligence.md 5.1): clean to the registrable domain with the Public Suffix List,
+// Company domains: clean to the registrable domain with the Public Suffix List,
 // keep the full name for companies living on a hosting domain, and find redirect aliases (acme.io → acme.com).
 
 import { isIP } from "node:net";

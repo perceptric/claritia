@@ -1,6 +1,6 @@
 import { after } from "next/server";
 import { allRegions, usesRegions } from "@/lib/forms/regions";
-import { regionOf } from "@/lib/web/policy";
+import { regionOf } from "@/lib/contacts/region";
 import { accessShut, closedMessage } from "@/lib/forms/access";
 import { cors, edgeCountry, forgetPublic, json, loadPublic, turnstileSiteKey } from "@/lib/forms/server";
 import { emailCodesReady, smsCodesReady } from "@/lib/forms/codes";

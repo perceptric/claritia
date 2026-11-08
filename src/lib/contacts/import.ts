@@ -1,10 +1,10 @@
 // CSV import (docs/conversion-parity.md week 1, docs/marketing-platform.md M2). Each row becomes a contact keyed by
-// its cleaned email (docs/identity.md Part 6), so "Jane.Doe+news@gmail.com" and "janedoe@gmail.com" are one
+// its cleaned email (src/lib/email/address.ts), so "Jane.Doe+news@gmail.com" and "janedoe@gmail.com" are one
 // contact. Rows with the same email in one file merge, later cells winning. A bad cell is dropped, never the
 // whole row; a row with no usable email is skipped and counted. Server only (email cleaning reads the lists).
 
 import { cleanDomain } from "../company/domains.ts";
-import { cleanEmail, isRejected } from "../identity/clean.ts";
+import { cleanEmail, isRejected } from "../email/address.ts";
 import { basisFor, parseBasis, sourceRefused, type Basis, type ImportSource } from "./consent.ts";
 import { cleanPhone, nameCase, splitName, titleRole } from "./clean.ts";
 import { countryCode, customValue, lifecycleOf, type CustomField, type Target } from "./fields.ts";

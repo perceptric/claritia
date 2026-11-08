@@ -1,6 +1,6 @@
 import { isUuid } from "@/lib/apiAuth";
 import { bad, formsCaller } from "@/lib/hooks/v1";
-import { cleanEmail, isRejected } from "@/lib/identity/clean";
+import { cleanEmail, isRejected } from "@/lib/email/address";
 import { nameCase } from "@/lib/contacts/clean";
 
 /**

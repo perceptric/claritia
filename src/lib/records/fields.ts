@@ -161,9 +161,6 @@ export const CONTACT_BUILTINS: BuiltIn[] = [
   b("country", "Country", "text", true, { sort: "country" }),
   b("region", "State or region", "text", true),
   b("score", "Score", "number", false, { sort: "score" }),
-  b("fit", "Fit", "number", false, { sort: "fit" }),
-  b("intent", "Intent", "number", false),
-  b("known", "Seen on site", "checkbox", false),
   b("segment", "List", "relation", false),
   b("source", "Source", "select", false, { options: SOURCES as Option[] }),
   b("email_class", "Email type", "select", false, { options: EMAIL_CLASSES as Option[] }),
@@ -181,11 +178,6 @@ export const COMPANY_BUILTINS: BuiltIn[] = [
   b("size", "Size", "text", true),
   b("country", "Country", "text", true),
   b("owner", "Owner", "user", true),
-  b("fit", "Fit", "number", false, { sort: "fit" }),
-  b("intent", "Intent", "number", false, { sort: "intent" }),
-  b("stage", "Stage", "select", false, {
-    options: ["evaluating", "researching", "engaged", "unknown"].map((v) => ({ value: v, label: v[0].toUpperCase() + v.slice(1) })),
-  }),
   b("contacts", "Contacts", "number", false, { sort: "contacts" }),
   b("created_at", "Created", "datetime", false, { sort: "created_at" }),
   b("updated_at", "Updated", "datetime", false, { sort: "updated_at" }),
@@ -272,8 +264,6 @@ export function valueOf(row: Record<string, unknown>, key: string): unknown {
       return row.name ?? ([row.first_name, row.last_name].filter(Boolean).join(" ").trim() || null);
     case "company":
       return row.company_name ?? row.company ?? null;
-    case "known":
-      return !!row.person_id;
     case "owner":
       return row.owner ?? row.owner_user_id ?? null;
     default:

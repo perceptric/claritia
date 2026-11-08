@@ -21,12 +21,10 @@ declare
   clear text[] := array[
     -- CRM
     'contacts', 'contact_events', 'companies', 'records', 'record_links', 'notes', 'tasks', 'field_history', 'field_writes',
-    'consents', 'subscriptions', 'imports', 'merge_proposals', 'source_links', 'source_runs', 'source_event_keys', 'sync_log',
+    'consents', 'subscriptions', 'imports', 'source_links', 'source_runs', 'source_event_keys', 'sync_log',
     'hook_events', 'activity_out',
-    -- Visits and identity
-    'sessions', 'devices', 'device_links', 'events', 'persons', 'person_aliases', 'identifiers', 'identity_evidence',
-    'learned_networks', 'network_flags', 'accounts', 'account_domains', 'account_scores', 'account_feedback', 'account_daily',
-    'account_alert_log', 'signals', 'site_daily', 'site_rolled', 'ip_cache', 'company_cache', 'person_cache',
+    -- Enrichment caches
+    'company_cache', 'person_cache',
     -- Inbound
     'forms', 'form_versions', 'form_submissions', 'form_destinations', 'form_destination_secrets', 'form_bookings', 'form_chats',
     'form_checks', 'form_daily', 'form_seen', 'submissions', 'deliveries', 'scheduler_links',

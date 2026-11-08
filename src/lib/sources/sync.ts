@@ -8,7 +8,7 @@
 
 import { countryCode } from "../contacts/fields.ts";
 import { prepareImport, type Ctx as CleanCtx, type ContactInput } from "../contacts/import.ts";
-import { cleanEmail, isRejected } from "../identity/clean.ts";
+import { cleanEmail, isRejected } from "../email/address.ts";
 import { writeContacts } from "../contacts/contacts.ts";
 import type { Rpc } from "../jobs.ts";
 import { agreed, cellOf, changedKeys, compared, decide, effectiveMapping, outOnly, OWNER, propOf, pushable, recordsToCompanies, recordsToRows, toRemote, type Col, type SavedMapping } from "./map.ts";

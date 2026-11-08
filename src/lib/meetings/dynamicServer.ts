@@ -36,7 +36,7 @@ export async function routedType(rpc: Rpc, db: SupabaseClient, o: { ws: string; 
   let fromEmail: { domain: string | null; class: string | null } | undefined;
   let past: Record<string, unknown> | undefined;
   if (qs[0]!.key === "email" && typeof o.answers.email === "string") {
-    const { cleanEmail, isRejected } = await import("../identity/clean.ts");
+    const { cleanEmail, isRejected } = await import("../email/address.ts");
     const e = cleanEmail(o.answers.email);
     if (!isRejected(e)) {
       fromEmail = { domain: e.domain, class: e.class };

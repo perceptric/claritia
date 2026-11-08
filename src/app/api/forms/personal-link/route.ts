@@ -1,4 +1,4 @@
-import { cleanEmail, isRejected } from "@/lib/identity/clean";
+import { cleanEmail, isRejected } from "@/lib/email/address";
 import { requireUser, roleIn } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { formLink } from "@/lib/share/formLink";

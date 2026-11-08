@@ -22,15 +22,11 @@ SEO, GEO, AI search           visitors, contacts, journeys, email,         CRM, 
 | Job | Who does it today |
 |---|---|
 | Marketing automation | Conversion.ai, Inflection, HubSpot Marketing Hub, Marketo, Pardot, ActiveCampaign, Customer.io, Loops, Encharge, Userlist |
-| Visitor intelligence | Warmly, Unify, RB2B, Factors, Common Room, Snitcher, Leadfeeder |
 | Pages and personalization | Mutiny, Unbounce, Instapage, Abmatic, Default, Chili Piper |
 | Attribution | HockeyStack, Dreamdata, Factors |
 
 Companion specs that stay valid as module specs:
-- `docs/identity.md`: identity stitching (M1)
-- `docs/account-intelligence.md`: compliance framework (Part 3), company resolution, signals and scoring (M1, M7)
 
-`docs/pivot-plan.md` is replaced by this plan.
 
 ---
 
@@ -41,7 +37,6 @@ Companion specs that stay valid as module specs:
 | # | Module | What the customer gets |
 |---|---|---|
 | M0 | Foundation and suite | Jobs queue, workspace, nav, billing, connections to Omniscient and Arrowsterr |
-| M1 | Website Intelligence | Which companies and people visit, what they read, and which accounts are heating up |
 | M2 | Contacts and Segments | One marketing database of people, companies, events and consent, with live segments |
 | M3 | Email Engine | Sending from the customer's own domain, with deliverability, unsubscribes and suppression done right |
 | M4 | Journeys and Agent Steps | A journey builder where AI agents decide the next step and write each email, with Approvals |
@@ -57,7 +52,7 @@ Companion specs that stay valid as module specs:
 | Group | Screens |
 |---|---|
 | Top | Home (today's movement and approvals), Ask |
-| Audience | Visitors, Accounts, Contacts, Segments |
+| Audience | Contacts, Segments |
 | Engage | Journeys, Emails, Pages, Forms |
 | Prove | Reports, Attribution, Funnel QA |
 | Bottom | Approvals, Brand Brain, Settings |
@@ -68,11 +63,8 @@ The testing product's screens (Tests, Runs, Map, Approvals for heals) move under
 
 | Day | What happens | Module |
 |---|---|---|
-| 1 | Someone at Acme finds the customer through a ChatGPT answer that Arrowsterr helped win. They read two pages. | Arrowsterr, M1 |
-| 1 | Acme is matched by IP and scores high on fit | M1, M7 |
 | 3 | They download a guide through a Claritia form. Now a known contact, with consent recorded. | M6, M2 |
 | 3 | They enter the "Guide downloaders, fintech" journey. An agent step writes the first email from the Brand Brain, citing the right case study. | M4, M5 |
-| 7 | They read the case study page for 4 minutes. Two coworkers visit pricing. Intent rises. | M1 |
 | 7 | An agent step picks the "sales-ready" branch. The handoff creates the contact and opportunity in Omniscient, alerts the owner in Slack with a brief, and pauses nurture. | M4, M7 |
 | 9 | The rep books a meeting from Omniscient. | Omniscient |
 | 60 | The deal is won. Attribution credits the ChatGPT answer, the guide, the journey and the case study. | M8 |
@@ -82,7 +74,7 @@ The testing product's screens (Tests, Runs, Map, Approvals for heals) move under
 
 ## Part 2. Rules every module follows
 
-1. **A wrong signal costs more than a missing one.** Identity, scores and agent choices use hard evidence. Probable links never trigger a send.
+1. **A wrong signal costs more than a missing one.** Scores and agent choices use hard evidence.
 2. **Approvals first.** Every journey starts in review mode. A team can turn on auto mode per journey after 20 approved sends with fewer than 10% edited.
 3. **Every AI claim has a source.** Emails and pages only state facts found in the Brand Brain or the contact's own data. A verifier removes lines with no source.
 4. **Consent before sending.** No marketing email goes to a contact without a lawful basis for their region (Part 9).
@@ -100,8 +92,7 @@ The testing product's screens (Tests, Runs, Map, Approvals for heals) move under
 | App | Size (Beta, then Growth) | Job |
 |---|---|---|
 | `claritia-web` (Fly nrt) | 512 MB, then 2 × 1 GB | Next.js app, API, hosted pages and forms (by host), webhooks |
-| `claritia-collect` (new) | 2 × 256 MB, then 3 × 512 MB | Public intake for the site script, forms and email clicks |
-| `claritia-intel` (new, always on) | 512 MB, then 3 × 1 GB | Fast jobs with no browser: stitch, lookups, scores, syncs, journeys, AI, sends (see `docs/m1-website-intelligence.md`) |
+| `claritia-intel` (new, always on) | 512 MB, then 3 × 1 GB | Fast jobs with no browser: scores, syncs, journeys, AI, sends |
 | `claritia-runner` (exists, sleeps when idle) | 2 GB | Browser jobs: crawls and Funnel QA runs |
 | `claritia-relay` | 256 MB | Kept for localhost tunnels (Funnel QA on staging) |
 | Supabase `claritia` (Tokyo) | Pro + Medium, then Large | Postgres, Auth, Storage, pg_cron, pgvector |
@@ -111,8 +102,7 @@ The testing product's screens (Tests, Runs, Map, Approvals for heals) move under
 ### 3.2 Data flow
 
 ```
- Site visitors ─claritia.js─► collect ─► events, sessions, evidence ─► stitch ─► people, accounts
- Forms (M6) ─────────────────► collect ─► contacts + consent ───────────────────┘
+ Forms (M6) ─────────────────► contacts + consent
  Omniscient / HubSpot / Salesforce / Segment / PostHog / Stripe ─► sync ─► contacts, deals, events
  Arrowsterr API ─► AI referral sources, prompts, topics ─► M5, M8
                                    │
@@ -126,14 +116,12 @@ The testing product's screens (Tests, Runs, Map, Approvals for heals) move under
 ### 3.3 Code layout
 
 ```
-collect/               Hono intake: /s.js, /e, /f (forms), /c (clicks), /u (unsubscribe)
-src/lib/identity/      docs/identity.md
 src/lib/contacts/      contacts, companies, consent, segments (filter → SQL)
 src/lib/email/         resend client, domains, templates (MJML), suppression, tracking links
 src/lib/journeys/      graph schema, engine, steps, simulation
 src/lib/brain/         ingest, atoms, embeddings, verifier
 src/lib/pages/         blocks, renderer, forms, booking, personalization, domains
-src/lib/scoring/       fit, intent, engagement, routing, handoff
+src/lib/scoring/       fit, engagement, routing, handoff
 src/lib/attribution/   touches, models, reports
 src/lib/qa/            funnel checks on the existing runner
 src/lib/agent/         marketing agent tools and loop
@@ -154,12 +142,12 @@ supabase/migrations/   020 onward
   - Jobs that share a key run one at a time, and only one waits per key, so bursts collapse.
   - Leases that run out go back in line, retries back off (1, 5, 30 minutes, then 2 and 6 hours), and finished jobs are pruned hourly.
   - Server-only. Tests: `tests/db/jobs.sql` and `tests/jobs.test.ts`.
-  - Runs, plans and explorations keep their own claim functions, which already work and have their own tests. New work (M1 onward) uses the queue.
+  - Runs, plans and explorations keep their own claim functions, which already work and have their own tests. New work (M2 onward) uses the queue.
 - **Features flag:** `workspaces.features` (`testing`, `marketing`). Only the server changes it.
   - Existing and new workspaces start with `testing`, so nothing changes for them.
   - Turning on `marketing` shows the new screens. With both, the testing screens sit under one Testing group.
   - Logic in `src/lib/nav.ts`, tested in `tests/nav.test.ts`.
-- **First screens** (`ToolIntro`) for Visitors, Journeys, Pages and Reports (`src/components/app/views/MarketingIntros.tsx`).
+- **First screens** (`ToolIntro`) for Journeys, Pages and Reports (`src/components/app/views/MarketingIntros.tsx`).
 - **Settings › Suite:** connect Omniscient and Arrowsterr with an address and an API key.
   - The key is sealed. Private addresses are refused, and redirects aren't followed.
   - Each product is checked with `GET /api/v1/me`, which Omniscient and Arrowsterr must answer (Part 5).
@@ -168,28 +156,6 @@ supabase/migrations/   020 onward
 
 **Moved later:** Stripe plans for the platform (Part 10) move to week 18, before the Beta. There's nothing to meter until contacts and emails exist.
 
-### M1. Website Intelligence (weeks 2–5)
-
-Scope and rules: `docs/identity.md` (all parts) and `docs/account-intelligence.md` Parts 3, 5, 6.1, 7.1 and 7.2.
-
-**MVP cut for this plan:**
-
-| Piece | In the MVP | Later |
-|---|---|---|
-| `claritia.js` with consent, GPC, URL scrubbing, form capture, signed identify | Yes | — |
-| Collect with region policy, bots, sessions, proxy path recipes | Yes | ClickHouse at Growth |
-| Identity stitching (evidence levels, device states, backfill, undo, erasure) | Yes | — |
-| Company match: IPinfo Business, learned networks, domain aliases | Yes | Snitcher as a second source, bring your own key for 6sense and Demandbase |
-| Enrichment: Coresignal company data | Yes | People suggestions, tech scan, job boards |
-| Signals: website set (`docs/account-intelligence.md` 7.1) | Yes | Company events (7.3) |
-| Screens: Visitors (live), Accounts, Account page, Person page | Yes | — |
-
-**Done when:**
-- A design partner sees named accounts within 5 minutes of install.
-- All 38 identity browser cases pass.
-
----
-
 ### M2. Contacts and Segments (weeks 7–9)
 
 **Problem:** marketing needs its own list of people, with consent and behavior, without fighting the CRM.
@@ -197,9 +163,9 @@ Scope and rules: `docs/identity.md` (all parts) and `docs/account-intelligence.m
 **Data (migration `023_contacts.sql`):**
 
 ```
-contacts       (id, workspace_id, person_id → identity, email, first_name, last_name, title, company_id,
+contacts       (id, workspace_id, email, first_name, last_name, title, company_id,
                 country, region, lifecycle text, source, owner_id, fields jsonb, created_at, updated_at)
-companies      (id, workspace_id, account_id → M1 accounts, domain, name, size, industry, fields jsonb)
+companies      (id, workspace_id, domain, name, size, industry, fields jsonb)
 consents       (id, workspace_id, contact_id, channel text, basis text, -- opt_in, soft_opt_in, legitimate_interest, none
                 status text, -- granted, withdrawn
                 source text, wording text, ip_net, at)                 -- proof of consent
@@ -219,7 +185,7 @@ imports        (id, workspace_id, file_path, mapping jsonb, status, counts jsonb
   - **Contact fields:** title, country, lifecycle and custom fields.
   - **Company fields:** size, industry, tech, fit.
   - **Behavior:** visited a page group N times in N days, opened a form, clicked an email, read a page for N minutes.
-  - **Scores:** intent, fit, engagement.
+  - **Scores:** fit, engagement.
   - **Suite data:** Omniscient opportunity stage or owner, Arrowsterr source (for example "came from an AI answer").
   - **Consent:** subscribed to a topic.
 - Each rule tree compiles to one SQL query with workspace bound parameters, never string-built.
@@ -230,13 +196,12 @@ imports        (id, workspace_id, file_path, mapping jsonb, status, counts jsonb
 | Source | Direction | What |
 |---|---|---|
 | Omniscient | Both ways | Contacts, accounts, owners, opportunity stage. Claritia writes marketing activities (email sent, page read, form) to the Omniscient timeline. |
-| HubSpot (`docs/account-intelligence.md` 6.2) | Both ways | For teams not on Omniscient |
+| HubSpot | Both ways | For teams not on Omniscient |
 | Salesforce | Both ways (later, week 27+) | Leads, contacts, accounts, opportunities, campaign members |
-| Segment, PostHog | In | Product events and identify |
 | Stripe | In | Customer status, plan, MRR |
-| CSV import | In | With field mapping, dedupe through identity, and a consent basis column required |
+| CSV import | In | With field mapping, dedupe on cleaned email, and a consent basis column required |
 
-**Dedupe:** contacts match on cleaned email through `docs/identity.md` Part 6. A contact always points to one identity person.
+**Dedupe:** contacts match on cleaned email (`src/lib/email/address.ts`).
 
 **Screens:**
 - **Contacts:** table with column filters and saved views, and a contact page with timeline, consents, segments, journeys and scores.
@@ -292,7 +257,7 @@ imports        (id, workspace_id, file_path, mapping jsonb, status, counts jsonb
 | Reject | Logged, alert |
 
 **Tracking:**
-- **Clicks:** links rewritten to `t.<customer domain>/c/<token>` (`docs/identity.md` 5.6 rules), with human-proof handling so scanner clicks don't count.
+- **Clicks:** links rewritten to `t.<customer domain>/c/<token>` , with human-proof handling so scanner clicks don't count.
 - **Opens:** tracked with a pixel but labeled "unreliable" in reports, because Apple Mail Privacy Protection and scanners load images. Reports lead with clicks, replies, page reads and conversions.
 
 **Templates:**
@@ -359,7 +324,7 @@ send_limits     (workspace_id, per_second, per_day, paused bool, paused_reason)
 - Haiku drafts a voice guide from the 20 best pages: tone, words to use, words to avoid, and sentence length.
 - The marketer edits and approves it. Every write step uses it.
 
-**Verifier:** shared with briefs (`docs/account-intelligence.md` 9.3). A supported claim must quote its atom word for word, or it's removed.
+**Verifier:** shared with briefs. A supported claim must quote its atom word for word, or it's removed.
 
 **Data (migration `025_brain.sql`):** `brain_sources`, `atoms (id, workspace_id, kind, text, source_id, span, tags jsonb, embedding vector(1024), expires_at)`, `voice (workspace_id, guide jsonb, approved_by, approved_at)`.
 
@@ -383,7 +348,7 @@ send_limits     (workspace_id, per_second, per_day, paused bool, paused_reason)
 | Segment entered or left | "Fit 70+ and visited pricing" |
 | Form submitted | Guide download |
 | Event | Product signup, invite sent, plan limit hit |
-| Score crossed | Intent passed 60 |
+| Score crossed | Engagement passed 60 |
 | Omniscient change | Opportunity lost, contact became customer |
 | Date | Renewal in 60 days, webinar date |
 | Manual or API | Add from a list, `POST /api/v1/journeys/:id/enroll` |
@@ -474,8 +439,6 @@ approvals     (id, workspace_id, kind, ref_id, payload jsonb, status, decided_by
 **Pages:**
 - **Blocks:** hero, logos, proof (atoms), case study, features, video, demo embed, pricing note, FAQ, form, meeting booker, CTA, footer. One renderer serves both the editor and the live page.
 - **AI build** (Sonnet 5.5): from a goal, a persona and an offer, it builds a page from the Brand Brain. Every claim cites an atom (the verifier rule).
-- **Personalization:** `claritia.js` swaps marked slots (`data-clr-slot`) for visitors in a segment or account, with an anti-flicker cap of 300 ms. Variants are written once per segment, so there's no model call per view.
-- **A/B tests:** split by visitor hash. A winner is called on conversion rate once each side has 100+ views and the gap holds for 7 days.
 - **Hosting:** `go.<customer domain>` through Fly certificates (check the price per hostname), or `pages.tryclaritia.com/<team>`. Rendered statically, and refreshed on publish.
 - **Publishing:** goes through Approvals until the team trusts it. Funnel QA (M9) runs before every publish.
 
@@ -483,8 +446,8 @@ approvals     (id, workspace_id, kind, ref_id, payload jsonb, status, decided_by
 - **Fields:** standard fields, custom fields and hidden fields (UTM tags, page, segment).
 - **Progressive profiling:** known contacts aren't asked again. The next unknown field is shown instead.
 - **Consent block:** wording by region (opt-in checkbox in `strict` regions, notice elsewhere), recorded in `consents` with the exact wording.
-- **Spam:** a honeypot plus Cloudflare Turnstile (free tier, check), a rate limit per network, and disposable email blocking (`docs/identity.md` 5.4).
-- **After submit:** a thank-you page or redirect, a journey trigger, identity evidence (Asserted), and optional instant booking.
+- **Spam:** a honeypot plus Cloudflare Turnstile (free tier, check), a rate limit per network, and disposable email blocking.
+- **After submit:** a thank-you page or redirect, a journey trigger, and optional instant booking.
 - **Embed:** a script tag on any site, or native on Claritia pages. The HubSpot form adapter stays for teams keeping HubSpot forms.
 
 **Booking:**
@@ -506,14 +469,13 @@ approvals     (id, workspace_id, kind, ref_id, payload jsonb, status, decided_by
 
 ### M7. Scoring, Routing and Handoff (week 6 basic, weeks 23–24 full)
 
-**Scores** (rules from `docs/account-intelligence.md` Part 8):
+**Scores:**
 
 | Score | Level | What feeds it |
 |---|---|---|
 | Fit | Account | ICP rules, then learned from won deals |
-| Intent | Account | Website signals with decay, breadth bonus and per-person cap |
 | Engagement | Contact | Email clicks and replies, page reads, forms, events, with decay |
-| Readiness | Contact | Fit × intent × engagement, mapped to Cold, Warm, Ready |
+| Readiness | Contact | Fit × engagement, mapped to Cold, Warm, Ready |
 
 **Handoff rule** (editable): readiness is Ready, or a demo request, or a pricing page plus a form within 7 days.
 
@@ -553,7 +515,7 @@ approvals     (id, workspace_id, kind, ref_id, payload jsonb, status, decided_by
 | Source | Touch |
 |---|---|
 | Arrowsterr | AI answer referral (chatgpt.com, perplexity.ai, gemini, claude.ai, copilot), organic search landing, tracked prompt or topic match |
-| Claritia | Session source, email click, page view, form, journey step |
+| Claritia | Email click, form, journey step |
 | Omniscient | Meeting, rep email, opportunity created, stage change, won or lost |
 | Ads (later) | Google Ads and LinkedIn Ads clicks and costs through their APIs |
 
@@ -569,9 +531,9 @@ approvals     (id, workspace_id, kind, ref_id, payload jsonb, status, decided_by
 | Pages and forms | Views, conversion, A/B results, pipeline |
 | Content (atoms) | Which atoms appear in emails and pages before meetings and wins |
 | Accounts | Hot accounts, movement by stage, time to handoff |
-| Funnel | Visitor to lead to Ready to opportunity to won, with conversion and time per step |
+| Funnel | Lead to Ready to opportunity to won, with conversion and time per step |
 
-**Weekly AI summary:** Opus 5.5 through the Batch API, every Monday. "What worked and what didn't", where every claim cites a report number (n ≥ 20 rule from `docs/account-intelligence.md` M7).
+**Weekly AI summary:** Opus 5.5 through the Batch API, every Monday. "What worked and what didn't", where every claim cites a report number (n ≥ 20 rule).
 
 **Tests:**
 - Attribution fixtures give exact cents per model.
@@ -654,7 +616,6 @@ Cost on the Omniscient side: $0 added (API traffic on existing servers).
 
 | Need | How |
 |---|---|
-| AI referral and organic landing data | Claritia tags sessions from AI assistants and search itself (M1). Arrowsterr adds the matching prompt and topic. |
 | Topics, prompts, content plan | Arrowsterr API (the same data its MCP server exposes: prompts, topic bank, content plan, visibility) |
 | Back to Arrowsterr | Conversion and pipeline per landing page and topic, so Arrowsterr can show "this topic made $X" |
 
@@ -678,7 +639,7 @@ Work on the Arrowsterr side: an API key and 3 endpoints if they don't exist yet 
 
 | Phase | Weeks | Modules | Release |
 |---|---|---|---|
-| **A. See** | 1–6 | M0, M1, M7 basic handoff, Omniscient API, Funnel QA script health | Design partners see hot accounts in Omniscient |
+| **A. See** | 1–6 | M0, M7 basic handoff, Omniscient API, Funnel QA script health | Design partners see their leads in Omniscient |
 | **B. Reach** | 7–12 | M2 contacts and segments, M3 email engine, Funnel QA email render | Broadcasts and newsletters with consent and deliverability |
 | **C. Nurture** | 13–19 | M5 Brand Brain, M4 Journeys and agent steps | **Public Beta (Starter plan)** |
 | **D. Convert** | 20–22 | M6 pages, forms, booking, personalization, Funnel QA page and form checks | Growth plan on sale |
@@ -690,11 +651,6 @@ Work on the Arrowsterr side: an API key and 3 endpoints if they don't exist yet 
 | Week | Work |
 |---|---|
 | 1 | Jobs queue, migrations, nav, audit and privacy tables |
-| 2 | `claritia.js` (events, consent, GPC, scrubbing, forms, identify), suite connection screens |
-| 3 | Collect (policy, bots, sessions, cookies, proxy path), IPinfo |
-| 4 | Identity stitching, internal traffic, erasure |
-| 5 | Accounts, learned networks, Coresignal, signals, intent and fit. Omniscient API (part 1). |
-| 6 | Visitors and Accounts screens, basic handoff to Omniscient, Slack alerts. Omniscient API (part 2, webhooks). |
 | 7 | Contacts, companies, consents, fields, import |
 | 8 | Segment builder and engine |
 | 9 | Syncs: Omniscient both ways, HubSpot, Segment, PostHog, Stripe |
@@ -746,21 +702,21 @@ Work on the Arrowsterr side: an API key and 3 endpoints if they don't exist yet 
 
 | Kind | Where |
 |---|---|
-| Unit and property tests (segments, scores, attribution, journey engine, identity) | `tests/*.test.ts` |
-| Real-browser checks (script, identity, forms, pages, email renders, consent matrix) | `scripts/*-check.ts` on Chromium, plus WebKit and Firefox in CI |
+| Unit and property tests (segments, scores, attribution, journey engine) | `tests/*.test.ts` |
+| Real-browser checks (forms, pages, email renders, consent matrix) | `scripts/*-check.ts` on Chromium, plus WebKit and Firefox in CI |
 | Suite integration (Omniscient and HubSpot test workspaces) | `scripts/suite-check.ts` |
 | AI evals (Write, Decide, page build, verifier, weekly summary) | `scripts/ai-eval.ts` in CI on any prompt or model change |
 | Deliverability (Resend test addresses for delivered, bounced and complained) | `scripts/email-check.ts` |
 | Leak tests on every table | `tests/db/leaks.sql` |
-| Load (collect 10K events a second, 10K journey steps a minute, 50 sends a second) | `scripts/load-*.ts` |
+| Load (10K journey steps a minute, 50 sends a second) | `scripts/load-*.ts` |
 
-Reliability rule from CLAUDE.md: no change to the journey engine, the send pipeline, identity or Funnel QA ships without a test that proves it on a flaky case (slow page, late event, retry, failed send).
+Reliability rule from CLAUDE.md: no change to the journey engine, the send pipeline or Funnel QA ships without a test that proves it on a flaky case (slow page, late event, retry, failed send).
 
 ---
 
 ## Part 9. Compliance
 
-Website rules are in `docs/account-intelligence.md` Part 3 and `docs/identity.md` Part 3. Email adds these.
+Email adds these rules.
 
 ### 9.1 Lawful basis to email, by region (check each with a lawyer)
 
@@ -790,7 +746,7 @@ Website rules are in `docs/account-intelligence.md` Part 3 and `docs/identity.md
 
 ### 9.4 Data
 
-- Same retention, erasure, export and sub-processor rules as `docs/account-intelligence.md` Part 3.
+- Retention, erasure, export and sub-processor rules apply to contacts and email data alike.
 - Resend and Cloudflare Turnstile are added to the sub-processor list.
 
 ---
@@ -802,7 +758,7 @@ The table below is the earlier draft.
 
 | Plan | Price | Includes |
 |---|---|---|
-| Starter | $299/mo | 5,000 contacts, 25,000 emails/mo, 1 site, Website Intelligence, segments, broadcasts, 3 journeys with agent steps (review mode), Funnel QA basics |
+| Starter | $299/mo | 5,000 contacts, 25,000 emails/mo, segments, broadcasts, 3 journeys with agent steps (review mode), Funnel QA basics |
 | Growth | $799/mo | 25,000 contacts, 100,000 emails/mo, 3 sites, unlimited journeys, review-sample and auto modes, pages and forms, personalization, attribution, Omniscient and HubSpot sync |
 | Scale | From $1,999/mo | 100,000+ contacts, dedicated sending IPs, Salesforce, Marketing Agent, SSO, priority support |
 | Suite bundle | 20% off when a team runs Arrowsterr, Claritia and Omniscient together | — |
@@ -830,7 +786,7 @@ The table below is the earlier draft.
 
 | Module | Use | Per team |
 |---|---|---|
-| M1, M7 | Score reasons (Haiku, on change only), handoff briefs (Haiku) | $12 |
+| M7 | Score reasons (Haiku, on change only), handoff briefs (Haiku) | $12 |
 | M4 Decide | Haiku, 20,000 calls, cached when inputs repeat | $10 |
 | M4 Write | Haiku for most, Sonnet for fit 80+ | $20 |
 | M5 Brand Brain | Distill and voice (Haiku), embeddings (Voyage, check) | $3 |
@@ -849,20 +805,19 @@ Claude prices: Haiku 5.5 $0.10/$0.50, Sonnet 5.5 $2/$10, Opus 5.5 $4/$20 per mil
 | Resend, marketing sends and app notifications (2.5M emails a month at Beta, 25M at Growth, check) | $1,150 (check) | $5,000 (custom quote, check) |
 | Dedicated sending IPs (about $25 each, check) | $50 (2) | $250 (10) |
 | Coresignal (check) | $1,500 | $5,000 |
-| IPinfo Business (check) | $249 | $1,000 |
-| Fly: web, collect, agent, relay (check) | $25 | $120 |
+| Fly: web, agent, relay (check) | $25 | $120 |
 | Supabase Pro + compute (check) | $85 | $135 |
 | ClickHouse Cloud (check) | — | $300 |
 | Cloudflare Turnstile | $0 (check) | $0 (check) |
 | SOC 2 compliance tool (check) | — | $850 |
-| **Total** | **$6,059** | **$42,655** |
-| **Per team** | **About $121** | **About $85** |
+| **Total** | **$5,810** | **$41,655** |
+| **Per team** | **About $116** | **About $83** |
 
 **Ways to cut the bill:**
 - Haiku for Write by default.
 - The decision cache on Decide.
 - The Batch API for summaries.
-- A shared company cache for Coresignal and IPinfo.
+- A shared company cache for Coresignal.
 - Enrichment only for accounts with real activity.
 
 ---
@@ -873,11 +828,10 @@ Claude prices: Haiku 5.5 $0.10/$0.50, Sonnet 5.5 $2/$10, Opus 5.5 $4/$20 per mil
 |---|---|---|
 | Deliverability problems from one bad sender | Shared IP reputation drops for everyone | Domain verification gate, complaint pause at 0.2%, reputation tiers in the shared pool, dedicated IPs at volume, no purchased lists |
 | AI writes something false or off-brand | Trust lost | Atoms only, verifier, voice guide, review modes unlocked by approval history |
-| Wrong identity link drives a wrong email | Creepy or wrong message | Probable never sends, no tracking mentions, `can_act()` gate |
 | Omniscient API slips | Handoff and booking blocked | HubSpot sync as the fallback path, built in week 9 |
 | Resend rate limits or plan caps | Launch delay | Ask Resend for the volume plan and rate raise in week 1 |
 | Too much scope for one team | Late launch | Phase releases each stand alone. Beta at week 19 needs only phases A to C. |
-| HubSpot and Conversion.ai move faster | Harder sales | Suite bundle, price, Website Intelligence and Funnel QA that they don't have |
+| HubSpot and Conversion.ai move faster | Harder sales | Suite bundle, price and Funnel QA that they don't have |
 
 ---
 
@@ -886,7 +840,6 @@ Claude prices: Haiku 5.5 $0.10/$0.50, Sonnet 5.5 $2/$10, Opus 5.5 $4/$20 per mil
 | Item | Needed by | Lead time |
 |---|---|---|
 | Resend volume plan, rate raise and webhook for email events | Week 10 (ask in week 1) | Days |
-| IPinfo Business plan | Week 3 | 1 day |
 | Coresignal plan upgrade (Premium at Beta) | Week 5 | 1 day |
 | Omniscient API work (Part 5.1) | Weeks 5–6 | In the build |
 | Arrowsterr API key and endpoints | Week 13 | In the build (check what exists) |
@@ -905,7 +858,5 @@ Claude prices: Haiku 5.5 $0.10/$0.50, Sonnet 5.5 $2/$10, Opus 5.5 $4/$20 per mil
 |---|---|
 | `CLAUDE.md` | First paragraph rewritten for the marketing platform. Rules stay. |
 | `docs/vision.md`, `docs/plan.md`, `docs/homepage.md` | Rewritten for the new product when building starts |
-| `docs/pivot-plan.md` | Marked as replaced by this file |
-| `docs/identity.md`, `docs/account-intelligence.md` | Stay as the specs for M1 and M7 |
 | Testing product (runner, Explorer, recorder, tunnel, Planner, MCP) | Kept. Powers Funnel QA (M9) and the Explorer crawls for M5. Screens hidden for new workspaces. |
 | Homepage tryclaritia.com | New copy after the Beta at week 19 |

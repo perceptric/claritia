@@ -33,7 +33,6 @@ This plan changes the order in `docs/conversion-parity.md`. Weeks 1 to 8 are bui
 | Scheduling | Calendar in the form, shareable links, a Chrome extension for handoffs | The same, on Google and Microsoft calendars, with group events and no-show tracking |
 | Workflows | Drag-and-drop builder for the steps after a form fill | A Router: one screen per form that runs qualify, route and book in order (the full workflow canvas comes later, Part 8) |
 | CRM | Pushes to Salesforce and HubSpot | Claritia's own records, plus two-way HubSpot, Salesforce and Omniscient (built) |
-| — | — | Website visitors and company match (M1), and AI search data from Arrowsterr |
 | Pricing | Platform fee plus a seat fee for people who take meetings (about $45 a seat for routing and scheduling, check) | Set before Beta (Part 11) |
 
 ## Part 2. Built for small teams
@@ -51,7 +50,6 @@ The promise against HubSpot, in rules every screen follows:
 
 | Second | What happens | Module |
 |---|---|---|
-| 0 | Dana at Acme opens the pricing page. M1 matches Acme by IP. | M1 |
 | 5 | Dana types a work email into the demo form. Claritia looks up Acme and Dana in the background. | I1, I2 |
 | 6 | Company size and industry are known, so the form hides those fields. Dana sees 2 fields instead of 6. | I1, I2 |
 | 15 | Dana sends the form. The contact is saved with consent and the earlier visits attached. | I1, M2 |
@@ -140,7 +138,7 @@ router_runs   (id, workspace_id, router_id, contact_id, submission_id, outcome, 
 ### I4. Routing (week 14)
 
 **What it does:**
-- **Match first:** existing contact owner, then account owner (lead-to-account matching by domain, aliases from M1, and fuzzy company name), then owner of an open opportunity.
+- **Match first:** existing contact owner, then account owner (lead-to-account matching by domain, and fuzzy company name), then owner of an open opportunity.
 - **Then queues:** territory (country, region, state), segment, size band, named account lists, or any field.
 - **Inside a queue:** round robin, weighted round robin, or by capacity (open leads this week against each rep's cap). People out of office (from their calendar) are skipped.
 - **AI routing (optional):** Haiku picks one of the named queues with a reason, for teams whose rules are hard to write down.
@@ -278,7 +276,7 @@ Forms took `039` to `042`; enrichment, routing and meetings take `043` to `045`.
 
 ### 10.1 Per team per month
 
-Assumptions: 500 form fills, 300 new people enriched (the rest are known or cached), 2,000 company lookups (already in M1's Coresignal line), 500 AI checks, 50 deep research briefs, 300 AI routing calls, 150 meetings with 3 emails each.
+Assumptions: 500 form fills, 300 new people enriched (the rest are known or cached), 2,000 company lookups, 500 AI checks, 50 deep research briefs, 300 AI routing calls, 150 meetings with 3 emails each.
 
 | Item | Use | Per team |
 |---|---|---|

@@ -89,7 +89,7 @@ async function deal(ws: string, c: string, stage: string, amount: number, at: st
   return id;
 }
 
-test("the funnel, by hand: two fills count once, a merged contact once, test and spam fills not at all, older leads stay out", async () => {
+test("the funnel, by hand: two fills count once, test and spam fills not at all, older leads stay out", async () => {
   const { ws, user, form } = await workspace();
   // A: first fill from Google, routed, a held meeting, a won deal of 1,000.
   const a = await contact(ws);
@@ -97,10 +97,6 @@ test("the funnel, by hand: two fills count once, a merged contact once, test and
   await routed(ws, a, user, "2026-10-05T15:00:05Z");
   await meeting(ws, a, user, "2026-10-05T16:00:00Z", "held");
   await deal(ws, a, "won", 1000, "2026-10-06T10:00:00Z");
-  // M: a second contact for the same person, merged into A. Its fill doesn't add a lead.
-  const m = await contact(ws);
-  await fill(ws, form, m, "2026-10-07T15:00:00Z");
-  await as(user, `select contacts_merge($1, $2) r`, [a, m]);
   // B: two fills, an MQL, routed and booked; a deal still open.
   const b = await contact(ws, { lifecycle: "mql" });
   await fill(ws, form, b, "2026-10-08T15:00:00Z");
@@ -135,7 +131,7 @@ test("the funnel, by hand: two fills count once, a merged contact once, test and
 
   // Forms and Reps agree with the funnel.
   const f = await as<{ forms: { id: string; submits: number; booked: number; people: number }[]; rules: { id: string; leads: number; booked: number }[] }>(user, `select report_forms($1, '2026-10-01', '2026-10-31') r`, [ws]);
-  assert.equal(f.forms[0]!.submits, 5);
+  assert.equal(f.forms[0]!.submits, 4);
   assert.equal(f.rules[0]!.leads, 2);
   assert.equal(f.rules[0]!.booked, 2);
   const reps = await as<{ reps: { id: string; leads: number; booked: number; held: number }[] }>(user, `select report_reps($1, '2026-10-01', '2026-10-31') r`, [ws]);
@@ -210,7 +206,7 @@ test("form beacons: a reload within 30 minutes adds no view, a start counts once
   assert.deepEqual([d.views, d.starts], [2, 1]);
 });
 
-test("first touch: set by the first real fill and never changed; contacts with no fill get it from their first visit", async () => {
+test("first touch: set by the first real fill and never changed; contacts with no fill get their source", async () => {
   const { ws, form } = await workspace("UTC");
   const c = await contact(ws);
   await fill(ws, form, c, "2026-10-05T12:00:00Z", { test: true, hidden: { utm_source: "test" } });
@@ -222,54 +218,16 @@ test("first touch: set by the first real fill and never changed; contacts with n
   assert.equal(t.medium, "cpc");
   assert.equal(t.form_id, form);
 
-  const site = (await q(`insert into sites (workspace_id, domain) values ($1, $2) returning id`, [ws, `ft-${ws.slice(-8)}.com`]))[0].id;
-  const person = randomUUID();
-  const imported = await contact(ws, { source: "import" });
-  await q(`update contacts set person_id = $2, created_at = now() - interval '1 hour' where id = $1`, [imported, person]);
-  await q(`insert into sessions (id, workspace_id, site_id, started_at, ended_at, policy, cookieless_key, person_id, source, campaign, ref_class) values ($1, $2, $3, now() - interval '3 days', now(), 'notice', '\\x01', $4, 'newsletter', 'oct', 'email')`, [
-    randomUUID(),
-    ws,
-    site,
-    person,
-  ]);
   const plain = await contact(ws, { source: "import" });
   await q(`update contacts set created_at = now() - interval '1 hour' where id = $1`, [plain]);
   await q(`select first_touch_fill()`);
-  const ft = Object.fromEntries((await q(`select id, first_touch from contacts where id = any($1)`, [[imported, plain]])).map((r) => [r.id, r.first_touch]));
-  assert.equal(ft[imported].source, "newsletter");
-  assert.equal(ft[imported].campaign, "oct");
-  assert.equal(ft[plain].source, "import");
+  const ft = (await q(`select first_touch from contacts where id = $1`, [plain]))[0].first_touch;
+  assert.equal(ft.source, "import");
 });
 
-test("visits: rolled days come from site_daily, the rest live; bots and internal visits are left out", async () => {
-  const { ws, user } = await workspace("UTC");
-  const site = (await q(`insert into sites (workspace_id, domain) values ($1, $2) returning id`, [ws, `v-${ws.slice(-8)}.com`]))[0].id;
-  const visit = (at: string, o: { bot?: boolean; internal?: boolean; source?: string } = {}) =>
-    q(`insert into sessions (id, workspace_id, site_id, started_at, ended_at, policy, cookieless_key, source, is_bot, internal, pageviews) values ($1, $2, $3, $4, $4, 'notice', '\\x02', $5, $6, $7, 1)`, [
-      randomUUID(),
-      ws,
-      site,
-      at,
-      o.source ?? "google",
-      !!o.bot,
-      !!o.internal,
-    ]);
-  await visit("2026-10-05T10:00:00Z");
-  await visit("2026-10-05T11:00:00Z", { source: "bing" });
-  await visit("2026-10-05T12:00:00Z", { bot: true });
-  await visit("2026-10-05T12:00:00Z", { internal: true });
-  await visit("2026-10-06T10:00:00Z");
-  const live = await as<{ now: { visits: number } }>(user, `select report_funnel($1, '2026-10-05', '2026-10-06') r`, [ws]);
-  assert.equal(live.now.visits, 3);
-  await q(`select site_daily_roll($1, '2026-10-05')`, [ws]);
-  const rolled = await as<{ now: { visits: number; groups: { key: string; visits: number }[] } }>(user, `select report_funnel($1, '2026-10-05', '2026-10-06', 'source') r`, [ws]);
-  assert.equal(rolled.now.visits, 3);
-  assert.deepEqual(Object.fromEntries(rolled.now.groups.map((g) => [g.key, g.visits])), { google: 2, bing: 1 });
-});
 
-test("each report answers in under 1.5 s on 50,000 contacts and 200,000 visits", async () => {
+test("each report answers in under 1.5 s on 50,000 contacts", async () => {
   const { ws, user, form } = await workspace("UTC");
-  const site = (await q(`insert into sites (workspace_id, domain) values ($1, $2) returning id`, [ws, `load-${ws.slice(-8)}.com`]))[0].id;
   await q(
     `insert into contacts (id, workspace_id, email, email_clean, email_class, source, owner_user_id, created_at)
      select gen_random_uuid(), $1, 'l' || g || '@load.io', 'l' || g || '@load.io', 'work', 'form', $2, now() - (g % 365) * interval '1 day' from generate_series(1, 50000) g`,
@@ -285,13 +243,7 @@ test("each report answers in under 1.5 s on 50,000 contacts and 200,000 visits",
      select $1, c.id, gen_random_uuid()::text, 'form', 'owner', $2, 'r' || (random() * 5)::int, c.created_at + interval '1 minute' from contacts c where c.workspace_id = $1 and random() < 0.6`,
     [ws, user],
   );
-  await q(
-    `insert into sessions (id, workspace_id, site_id, started_at, ended_at, policy, cookieless_key, source, pageviews)
-     select gen_random_uuid(), $1, $2, now() - (g % 365) * interval '1 day' - (g % 1440) * interval '1 minute', now(), 'notice', '\\x03', case when g % 3 = 0 then 'google' else 'direct' end, 2
-     from generate_series(1, 200000) g`,
-    [ws, site],
-  );
-  await q(`analyze contacts; analyze submissions; analyze sessions; analyze router_runs`);
+  await q(`analyze contacts; analyze submissions; analyze router_runs`);
   const to = (await q(`select current_date - 1 as d`))[0].d.toISOString().slice(0, 10);
   const from = (await q(`select current_date - 30 as d`))[0].d.toISOString().slice(0, 10);
   for (const [name, sql] of [

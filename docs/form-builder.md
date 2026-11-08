@@ -82,7 +82,7 @@ type Field = {
 
 ### 4.1 The first screen
 
-A `ToolIntro` with one input: "What should this form do?" and the site address filled in from the workspace's site (M1 `sites`). Three "Try" examples: "Demo requests, work emails only", "Contact sales with a meeting", "Newsletter signup with consent". Below, the template cards (demo request, contact sales, free trial, event signup, newsletter, partner application, job application, support request).
+A `ToolIntro` with one input: "What should this form do?" and the site address filled in from the workspace's site (`sites`). Three "Try" examples: "Demo requests, work emails only", "Contact sales with a meeting", "Newsletter signup with consent". Below, the template cards (demo request, contact sales, free trial, event signup, newsletter, partner application, job application, support request).
 
 ### 4.2 How the chat works
 
@@ -194,11 +194,10 @@ Running cost: the scan already exists (5.1) and runs once per site, plus the mon
 | Hosted page | `forms.tryclaritia.com/<team>/<form>`, rendered on the server, with the brand kit and logo. Custom domain later. |
 | Pop-up and slide-in | The same component, opened by a button, time on page, scroll depth or exit intent |
 | React SDK | `@claritia/forms`: `<ClaritiaForm id>` and a headless `useClaritiaForm(id)` that gives fields, errors and submit for teams who draw their own inputs |
-| With `claritia.js` | If the site script is installed, the form uses its session, so earlier visits attach to the lead (M1) |
 
 - **Size:** under 23 KB gzipped for the component (20 KB before calc fields, richer rules and field numbers, `docs/forms-plan.md`), schema loaded with it from the edge cache. The script loads `async` and never blocks the page.
 - **Accessibility:** labels tied to inputs, errors announced, full keyboard use, focus kept on step changes, respects reduced motion. Checked by axe in CI on every template.
-- **Fields at work:** work email check (free mail list from `src/lib/identity/domainList.ts`), phone by country with live format, country and state lists, prefill from URL params and for known contacts (only fields the contact can already see, never enriched data).
+- **Fields at work:** work email check (free mail list in `src/lib/email/address.ts`), phone by country with live format, country and state lists, prefill from URL params and for known contacts (only fields the contact can already see, never enriched data).
 - **Spam:** Turnstile (invisible), a honeypot field, and a minimum fill time. Spam is kept 7 days in a Spam tab and never delivered.
 - **Never lose a submit:** the component saves the submit in `localStorage` with its `idem_key` and retries for 24 hours with backoff if `collect` can't be reached. `collect` treats a repeat key as the same submission.
 
@@ -324,7 +323,6 @@ type Schedule =
 
 For teams who keep their HubSpot, Webflow, Marketo or Framer forms:
 
-- **Today's rule:** `claritia.js` reads only the email from a form (`docs/identity.md` 5.4). That rule stays for every form a team hasn't set up in Claritia.
 - **Set up a captured form:** in Forms › Capture, the team points at a form on their site (the runner lists the forms it finds, with a screenshot). The chat maps its fields to the registry. Only then does `claritia.js` read that form's mapped fields, on that page, and nothing else. Password, card and `data-clr-ignore` fields are never read.
 - **Named adapters** listen to each tool's own success event (HubSpot `onFormSubmitted`, Marketo `onSuccess`, Webflow's success block, Typeform's embed event; check each), so a fill is sent only when the tool accepted it.
 - A captured form gets the same router, scheduler and destinations as a built one. Its native destination keeps working as before.

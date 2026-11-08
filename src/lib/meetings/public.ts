@@ -233,7 +233,7 @@ const guestSlotsOf = (slots: Slot[], from?: number) => slots.filter((s) => from 
 /** The guest as a new contact's row, or null for an address that can't be one (rejected, or the team's own). */
 export async function guestContactRow(g: { email: string; name?: string | null; tz?: string | null }): Promise<Record<string, unknown> | null> {
   // Loaded here: the booking pages import this file, and the cleaner reads its lists from disk when it loads.
-  const { cleanEmail, isRejected } = await import("../identity/clean.ts");
+  const { cleanEmail, isRejected } = await import("../email/address.ts");
   const e = cleanEmail(g.email);
   if (isRejected(e) || e.class === "own") return null;
   const [first, ...rest] = (g.name ?? "").trim().split(/\s+/).filter(Boolean);

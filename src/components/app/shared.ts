@@ -23,10 +23,6 @@ export function useLiveBody(sb: SupabaseClient, ws: string) {
   return useQuery<LiveBody>(`router_live:${ws}`, async () => (must(await sb.rpc("router_live_screen", { p_ws: ws })) as LiveBody) ?? null);
 }
 
-/** Each site's health (site_health), shared by Visitors, Sites and Identity (`site_health:<workspace>`). */
-export function useSiteHealth<T>(sb: SupabaseClient, ws: string) {
-  return useQuery<T[]>(`site_health:${ws}`, async () => (must(await sb.rpc("site_health", { p_ws: ws })) ?? []) as T[]);
-}
 
 /** Form names by id, for the routing log and its run panel. */
 export function useFormNames(sb: SupabaseClient, ws: string) {

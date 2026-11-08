@@ -1,8 +1,8 @@
 // Email consent for contacts (docs/marketing-platform.md 9.1). Every contact carries a basis for email. In strict
-// regions (the EU, EEA, UK and the others in src/lib/web/policy.ts, and anywhere unknown) only opt-in or soft opt-in
+// regions (the EU, EEA, UK and the others in src/lib/contacts/region.ts, and anywhere unknown) only opt-in or soft opt-in
 // count; any other basis is kept as "none", and the contact can't be emailed. Runs in the browser and on the server.
 
-import { regionOf } from "../web/policy.ts";
+import { regionOf } from "./region.ts";
 
 export type Basis = "opt_in" | "soft_opt_in" | "legitimate_interest" | "none";
 

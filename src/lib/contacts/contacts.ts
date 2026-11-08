@@ -3,7 +3,7 @@
 // is sent again, never skipped. Server only.
 
 import { cleanDomain } from "../company/domains.ts";
-import { cleanEmail, isRejected } from "../identity/clean.ts";
+import { cleanEmail, isRejected } from "../email/address.ts";
 import type { Rpc } from "../jobs.ts";
 import { basisFor, BASES, type Basis } from "./consent.ts";
 import { countryCode, customValue, LIFECYCLES, type CustomField } from "./fields.ts";

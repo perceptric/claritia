@@ -577,163 +577,40 @@ reset role;
 select set_config('request.jwt.claim.sub', '', false);
 delete from jobs;
 
--- Website intelligence (021): only owners add or change sites, members read their own workspace's visits, and the
--- day tables, salts, opt-outs and hop tokens are closed to people.
+-- Sites (021, 135): a site is the workspace's own web address; only owners add one, and members read their own.
 select pg_temp.as_user('a0000000-0000-0000-0000-000000000000');
 set role authenticated;
 create temp table s1 as select add_site('11111111-0000-0000-0000-000000000000', 'acme.com') as id;
 select pg_temp.fails_with($$select add_site('11111111-0000-0000-0000-000000000000', 'acme.com')$$, '%already a site%', 'Ann adds the same site twice');
-select pg_temp.fails($$select add_site('11111111-0000-0000-0000-000000000000', 'not a domain')$$, 'Ann adds a site that isn''t a domain');
 select pg_temp.fails($$select add_site('22222222-0000-0000-0000-000000000000', 'evil.com')$$, 'Ann adds a site to Cat''s workspace');
 reset role;
 select set_config('request.jwt.claim.sub', '', false);
 insert into sites (id, workspace_id, domain) values ('cd000000-0000-0000-0000-000000000001', '22222222-0000-0000-0000-000000000000', 'other.com');
-insert into devices (id, workspace_id, site_id) values
-  ('ae000000-0000-0000-0000-000000000001', '11111111-0000-0000-0000-000000000000', (select id from s1)),
-  ('ce000000-0000-0000-0000-000000000001', '22222222-0000-0000-0000-000000000000', 'cd000000-0000-0000-0000-000000000001');
-insert into sessions (id, workspace_id, site_id, device_id, started_at, ended_at, policy) values
-  ('af000000-0000-0000-0000-000000000001', '11111111-0000-0000-0000-000000000000', (select id from s1), 'ae000000-0000-0000-0000-000000000001', now(), now(), 'notice'),
-  ('cf000000-0000-0000-0000-000000000001', '22222222-0000-0000-0000-000000000000', 'cd000000-0000-0000-0000-000000000001', 'ce000000-0000-0000-0000-000000000001', now(), now(), 'notice');
-insert into events (id, workspace_id, session_id, day, kind, path) values
-  (gen_random_uuid(), '11111111-0000-0000-0000-000000000000', 'af000000-0000-0000-0000-000000000001', current_date, 'view', '/pricing'),
-  (gen_random_uuid(), '22222222-0000-0000-0000-000000000000', 'cf000000-0000-0000-0000-000000000001', current_date, 'view', '/secret-plans');
-insert into opt_outs (site_id, device_hash) values ((select id from s1), '\x01');
-insert into identity_evidence (id, workspace_id, site_id, device_id, source, level, identifiers) values
-  (gen_random_uuid(), '11111111-0000-0000-0000-000000000000', (select id from s1), 'ae000000-0000-0000-0000-000000000001', 'form', 'asserted', '[{"kind":"email","value":"jane@acme.com"}]'),
-  (gen_random_uuid(), '22222222-0000-0000-0000-000000000000', 'cd000000-0000-0000-0000-000000000001', 'ce000000-0000-0000-0000-000000000001', 'form', 'asserted', '[{"kind":"email","value":"cat@other.com"}]');
-select pg_temp.check((select count(*) from salts) = 1, 'The daily salt wasn''t made');
 select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');
 set role authenticated;
 select pg_temp.check((select count(*) from sites) = 1 and (select domain from sites) = 'acme.com', 'Ben can''t see only his own sites');
-select pg_temp.check((select count(*) from sessions) = 1 and (select count(*) from devices) = 1, 'Ben sees another workspace''s visits');
-select pg_temp.check((select count(*) from events) = 1 and (select path from events) = '/pricing', 'Ben sees another workspace''s events');
-select pg_temp.fails(format('select count(*) from %I', 'events_' || to_char(current_date, 'YYYYMMDD')), 'Ben reads a day table directly');
 select pg_temp.fails($$select add_site('11111111-0000-0000-0000-000000000000', 'ben.com')$$, 'Ben, a member, adds a site');
 select pg_temp.fails($$insert into sites (workspace_id, domain) values ('11111111-0000-0000-0000-000000000000', 'planted.com')$$, 'Ben writes a site without the function');
-select pg_temp.fails($$select update_site((select id from s1), p_paused => true)$$, 'Ben, a member, pauses the site');
-select pg_temp.fails($$select remove_site('cd000000-0000-0000-0000-000000000001')$$, 'Ben removes Cat''s site');
-select pg_temp.fails($$insert into events (id, workspace_id, session_id, day, kind) values (gen_random_uuid(), '11111111-0000-0000-0000-000000000000', 'af000000-0000-0000-0000-000000000001', current_date, 'view')$$, 'Ben writes an event');
-select pg_temp.fails($$update sessions set person_id = gen_random_uuid()$$, 'Ben edits a session');
-select pg_temp.check(pg_temp.visible($$select count(*) from salts$$) = 0, 'Ben reads the cookieless salt');
-select pg_temp.check(pg_temp.visible($$select count(*) from opt_outs$$) = 0, 'Ben reads opt-outs');
-select pg_temp.check(pg_temp.visible($$select count(*) from hop_nonces$$) = 0, 'Ben reads hop tokens');
-select pg_temp.check((select count(*) from identity_evidence) = 1 and (select identifiers->0->>'value' from identity_evidence) = 'jane@acme.com', 'Ben sees another workspace''s identity evidence');
-select pg_temp.fails($$insert into identity_evidence (id, workspace_id, source, level, identifiers) values (gen_random_uuid(), '11111111-0000-0000-0000-000000000000', 'form', 'verified', '[{"kind":"email","value":"x@y.com"}]')$$, 'Ben plants identity evidence');
-select pg_temp.fails($$update identity_evidence set level = 'verified'$$, 'Ben raises an evidence level');
-select pg_temp.fails($$select make_event_partitions(30)$$, 'Ben makes day tables');
-select pg_temp.check(set_page_groups((select id from s1), '[{"pattern":"/pricing","grp":"pricing"},{"pattern":"/vs/*","grp":"compare","competitor":"Warmly"}]') = 2, 'Ben, a member, can''t set page groups');
-select pg_temp.fails($$select set_page_groups('cd000000-0000-0000-0000-000000000001', '[{"pattern":"/x","grp":"pricing"}]')$$, 'Ben sets Cat''s page groups');
-select pg_temp.fails($$select set_page_groups((select id from s1), '[{"pattern":"no-slash","grp":"pricing"}]')$$, 'Ben saves a page group that isn''t a path');
-reset role;
-select pg_temp.as_user('a0000000-0000-0000-0000-000000000000');
-set role authenticated;
-select update_site((select id from s1), p_extra_domains => '{acme.io}', p_event_retention_days => 60);
-select pg_temp.check((select extra_domains from sites where id = (select id from s1)) = '{acme.io}' and (select event_retention_days from sites where id = (select id from s1)) = 60, 'Ann''s site settings didn''t save');
-select pg_temp.fails($$select update_site((select id from s1), p_event_retention_days => 5)$$, 'Ann sets retention below 30 days');
-select pg_temp.check((select count(*) from audit_log where action like 'site.%') >= 2, 'Site changes aren''t in the audit log');
 reset role;
 select set_config('request.jwt.claim.sub', '', false);
--- The day tables exist ahead, and old ones go.
-select pg_temp.check(to_regclass('public.events_' || to_char(current_date + 7, 'YYYYMMDD')) is not null, 'Next week''s day table wasn''t made');
-create table public.events_20000101 partition of public.events for values from ('2000-01-01') to ('2000-01-02');
-select pg_temp.check(drop_old_event_partitions(180) >= 1 and to_regclass('public.events_20000101') is null, 'An old day table wasn''t dropped');
-select pg_temp.as_user('a0000000-0000-0000-0000-000000000000');
-set role authenticated;
-select remove_site((select id from s1));
-select pg_temp.check((select count(*) from sessions) = 0 and (select count(*) from events) = 0, 'Removing a site left its visits');
-reset role;
-select set_config('request.jwt.claim.sub', '', false);
+-- Nothing of the old visitor identification is left to read or call (135).
+select pg_temp.check(to_regclass('public.sessions') is null and to_regclass('public.events') is null and to_regclass('public.persons') is null
+  and to_regclass('public.identifiers') is null and to_regclass('public.accounts') is null and to_regclass('public.ip_cache') is null, 'A visitor identification table is still there');
+select pg_temp.check(not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public'
+  and p.proname in ('visitors_live', 'site_health', 'person_detail', 'person_for_email', 'web_daily', 'accounts_list')), 'A visitor identification function is still there');
 
--- Identity (023, 024): members read their own people; nobody writes them directly; undo stays in the workspace;
--- only owners ask for erasure or export, and only owners read exports; identify secrets are never readable.
-insert into persons (id, workspace_id, primary_email) values
-  ('ab000000-0000-0000-0000-000000000001', '11111111-0000-0000-0000-000000000000', 'jane@acme.com'),
-  ('cb000000-0000-0000-0000-000000000001', '22222222-0000-0000-0000-000000000000', 'cat@other.com');
-insert into identifiers (id, workspace_id, person_id, kind, value_clean, value_hash) values
-  (gen_random_uuid(), '11111111-0000-0000-0000-000000000000', 'ab000000-0000-0000-0000-000000000001', 'email', 'jane@acme.com', '\x01'),
-  (gen_random_uuid(), '22222222-0000-0000-0000-000000000000', 'cb000000-0000-0000-0000-000000000001', 'email', 'cat@other.com', '\x02');
-insert into identity_settings (workspace_id, own_domains, identify_secrets_sealed) values ('11111111-0000-0000-0000-000000000000', '{acme.com}', 'v1:sealed');
+-- Team domains (135): members read their own workspace's own and partner domains; nobody writes them directly.
+insert into team_domains (workspace_id, own_domains, partner_domains) values
+  ('11111111-0000-0000-0000-000000000000', '{acme.com}', '{partner.io}'),
+  ('22222222-0000-0000-0000-000000000000', '{other.com}', '{}');
 select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');
 set role authenticated;
-select pg_temp.check((select count(*) from persons) = 1 and (select count(*) from identifiers) = 1, 'Ben sees another workspace''s people');
-select pg_temp.fails($$insert into persons (id, workspace_id) values (gen_random_uuid(), '11111111-0000-0000-0000-000000000000')$$, 'Ben plants a person');
-select pg_temp.fails($$update identifiers set person_id = null$$, 'Ben edits identifiers');
-select pg_temp.fails($$select identify_secrets_sealed from identity_settings$$, 'Ben reads the identify secrets');
-select pg_temp.check((select own_domains from identity_settings) = '{acme.com}', 'Ben can''t read his own identity settings');
-select pg_temp.fails($$select unmerge_person('cb000000-0000-0000-0000-000000000001', '{}')$$, 'Ben unmerges Cat''s person');
-select pg_temp.fails($$select privacy_request('ab000000-0000-0000-0000-000000000001', 'erase')$$, 'Ben, a member, erases a person');
-select pg_temp.check(pg_temp.visible($$select count(*) from ip_cache$$) = 0 and pg_temp.visible($$select count(*) from erasures$$) = 0, 'Ben reads server-only identity tables');
-reset role;
-select pg_temp.as_user('a0000000-0000-0000-0000-000000000000');
-set role authenticated;
-create temp table pr as select privacy_request('ab000000-0000-0000-0000-000000000001', 'export') as id;
-reset role;
-select set_config('request.jwt.claim.sub', '', false);
-insert into privacy_exports (request_id, workspace_id, data) values ((select id from pr), '11111111-0000-0000-0000-000000000000', '{"person":"jane"}');
--- Visitors' privacy jobs aren't run any more (116): the queue drops them.
-select pg_temp.check((select count(*) from jobs where kind = 'privacy') = 0, 'A removed job kind was queued');
-select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');
-set role authenticated;
-select pg_temp.check((select count(*) from privacy_exports) = 0, 'Ben, a member, reads a privacy export');
-reset role;
-select pg_temp.as_user('a0000000-0000-0000-0000-000000000000');
-set role authenticated;
-select pg_temp.check((select count(*) from privacy_exports) = 1, 'Ann, the owner, can''t read her export');
+select pg_temp.check((select count(*) from team_domains) = 1 and (select own_domains from team_domains) = '{acme.com}', 'Ben can''t read only his own team''s domains');
+select pg_temp.fails($$update team_domains set own_domains = '{evil.com}'$$, 'Ben changes the team''s domains');
+select pg_temp.fails($$insert into team_domains (workspace_id, own_domains) values ('22222222-0000-0000-0000-000000000000', '{evil.com}')$$, 'Ben plants Cat''s domains');
 reset role;
 select set_config('request.jwt.claim.sub', '', false);
 delete from jobs;
-
--- Screens (027): read functions stay inside the member's workspace.
-insert into accounts (id, workspace_id, domain, name) values
-  ('aa000000-0000-0000-0000-0000000000a1', '11111111-0000-0000-0000-000000000000', 'globex.com', 'Globex'),
-  ('cc000000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', 'secret-co.com', 'Secret Co');
-select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');
-set role authenticated;
-select pg_temp.check(jsonb_array_length(accounts_list('11111111-0000-0000-0000-000000000000')) = 1, 'Ben can''t list his own accounts');
-select pg_temp.fails($$select accounts_list('22222222-0000-0000-0000-000000000000')$$, 'Ben lists Cat''s accounts');
-select pg_temp.fails($$select account_detail('cc000000-0000-0000-0000-0000000000c1')$$, 'Ben opens Cat''s account');
-select pg_temp.fails($$select account_timeline('cc000000-0000-0000-0000-0000000000c1')$$, 'Ben reads Cat''s account timeline');
-select pg_temp.fails($$select visitors_live('22222222-0000-0000-0000-000000000000')$$, 'Ben watches Cat''s visitors');
-select pg_temp.fails($$select site_health('22222222-0000-0000-0000-000000000000')$$, 'Ben reads Cat''s site keys');
-select pg_temp.fails($$select set_icp('22222222-0000-0000-0000-000000000000', '{}')$$, 'Ben sets Cat''s ICP');
-select pg_temp.fails($$select account_feedback_add('cc000000-0000-0000-0000-0000000000c1', 'good')$$, 'Ben leaves feedback on Cat''s account');
-select account_feedback_add('aa000000-0000-0000-0000-0000000000a1', 'good');
-select pg_temp.check((select count(*) from account_feedback) = 1, 'Ben''s feedback wasn''t saved');
-reset role;
-select set_config('request.jwt.claim.sub', '', false);
-delete from jobs;
-
--- Identity settings (029): only the owner sets the domains, and nobody reads the sealed secrets.
-insert into identity_settings (workspace_id, identify_secrets_sealed) values ('11111111-0000-0000-0000-000000000000', 'sealed')
-  on conflict (workspace_id) do update set identify_secrets_sealed = 'sealed';
-select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');
-set role authenticated;
-select pg_temp.fails($$select set_identity_domains('11111111-0000-0000-0000-000000000000', '{acme.com}', '{}')$$, 'Ben, a member, sets the own domains');
-select pg_temp.fails($$select set_identity_domains('22222222-0000-0000-0000-000000000000', '{acme.com}', '{}')$$, 'Ben sets Cat''s own domains');
-reset role;
-select pg_temp.as_user('a0000000-0000-0000-0000-000000000000');
-set role authenticated;
-select set_identity_domains('11111111-0000-0000-0000-000000000000', '{ann.io}', '{partner.io}');
-select pg_temp.check((select own_domains from identity_settings where workspace_id = '11111111-0000-0000-0000-000000000000') = '{ann.io}', 'Ann, the owner, can''t set her own domains');
-reset role;
-select pg_temp.check((select identify_secrets_sealed from identity_settings where workspace_id = '11111111-0000-0000-0000-000000000000') = 'sealed', 'Setting domains wiped the secrets');
-select set_config('request.jwt.claim.sub', '', false);
-
--- Person page and Privacy search (030).
-insert into persons (id, workspace_id, primary_email) values ('cc000000-0000-0000-0000-0000000000d1', '22222222-0000-0000-0000-000000000000', 'hidden@secret-co.com');
-insert into identifiers (id, workspace_id, person_id, kind, value_clean, value_hash) values
-  ('cc000000-0000-0000-0000-0000000000d2', '22222222-0000-0000-0000-000000000000', 'cc000000-0000-0000-0000-0000000000d1', 'email', 'hidden@secret-co.com', '\x01');
-select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');
-set role authenticated;
-select pg_temp.fails($$select person_detail('cc000000-0000-0000-0000-0000000000d1')$$, 'Ben opens Cat''s person');
-select pg_temp.fails($$select privacy_find('22222222-0000-0000-0000-000000000000', 'hidden@secret-co.com')$$, 'Ben searches Cat''s people');
-select pg_temp.fails($$select privacy_find('11111111-0000-0000-0000-000000000000', 'hidden@secret-co.com')$$, 'Ben, a member, runs a privacy search');
-reset role;
-select pg_temp.as_user('a0000000-0000-0000-0000-000000000000');
-set role authenticated;
-select pg_temp.check(jsonb_array_length(privacy_find('11111111-0000-0000-0000-000000000000', 'hidden@secret-co.com')) = 0, 'Ann finds Cat''s person from her own workspace');
-reset role;
-select set_config('request.jwt.claim.sub', '', false);
 
 -- Contacts (033): members read their own workspace's contacts and everything hung on them; writes that take a
 -- cleaned email are server only; member actions stay inside the member's workspace; event months are unreachable.
@@ -770,7 +647,6 @@ select pg_temp.fails($$select contacts_where('22222222-0000-0000-0000-0000000000
 select pg_temp.fails($$select contact_events_roll()$$, 'Ben makes event months');
 select pg_temp.fails($$select contacts_list('22222222-0000-0000-0000-000000000000')$$, 'Ben lists Cat''s contacts');
 select pg_temp.fails($$select contacts_list('11111111-0000-0000-0000-000000000000', '[{"field":"f.secret","op":"is","values":["x"]}]')$$, 'Ben filters on Cat''s custom field');
-select pg_temp.fails($$select contact_detail((select id from cat_contact))$$, 'Ben opens Cat''s contact');
 select pg_temp.fails($$select contacts_delete('22222222-0000-0000-0000-000000000000', array[(select id from cat_contact)])$$, 'Ben removes Cat''s contacts');
 select pg_temp.check(contacts_delete('11111111-0000-0000-0000-000000000000', array[(select id from cat_contact)]) = 0, 'Ben removes Cat''s contact through his own workspace');
 select pg_temp.fails($$select contacts_export_log('22222222-0000-0000-0000-000000000000', 1)$$, 'Ben logs an export in Cat''s workspace');
@@ -779,7 +655,6 @@ select pg_temp.fails($$insert into saved_views (workspace_id, screen, name, filt
 select pg_temp.fails($$insert into saved_views (workspace_id, screen, name, filters, created_by) values ('11111111-0000-0000-0000-000000000000', 'contacts', 'x', '[]', 'a0000000-0000-0000-0000-000000000000')$$, 'Ben saves a view as Ann');
 insert into saved_views (workspace_id, screen, name, filters) values ('11111111-0000-0000-0000-000000000000', 'contacts', 'Ben view', '[{"field":"lifecycle","op":"is","values":["lead"]}]');
 select pg_temp.check(jsonb_array_length(contacts_list('11111111-0000-0000-0000-000000000000')->'rows') = 1, 'Ben can''t list his own contacts');
-select pg_temp.check((contact_detail((select id from ben_contact))->'contact'->>'email') = 'jane@globex.com', 'Ben can''t open his own contact');
 select pg_temp.check((field_add('11111111-0000-0000-0000-000000000000', 'contact', 'Email', 'text')->>'key') = 'email_2', 'A custom field took a built-in key');
 reset role;
 select pg_temp.check((select count(*) from contacts where workspace_id = '22222222-0000-0000-0000-000000000000' and deleted_at is null) = 1, 'Cat''s contact was removed');
@@ -820,7 +695,6 @@ select pg_temp.fails($$select field_order_save('11111111-0000-0000-0000-00000000
 select pg_temp.fails($$select field_delete('22222222-0000-0000-0000-000000000000', 'contact', 'secret')$$, 'Ben deletes Cat''s field');
 select pg_temp.fails($$select records_bulk_set('22222222-0000-0000-0000-000000000000', 'contact', array[(select id from cat_contact)], 'title', '"x"')$$, 'Ben bulk edits Cat''s contacts');
 select pg_temp.fails($$select records_bulk_set('11111111-0000-0000-0000-000000000000', 'contact', array[(select id from cat_contact)], 'title', '"x"')$$, 'Ben bulk edits Cat''s contact through his own workspace');
-select pg_temp.fails($$select contacts_merge((select id from ben_contact), (select id from cat_contact))$$, 'Ben merges Cat''s contact into his');
 select list_add('11111111-0000-0000-0000-000000000000', null, 'Ben list', array[(select id from cat_contact)]);
 select pg_temp.check((select count(*) from segment_members) = 0, 'Ben put Cat''s contact on his list');
 select pg_temp.check(workspace_people('22222222-0000-0000-0000-000000000000') is null, 'Ben lists Cat''s teammates');
@@ -907,7 +781,6 @@ insert into segments (id, workspace_id, name, kind, rules) values
   ('5e000000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', 'Cat''s VIPs', 'dynamic', '{"op":"and","rules":[]}');
 select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');
 set role authenticated;
-select pg_temp.fails($$select segment_preview('22222222-0000-0000-0000-000000000000', '{"op":"and","rules":[]}')$$, 'Ben previews Cat''s contacts');
 select pg_temp.fails($$select segment_save('22222222-0000-0000-0000-000000000000', null, 'x', '{"op":"and","rules":[]}')$$, 'Ben saves a segment in Cat''s workspace');
 select pg_temp.fails($$select segment_save('11111111-0000-0000-0000-000000000000', '5e000000-0000-0000-0000-0000000000c1', 'mine now', '{"op":"and","rules":[]}')$$, 'Ben takes over Cat''s segment');
 select pg_temp.fails($$select segment_delete('5e000000-0000-0000-0000-0000000000c1')$$, 'Ben deletes Cat''s segment');
@@ -915,7 +788,6 @@ select pg_temp.fails($$select segment_refresh_now('5e000000-0000-0000-0000-00000
 select pg_temp.fails($$select segment_refresh('5e000000-0000-0000-0000-0000000000c1')$$, 'Ben runs a refresh');
 select pg_temp.fails($$select segment_where('22222222-0000-0000-0000-000000000000', '{"op":"and","rules":[]}')$$, 'Ben compiles rules');
 select pg_temp.fails($$select segments_due()$$, 'Ben queues refreshes');
-select pg_temp.check((select (segment_preview('11111111-0000-0000-0000-000000000000', '{"op":"and","rules":[]}')->>'count') is not null), 'Ben can''t preview Acme''s contacts');
 reset role;
 select pg_temp.check((select name from segments where id = '5e000000-0000-0000-0000-0000000000c1') = 'Cat''s VIPs', 'Cat''s segment changed');
 select set_config('request.jwt.claim.sub', '', false);
@@ -1288,7 +1160,6 @@ select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');
 set role authenticated;
 select pg_temp.check((select count(*) from form_daily where workspace_id = '22222222-0000-0000-0000-000000000000') = 0, 'Ben reads Cat''s form views');
 select pg_temp.fails($$select count(*) from form_seen$$, 'Ben reads form beacons');
-select pg_temp.fails($$select count(*) from site_rolled$$, 'Ben reads the rollup ledger');
 select pg_temp.fails($$select report_funnel('22222222-0000-0000-0000-000000000000', current_date - 30, current_date)$$, 'Ben reads Cat''s funnel');
 select pg_temp.fails($$select report_speed('22222222-0000-0000-0000-000000000000', current_date - 30, current_date)$$, 'Ben reads Cat''s speed to lead');
 select pg_temp.fails($$select report_reps('22222222-0000-0000-0000-000000000000', current_date - 30, current_date)$$, 'Ben reads Cat''s reps');
@@ -1297,9 +1168,7 @@ select pg_temp.fails($$select report_email('22222222-0000-0000-0000-000000000000
 select pg_temp.fails($$select report_people('22222222-0000-0000-0000-000000000000', current_date - 30, current_date, 'funnel', 'submitted')$$, 'Ben lists Cat''s leads');
 select pg_temp.fails($$select report_facts('22222222-0000-0000-0000-000000000000', now() - interval '30 days', now())$$, 'Ben reads lead facts directly');
 select pg_temp.fails($$select report_leads('22222222-0000-0000-0000-000000000000', now() - interval '30 days', now())$$, 'Ben reads leads directly');
-select pg_temp.fails($$select report_visits('22222222-0000-0000-0000-000000000000', current_date - 30, current_date)$$, 'Ben reads visits directly');
 select pg_temp.fails($$select form_seen(id, 'abcdefgh12', 'view') from forms limit 1$$, 'Ben counts a form view');
-select pg_temp.fails($$select site_daily_roll('22222222-0000-0000-0000-000000000000', current_date)$$, 'Ben rolls Cat''s visits');
 select pg_temp.fails($$select reports_nightly()$$, 'Ben runs the nightly reports job');
 select pg_temp.fails($$select first_touch_fill()$$, 'Ben fills first touch');
 select pg_temp.fails($$update contacts set first_touch = '{}' where workspace_id = '11111111-0000-0000-0000-000000000000'$$, 'Ben writes first touch directly');

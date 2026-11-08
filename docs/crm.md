@@ -5,7 +5,7 @@ The first group in the sidebar. Records come from the customer's CRM (HubSpot, S
 ## Screens
 
 - **Contacts.** Everyone. Leads are a view on Contacts (a lead status is set), with a board by lead status. The contact page shows the contact's opportunities.
-- **Companies.** Every company, with fit and intent from website intelligence. The company page holds its contacts, its opportunities and what it does on the site (visits, people, intent signals, firmographics). The live visit feed opens from the Visits button. The old Accounts and Visitors screens are folded in here.
+- **Companies.** Every company. The company page holds its contacts and its opportunities.
 - **Opportunities.** A built-in object on the records tables (`supabase/migrations/044_crm.sql`). Board by stage by default, with the amount totalled per stage; table, saved views, filters, bulk edit and export come from the shared records list. Views: Open, Won, Lost, No company. The page leads with amount, win chance and close date, and marks a late close date.
 
 Patterns taken from Omniscient: stages with a kind (open, won, lost) so boards and reports tell them apart, the amount per stage, the late close date, built-in fields that can be renamed but not deleted, and the field source on synced values.

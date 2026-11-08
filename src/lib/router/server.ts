@@ -194,7 +194,7 @@ export function toFacts(raw: RawFacts, reason: Reason, now = Date.now()): Facts 
 /** Whether an email's domain is a throwaway one (the identity cleaner's list). Loaded on use: it reads a file. */
 async function disposable(email: string | null): Promise<boolean> {
   if (!email) return false;
-  const { cleanEmail } = await import("../identity/clean.ts");
+  const { cleanEmail } = await import("../email/address.ts");
   const e = cleanEmail(email);
   return "rejected" in e && e.rejected === "disposable";
 }
@@ -231,7 +231,7 @@ export async function readFacts(
   if (o.users?.length) n.users = [...new Set([...n.users, ...o.users])];
   let emailClass: string | null = null;
   if (!o.contact && o.email) {
-    const { cleanEmail } = await import("../identity/clean.ts");
+    const { cleanEmail } = await import("../email/address.ts");
     const e = cleanEmail(o.email);
     emailClass = "rejected" in e ? null : e.class;
   }

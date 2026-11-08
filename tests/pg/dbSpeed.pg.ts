@@ -209,46 +209,6 @@ test("report_leads finds the same first touches, through merges, spam, tests and
   }
 });
 
-test("visitors_live still shows every page of a visit, also when its events sit in the day tables either side", async () => {
-  const { ws, user } = await workspace();
-  const site = (await q(`insert into sites (workspace_id, domain) values ($1, $2) returning id`, [ws, `${randomUUID().slice(0, 8)}.com`]))[0].id;
-  // Visits from the last hour; each event's day is its id's UTC day, which can be the day before or after its time.
-  await q(
-    `do $$ declare d date; n text; begin
-       for d in select generate_series(current_date - 2, current_date + 2, interval '1 day')::date loop
-         n := 'events_' || to_char(d, 'YYYYMMDD');
-         if to_regclass('public.' || n) is null then
-           execute format('create table public.%I partition of public.events for values from (%L) to (%L)', n, d, d + 1);
-         end if;
-       end loop;
-     end $$`,
-  ).catch(() => undefined);
-  for (let i = 0; i < 4; i++) {
-    const id = randomUUID();
-    await q(
-      `insert into sessions (id, workspace_id, site_id, cookieless_key, started_at, ended_at, policy, pageviews) values ($1, $2, $3, '\\x01', now() - $4::int * interval '10 minutes', now() - $4::int * interval '10 minutes' + interval '5 minutes', 'notice', 3)`,
-      [id, ws, site, i + 1],
-    );
-    for (const [k, off] of [[0, -1], [1, 0], [2, 1], [3, 0]] as const) {
-      await q(
-        `insert into events (id, workspace_id, session_id, day, kind, path, server_at)
-         select gen_random_uuid(), $1, s.id, ((s.started_at + $4::int * interval '1 minute') at time zone 'UTC')::date + $3::int, 'view', $5, s.started_at + $4::int * interval '1 minute'
-         from sessions s where s.id = $2`,
-        [ws, id, off, k, `/p${k}`],
-      );
-    }
-  }
-  const s = await session(user, ["visitors_live"]);
-  try {
-    const now = await s.one(`select visitors_live($1, 24, 100) r`, [ws]);
-    const was = await s.one(`select pg_temp.old_visitors_live($1, 24, 100) r`, [ws]);
-    assert.deepEqual(now, was);
-    assert.equal(now.length, 4);
-    assert.ok(now.every((v: { pages: string[] }) => v.pages.length === 4));
-  } finally {
-    s.done();
-  }
-});
 
 test("records_search and report_people return what they did, for long, short and odd terms and groups", async () => {
   const { ws, user } = await workspace();

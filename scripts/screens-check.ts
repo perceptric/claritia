@@ -4,7 +4,7 @@
 // first sentence that skips what it settles, a template, and Start blank with click and drag on the canvas. Then the
 // CRM: a custom field from the table, a rating from the record page, a note and a task. Then Meetings: a guest books
 // from the booking page, and a lead books inside a Claritia calendar form right after sending it. Then the app's
-// structure (docs/unify-plan.md): the four sections, Scheduling's tabs with a named schedule, Visitors, Enrichment,
+// structure (docs/unify-plan.md): the four sections, Scheduling's tabs with a named schedule, Enrichment,
 // and Routing's tabs from the first screen to Make live, Teams' Deal 20 leads and a company type, Workflows from a
 // blank one to Make live and Try a contact, an email template, and the reports inside their sections.
 //   POSTGREST_BIN=… CHROMIUM_PATH=… node scripts/screens-check.ts
@@ -297,13 +297,10 @@ try {
   check(fromForm.length === 1 && fromForm[0].status === "booked" && !!fromForm[0].submission_id, "a lead books inside the form, and the meeting links to the fill");
   await lead.close();
 
-  // Visitors (once Signals, and its old address forwards) and Enrichment open with their numbers.
-  await page.goto(`${base}/signals`);
-  await until(async () => new URL(page.url()).pathname === "/visitors", 30_000, "Signals to forward to Visitors");
-  await page.getByText("Companies on the site").first().waitFor({ timeout: 60_000 });
+  // Enrichment opens with its numbers.
   await page.goto(`${base}/enrichment`);
   await page.getByText("Fields filled this month").first().waitFor({ timeout: 60_000 });
-  check(true, "Visitors and Enrichment open on their numbers");
+  check(true, "Enrichment opens on its numbers");
 
   // Enrichment's steps in order, and Qualify turned on from Rules.
   await page.goto(`${base}/enrichment/providers`);

@@ -1,6 +1,6 @@
 # Conversion parity: the full platform plan
 
-The plan to match everything Conversion (conversion.ai) sells, on top of what Claritia already has, and to go past it in two places: contacts come in from every tool a team has ever used, and Website Intelligence (M1) shows who is on the site. Conversion is an AI-native B2B marketing automation platform built around Salesforce and the data warehouse, sold as a Marketo replacement.
+The plan to match everything Conversion (conversion.ai) sells, on top of what Claritia already has, and to go past it in one place: contacts come in from every tool a team has ever used. Conversion is an AI-native B2B marketing automation platform built around Salesforce and the data warehouse, sold as a Marketo replacement.
 
 **Order change (October 2026):** inbound comes next. `docs/inbound.md` takes weeks 9 to 18 (forms, enrichment, qualification, routing, meeting scheduling, handoff, CRM hygiene). Weeks 9 to 21 below move back ten weeks, and their migration numbers move up by seven (forms took `039` to `042`).
 
@@ -11,8 +11,8 @@ This plan replaces the 14-week version. It keeps week 1 (built, Part 21) and cha
 | Spec | What it settles |
 |---|---|
 | `docs/marketing-platform.md` M2 to M10 | Module details this plan builds on |
-| `docs/identity.md` | Matching contacts to people, cleaning emails, email link tokens |
-| `docs/account-intelligence.md` Part 3 | Region policy, consent, data requests, retention |
+| `src/lib/email/address.ts` | Cleaning emails |
+| `src/lib/contacts/region.ts` | Region policy for consent |
 | `docs/brand.md` | Look and copy of every screen, email and page |
 
 Facts about Conversion come from its own pages (home, data model, automations, lead scoring, agents, forms, landing pages, ads, integrations, migration). They are vendor claims, read in October 2026.
@@ -31,7 +31,7 @@ Facts about Conversion come from its own pages (home, data model, automations, l
 | Automations | Visual builder, real-time triggers from every source, AI steps that score, route or classify | Workflows with the same triggers and steps, AI Decide and AI Write, website triggers |
 | Lead scoring and routing | AI weighs CRM, warehouse, product and behavior data, with top reasons. Routing by territory, segment, ownership, rep capacity and named accounts. | Scores with top 3 reasons, retrained weekly, synced to the CRM. Routing with capacity and SLA timers. |
 | ABM | Account-level orchestration with one engagement view | Account lists, buying groups, account plays, account journeys |
-| Forms | On landing pages, start workflows, add to scores, keep page, referrer and UTMs, attach earlier anonymous visits | The same, plus consent wording by region and Funnel QA on every form |
+| Forms | On landing pages, start workflows, add to scores, keep page, referrer and UTMs | The same, plus consent wording by region and Funnel QA on every form |
 | Landing pages | Sections and blocks, published on the customer's domain, form rendered in the page | The same, built by AI from Brand Brain, checked in a real browser |
 | Ads | Audiences, lead gen forms and attribution | Audience sync to LinkedIn, Google and Meta, lead forms in, offline conversions out |
 | Attribution (Mosaic) | Attributed pipeline and closed-won by channel, campaign and asset, built-in model or custom weights | Multi-touch attribution with AI search as a channel (M8) |
@@ -39,7 +39,6 @@ Facts about Conversion come from its own pages (home, data model, automations, l
 | Agents | Start from Slack, Linear, a schedule, a webhook or a prompt. Each tool is Automatic, Requires approval or Disabled. Reads and new drafts run alone; deletes, contact imports and Salesforce links wait; edits show a before-and-after diff. Nothing goes live without a person. | The same settings, plus an MCP server and a Skills pack so teams can work from Claude |
 | Migration | Playbooks for Marketo, Pardot, HubSpot and Eloqua. Agents rebuild workflows, lists and campaigns, the old tool stays live, each part is checked on real data. They claim about 4 weeks. | Migration agent for the same four plus ActiveCampaign, Mailchimp, Klaviyo and Customer.io (Part 5) |
 | Events | Cvent registrations into campaigns every hour | Cvent, Zoom, Luma, Eventbrite, Goldcast and Livestorm |
-| — | — | Website visitors, companies and intent (M1), and AI search visibility from Arrowsterr |
 
 ## Part 2. What a customer can do at the end
 
@@ -100,7 +99,7 @@ The goal: no team stays on an old tool because their contacts are stuck in it. E
 
 | Rule | Detail |
 |---|---|
-| Match order | 1. The source's record id in `source_links`. 2. Cleaned email (`docs/identity.md` Part 6). 3. A CRM id field on the record (a HubSpot id in a Mailchimp merge field, a Salesforce id in a Marketo record). |
+| Match order | 1. The source's record id in `source_links`. 2. Cleaned email (`src/lib/email/address.ts`). 3. A CRM id field on the record (a HubSpot id in a Mailchimp merge field, a Salesforce id in a Marketo record). |
 | No email | Allowed when the source gives a stable id (a Salesforce lead with no email, a Pipedrive person with a phone). Such contacts can't get email until an email arrives. |
 | Same email, two records in one source | One contact, both source links kept, a `conflict` row in the Sync log |
 | Which value wins | Each field has a source order, set per workspace. Default: CRM > form > product > file import > data vendor > AI. A lower source fills a blank field and never overwrites a higher one. A newer value from the same source wins. |
@@ -118,7 +117,7 @@ Consent rules from `docs/marketing-platform.md` 9.1 apply to every source. On to
 | Proof kept | The source tool, its record id, the consent time and any wording it stored go into `consents.source` and `consents.wording` |
 | Strict regions | Outside opt-in, contacts in strict regions and unknown countries get "No basis" (week 1 rule) |
 | Data vendors | Apollo, ZoomInfo, Lusha, Clearbit, Cognism and Clay rows are bought data. They come in for scoring, ABM and ads audiences with source class `data_vendor` and basis "No basis", and can't get marketing email until they opt in. A CSV marked "Bought or rented list" is still refused (lawyer check on the data vendor rule). |
-| Erased people stay erased | Each incoming email is checked against `erasures` (`docs/identity.md` 15.1). A match is skipped and counted. |
+| Erased people stay erased | Each incoming email is checked against `erasures` . A match is skipped and counted. |
 
 ### 4.4 Every source
 
@@ -269,7 +268,7 @@ Custom fields made during mapping get a type (text, number, date, yes/no, pick l
 
 | Step | How |
 |---|---|
-| Email | `cleanEmail` (week 1). Invalid and disposable skipped. Optional MX check (`src/lib/identity/mx.ts`), off for files over 100,000 rows. |
+| Email | `cleanEmail` (week 1). Invalid and disposable skipped. Optional MX check, off for files over 100,000 rows. |
 | Phone | Parsed with `libphonenumber-js` (MIT) to E.164, with the contact's country as the hint |
 | Country and region | ISO codes from names and codes (week 1), US states and Canadian provinces to their codes |
 | Names | Trimmed; ALL CAPS and all lower case fixed to Name Case; "Doe, Jane" split right |
@@ -337,7 +336,6 @@ The answer to Conversion's migration playbooks: an agent that reads the old tool
  HubSpot, Salesforce, Omniscient ◄──► crm_pull / crm_push (intel) ◄──► sync_log
  Warehouses ─► warehouse_poll (intel) ─► contact_events, custom objects
  Segment, PostHog, Stripe ─► /api/v1/events (web) ─► contact_events
- M1 sessions and signals ────────────────────────────► contact_events
                                    │
      segment_refresh · workflow_step · ai_decide · ai_write · send · email_event · page_publish
      score_contact · route · sla_check · audience_sync · attribution · play_run · agent_run · migrate
@@ -353,7 +351,7 @@ The answer to Conversion's migration playbooks: an agent that reads the old tool
 | Step | Where | Time budget |
 |---|---|---|
 | 1. A webinar registrant arrives from Zoom | webhook → web | ≤ 5 s |
-| 2. The row stages, maps, cleans, and upserts the contact; their earlier anonymous visits attach by email token | intel | ≤ 10 s |
+| 2. The row stages, maps, cleans, and upserts the contact | intel | ≤ 10 s |
 | 3. Segments refresh for the contact. Entering "Webinar registrants, fit 70+" starts a workflow. | intel | ≤ 10 s |
 | 4. The workflow scores, waits, sends an AI-written follow-up, and branches on the click | intel | per step |
 | 5. They read pricing twice. Signals raise the score past Ready. | collect, intel | ≤ 1 min |
@@ -420,7 +418,7 @@ As in `docs/marketing-platform.md` M3:
 | Part | Detail |
 |---|---|
 | Forms | Fields from the registry, hidden fields (UTMs, campaign), progressive fields (known contacts aren't asked twice), consent block with wording by region, Turnstile spam check. Embed with one line, or in a landing page. |
-| On submit | Contact upsert, consent with exact wording, form event with page, referrer and UTMs, earlier anonymous visits attached (M1), workflow trigger, score update, optional instant booking with the routed rep |
+| On submit | Contact upsert, consent with exact wording, form event with page, referrer and UTMs, workflow trigger, score update, optional instant booking with the routed rep |
 | Landing pages | Sections and blocks (hero, logos, features, proof, pricing table, FAQ, form, booking), on the customer's domain by CNAME, served by `collect` with HTTPS |
 | AI build | "A page for the Q4 webinar" → a draft from Brand Brain facts and the brand kit, each claim with its source |
 | Funnel QA | Before publish and every day: the page loads, every link works, the form submits and the test contact appears (existing runner) |
@@ -452,7 +450,7 @@ As in `docs/marketing-platform.md` M3:
 | Product event | Signup, invite sent, plan limit hit |
 | Custom object | A Subscription row changes plan |
 | Warehouse row | A row appears in "trials ending in 3 days" |
-| Website | Visited a page group, account turned hot (M1), came from an AI answer |
+| Website | Came from an AI answer |
 | Email | Clicked, replied, bounced |
 | Score | Crossed a band |
 | Date | Field date ± N days |
@@ -505,7 +503,6 @@ Rules in order: existing owner, account owner, named account list, territory (co
 | Buying group | Per account: people by role (decision maker, champion, user, finance) from title department and seniority, with gaps shown ("no finance contact") |
 | Account view | One timeline across every contact, visit, email, ad and deal |
 | Account journeys | Workflows that run on the account: trigger on account intent, steps per role |
-| Account score | Fit and intent (M1) plus engagement summed over the buying group |
 
 ---
 
