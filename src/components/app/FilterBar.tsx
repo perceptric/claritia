@@ -12,7 +12,7 @@ import { askConfirm, askText } from "./Dialogs";
 import { Select } from "./Select";
 import { Button, errorText, Input, must, Segmented, useLoad } from "./ui";
 
-export type Screen = "contacts" | "visitors" | "accounts";
+export type Screen = "contacts";
 export type View = { id: string; name: string; filters: Filter[] };
 type AnyField = FilterField<never>;
 
