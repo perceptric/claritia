@@ -62,24 +62,6 @@ ALTER TABLE partitions.contact_events_2027_01 ENABLE ROW LEVEL SECURITY;
 -- row security: contact_events_2027_02
 ALTER TABLE partitions.contact_events_2027_02 ENABLE ROW LEVEL SECURITY;
 
--- row security: account_alert_log
-ALTER TABLE public.account_alert_log ENABLE ROW LEVEL SECURITY;
-
--- row security: account_daily
-ALTER TABLE public.account_daily ENABLE ROW LEVEL SECURITY;
-
--- row security: account_domains
-ALTER TABLE public.account_domains ENABLE ROW LEVEL SECURITY;
-
--- row security: account_feedback
-ALTER TABLE public.account_feedback ENABLE ROW LEVEL SECURITY;
-
--- row security: account_scores
-ALTER TABLE public.account_scores ENABLE ROW LEVEL SECURITY;
-
--- row security: accounts
-ALTER TABLE public.accounts ENABLE ROW LEVEL SECURITY;
-
 -- row security: activity_out
 ALTER TABLE public.activity_out ENABLE ROW LEVEL SECURITY;
 
@@ -161,15 +143,6 @@ ALTER TABLE public.deliveries ENABLE ROW LEVEL SECURITY;
 -- row security: design_assets
 ALTER TABLE public.design_assets ENABLE ROW LEVEL SECURITY;
 
--- row security: device_links
-ALTER TABLE public.device_links ENABLE ROW LEVEL SECURITY;
-
--- row security: devices
-ALTER TABLE public.devices ENABLE ROW LEVEL SECURITY;
-
--- row security: domain_aliases
-ALTER TABLE public.domain_aliases ENABLE ROW LEVEL SECURITY;
-
 -- row security: email_events
 ALTER TABLE public.email_events ENABLE ROW LEVEL SECURITY;
 
@@ -214,108 +187,6 @@ ALTER TABLE public.environments ENABLE ROW LEVEL SECURITY;
 
 -- row security: erasures
 ALTER TABLE public.erasures ENABLE ROW LEVEL SECURITY;
-
--- row security: events
-ALTER TABLE public.events ENABLE ROW LEVEL SECURITY;
-
--- row security: events_20261014
-ALTER TABLE public.events_20261014 ENABLE ROW LEVEL SECURITY;
-
--- row security: events_20261015
-ALTER TABLE public.events_20261015 ENABLE ROW LEVEL SECURITY;
-
--- row security: events_20261016
-ALTER TABLE public.events_20261016 ENABLE ROW LEVEL SECURITY;
-
--- row security: events_20261017
-ALTER TABLE public.events_20261017 ENABLE ROW LEVEL SECURITY;
-
--- row security: events_20261018
-ALTER TABLE public.events_20261018 ENABLE ROW LEVEL SECURITY;
-
--- row security: events_20261019
-ALTER TABLE public.events_20261019 ENABLE ROW LEVEL SECURITY;
-
--- row security: events_20261020
-ALTER TABLE public.events_20261020 ENABLE ROW LEVEL SECURITY;
-
--- row security: events_20261021
-ALTER TABLE public.events_20261021 ENABLE ROW LEVEL SECURITY;
-
--- row security: events_20261022
-ALTER TABLE public.events_20261022 ENABLE ROW LEVEL SECURITY;
-
--- row security: events_20261023
-ALTER TABLE public.events_20261023 ENABLE ROW LEVEL SECURITY;
-
--- row security: events_20261024
-ALTER TABLE public.events_20261024 ENABLE ROW LEVEL SECURITY;
-
--- row security: events_20261025
-ALTER TABLE public.events_20261025 ENABLE ROW LEVEL SECURITY;
-
--- row security: events_20261026
-ALTER TABLE public.events_20261026 ENABLE ROW LEVEL SECURITY;
-
--- row security: events_20261027
-ALTER TABLE public.events_20261027 ENABLE ROW LEVEL SECURITY;
-
--- row security: events_20261028
-ALTER TABLE public.events_20261028 ENABLE ROW LEVEL SECURITY;
-
--- row security: events_20261029
-ALTER TABLE public.events_20261029 ENABLE ROW LEVEL SECURITY;
-
--- row security: events_20261030
-ALTER TABLE public.events_20261030 ENABLE ROW LEVEL SECURITY;
-
--- row security: events_20261031
-ALTER TABLE public.events_20261031 ENABLE ROW LEVEL SECURITY;
-
--- row security: events_20261101
-ALTER TABLE public.events_20261101 ENABLE ROW LEVEL SECURITY;
-
--- row security: events_20261102
-ALTER TABLE public.events_20261102 ENABLE ROW LEVEL SECURITY;
-
--- row security: events_20261103
-ALTER TABLE public.events_20261103 ENABLE ROW LEVEL SECURITY;
-
--- row security: events_20261104
-ALTER TABLE public.events_20261104 ENABLE ROW LEVEL SECURITY;
-
--- row security: events_20261105
-ALTER TABLE public.events_20261105 ENABLE ROW LEVEL SECURITY;
-
--- row security: events_20261106
-ALTER TABLE public.events_20261106 ENABLE ROW LEVEL SECURITY;
-
--- row security: events_20261107
-ALTER TABLE public.events_20261107 ENABLE ROW LEVEL SECURITY;
-
--- row security: events_20261108
-ALTER TABLE public.events_20261108 ENABLE ROW LEVEL SECURITY;
-
--- row security: events_20261109
-ALTER TABLE public.events_20261109 ENABLE ROW LEVEL SECURITY;
-
--- row security: events_20261110
-ALTER TABLE public.events_20261110 ENABLE ROW LEVEL SECURITY;
-
--- row security: events_20261111
-ALTER TABLE public.events_20261111 ENABLE ROW LEVEL SECURITY;
-
--- row security: events_20261112
-ALTER TABLE public.events_20261112 ENABLE ROW LEVEL SECURITY;
-
--- row security: events_20261113
-ALTER TABLE public.events_20261113 ENABLE ROW LEVEL SECURITY;
-
--- row security: events_20261114
-ALTER TABLE public.events_20261114 ENABLE ROW LEVEL SECURITY;
-
--- row security: events_20261115
-ALTER TABLE public.events_20261115 ENABLE ROW LEVEL SECURITY;
 
 -- policy: source_kinds everyone reads
 CREATE POLICY "everyone reads" ON public.source_kinds FOR SELECT USING (true);
@@ -401,35 +272,14 @@ ALTER TABLE public.heals ENABLE ROW LEVEL SECURITY;
 -- row security: hook_events
 ALTER TABLE public.hook_events ENABLE ROW LEVEL SECURITY;
 
--- row security: hop_nonces
-ALTER TABLE public.hop_nonces ENABLE ROW LEVEL SECURITY;
-
--- row security: icp
-ALTER TABLE public.icp ENABLE ROW LEVEL SECURITY;
-
--- row security: identifiers
-ALTER TABLE public.identifiers ENABLE ROW LEVEL SECURITY;
-
--- row security: identity_evidence
-ALTER TABLE public.identity_evidence ENABLE ROW LEVEL SECURITY;
-
--- row security: identity_settings
-ALTER TABLE public.identity_settings ENABLE ROW LEVEL SECURITY;
-
 -- row security: imports
 ALTER TABLE public.imports ENABLE ROW LEVEL SECURITY;
 
 -- row security: inbox_messages
 ALTER TABLE public.inbox_messages ENABLE ROW LEVEL SECURITY;
 
--- row security: intent_params
-ALTER TABLE public.intent_params ENABLE ROW LEVEL SECURITY;
-
 -- row security: invites
 ALTER TABLE public.invites ENABLE ROW LEVEL SECURITY;
-
--- row security: ip_cache
-ALTER TABLE public.ip_cache ENABLE ROW LEVEL SECURITY;
 
 -- row security: jobs
 ALTER TABLE public.jobs ENABLE ROW LEVEL SECURITY;
@@ -439,9 +289,6 @@ ALTER TABLE public.lead_score_marks ENABLE ROW LEVEL SECURITY;
 
 -- row security: lead_settings
 ALTER TABLE public.lead_settings ENABLE ROW LEVEL SECURITY;
-
--- row security: learned_networks
-ALTER TABLE public.learned_networks ENABLE ROW LEVEL SECURITY;
 
 -- row security: link_domains
 ALTER TABLE public.link_domains ENABLE ROW LEVEL SECURITY;
@@ -506,24 +353,6 @@ CREATE POLICY "members delete" ON public.app_pages FOR DELETE USING ((workspace_
 -- policy: env_secrets members delete
 CREATE POLICY "members delete" ON public.env_secrets FOR DELETE USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
 
--- policy: account_alert_log members read
-CREATE POLICY "members read" ON public.account_alert_log FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
-
--- policy: account_daily members read
-CREATE POLICY "members read" ON public.account_daily FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
-
--- policy: account_domains members read
-CREATE POLICY "members read" ON public.account_domains FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
-
--- policy: account_feedback members read
-CREATE POLICY "members read" ON public.account_feedback FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
-
--- policy: account_scores members read
-CREATE POLICY "members read" ON public.account_scores FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
-
--- policy: accounts members read
-CREATE POLICY "members read" ON public.accounts FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
-
 -- policy: activity_out members read
 CREATE POLICY "members read" ON public.activity_out FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
 
@@ -577,12 +406,6 @@ CREATE POLICY "members read" ON public.crm_owner_links FOR SELECT USING ((worksp
 -- policy: deliveries members read
 CREATE POLICY "members read" ON public.deliveries FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
 
--- policy: device_links members read
-CREATE POLICY "members read" ON public.device_links FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
-
--- policy: devices members read
-CREATE POLICY "members read" ON public.devices FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
-
 -- policy: email_events members read
 CREATE POLICY "members read" ON public.email_events FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
 
@@ -609,9 +432,6 @@ CREATE POLICY "members read" ON public.enrich_usage FOR SELECT USING ((workspace
 
 -- policy: env_secrets members read
 CREATE POLICY "members read" ON public.env_secrets FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
-
--- policy: events members read
-CREATE POLICY "members read" ON public.events FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
 
 -- policy: explorations members read
 CREATE POLICY "members read" ON public.explorations FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
@@ -670,35 +490,17 @@ CREATE POLICY "members read" ON public.github_installations FOR SELECT USING ((w
 -- policy: heals members read
 CREATE POLICY "members read" ON public.heals FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
 
--- policy: icp members read
-CREATE POLICY "members read" ON public.icp FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
-
--- policy: identifiers members read
-CREATE POLICY "members read" ON public.identifiers FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
-
--- policy: identity_evidence members read
-CREATE POLICY "members read" ON public.identity_evidence FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
-
--- policy: identity_settings members read
-CREATE POLICY "members read" ON public.identity_settings FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
-
 -- policy: imports members read
 CREATE POLICY "members read" ON public.imports FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
 
 -- policy: inbox_messages members read
 CREATE POLICY "members read" ON public.inbox_messages FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
 
--- policy: intent_params members read
-CREATE POLICY "members read" ON public.intent_params FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
-
 -- policy: invites members read
 CREATE POLICY "members read" ON public.invites FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
 
 -- policy: lead_settings members read
 CREATE POLICY "members read" ON public.lead_settings FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
-
--- policy: learned_networks members read
-CREATE POLICY "members read" ON public.learned_networks FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
 
 -- policy: link_domains members read
 CREATE POLICY "members read" ON public.link_domains FOR SELECT USING (public.is_member(workspace_id));
@@ -723,12 +525,6 @@ CREATE POLICY "members read" ON public.meeting_types FOR SELECT USING ((workspac
 -- policy: meetings members read
 CREATE POLICY "members read" ON public.meetings FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
 
--- policy: merge_proposals members read
-CREATE POLICY "members read" ON public.merge_proposals FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
-
--- policy: network_flags members read
-CREATE POLICY "members read" ON public.network_flags FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
-
 -- policy: notes members read
 CREATE POLICY "members read" ON public.notes FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
 
@@ -747,17 +543,8 @@ CREATE POLICY "members read" ON public.object_layouts FOR SELECT USING ((workspa
 -- policy: objects members read
 CREATE POLICY "members read" ON public.objects FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
 
--- policy: page_groups members read
-CREATE POLICY "members read" ON public.page_groups FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
-
 -- policy: payment_accounts members read
 CREATE POLICY "members read" ON public.payment_accounts FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
-
--- policy: person_aliases members read
-CREATE POLICY "members read" ON public.person_aliases FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
-
--- policy: persons members read
-CREATE POLICY "members read" ON public.persons FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
 
 -- policy: plan_usage members read
 CREATE POLICY "members read" ON public.plan_usage FOR SELECT USING (public.is_member(workspace_id));
@@ -862,18 +649,6 @@ CREATE POLICY "members read" ON public.send_settings FOR SELECT USING ((workspac
 -- policy: sending_domains members read
 CREATE POLICY "members read" ON public.sending_domains FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
 
--- policy: sessions members read
-CREATE POLICY "members read" ON public.sessions FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
-
--- policy: signal_types members read
-CREATE POLICY "members read" ON public.signal_types FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
-
--- policy: signals members read
-CREATE POLICY "members read" ON public.signals FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
-
--- policy: site_daily members read
-CREATE POLICY "members read" ON public.site_daily FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
-
 -- policy: sites members read
 CREATE POLICY "members read" ON public.sites FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
 
@@ -906,6 +681,9 @@ CREATE POLICY "members read" ON public.sync_log FOR SELECT USING ((workspace_id 
 
 -- policy: tasks members read
 CREATE POLICY "members read" ON public.tasks FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
+
+-- policy: team_domains members read
+CREATE POLICY "members read" ON public.team_domains FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
 
 -- policy: test_proposals members read
 CREATE POLICY "members read" ON public.test_proposals FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])));
@@ -960,12 +738,6 @@ CREATE POLICY "members read email versions" ON public.email_versions FOR SELECT 
 -- policy: saved_views members remove
 CREATE POLICY "members remove" ON public.saved_views FOR DELETE USING (((workspace_id = ANY (( SELECT public.my_workspaces() AS my_workspaces)::uuid[])) AND ((owner_id IS NULL) OR (owner_id = ( SELECT auth.uid() AS uid)))));
 
--- row security: merge_proposals
-ALTER TABLE public.merge_proposals ENABLE ROW LEVEL SECURITY;
-
--- row security: network_flags
-ALTER TABLE public.network_flags ENABLE ROW LEVEL SECURITY;
-
 -- row security: notes
 ALTER TABLE public.notes ENABLE ROW LEVEL SECURITY;
 
@@ -990,9 +762,6 @@ ALTER TABLE public.object_layouts ENABLE ROW LEVEL SECURITY;
 -- row security: objects
 ALTER TABLE public.objects ENABLE ROW LEVEL SECURITY;
 
--- row security: opt_outs
-ALTER TABLE public.opt_outs ENABLE ROW LEVEL SECURITY;
-
 -- policy: mailboxes own read
 CREATE POLICY "own read" ON public.mailboxes FOR SELECT USING (((user_id = auth.uid()) AND public.is_member(workspace_id)));
 
@@ -1002,29 +771,17 @@ CREATE POLICY "owners read" ON public.ai_calls FOR SELECT USING ((workspace_id =
 -- policy: audit_log owners read
 CREATE POLICY "owners read" ON public.audit_log FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_owned_workspaces() AS my_owned_workspaces)::uuid[])));
 
--- policy: privacy_exports owners read
-CREATE POLICY "owners read" ON public.privacy_exports FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_owned_workspaces() AS my_owned_workspaces)::uuid[])));
-
 -- policy: privacy_requests owners read
 CREATE POLICY "owners read" ON public.privacy_requests FOR SELECT USING ((workspace_id = ANY (( SELECT public.my_owned_workspaces() AS my_owned_workspaces)::uuid[])));
 
 -- policy: workspaces owners rename
 CREATE POLICY "owners rename" ON public.workspaces FOR UPDATE USING ((id = ANY (( SELECT public.my_owned_workspaces() AS my_owned_workspaces)::uuid[]))) WITH CHECK ((id = ANY (( SELECT public.my_owned_workspaces() AS my_owned_workspaces)::uuid[])));
 
--- row security: page_groups
-ALTER TABLE public.page_groups ENABLE ROW LEVEL SECURITY;
-
 -- row security: payment_accounts
 ALTER TABLE public.payment_accounts ENABLE ROW LEVEL SECURITY;
 
--- row security: person_aliases
-ALTER TABLE public.person_aliases ENABLE ROW LEVEL SECURITY;
-
 -- row security: person_cache
 ALTER TABLE public.person_cache ENABLE ROW LEVEL SECURITY;
-
--- row security: persons
-ALTER TABLE public.persons ENABLE ROW LEVEL SECURITY;
 
 -- row security: plan_usage
 ALTER TABLE public.plan_usage ENABLE ROW LEVEL SECURITY;
@@ -1034,9 +791,6 @@ ALTER TABLE public.plans ENABLE ROW LEVEL SECURITY;
 
 -- row security: poll_votes
 ALTER TABLE public.poll_votes ENABLE ROW LEVEL SECURITY;
-
--- row security: privacy_exports
-ALTER TABLE public.privacy_exports ENABLE ROW LEVEL SECURITY;
 
 -- row security: privacy_requests
 ALTER TABLE public.privacy_requests ENABLE ROW LEVEL SECURITY;
@@ -1116,9 +870,6 @@ ALTER TABLE public.run_steps ENABLE ROW LEVEL SECURITY;
 -- row security: runs
 ALTER TABLE public.runs ENABLE ROW LEVEL SECURITY;
 
--- row security: salts
-ALTER TABLE public.salts ENABLE ROW LEVEL SECURITY;
-
 -- row security: saved_views
 ALTER TABLE public.saved_views ENABLE ROW LEVEL SECURITY;
 
@@ -1145,21 +896,6 @@ ALTER TABLE public.send_settings ENABLE ROW LEVEL SECURITY;
 
 -- row security: sending_domains
 ALTER TABLE public.sending_domains ENABLE ROW LEVEL SECURITY;
-
--- row security: sessions
-ALTER TABLE public.sessions ENABLE ROW LEVEL SECURITY;
-
--- row security: signal_types
-ALTER TABLE public.signal_types ENABLE ROW LEVEL SECURITY;
-
--- row security: signals
-ALTER TABLE public.signals ENABLE ROW LEVEL SECURITY;
-
--- row security: site_daily
-ALTER TABLE public.site_daily ENABLE ROW LEVEL SECURITY;
-
--- row security: site_rolled
-ALTER TABLE public.site_rolled ENABLE ROW LEVEL SECURITY;
 
 -- row security: sites
 ALTER TABLE public.sites ENABLE ROW LEVEL SECURITY;
@@ -1208,6 +944,9 @@ ALTER TABLE public.sync_log ENABLE ROW LEVEL SECURITY;
 
 -- row security: tasks
 ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
+
+-- row security: team_domains
+ALTER TABLE public.team_domains ENABLE ROW LEVEL SECURITY;
 
 -- row security: test_proposals
 ALTER TABLE public.test_proposals ENABLE ROW LEVEL SECURITY;
@@ -1736,12 +1475,6 @@ GRANT ALL ON FUNCTION public.claim_run(p_worker text) TO anon;
 GRANT ALL ON FUNCTION public.claim_run(p_worker text) TO authenticated;
 GRANT ALL ON FUNCTION public.claim_run(p_worker text) TO service_role;
 
--- acl: FUNCTION companies_follow_account()
-REVOKE ALL ON FUNCTION public.companies_follow_account() FROM PUBLIC;
-GRANT ALL ON FUNCTION public.companies_follow_account() TO anon;
-GRANT ALL ON FUNCTION public.companies_follow_account() TO authenticated;
-GRANT ALL ON FUNCTION public.companies_follow_account() TO service_role;
-
 -- acl: FUNCTION companies_upsert(p_ws uuid, p_source text, p_rows jsonb)
 REVOKE ALL ON FUNCTION public.companies_upsert(p_ws uuid, p_source text, p_rows jsonb) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.companies_upsert(p_ws uuid, p_source text, p_rows jsonb) TO anon;
@@ -1817,18 +1550,6 @@ REVOKE ALL ON FUNCTION public.contacts_enrich_new() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.contacts_enrich_new() TO anon;
 GRANT ALL ON FUNCTION public.contacts_enrich_new() TO authenticated;
 GRANT ALL ON FUNCTION public.contacts_enrich_new() TO service_role;
-
--- acl: FUNCTION contacts_follow_identifier()
-REVOKE ALL ON FUNCTION public.contacts_follow_identifier() FROM PUBLIC;
-GRANT ALL ON FUNCTION public.contacts_follow_identifier() TO anon;
-GRANT ALL ON FUNCTION public.contacts_follow_identifier() TO authenticated;
-GRANT ALL ON FUNCTION public.contacts_follow_identifier() TO service_role;
-
--- acl: FUNCTION contacts_follow_merge()
-REVOKE ALL ON FUNCTION public.contacts_follow_merge() FROM PUBLIC;
-GRANT ALL ON FUNCTION public.contacts_follow_merge() TO anon;
-GRANT ALL ON FUNCTION public.contacts_follow_merge() TO authenticated;
-GRANT ALL ON FUNCTION public.contacts_follow_merge() TO service_role;
 
 -- acl: FUNCTION contacts_list(p_ws uuid, p_filters jsonb, p_sort text, p_desc boolean, p_limit integer, p_offset integer)
 REVOKE ALL ON FUNCTION public.contacts_list(p_ws uuid, p_filters jsonb, p_sort text, p_desc boolean, p_limit integer, p_offset integer) FROM PUBLIC;
@@ -1936,12 +1657,6 @@ REVOKE ALL ON FUNCTION public.domain_checks_due() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.domain_checks_due() TO anon;
 GRANT ALL ON FUNCTION public.domain_checks_due() TO authenticated;
 GRANT ALL ON FUNCTION public.domain_checks_due() TO service_role;
-
--- acl: FUNCTION drop_old_event_partitions(p_keep_days integer)
-REVOKE ALL ON FUNCTION public.drop_old_event_partitions(p_keep_days integer) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.drop_old_event_partitions(p_keep_days integer) TO anon;
-GRANT ALL ON FUNCTION public.drop_old_event_partitions(p_keep_days integer) TO authenticated;
-GRANT ALL ON FUNCTION public.drop_old_event_partitions(p_keep_days integer) TO service_role;
 
 -- acl: FUNCTION email_click(p_message uuid, p_link integer, p_human boolean, p_data jsonb)
 REVOKE ALL ON FUNCTION public.email_click(p_message uuid, p_link integer, p_human boolean, p_data jsonb) FROM PUBLIC;
@@ -2548,11 +2263,6 @@ GRANT ALL ON FUNCTION public.hook_stage_many(p_source uuid, p_events jsonb) TO a
 GRANT ALL ON FUNCTION public.hook_stage_many(p_source uuid, p_events jsonb) TO authenticated;
 GRANT ALL ON FUNCTION public.hook_stage_many(p_source uuid, p_events jsonb) TO service_role;
 
--- acl: FUNCTION icp_fit(p_rules jsonb, p_industry text, p_size text, p_country text)
-GRANT ALL ON FUNCTION public.icp_fit(p_rules jsonb, p_industry text, p_size text, p_country text) TO anon;
-GRANT ALL ON FUNCTION public.icp_fit(p_rules jsonb, p_industry text, p_size text, p_country text) TO authenticated;
-GRANT ALL ON FUNCTION public.icp_fit(p_rules jsonb, p_industry text, p_size text, p_country text) TO service_role;
-
 -- acl: FUNCTION import_undo(p_import uuid)
 REVOKE ALL ON FUNCTION public.import_undo(p_import uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.import_undo(p_import uuid) TO anon;
@@ -2704,12 +2414,6 @@ REVOKE ALL ON FUNCTION public.mailbox_token_save(p_id uuid, p_sealed text) FROM 
 GRANT ALL ON FUNCTION public.mailbox_token_save(p_id uuid, p_sealed text) TO anon;
 GRANT ALL ON FUNCTION public.mailbox_token_save(p_id uuid, p_sealed text) TO authenticated;
 GRANT ALL ON FUNCTION public.mailbox_token_save(p_id uuid, p_sealed text) TO service_role;
-
--- acl: FUNCTION make_event_partitions(p_days_ahead integer)
-REVOKE ALL ON FUNCTION public.make_event_partitions(p_days_ahead integer) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.make_event_partitions(p_days_ahead integer) TO anon;
-GRANT ALL ON FUNCTION public.make_event_partitions(p_days_ahead integer) TO authenticated;
-GRANT ALL ON FUNCTION public.make_event_partitions(p_days_ahead integer) TO service_role;
 
 -- acl: FUNCTION meeting_book(p_ws uuid, p_type uuid, p_hosts uuid[], p_start timestamp with time zone, p_end timestamp with time zone, p_block_start timestamp with time zone, p_block_end timestamp with time zone, p_guest jsonb, p_source text, p_token_hash text, p_status text, p_contact uuid, p_submission uuid, p_link uuid, p_seats integer, p_rr boolean, p_location jsonb, p_booked_by uuid)
 REVOKE ALL ON FUNCTION public.meeting_book(p_ws uuid, p_type uuid, p_hosts uuid[], p_start timestamp with time zone, p_end timestamp with time zone, p_block_start timestamp with time zone, p_block_end timestamp with time zone, p_guest jsonb, p_source text, p_token_hash text, p_status text, p_contact uuid, p_submission uuid, p_link uuid, p_seats integer, p_rr boolean, p_location jsonb, p_booked_by uuid) FROM PUBLIC;
@@ -3104,12 +2808,6 @@ GRANT ALL ON FUNCTION public.person_cache_forget() TO anon;
 GRANT ALL ON FUNCTION public.person_cache_forget() TO authenticated;
 GRANT ALL ON FUNCTION public.person_cache_forget() TO service_role;
 
--- acl: FUNCTION person_for_email(p_ws uuid, p_email text)
-REVOKE ALL ON FUNCTION public.person_for_email(p_ws uuid, p_email text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.person_for_email(p_ws uuid, p_email text) TO anon;
-GRANT ALL ON FUNCTION public.person_for_email(p_ws uuid, p_email text) TO authenticated;
-GRANT ALL ON FUNCTION public.person_for_email(p_ws uuid, p_email text) TO service_role;
-
 -- acl: FUNCTION person_name(p_first text, p_last text)
 GRANT ALL ON FUNCTION public.person_name(p_first text, p_last text) TO anon;
 GRANT ALL ON FUNCTION public.person_name(p_first text, p_last text) TO authenticated;
@@ -3188,12 +2886,6 @@ REVOKE ALL ON FUNCTION public.poll_vote_view(p_hash text, p_email text, p_name t
 GRANT ALL ON FUNCTION public.poll_vote_view(p_hash text, p_email text, p_name text, p_picks timestamp with time zone[]) TO anon;
 GRANT ALL ON FUNCTION public.poll_vote_view(p_hash text, p_email text, p_name text, p_picks timestamp with time zone[]) TO authenticated;
 GRANT ALL ON FUNCTION public.poll_vote_view(p_hash text, p_email text, p_name text, p_picks timestamp with time zone[]) TO service_role;
-
--- acl: FUNCTION product_events_sync()
-REVOKE ALL ON FUNCTION public.product_events_sync() FROM PUBLIC;
-GRANT ALL ON FUNCTION public.product_events_sync() TO anon;
-GRANT ALL ON FUNCTION public.product_events_sync() TO authenticated;
-GRANT ALL ON FUNCTION public.product_events_sync() TO service_role;
 
 -- acl: FUNCTION project_inbox()
 REVOKE ALL ON FUNCTION public.project_inbox() FROM PUBLIC;
@@ -3359,12 +3051,6 @@ REVOKE ALL ON FUNCTION public.report_speed_sum(p_ws uuid, p_start timestamp with
 GRANT ALL ON FUNCTION public.report_speed_sum(p_ws uuid, p_start timestamp with time zone, p_end timestamp with time zone, p_facts jsonb) TO anon;
 GRANT ALL ON FUNCTION public.report_speed_sum(p_ws uuid, p_start timestamp with time zone, p_end timestamp with time zone, p_facts jsonb) TO authenticated;
 GRANT ALL ON FUNCTION public.report_speed_sum(p_ws uuid, p_start timestamp with time zone, p_end timestamp with time zone, p_facts jsonb) TO service_role;
-
--- acl: FUNCTION report_visits(p_ws uuid, p_from date, p_to date, p_by text)
-REVOKE ALL ON FUNCTION public.report_visits(p_ws uuid, p_from date, p_to date, p_by text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.report_visits(p_ws uuid, p_from date, p_to date, p_by text) TO anon;
-GRANT ALL ON FUNCTION public.report_visits(p_ws uuid, p_from date, p_to date, p_by text) TO authenticated;
-GRANT ALL ON FUNCTION public.report_visits(p_ws uuid, p_from date, p_to date, p_by text) TO service_role;
 
 -- acl: FUNCTION report_won_stages(p_ws uuid)
 REVOKE ALL ON FUNCTION public.report_won_stages(p_ws uuid) FROM PUBLIC;
@@ -4201,18 +3887,6 @@ GRANT ALL ON FUNCTION public.set_secret(p_env uuid, p_name text, p_sealed text) 
 GRANT ALL ON FUNCTION public.set_secret(p_env uuid, p_name text, p_sealed text) TO authenticated;
 GRANT ALL ON FUNCTION public.set_secret(p_env uuid, p_name text, p_sealed text) TO service_role;
 
--- acl: FUNCTION site_daily_roll(p_ws uuid, p_day date)
-REVOKE ALL ON FUNCTION public.site_daily_roll(p_ws uuid, p_day date) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.site_daily_roll(p_ws uuid, p_day date) TO anon;
-GRANT ALL ON FUNCTION public.site_daily_roll(p_ws uuid, p_day date) TO authenticated;
-GRANT ALL ON FUNCTION public.site_daily_roll(p_ws uuid, p_day date) TO service_role;
-
--- acl: FUNCTION site_health(p_ws uuid)
-REVOKE ALL ON FUNCTION public.site_health(p_ws uuid) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.site_health(p_ws uuid) TO anon;
-GRANT ALL ON FUNCTION public.site_health(p_ws uuid) TO authenticated;
-GRANT ALL ON FUNCTION public.site_health(p_ws uuid) TO service_role;
-
 -- acl: FUNCTION slack_book_info(p_ws uuid, p_user uuid, p_email text)
 REVOKE ALL ON FUNCTION public.slack_book_info(p_ws uuid, p_user uuid, p_email text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.slack_book_info(p_ws uuid, p_user uuid, p_email text) TO anon;
@@ -4533,29 +4207,11 @@ GRANT ALL ON FUNCTION public.verified_domain_for(p_ws uuid, p_email text) TO ano
 GRANT ALL ON FUNCTION public.verified_domain_for(p_ws uuid, p_email text) TO authenticated;
 GRANT ALL ON FUNCTION public.verified_domain_for(p_ws uuid, p_email text) TO service_role;
 
--- acl: FUNCTION visitors_list(p_ws uuid, p_show text, p_before timestamp with time zone, p_limit integer)
-REVOKE ALL ON FUNCTION public.visitors_list(p_ws uuid, p_show text, p_before timestamp with time zone, p_limit integer) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.visitors_list(p_ws uuid, p_show text, p_before timestamp with time zone, p_limit integer) TO anon;
-GRANT ALL ON FUNCTION public.visitors_list(p_ws uuid, p_show text, p_before timestamp with time zone, p_limit integer) TO authenticated;
-GRANT ALL ON FUNCTION public.visitors_list(p_ws uuid, p_show text, p_before timestamp with time zone, p_limit integer) TO service_role;
-
--- acl: FUNCTION visitors_live(p_ws uuid, p_hours integer, p_limit integer)
-REVOKE ALL ON FUNCTION public.visitors_live(p_ws uuid, p_hours integer, p_limit integer) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.visitors_live(p_ws uuid, p_hours integer, p_limit integer) TO anon;
-GRANT ALL ON FUNCTION public.visitors_live(p_ws uuid, p_hours integer, p_limit integer) TO authenticated;
-GRANT ALL ON FUNCTION public.visitors_live(p_ws uuid, p_hours integer, p_limit integer) TO service_role;
-
 -- acl: FUNCTION wake_runner()
 REVOKE ALL ON FUNCTION public.wake_runner() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.wake_runner() TO anon;
 GRANT ALL ON FUNCTION public.wake_runner() TO authenticated;
 GRANT ALL ON FUNCTION public.wake_runner() TO service_role;
-
--- acl: FUNCTION web_daily()
-REVOKE ALL ON FUNCTION public.web_daily() FROM PUBLIC;
-GRANT ALL ON FUNCTION public.web_daily() TO anon;
-GRANT ALL ON FUNCTION public.web_daily() TO authenticated;
-GRANT ALL ON FUNCTION public.web_daily() TO service_role;
 
 -- acl: FUNCTION webhook_delete(p_ws uuid, p_id uuid)
 REVOKE ALL ON FUNCTION public.webhook_delete(p_ws uuid, p_id uuid) FROM PUBLIC;
@@ -4889,36 +4545,6 @@ GRANT ALL ON TABLE public.contact_events TO anon;
 GRANT ALL ON TABLE public.contact_events TO authenticated;
 GRANT ALL ON TABLE public.contact_events TO service_role;
 
--- acl: TABLE account_alert_log
-GRANT ALL ON TABLE public.account_alert_log TO anon;
-GRANT ALL ON TABLE public.account_alert_log TO authenticated;
-GRANT ALL ON TABLE public.account_alert_log TO service_role;
-
--- acl: TABLE account_daily
-GRANT ALL ON TABLE public.account_daily TO anon;
-GRANT ALL ON TABLE public.account_daily TO authenticated;
-GRANT ALL ON TABLE public.account_daily TO service_role;
-
--- acl: TABLE account_domains
-GRANT ALL ON TABLE public.account_domains TO anon;
-GRANT ALL ON TABLE public.account_domains TO authenticated;
-GRANT ALL ON TABLE public.account_domains TO service_role;
-
--- acl: TABLE account_feedback
-GRANT ALL ON TABLE public.account_feedback TO anon;
-GRANT ALL ON TABLE public.account_feedback TO authenticated;
-GRANT ALL ON TABLE public.account_feedback TO service_role;
-
--- acl: TABLE account_scores
-GRANT ALL ON TABLE public.account_scores TO anon;
-GRANT ALL ON TABLE public.account_scores TO authenticated;
-GRANT ALL ON TABLE public.account_scores TO service_role;
-
--- acl: TABLE accounts
-GRANT ALL ON TABLE public.accounts TO anon;
-GRANT ALL ON TABLE public.accounts TO authenticated;
-GRANT ALL ON TABLE public.accounts TO service_role;
-
 -- acl: TABLE activity_out
 GRANT ALL ON TABLE public.activity_out TO anon;
 GRANT ALL ON TABLE public.activity_out TO authenticated;
@@ -5094,21 +4720,6 @@ GRANT ALL ON TABLE public.design_assets TO anon;
 GRANT ALL ON TABLE public.design_assets TO authenticated;
 GRANT ALL ON TABLE public.design_assets TO service_role;
 
--- acl: TABLE device_links
-GRANT ALL ON TABLE public.device_links TO anon;
-GRANT ALL ON TABLE public.device_links TO authenticated;
-GRANT ALL ON TABLE public.device_links TO service_role;
-
--- acl: TABLE devices
-GRANT ALL ON TABLE public.devices TO anon;
-GRANT ALL ON TABLE public.devices TO authenticated;
-GRANT ALL ON TABLE public.devices TO service_role;
-
--- acl: TABLE domain_aliases
-GRANT ALL ON TABLE public.domain_aliases TO anon;
-GRANT ALL ON TABLE public.domain_aliases TO authenticated;
-GRANT ALL ON TABLE public.domain_aliases TO service_role;
-
 -- acl: TABLE email_events
 GRANT ALL ON TABLE public.email_events TO anon;
 GRANT ALL ON TABLE public.email_events TO authenticated;
@@ -5188,176 +4799,6 @@ GRANT ALL ON TABLE public.env_secrets TO service_role;
 GRANT ALL ON TABLE public.erasures TO anon;
 GRANT ALL ON TABLE public.erasures TO authenticated;
 GRANT ALL ON TABLE public.erasures TO service_role;
-
--- acl: TABLE events
-GRANT ALL ON TABLE public.events TO anon;
-GRANT ALL ON TABLE public.events TO authenticated;
-GRANT ALL ON TABLE public.events TO service_role;
-
--- acl: TABLE events_20261014
-GRANT ALL ON TABLE public.events_20261014 TO anon;
-GRANT ALL ON TABLE public.events_20261014 TO authenticated;
-GRANT ALL ON TABLE public.events_20261014 TO service_role;
-
--- acl: TABLE events_20261015
-GRANT ALL ON TABLE public.events_20261015 TO anon;
-GRANT ALL ON TABLE public.events_20261015 TO authenticated;
-GRANT ALL ON TABLE public.events_20261015 TO service_role;
-
--- acl: TABLE events_20261016
-GRANT ALL ON TABLE public.events_20261016 TO anon;
-GRANT ALL ON TABLE public.events_20261016 TO authenticated;
-GRANT ALL ON TABLE public.events_20261016 TO service_role;
-
--- acl: TABLE events_20261017
-GRANT ALL ON TABLE public.events_20261017 TO anon;
-GRANT ALL ON TABLE public.events_20261017 TO authenticated;
-GRANT ALL ON TABLE public.events_20261017 TO service_role;
-
--- acl: TABLE events_20261018
-GRANT ALL ON TABLE public.events_20261018 TO anon;
-GRANT ALL ON TABLE public.events_20261018 TO authenticated;
-GRANT ALL ON TABLE public.events_20261018 TO service_role;
-
--- acl: TABLE events_20261019
-GRANT ALL ON TABLE public.events_20261019 TO anon;
-GRANT ALL ON TABLE public.events_20261019 TO authenticated;
-GRANT ALL ON TABLE public.events_20261019 TO service_role;
-
--- acl: TABLE events_20261020
-GRANT ALL ON TABLE public.events_20261020 TO anon;
-GRANT ALL ON TABLE public.events_20261020 TO authenticated;
-GRANT ALL ON TABLE public.events_20261020 TO service_role;
-
--- acl: TABLE events_20261021
-GRANT ALL ON TABLE public.events_20261021 TO anon;
-GRANT ALL ON TABLE public.events_20261021 TO authenticated;
-GRANT ALL ON TABLE public.events_20261021 TO service_role;
-
--- acl: TABLE events_20261022
-GRANT ALL ON TABLE public.events_20261022 TO anon;
-GRANT ALL ON TABLE public.events_20261022 TO authenticated;
-GRANT ALL ON TABLE public.events_20261022 TO service_role;
-
--- acl: TABLE events_20261023
-GRANT ALL ON TABLE public.events_20261023 TO anon;
-GRANT ALL ON TABLE public.events_20261023 TO authenticated;
-GRANT ALL ON TABLE public.events_20261023 TO service_role;
-
--- acl: TABLE events_20261024
-GRANT ALL ON TABLE public.events_20261024 TO anon;
-GRANT ALL ON TABLE public.events_20261024 TO authenticated;
-GRANT ALL ON TABLE public.events_20261024 TO service_role;
-
--- acl: TABLE events_20261025
-GRANT ALL ON TABLE public.events_20261025 TO anon;
-GRANT ALL ON TABLE public.events_20261025 TO authenticated;
-GRANT ALL ON TABLE public.events_20261025 TO service_role;
-
--- acl: TABLE events_20261026
-GRANT ALL ON TABLE public.events_20261026 TO anon;
-GRANT ALL ON TABLE public.events_20261026 TO authenticated;
-GRANT ALL ON TABLE public.events_20261026 TO service_role;
-
--- acl: TABLE events_20261027
-GRANT ALL ON TABLE public.events_20261027 TO anon;
-GRANT ALL ON TABLE public.events_20261027 TO authenticated;
-GRANT ALL ON TABLE public.events_20261027 TO service_role;
-
--- acl: TABLE events_20261028
-GRANT ALL ON TABLE public.events_20261028 TO anon;
-GRANT ALL ON TABLE public.events_20261028 TO authenticated;
-GRANT ALL ON TABLE public.events_20261028 TO service_role;
-
--- acl: TABLE events_20261029
-GRANT ALL ON TABLE public.events_20261029 TO anon;
-GRANT ALL ON TABLE public.events_20261029 TO authenticated;
-GRANT ALL ON TABLE public.events_20261029 TO service_role;
-
--- acl: TABLE events_20261030
-GRANT ALL ON TABLE public.events_20261030 TO anon;
-GRANT ALL ON TABLE public.events_20261030 TO authenticated;
-GRANT ALL ON TABLE public.events_20261030 TO service_role;
-
--- acl: TABLE events_20261031
-GRANT ALL ON TABLE public.events_20261031 TO anon;
-GRANT ALL ON TABLE public.events_20261031 TO authenticated;
-GRANT ALL ON TABLE public.events_20261031 TO service_role;
-
--- acl: TABLE events_20261101
-GRANT ALL ON TABLE public.events_20261101 TO anon;
-GRANT ALL ON TABLE public.events_20261101 TO authenticated;
-GRANT ALL ON TABLE public.events_20261101 TO service_role;
-
--- acl: TABLE events_20261102
-GRANT ALL ON TABLE public.events_20261102 TO anon;
-GRANT ALL ON TABLE public.events_20261102 TO authenticated;
-GRANT ALL ON TABLE public.events_20261102 TO service_role;
-
--- acl: TABLE events_20261103
-GRANT ALL ON TABLE public.events_20261103 TO anon;
-GRANT ALL ON TABLE public.events_20261103 TO authenticated;
-GRANT ALL ON TABLE public.events_20261103 TO service_role;
-
--- acl: TABLE events_20261104
-GRANT ALL ON TABLE public.events_20261104 TO anon;
-GRANT ALL ON TABLE public.events_20261104 TO authenticated;
-GRANT ALL ON TABLE public.events_20261104 TO service_role;
-
--- acl: TABLE events_20261105
-GRANT ALL ON TABLE public.events_20261105 TO anon;
-GRANT ALL ON TABLE public.events_20261105 TO authenticated;
-GRANT ALL ON TABLE public.events_20261105 TO service_role;
-
--- acl: TABLE events_20261106
-GRANT ALL ON TABLE public.events_20261106 TO anon;
-GRANT ALL ON TABLE public.events_20261106 TO authenticated;
-GRANT ALL ON TABLE public.events_20261106 TO service_role;
-
--- acl: TABLE events_20261107
-GRANT ALL ON TABLE public.events_20261107 TO anon;
-GRANT ALL ON TABLE public.events_20261107 TO authenticated;
-GRANT ALL ON TABLE public.events_20261107 TO service_role;
-
--- acl: TABLE events_20261108
-GRANT ALL ON TABLE public.events_20261108 TO anon;
-GRANT ALL ON TABLE public.events_20261108 TO authenticated;
-GRANT ALL ON TABLE public.events_20261108 TO service_role;
-
--- acl: TABLE events_20261109
-GRANT ALL ON TABLE public.events_20261109 TO anon;
-GRANT ALL ON TABLE public.events_20261109 TO authenticated;
-GRANT ALL ON TABLE public.events_20261109 TO service_role;
-
--- acl: TABLE events_20261110
-GRANT ALL ON TABLE public.events_20261110 TO anon;
-GRANT ALL ON TABLE public.events_20261110 TO authenticated;
-GRANT ALL ON TABLE public.events_20261110 TO service_role;
-
--- acl: TABLE events_20261111
-GRANT ALL ON TABLE public.events_20261111 TO anon;
-GRANT ALL ON TABLE public.events_20261111 TO authenticated;
-GRANT ALL ON TABLE public.events_20261111 TO service_role;
-
--- acl: TABLE events_20261112
-GRANT ALL ON TABLE public.events_20261112 TO anon;
-GRANT ALL ON TABLE public.events_20261112 TO authenticated;
-GRANT ALL ON TABLE public.events_20261112 TO service_role;
-
--- acl: TABLE events_20261113
-GRANT ALL ON TABLE public.events_20261113 TO anon;
-GRANT ALL ON TABLE public.events_20261113 TO authenticated;
-GRANT ALL ON TABLE public.events_20261113 TO service_role;
-
--- acl: TABLE events_20261114
-GRANT ALL ON TABLE public.events_20261114 TO anon;
-GRANT ALL ON TABLE public.events_20261114 TO authenticated;
-GRANT ALL ON TABLE public.events_20261114 TO service_role;
-
--- acl: TABLE events_20261115
-GRANT ALL ON TABLE public.events_20261115 TO anon;
-GRANT ALL ON TABLE public.events_20261115 TO authenticated;
-GRANT ALL ON TABLE public.events_20261115 TO service_role;
 
 -- acl: TABLE field_history
 GRANT ALL ON TABLE public.field_history TO anon;
@@ -5494,46 +4935,6 @@ GRANT ALL ON SEQUENCE public.hook_events_id_seq TO anon;
 GRANT ALL ON SEQUENCE public.hook_events_id_seq TO authenticated;
 GRANT ALL ON SEQUENCE public.hook_events_id_seq TO service_role;
 
--- acl: TABLE hop_nonces
-GRANT ALL ON TABLE public.hop_nonces TO anon;
-GRANT ALL ON TABLE public.hop_nonces TO authenticated;
-GRANT ALL ON TABLE public.hop_nonces TO service_role;
-
--- acl: TABLE icp
-GRANT ALL ON TABLE public.icp TO anon;
-GRANT ALL ON TABLE public.icp TO authenticated;
-GRANT ALL ON TABLE public.icp TO service_role;
-
--- acl: TABLE identifiers
-GRANT ALL ON TABLE public.identifiers TO anon;
-GRANT ALL ON TABLE public.identifiers TO authenticated;
-GRANT ALL ON TABLE public.identifiers TO service_role;
-
--- acl: TABLE identity_evidence
-GRANT ALL ON TABLE public.identity_evidence TO anon;
-GRANT ALL ON TABLE public.identity_evidence TO authenticated;
-GRANT ALL ON TABLE public.identity_evidence TO service_role;
-
--- acl: TABLE identity_settings
-GRANT ALL ON TABLE public.identity_settings TO anon;
-GRANT ALL ON TABLE public.identity_settings TO authenticated;
-GRANT ALL ON TABLE public.identity_settings TO service_role;
-
--- acl: COLUMN identity_settings.workspace_id
-GRANT SELECT(workspace_id) ON TABLE public.identity_settings TO authenticated;
-
--- acl: COLUMN identity_settings.own_domains
-GRANT SELECT(own_domains) ON TABLE public.identity_settings TO authenticated;
-
--- acl: COLUMN identity_settings.partner_domains
-GRANT SELECT(partner_domains) ON TABLE public.identity_settings TO authenticated;
-
--- acl: COLUMN identity_settings.office_nets
-GRANT SELECT(office_nets) ON TABLE public.identity_settings TO authenticated;
-
--- acl: COLUMN identity_settings.updated_at
-GRANT SELECT(updated_at) ON TABLE public.identity_settings TO authenticated;
-
 -- acl: TABLE imports
 GRANT ALL ON TABLE public.imports TO anon;
 GRANT ALL ON TABLE public.imports TO authenticated;
@@ -5544,20 +4945,10 @@ GRANT ALL ON TABLE public.inbox_messages TO anon;
 GRANT ALL ON TABLE public.inbox_messages TO authenticated;
 GRANT ALL ON TABLE public.inbox_messages TO service_role;
 
--- acl: TABLE intent_params
-GRANT ALL ON TABLE public.intent_params TO anon;
-GRANT ALL ON TABLE public.intent_params TO authenticated;
-GRANT ALL ON TABLE public.intent_params TO service_role;
-
 -- acl: TABLE invites
 GRANT ALL ON TABLE public.invites TO anon;
 GRANT ALL ON TABLE public.invites TO authenticated;
 GRANT ALL ON TABLE public.invites TO service_role;
-
--- acl: TABLE ip_cache
-GRANT ALL ON TABLE public.ip_cache TO anon;
-GRANT ALL ON TABLE public.ip_cache TO authenticated;
-GRANT ALL ON TABLE public.ip_cache TO service_role;
 
 -- acl: TABLE lead_score_marks
 GRANT ALL ON TABLE public.lead_score_marks TO anon;
@@ -5568,11 +4959,6 @@ GRANT ALL ON TABLE public.lead_score_marks TO service_role;
 GRANT ALL ON TABLE public.lead_settings TO anon;
 GRANT ALL ON TABLE public.lead_settings TO authenticated;
 GRANT ALL ON TABLE public.lead_settings TO service_role;
-
--- acl: TABLE learned_networks
-GRANT ALL ON TABLE public.learned_networks TO anon;
-GRANT ALL ON TABLE public.learned_networks TO authenticated;
-GRANT ALL ON TABLE public.learned_networks TO service_role;
 
 -- acl: TABLE link_domains
 GRANT ALL ON TABLE public.link_domains TO anon;
@@ -5653,16 +5039,6 @@ GRANT ALL ON TABLE public.meeting_types TO anon;
 GRANT ALL ON TABLE public.meeting_types TO authenticated;
 GRANT ALL ON TABLE public.meeting_types TO service_role;
 
--- acl: TABLE merge_proposals
-GRANT ALL ON TABLE public.merge_proposals TO anon;
-GRANT ALL ON TABLE public.merge_proposals TO authenticated;
-GRANT ALL ON TABLE public.merge_proposals TO service_role;
-
--- acl: TABLE network_flags
-GRANT ALL ON TABLE public.network_flags TO anon;
-GRANT ALL ON TABLE public.network_flags TO authenticated;
-GRANT ALL ON TABLE public.network_flags TO service_role;
-
 -- acl: TABLE notes
 GRANT ALL ON TABLE public.notes TO anon;
 GRANT ALL ON TABLE public.notes TO authenticated;
@@ -5703,35 +5079,15 @@ GRANT ALL ON TABLE public.objects TO anon;
 GRANT ALL ON TABLE public.objects TO authenticated;
 GRANT ALL ON TABLE public.objects TO service_role;
 
--- acl: TABLE opt_outs
-GRANT ALL ON TABLE public.opt_outs TO anon;
-GRANT ALL ON TABLE public.opt_outs TO authenticated;
-GRANT ALL ON TABLE public.opt_outs TO service_role;
-
--- acl: TABLE page_groups
-GRANT ALL ON TABLE public.page_groups TO anon;
-GRANT ALL ON TABLE public.page_groups TO authenticated;
-GRANT ALL ON TABLE public.page_groups TO service_role;
-
 -- acl: TABLE payment_accounts
 GRANT ALL ON TABLE public.payment_accounts TO anon;
 GRANT ALL ON TABLE public.payment_accounts TO authenticated;
 GRANT ALL ON TABLE public.payment_accounts TO service_role;
 
--- acl: TABLE person_aliases
-GRANT ALL ON TABLE public.person_aliases TO anon;
-GRANT ALL ON TABLE public.person_aliases TO authenticated;
-GRANT ALL ON TABLE public.person_aliases TO service_role;
-
 -- acl: TABLE person_cache
 GRANT ALL ON TABLE public.person_cache TO anon;
 GRANT ALL ON TABLE public.person_cache TO authenticated;
 GRANT ALL ON TABLE public.person_cache TO service_role;
-
--- acl: TABLE persons
-GRANT ALL ON TABLE public.persons TO anon;
-GRANT ALL ON TABLE public.persons TO authenticated;
-GRANT ALL ON TABLE public.persons TO service_role;
 
 -- acl: TABLE plan_usage
 GRANT ALL ON TABLE public.plan_usage TO anon;
@@ -5742,11 +5098,6 @@ GRANT ALL ON TABLE public.plan_usage TO service_role;
 GRANT ALL ON TABLE public.poll_votes TO anon;
 GRANT ALL ON TABLE public.poll_votes TO authenticated;
 GRANT ALL ON TABLE public.poll_votes TO service_role;
-
--- acl: TABLE privacy_exports
-GRANT ALL ON TABLE public.privacy_exports TO anon;
-GRANT ALL ON TABLE public.privacy_exports TO authenticated;
-GRANT ALL ON TABLE public.privacy_exports TO service_role;
 
 -- acl: TABLE privacy_requests
 GRANT ALL ON TABLE public.privacy_requests TO anon;
@@ -5868,11 +5219,6 @@ GRANT ALL ON TABLE public.run_steps TO anon;
 GRANT ALL ON TABLE public.run_steps TO authenticated;
 GRANT ALL ON TABLE public.run_steps TO service_role;
 
--- acl: TABLE salts
-GRANT ALL ON TABLE public.salts TO anon;
-GRANT ALL ON TABLE public.salts TO authenticated;
-GRANT ALL ON TABLE public.salts TO service_role;
-
 -- acl: TABLE saved_views
 GRANT ALL ON TABLE public.saved_views TO anon;
 GRANT ALL ON TABLE public.saved_views TO authenticated;
@@ -5931,31 +5277,6 @@ GRANT ALL ON TABLE public.segment_members TO service_role;
 GRANT ALL ON TABLE public.segments TO anon;
 GRANT ALL ON TABLE public.segments TO authenticated;
 GRANT ALL ON TABLE public.segments TO service_role;
-
--- acl: TABLE sessions
-GRANT ALL ON TABLE public.sessions TO anon;
-GRANT ALL ON TABLE public.sessions TO authenticated;
-GRANT ALL ON TABLE public.sessions TO service_role;
-
--- acl: TABLE signal_types
-GRANT ALL ON TABLE public.signal_types TO anon;
-GRANT ALL ON TABLE public.signal_types TO authenticated;
-GRANT ALL ON TABLE public.signal_types TO service_role;
-
--- acl: TABLE signals
-GRANT ALL ON TABLE public.signals TO anon;
-GRANT ALL ON TABLE public.signals TO authenticated;
-GRANT ALL ON TABLE public.signals TO service_role;
-
--- acl: TABLE site_daily
-GRANT ALL ON TABLE public.site_daily TO anon;
-GRANT ALL ON TABLE public.site_daily TO authenticated;
-GRANT ALL ON TABLE public.site_daily TO service_role;
-
--- acl: TABLE site_rolled
-GRANT ALL ON TABLE public.site_rolled TO anon;
-GRANT ALL ON TABLE public.site_rolled TO authenticated;
-GRANT ALL ON TABLE public.site_rolled TO service_role;
 
 -- acl: TABLE sites
 GRANT ALL ON TABLE public.sites TO anon;
@@ -6071,6 +5392,23 @@ GRANT ALL ON SEQUENCE public.sync_log_id_seq TO service_role;
 GRANT ALL ON TABLE public.tasks TO anon;
 GRANT ALL ON TABLE public.tasks TO authenticated;
 GRANT ALL ON TABLE public.tasks TO service_role;
+
+-- acl: TABLE team_domains
+GRANT ALL ON TABLE public.team_domains TO anon;
+GRANT ALL ON TABLE public.team_domains TO authenticated;
+GRANT ALL ON TABLE public.team_domains TO service_role;
+
+-- acl: COLUMN team_domains.workspace_id
+GRANT SELECT(workspace_id) ON TABLE public.team_domains TO authenticated;
+
+-- acl: COLUMN team_domains.own_domains
+GRANT SELECT(own_domains) ON TABLE public.team_domains TO authenticated;
+
+-- acl: COLUMN team_domains.partner_domains
+GRANT SELECT(partner_domains) ON TABLE public.team_domains TO authenticated;
+
+-- acl: COLUMN team_domains.updated_at
+GRANT SELECT(updated_at) ON TABLE public.team_domains TO authenticated;
 
 -- acl: TABLE test_proposals
 GRANT ALL ON TABLE public.test_proposals TO anon;

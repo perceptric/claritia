@@ -1654,20 +1654,6 @@ $$;
 
 ALTER FUNCTION public.claim_run(p_worker text) OWNER TO postgres;
 
--- function: companies_follow_account()
-CREATE FUNCTION public.companies_follow_account() RETURNS trigger
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-begin
-  update companies set account_id = new.account_id, updated_at = now()
-  where workspace_id = new.workspace_id and domain = new.domain and account_id is null;
-  return null;
-end;
-$$;
-
-ALTER FUNCTION public.companies_follow_account() OWNER TO postgres;
-
 -- function: companies_upsert(uuid, text, jsonb)
 CREATE FUNCTION public.companies_upsert(p_ws uuid, p_source text, p_rows jsonb) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
@@ -1695,8 +1681,8 @@ begin
       continue;
     end if;
     if r.domain is not null then
-      insert into companies (workspace_id, domain, name, account_id, source_ids)
-      values (p_ws, r.domain, r.name, (select ad.account_id from account_domains ad where ad.workspace_id = p_ws and ad.domain = r.domain),
+      insert into companies (workspace_id, domain, name, source_ids)
+      values (p_ws, r.domain, r.name,
               case when r.source_id is null then '{}'::jsonb else jsonb_build_object(p_source, r.source_id) end)
       on conflict (workspace_id, domain) where domain is not null do nothing
       returning id into cid;
@@ -1945,9 +1931,8 @@ begin
   end loop;
   if p_values ? 'company_domain' or p_values ? 'company_name' then
     if nullif(p_values->>'company_domain', '') is not null then
-      insert into companies (workspace_id, domain, name, account_id)
-      values (c.workspace_id, p_values->>'company_domain', nullif(p_values->>'company_name', ''),
-              (select account_id from account_domains where workspace_id = c.workspace_id and domain = p_values->>'company_domain'))
+      insert into companies (workspace_id, domain, name)
+      values (c.workspace_id, p_values->>'company_domain', nullif(p_values->>'company_name', ''))
       on conflict (workspace_id, domain) where domain is not null do update set name = coalesce(companies.name, excluded.name)
       returning id into co;
     elsif nullif(p_values->>'company_name', '') is not null then
@@ -1975,7 +1960,6 @@ begin
     owner_user_id = case when p_values ? 'owner' then nullif(p_values->>'owner', '')::uuid else owner_user_id end,
     company_id = case when p_values ? 'company_domain' or p_values ? 'company_name' then co else company_id end,
     fields = jsonb_strip_nulls(fields || custom),
-    person_id = case when p_values ? 'email_clean' then person_for_email(c.workspace_id, p_values->>'email_clean') else person_id end,
     updated_at = now()
   where id = c.id
   returning contact_vals(contacts) into v_new;
@@ -2091,44 +2075,6 @@ end;
 $$;
 
 ALTER FUNCTION public.contacts_enrich_new() OWNER TO postgres;
-
--- function: contacts_follow_identifier()
-CREATE FUNCTION public.contacts_follow_identifier() RETURNS trigger
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-begin
-  if tg_op in ('UPDATE', 'DELETE') and old.kind = 'email' then
-    update contacts set person_id = person_for_email(old.workspace_id, old.value_clean)
-    where workspace_id = old.workspace_id and email_clean = old.value_clean and deleted_at is null
-      and person_id is distinct from person_for_email(old.workspace_id, old.value_clean);
-  end if;
-  if tg_op in ('INSERT', 'UPDATE') and new.kind = 'email' then
-    update contacts set person_id = person_for_email(new.workspace_id, new.value_clean)
-    where workspace_id = new.workspace_id and email_clean = new.value_clean and deleted_at is null
-      and person_id is distinct from person_for_email(new.workspace_id, new.value_clean);
-  end if;
-  return null;
-end;
-$$;
-
-ALTER FUNCTION public.contacts_follow_identifier() OWNER TO postgres;
-
--- function: contacts_follow_merge()
-CREATE FUNCTION public.contacts_follow_merge() RETURNS trigger
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-begin
-  if new.merged_into is not null and new.merged_into is distinct from old.merged_into then
-    update contacts set person_id = coalesce(person_for_email(workspace_id, email_clean), new.merged_into)
-    where workspace_id = new.workspace_id and person_id = new.id;
-  end if;
-  return null;
-end;
-$$;
-
-ALTER FUNCTION public.contacts_follow_merge() OWNER TO postgres;
 
 -- function: contacts_list(uuid, jsonb, text, boolean, integer, integer)
 CREATE FUNCTION public.contacts_list(p_ws uuid, p_filters jsonb DEFAULT '[]'::jsonb, p_sort text DEFAULT 'updated_at'::text, p_desc boolean DEFAULT true, p_limit integer DEFAULT 100, p_offset integer DEFAULT 0) RETURNS jsonb
@@ -2250,13 +2196,12 @@ begin
   end if;
 
   -- Companies: by domain, or by name when there's no domain.
-  insert into companies (workspace_id, domain, name, account_id)
-  select distinct on (company_domain) p_ws, company_domain, company_name,
-         (select ad.account_id from account_domains ad where ad.workspace_id = p_ws and ad.domain = r.company_domain)
+  insert into companies (workspace_id, domain, name)
+  select distinct on (company_domain) p_ws, company_domain, company_name
   from _rows r where company_domain is not null
   order by company_domain, (company_name is null)
   on conflict (workspace_id, domain) where domain is not null
-  do update set name = coalesce(companies.name, excluded.name), account_id = coalesce(companies.account_id, excluded.account_id), updated_at = now();
+  do update set name = coalesce(companies.name, excluded.name), updated_at = now();
   insert into companies (workspace_id, name)
   select distinct on (lower(company_name)) p_ws, company_name from _rows where company_domain is null and company_name is not null
   on conflict (workspace_id, lower(name)) where domain is null do nothing;
@@ -2267,9 +2212,9 @@ begin
   -- New contacts. A concurrent writer may take an email first; those rows fall through to the update below.
   with ins as (
     insert into contacts (workspace_id, email, email_clean, email_class, first_name, last_name, title, phone, company_id, country, region, timezone,
-                          lifecycle, lead_status, source, fields, person_id, import_id, source_ids, field_sources)
+                          lifecycle, lead_status, source, fields, import_id, source_ids, field_sources)
     select p_ws, r.email, r.email_clean, r.email_class, r.first_name, r.last_name, r.title, r.phone, r.company_id, r.country, r.region, r.timezone,
-           r.lifecycle, r.lead_status, p_source, r.fields, person_for_email(p_ws, r.email_clean), p_import,
+           r.lifecycle, r.lead_status, p_source, r.fields, p_import,
            case when r.source_id is null then '{}'::jsonb else jsonb_build_object(p_source, r.source_id) end,
            (select coalesce(jsonb_object_agg(k, jsonb_strip_nulls(jsonb_build_object('s', p_source, 'at', now(), 'i', p_import))), '{}')
             from jsonb_object_keys(jsonb_strip_nulls(jsonb_build_object('email', r.email, 'first_name', r.first_name, 'last_name', r.last_name,
@@ -2311,7 +2256,6 @@ begin
     fields = coalesce((select jsonb_object_agg(substr(k, 3), v) from jsonb_each(r.m->'vals') e(k, v) where k like 'f.%'), '{}'),
     field_sources = r.m->'src',
     source_ids = case when r.source_id is null then c.source_ids else c.source_ids || jsonb_build_object(p_source, r.source_id) end,
-    person_id = coalesce(c.person_id, person_for_email(p_ws, c.email_clean)),
     updated_at = case when jsonb_array_length(r.m->'changes') > 0 then now() else c.updated_at end
   from _rows r
   where c.id = r.contact_id and not r.created;
@@ -2651,29 +2595,6 @@ end;
 $$;
 
 ALTER FUNCTION public.domain_checks_due() OWNER TO postgres;
-
--- function: drop_old_event_partitions(integer)
-CREATE FUNCTION public.drop_old_event_partitions(p_keep_days integer DEFAULT 180) RETURNS integer
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $_$
-declare
-  t record;
-  dropped int := 0;
-begin
-  for t in
-    select c.relname from pg_inherits i join pg_class c on c.oid = i.inhrelid join pg_class p on p.oid = i.inhparent
-    where p.relname = 'events' and c.relname ~ '^events_\d{8}$'
-      and to_date(substring(c.relname from 8), 'YYYYMMDD') < current_date - greatest(p_keep_days, 30)
-  loop
-    execute format('drop table public.%I', t.relname);
-    dropped := dropped + 1;
-  end loop;
-  return dropped;
-end;
-$_$;
-
-ALTER FUNCTION public.drop_old_event_partitions(p_keep_days integer) OWNER TO postgres;
 
 -- function: email_click(uuid, integer, boolean, jsonb)
 CREATE FUNCTION public.email_click(p_message uuid, p_link integer, p_human boolean, p_data jsonb DEFAULT '{}'::jsonb) RETURNS text
@@ -3205,8 +3126,8 @@ begin
   if source_class(p_source) <> 'vendor' then raise exception 'Not a vendor source: %', p_source; end if;
   if dom is null or dom !~ '^[a-z0-9-]+(\.[a-z0-9-]+)+$' then return jsonb_build_object('id', null, 'changed', '[]'::jsonb); end if;
   if p_create then
-    insert into companies (workspace_id, domain, name, account_id)
-    values (p_ws, dom, nullif(trim(left(p_company->>'name', 200)), ''), (select account_id from account_domains where workspace_id = p_ws and domain = dom))
+    insert into companies (workspace_id, domain, name)
+    values (p_ws, dom, nullif(trim(left(p_company->>'name', 200)), ''))
     on conflict (workspace_id, domain) where domain is not null do nothing
     returning id into cid;
   end if;
@@ -3564,9 +3485,6 @@ declare
 begin
   update contacts c set first_touch = coalesce(
     (select touch_from_fill(s.hidden, s.form_id, s.created_at) from submissions s where s.contact_id = c.id and not s.test and not s.spam order by s.created_at limit 1),
-    (select jsonb_strip_nulls(jsonb_build_object('source', coalesce(se.source, se.referrer_host, 'direct'), 'medium', se.medium, 'campaign', se.campaign, 'ref_class', se.ref_class, 'at', se.started_at))
-       from sessions se where c.person_id is not null and se.workspace_id = c.workspace_id and se.person_id = c.person_id and not se.is_bot and not se.internal
-       order by se.started_at limit 1),
     jsonb_build_object('source', c.source, 'at', c.created_at))
   where c.first_touch is null and c.created_at < now() - p_older;
   get diagnostics n = row_count;
@@ -3725,7 +3643,7 @@ begin
   if cid is null then
     return null;
   end if;
-  return jsonb_build_object('id', cid, 'domain', (select own_domains[1] from identity_settings where workspace_id = ws));
+  return jsonb_build_object('id', cid, 'domain', (select own_domains[1] from team_domains where workspace_id = ws));
 end;
 $$;
 
@@ -5227,41 +5145,6 @@ $$;
 
 ALTER FUNCTION public.hook_stage_many(p_source uuid, p_events jsonb) OWNER TO postgres;
 
--- function: icp_fit(jsonb, text, text, text)
-CREATE FUNCTION public.icp_fit(p_rules jsonb, p_industry text, p_size text, p_country text) RETURNS integer
-    LANGUAGE plpgsql IMMUTABLE
-    SET search_path TO 'public'
-    AS $$
-declare
-  total numeric := 0;
-  hit numeric := 0;
-  missed boolean := false;
-  k text;
-  v text;
-  r jsonb;
-  w numeric;
-begin
-  if p_rules is null or jsonb_typeof(p_rules) <> 'object' then return null; end if;
-  foreach k in array array['industries', 'sizes', 'countries'] loop
-    r := p_rules->k;
-    if r is null or jsonb_typeof(r->'values') <> 'array' or jsonb_array_length(r->'values') = 0 then continue; end if;
-    w := coalesce((r->>'weight')::numeric, 0);
-    if w <= 0 then continue; end if;
-    v := case k when 'industries' then p_industry when 'sizes' then p_size else p_country end;
-    total := total + w;
-    if v is not null and exists (select 1 from jsonb_array_elements_text(r->'values') x where lower(x) = lower(v)) then
-      hit := hit + w;
-    elsif coalesce((r->>'required')::boolean, false) then
-      missed := true;
-    end if;
-  end loop;
-  if total = 0 then return null; end if;
-  return case when missed then least(round(hit / total * 100), 30) else round(hit / total * 100) end;
-end;
-$$;
-
-ALTER FUNCTION public.icp_fit(p_rules jsonb, p_industry text, p_size text, p_country text) OWNER TO postgres;
-
 -- function: import_undo(uuid)
 CREATE FUNCTION public.import_undo(p_import uuid) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
@@ -5544,14 +5427,12 @@ CREATE FUNCTION public.lead_score_rows(p_ws uuid, p_ids uuid[]) RETURNS TABLE(co
     SET search_path TO 'public'
     AS $$
   with s as (select * from lead_settings where workspace_id = p_ws),
-  rules as (select rules from icp where workspace_id = p_ws),
   base as (
-    select c.id, c.email_class, c.title, c.person_id,
-      coalesce(a.fit, icp_fit((select rules from rules), co.industry, co.size, co.country)) as company_fit,
+    select c.id, c.email_class, c.title,
+      null::int as company_fit,
       co.industry, co.size, co.country
     from contacts c
     left join companies co on co.id = c.company_id
-    left join accounts a on a.id = co.account_id
     where c.workspace_id = p_ws and c.id = any(p_ids) and c.deleted_at is null
   ),
   person as (
@@ -5568,11 +5449,6 @@ CREATE FUNCTION public.lead_score_rows(p_ws uuid, p_ids uuid[]) RETURNS TABLE(co
     from contact_events e
     where e.workspace_id = p_ws and e.contact_id = any(p_ids) and e.at > now() - interval '90 days'
       and e.kind in (select jsonb_object_keys((select weights from s)))
-    union all
-    select b.id, case when x.landing_path ilike '%pricing%' then 'visit.pricing' else 'visit' end, x.started_at
-    from base b join sessions x on x.workspace_id = p_ws and x.person_id = b.person_id
-    where b.person_id is not null and x.person_level in ('verified', 'asserted') and not x.is_bot and not x.internal
-      and x.started_at > now() - interval '90 days'
   ),
   eng2 as (
     select x.id,
@@ -5656,7 +5532,7 @@ begin
     return jsonb_build_object('scored', 0, 'routed', 0);
   end if;
   kinds := array(select jsonb_object_keys(s.weights));
-  -- New, or did something (weighted activity, a visit, an edit) in the last day after their last score.
+  -- New, or did something (weighted activity or an edit) in the last day after their last score.
   select array_agg(id) into changed from (
     select u.id from (
       (select c.id, c.scored_at from contacts c where c.workspace_id = p_ws and c.deleted_at is null and c.scored_at is null limit lim)
@@ -5664,10 +5540,6 @@ begin
       select c.id, c.scored_at from contact_events e join contacts c on c.id = e.contact_id
       where e.workspace_id = p_ws and e.kind = any(kinds) and e.at > now() - interval '1 day'
         and c.deleted_at is null and e.at > c.scored_at
-      union
-      select c.id, c.scored_at from sessions x join contacts c on c.workspace_id = p_ws and c.person_id = x.person_id
-      where x.workspace_id = p_ws and x.person_id is not null and x.started_at > now() - interval '1 day'
-        and c.deleted_at is null and x.started_at > c.scored_at
       union
       select c.id, c.scored_at from contacts c
       where c.workspace_id = p_ws and c.deleted_at is null and c.updated_at > now() - interval '1 day' and c.updated_at > c.scored_at
@@ -5847,31 +5719,6 @@ CREATE FUNCTION public.mailbox_token_save(p_id uuid, p_sealed text) RETURNS void
 $$;
 
 ALTER FUNCTION public.mailbox_token_save(p_id uuid, p_sealed text) OWNER TO postgres;
-
--- function: make_event_partitions(integer)
-CREATE FUNCTION public.make_event_partitions(p_days_ahead integer DEFAULT 7) RETURNS integer
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-declare
-  d date;
-  name text;
-  made int := 0;
-begin
-  for d in select generate_series(current_date - 1, current_date + greatest(p_days_ahead, 1), interval '1 day')::date loop
-    name := 'events_' || to_char(d, 'YYYYMMDD');
-    if to_regclass('public.' || name) is null then
-      execute format('create table public.%I partition of public.events for values from (%L) to (%L)', name, d, d + 1);
-      execute format('alter table public.%I enable row level security', name);
-      execute format('revoke all on public.%I from anon, authenticated', name);
-      made := made + 1;
-    end if;
-  end loop;
-  return made;
-end;
-$$;
-
-ALTER FUNCTION public.make_event_partitions(p_days_ahead integer) OWNER TO postgres;
 
 -- function: meeting_book(uuid, uuid, uuid[], timestamp with time zone, timestamp with time zone, timestamp with time zone, timestamp with time zone, jsonb, text, text, text, uuid, uuid, uuid, integer, boolean, jsonb, uuid)
 CREATE FUNCTION public.meeting_book(p_ws uuid, p_type uuid, p_hosts uuid[], p_start timestamp with time zone, p_end timestamp with time zone, p_block_start timestamp with time zone, p_block_end timestamp with time zone, p_guest jsonb, p_source text, p_token_hash text, p_status text DEFAULT 'booked'::text, p_contact uuid DEFAULT NULL::uuid, p_submission uuid DEFAULT NULL::uuid, p_link uuid DEFAULT NULL::uuid, p_seats integer DEFAULT 0, p_rr boolean DEFAULT false, p_location jsonb DEFAULT '{}'::jsonb, p_booked_by uuid DEFAULT NULL::uuid) RETURNS uuid
@@ -6064,7 +5911,7 @@ begin
   select * into m from meetings where id = p_meeting for update;
   if m.id is null or m.contact_id is not null or ec = '' or m.status <> 'booked' then return m.contact_id; end if;
   if lower(btrim(coalesce(p_row->>'email', ''))) <> m.guest_email then return null; end if;
-  if split_part(ec, '@', 2) = any (coalesce((select own_domains from identity_settings where workspace_id = m.workspace_id), '{}')) then return null; end if;
+  if split_part(ec, '@', 2) = any (coalesce((select own_domains from team_domains where workspace_id = m.workspace_id), '{}')) then return null; end if;
   up := contacts_upsert(m.workspace_id, 'meeting', jsonb_build_array(p_row));
   cid := (up->'ids'->>0)::uuid;
   if cid is null then return null; end if;
@@ -7396,10 +7243,7 @@ begin
         when 'company_domain' then typ := 'text'; expr := 'co.domain';
         when 'industry' then typ := 'text'; expr := 'co.industry';
         when 'size' then typ := 'text'; expr := 'co.size';
-        when 'fit' then typ := 'number'; expr := 'a.fit';
-        when 'intent' then typ := 'number'; expr := 'a.intent';
         when 'score' then typ := 'number'; expr := 'c.score';
-        when 'known' then typ := 'bool'; expr := '(c.person_id is not null)';
         when 'segment' then typ := 'link'; expr := 'array(select m.segment_id::text from segment_members m where m.contact_id = c.id and m.left_at is null)';
         when 'created_at' then typ := 'date'; expr := 'c.created_at';
         when 'updated_at' then typ := 'date'; expr := 'c.updated_at';
@@ -7413,9 +7257,6 @@ begin
         when 'size' then typ := 'text'; expr := 'co.size';
         when 'country' then typ := 'text'; expr := 'co.country';
         when 'owner' then typ := 'enum'; expr := 'co.owner_user_id::text';
-        when 'fit' then typ := 'number'; expr := 'a.fit';
-        when 'intent' then typ := 'number'; expr := 'a.intent';
-        when 'stage' then typ := 'enum'; expr := 'a.stage';
         when 'contacts' then typ := 'number'; expr := '(select count(*) from contacts x where x.company_id = co.id and x.deleted_at is null)';
         when 'created_at' then typ := 'date'; expr := 'co.created_at';
         when 'updated_at' then typ := 'date'; expr := 'co.updated_at';
@@ -7642,21 +7483,6 @@ end;
 $$;
 
 ALTER FUNCTION public.person_cache_forget() OWNER TO postgres;
-
--- function: person_for_email(uuid, text)
-CREATE FUNCTION public.person_for_email(p_ws uuid, p_email text) RETURNS uuid
-    LANGUAGE sql STABLE SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-  with recursive chain(id, depth) as (
-    select i.person_id, 0 from identifiers i where i.workspace_id = p_ws and i.kind = 'email' and i.value_clean = p_email and i.person_id is not null
-    union all
-    select p.merged_into, c.depth + 1 from chain c join persons p on p.id = c.id where p.merged_into is not null and c.depth < 20
-  )
-  select c.id from chain c join persons p on p.id = c.id where p.merged_into is null order by c.depth desc limit 1;
-$$;
-
-ALTER FUNCTION public.person_for_email(p_ws uuid, p_email text) OWNER TO postgres;
 
 -- function: person_name(text, text)
 CREATE FUNCTION public.person_name(p_first text, p_last text) RETURNS text
@@ -7917,34 +7743,6 @@ $$;
 
 ALTER FUNCTION public.poll_vote_view(p_hash text, p_email text, p_name text, p_picks timestamp with time zone[]) OWNER TO postgres;
 
--- function: product_events_sync()
-CREATE FUNCTION public.product_events_sync() RETURNS integer
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-declare
-  n int;
-begin
-  if to_regclass('partitions.contact_events_' || to_char(now(), 'YYYY_MM')) is null then
-    perform contact_events_roll();
-  end if;
-  insert into contact_events (workspace_id, contact_id, kind, data, source, at)
-  select distinct on (x.id, c.id) x.workspace_id, c.id, 'product.used',
-         jsonb_build_object('name', left(coalesce(nullif(x.data->>'name', ''), x.title, 'event'), 64), 'event_id', x.id), 'product', x.server_at
-  from events x
-  join sessions s on s.id = x.session_id and s.workspace_id = x.workspace_id
-  join contacts c on c.workspace_id = s.workspace_id and c.person_id = s.person_id and c.deleted_at is null
-  where x.kind = 'custom' and x.day >= current_date - 1 and x.server_at > now() - interval '20 minutes'
-    and s.person_id is not null and s.person_level in ('verified', 'asserted') and not s.is_bot and not s.internal
-    and not exists (select 1 from contact_events e where e.contact_id = c.id and e.kind = 'product.used'
-                    and e.at >= x.server_at - interval '1 minute' and e.data->>'event_id' = x.id::text);
-  get diagnostics n = row_count;
-  return n;
-end;
-$$;
-
-ALTER FUNCTION public.product_events_sync() OWNER TO postgres;
-
 -- function: project_inbox()
 CREATE FUNCTION public.project_inbox() RETURNS trigger
     LANGUAGE plpgsql
@@ -8044,7 +7842,7 @@ begin
       select id from jobs
       where status in ('done', 'failed') and finished_at < now() - interval '1 day'
         and ((status = 'done' and (finished_at < now() - interval '7 days'
-                                   or kind in ('calendar_refresh', 'score_account', 'stitch', 'ip_lookup', 'identity_changed', 'send',
+                                   or kind in ('calendar_refresh', 'send',
                                                'route', 'enrich_contact', 'qualify', 'workflow_run', 'score_refresh', 'calendar_watch')))
              or finished_at < now() - interval '30 days')
       limit 10000);
@@ -8463,10 +8261,10 @@ begin
     ord := case p_object
       when 'contact' then case sortf
         when 'name' then 'lower(coalesce(c.last_name, c.first_name, c.email))' when 'email' then 'c.email_clean' when 'company' then 'lower(co.name)'
-        when 'score' then 'c.score' when 'fit' then 'a.fit' when 'lifecycle' then 'c.lifecycle' when 'lead_status' then 'c.lead_status'
+        when 'score' then 'c.score' when 'lifecycle' then 'c.lifecycle' when 'lead_status' then 'c.lead_status'
         when 'title' then 'lower(c.title)' when 'country' then 'c.country' when 'created_at' then 'c.created_at' else 'c.updated_at' end
       when 'company' then case sortf
-        when 'name' then 'lower(coalesce(co.name, co.domain))' when 'domain' then 'co.domain' when 'fit' then 'a.fit' when 'intent' then 'a.intent'
+        when 'name' then 'lower(coalesce(co.name, co.domain))' when 'domain' then 'co.domain'
         when 'contacts' then 'contacts' when 'created_at' then 'co.created_at' else 'co.updated_at' end
       else case sortf when 'name' then 'lower(r.name)' when 'created_at' then 'r.created_at' else 'r.updated_at' end
     end || case when p_desc then ' desc nulls last' else ' asc nulls last' end;
@@ -8474,15 +8272,15 @@ begin
   ord := ord || ', ' || t || '.id';
 
   if p_object = 'contact' then
-    base := 'contacts c left join companies co on co.id = c.company_id left join accounts a on a.id = co.account_id
+    base := 'contacts c left join companies co on co.id = c.company_id
              where c.workspace_id = $1 and c.deleted_at is null';
     sel := 'c.id, c.email, c.first_name, c.last_name, c.title, c.phone, c.country, c.region, c.lifecycle, c.lead_status, c.source,
-            c.score, c.score_band, c.person_id, c.fields, c.created_at, c.updated_at, c.owner_user_id as owner, c.field_sources,
-            c.email_class, c.company_id, co.name as company_name, co.domain as company_domain, co.industry, co.size, co.account_id, a.fit, a.intent';
+            c.score, c.score_band, c.fields, c.created_at, c.updated_at, c.owner_user_id as owner, c.field_sources,
+            c.email_class, c.company_id, co.name as company_name, co.domain as company_domain, co.industry, co.size';
   elsif p_object = 'company' then
-    base := 'companies co left join accounts a on a.id = co.account_id where co.workspace_id = $1 and co.deleted_at is null';
-    sel := 'co.id, co.name, co.domain, co.industry, co.size, co.country, co.owner_user_id as owner, co.fields, co.field_sources, co.account_id,
-            co.created_at, co.updated_at, a.fit, a.intent, a.stage,
+    base := 'companies co where co.workspace_id = $1 and co.deleted_at is null';
+    sel := 'co.id, co.name, co.domain, co.industry, co.size, co.country, co.owner_user_id as owner, co.fields, co.field_sources,
+            co.created_at, co.updated_at,
             (select count(*) from contacts x where x.company_id = co.id and x.deleted_at is null) as contacts';
   else
     base := format('records r where r.workspace_id = $1 and r.object_id = %L and r.deleted_at is null', v_oid);
@@ -8653,10 +8451,8 @@ CREATE FUNCTION public.report_funnel_range(p_ws uuid, p_from date, p_to date, p_
     from b, report_facts(p_ws, lower(b.r), upper(b.r)) x
   ),
   fd as (select form_id::text as k, sum(views) as views, sum(starts) as starts from form_daily where workspace_id = p_ws and day between p_from and p_to group by form_id),
-  vis as (select key as k, visits from report_visits(p_ws, p_from, p_to, case when p_by in ('source', 'campaign') then p_by end)),
   keys as (
     select k from f
-    union select k from vis where p_by in ('source', 'campaign')
     union select k from fd where p_by = 'form'
   ),
   g as (
@@ -8667,7 +8463,6 @@ CREATE FUNCTION public.report_funnel_range(p_ws uuid, p_from date, p_to date, p_
     from keys left join f on f.k = keys.k group by keys.k
   )
   select jsonb_build_object(
-    'visits', (select coalesce(sum(visits), 0) from vis),
     'views', (select coalesce(sum(views), 0) from fd),
     'starts', (select coalesce(sum(starts), 0) from fd),
     'submitted', (select count(*) from f), 'qualified', (select count(*) from f where qualified), 'routed', (select count(*) from f where routed_at is not null),
@@ -8675,7 +8470,6 @@ CREATE FUNCTION public.report_funnel_range(p_ws uuid, p_from date, p_to date, p_
     'opportunity', (select count(*) from f where opp), 'won', (select count(*) from f where won), 'won_amount', (select coalesce(sum(won_amount), 0) from f))
   || case when p_by in ('source', 'campaign', 'form', 'rep', 'rule') then jsonb_build_object('groups', coalesce((
     select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('key', g.k,
-        'visits', case when p_by in ('source', 'campaign') then coalesce((select visits from vis where vis.k = g.k), 0) end,
         'views', case when p_by = 'form' then coalesce((select views from fd where fd.k = g.k), 0) end,
         'starts', case when p_by = 'form' then coalesce((select starts from fd where fd.k = g.k), 0) end,
         'submitted', g.submitted, 'qualified', g.qualified, 'routed', g.routed, 'booked', g.booked, 'held', g.held,
@@ -8773,26 +8567,6 @@ $$;
 
 ALTER FUNCTION public.report_speed_sum(p_ws uuid, p_start timestamp with time zone, p_end timestamp with time zone, p_facts jsonb) OWNER TO postgres;
 
--- function: report_visits(uuid, date, date, text)
-CREATE FUNCTION public.report_visits(p_ws uuid, p_from date, p_to date, p_by text DEFAULT NULL::text) RETURNS TABLE(key text, visits bigint)
-    LANGUAGE sql STABLE SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-  with b as (select report_bounds(p_ws, p_from, p_to) r, ws_tz(p_ws) tz),
-  rolled as (select day from site_rolled where workspace_id = p_ws and day between p_from and p_to),
-  v as (
-    select case p_by when 'source' then nullif(d.source, '') when 'campaign' then nullif(d.campaign, '') end as key, d.sessions::bigint as n
-    from site_daily d where d.workspace_id = p_ws and d.day in (select day from rolled)
-    union all
-    select case p_by when 'source' then coalesce(s.source, s.referrer_host) when 'campaign' then s.campaign end, 1
-    from sessions s, b where s.workspace_id = p_ws and not s.is_bot and not s.internal and s.started_at >= lower(b.r) and s.started_at < upper(b.r)
-      and (s.started_at at time zone b.tz)::date not in (select day from rolled)
-  )
-  select coalesce(key, case when p_by = 'source' then 'direct' else '' end), sum(n)::bigint from v group by 1;
-$$;
-
-ALTER FUNCTION public.report_visits(p_ws uuid, p_from date, p_to date, p_by text) OWNER TO postgres;
-
 -- function: report_won_stages(uuid)
 CREATE FUNCTION public.report_won_stages(p_ws uuid) RETURNS text[]
     LANGUAGE sql STABLE SECURITY DEFINER
@@ -8809,15 +8583,7 @@ CREATE FUNCTION public.reports_nightly() RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-declare
-  w record;
 begin
-  for w in
-    select distinct st.workspace_id from sites st
-    where exists (select 1 from sessions s where s.workspace_id = st.workspace_id and s.started_at > now() - interval '2 days')
-  loop
-    perform site_daily_roll(w.workspace_id, (now() at time zone ws_tz(w.workspace_id))::date - 1);
-  end loop;
   perform first_touch_fill();
   perform prune_batch('public.form_seen', format('at < %L', now() - interval '1 day'), 1000000);
   perform prune_batch('public.form_field_sessions', format('day < %L', current_date - interval '13 months'));
@@ -11804,7 +11570,7 @@ begin
   end;
   create temp table if not exists _seg (contact_id uuid primary key) on commit drop;
   truncate _seg;
-  execute format('insert into _seg select c.id from contacts c left join companies co on co.id = c.company_id left join accounts a on a.id = co.account_id
+  execute format('insert into _seg select c.id from contacts c left join companies co on co.id = c.company_id
                   where c.workspace_id = $1 and c.deleted_at is null and (%s)', w) using g.workspace_id, g.rules;
 
   with j as (
@@ -11886,21 +11652,6 @@ begin
     end if;
     if coalesce(p_node->>'count', '1') !~ '^[0-9]{1,4}$' then raise exception 'Enter a number'; end if;
     return format('(select count(*) from contact_events e where e.contact_id = c.id and e.kind = %1$s->>''event'' and e.at >= now() - make_interval(days => (%1$s->>''days'')::int)) >= greatest(coalesce((%1$s->>''count'')::int, 1), 1)', p);
-  end if;
-
-  if kind = 'visit' then
-    -- Page views on the site by the contact's person; a path may end in * ("/blog/*").
-    if coalesce(p_node->>'days', '') !~ '^[0-9]{1,4}$' then raise exception 'Enter a number of days'; end if;
-    if coalesce(p_node->>'count', '1') !~ '^[0-9]{1,4}$' then raise exception 'Enter a number'; end if;
-    w := format($q$(select count(*) from sessions s join events e on e.session_id = s.id and e.kind = 'view'
-        and e.day >= (now() - make_interval(days => (%1$s->>'days')::int))::date
-      where c.person_id is not null and s.workspace_id = c.workspace_id and s.person_id = c.person_id and not s.is_bot
-        and s.started_at >= now() - make_interval(days => (%1$s->>'days')::int)
-        and (coalesce(%1$s->>'path', '') = '' or e.path like replace(replace(replace(replace(%1$s->>'path', '\', '\\'), '%%', '\%%'), '_', '\_'), '*', '%%')))$q$, p);
-    if p_node->>'op' = 'none' then
-      return w || ' = 0';
-    end if;
-    return format('%s >= greatest(coalesce((%s->>''count'')::int, 1), 1)', w, p);
   end if;
 
   if kind = 'consent' then
@@ -12294,58 +12045,6 @@ end;
 $$;
 
 ALTER FUNCTION public.set_secret(p_env uuid, p_name text, p_sealed text) OWNER TO postgres;
-
--- function: site_daily_roll(uuid, date)
-CREATE FUNCTION public.site_daily_roll(p_ws uuid, p_day date) RETURNS integer
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-declare
-  tz text := ws_tz(p_ws);
-  n int;
-begin
-  delete from site_daily where workspace_id = p_ws and day = p_day;
-  insert into site_daily (site_id, workspace_id, day, path, source, medium, campaign, ref_class, country, device_type, visitors, sessions, views, engaged_s, bounces)
-  select s.site_id, p_ws, p_day, coalesce(left(s.landing_path, 300), ''), coalesce(s.source, ''), coalesce(s.medium, ''), coalesce(s.campaign, ''), coalesce(s.ref_class, ''),
-    coalesce(s.country, ''), coalesce(s.device_type, ''),
-    count(distinct coalesce(s.device_id::text, encode(s.cookieless_key, 'hex'))), count(*), sum(s.pageviews), sum(s.engaged_s), count(*) filter (where s.pageviews <= 1)
-  from sessions s
-  where s.workspace_id = p_ws and not s.is_bot and not s.internal
-    and s.started_at >= (p_day::timestamp at time zone tz) and s.started_at < ((p_day + 1)::timestamp at time zone tz)
-  group by 1, 4, 5, 6, 7, 8, 9, 10;
-  get diagnostics n = row_count;
-  insert into site_rolled (workspace_id, day) values (p_ws, p_day) on conflict (workspace_id, day) do update set at = now();
-  return n;
-end;
-$$;
-
-ALTER FUNCTION public.site_daily_roll(p_ws uuid, p_day date) OWNER TO postgres;
-
--- function: site_health(uuid)
-CREATE FUNCTION public.site_health(p_ws uuid) RETURNS jsonb
-    LANGUAGE plpgsql STABLE SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-begin
-  if not is_member(p_ws) then
-    raise exception 'Workspace not found';
-  end if;
-  return coalesce((
-    select jsonb_agg(to_jsonb(v) order by v.created_at) from (
-      select st.id, st.domain, st.extra_domains, st.site_key, st.proxy_secret, st.install_mode, st.last_event_at, st.paused, st.created_at,
-             coalesce(h.sessions_24h, 0) as sessions_24h, coalesce(h.identified_24h, 0) as identified_24h, coalesce(h.with_account_24h, 0) as with_account_24h
-      from sites st
-      left join lateral (
-        select count(*) as sessions_24h, count(*) filter (where s.person_id is not null) as identified_24h, count(*) filter (where s.account_id is not null) as with_account_24h
-        from sessions s where s.site_id = st.id and s.started_at > now() - interval '24 hours' and not s.is_bot
-      ) h on true
-      where st.workspace_id = p_ws
-    ) v
-  ), '[]'::jsonb);
-end;
-$$;
-
-ALTER FUNCTION public.site_health(p_ws uuid) OWNER TO postgres;
 
 -- function: slack_book_info(uuid, uuid, text)
 CREATE FUNCTION public.slack_book_info(p_ws uuid, p_user uuid, p_email text) RETURNS jsonb
@@ -13418,80 +13117,6 @@ $$;
 
 ALTER FUNCTION public.verified_domain_for(p_ws uuid, p_email text) OWNER TO postgres;
 
--- function: visitors_list(uuid, text, timestamp with time zone, integer)
-CREATE FUNCTION public.visitors_list(p_ws uuid, p_show text DEFAULT 'all'::text, p_before timestamp with time zone DEFAULT NULL::timestamp with time zone, p_limit integer DEFAULT 50) RETURNS jsonb
-    LANGUAGE plpgsql STABLE SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-begin
-  if not is_member(p_ws) then raise exception 'Workspace not found'; end if;
-  return coalesce((
-    select jsonb_agg(to_jsonb(v) order by v.last_seen desc) from (
-      select d.id, d.first_seen, d.last_seen, d.sessions, d.state,
-             ls.source, ls.medium, ls.campaign, ls.referrer_host, ls.ref_class, ls.landing_path, ls.country, ls.city, ls.device_type,
-             pv.views, c.id as contact_id, c.first_name, c.last_name, c.email, l.level as link_level
-      from devices d
-      left join device_links l on l.device_id = d.id and l.to_at is null
-      left join lateral (
-        select ct.id, ct.first_name, ct.last_name, ct.email from contacts ct
-        where ct.workspace_id = d.workspace_id and ct.person_id = l.person_id and ct.deleted_at is null
-        order by ct.created_at limit 1
-      ) c on l.person_id is not null
-      left join lateral (
-        select s.source, s.medium, s.campaign, s.referrer_host, s.ref_class, s.landing_path, s.country, s.city, s.device_type
-        from sessions s where s.device_id = d.id and not s.is_bot order by s.started_at desc limit 1
-      ) ls on true
-      left join lateral (select coalesce(sum(s.pageviews), 0)::int as views from sessions s where s.device_id = d.id and not s.is_bot) pv on true
-      where d.workspace_id = p_ws and d.state not in ('internal', 'opted_out')
-        and (p_before is null or d.last_seen < p_before)
-        and exists (select 1 from sessions s where s.device_id = d.id and not s.is_bot and not s.internal)
-        and (coalesce(p_show, 'all') = 'all' or (p_show = 'known' and c.id is not null) or (p_show = 'unknown' and c.id is null))
-      order by d.last_seen desc
-      limit least(greatest(coalesce(p_limit, 50), 1), 200)
-    ) v
-  ), '[]'::jsonb);
-end;
-$$;
-
-ALTER FUNCTION public.visitors_list(p_ws uuid, p_show text, p_before timestamp with time zone, p_limit integer) OWNER TO postgres;
-
--- function: visitors_live(uuid, integer, integer)
-CREATE FUNCTION public.visitors_live(p_ws uuid, p_hours integer DEFAULT 24, p_limit integer DEFAULT 100) RETURNS jsonb
-    LANGUAGE plpgsql STABLE SECURITY DEFINER
-    SET search_path TO 'public'
-    SET jit TO 'off'
-    AS $$
-begin
-  if not is_member(p_ws) then
-    raise exception 'Workspace not found';
-  end if;
-  return coalesce((
-    select jsonb_agg(to_jsonb(v) order by v.started_at desc) from (
-      select s.id, s.device_id, s.started_at, s.ended_at, s.country, s.city, s.ref_class, s.source, s.referrer_host, s.device_type, s.policy,
-             s.account_id, a.name as account_name, a.domain as account_domain, s.account_source,
-             s.person_id, p.primary_email as person_email, s.person_level, s.pageviews, s.engaged_s,
-             coalesce(pv.pages, '{}') as pages,
-             coalesce(pv.page_times, '{}') as page_times
-      from sessions s
-      left join accounts a on a.id = s.account_id
-      left join persons p on p.id = s.person_id
-      left join lateral (
-        select array_agg(x.path order by x.server_at) as pages, array_agg(x.server_at order by x.server_at) as page_times
-        from (select e.path, e.server_at from events e
-              where e.session_id = s.id and e.kind = 'view'
-                and e.day >= (s.started_at at time zone 'UTC')::date - 1 and e.day <= (s.ended_at at time zone 'UTC')::date + 1
-              order by e.server_at limit 12) x
-      ) pv on true
-      where s.workspace_id = p_ws and s.started_at > now() - make_interval(hours => least(greatest(p_hours, 1), 720)) and not s.is_bot and not s.internal
-      order by s.started_at desc
-      limit least(greatest(p_limit, 1), 500)
-    ) v
-  ), '[]'::jsonb);
-end;
-$$;
-
-ALTER FUNCTION public.visitors_live(p_ws uuid, p_hours integer, p_limit integer) OWNER TO postgres;
-
 -- function: wake_runner()
 CREATE FUNCTION public.wake_runner() RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
@@ -13516,23 +13141,6 @@ end;
 $_$;
 
 ALTER FUNCTION public.wake_runner() OWNER TO postgres;
-
--- function: web_daily()
-CREATE FUNCTION public.web_daily() RETURNS void
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-begin
-  perform make_event_partitions(7);
-  perform drop_old_event_partitions(180);
-  insert into salts (day, salt) values (current_date, decode(replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''), 'hex'))
-  on conflict (day) do nothing;
-  delete from salts where day < current_date - 1;
-  delete from hop_nonces where used_at < now() - interval '10 minutes';
-end;
-$$;
-
-ALTER FUNCTION public.web_daily() OWNER TO postgres;
 
 -- function: webhook_delete(uuid, uuid)
 CREATE FUNCTION public.webhook_delete(p_ws uuid, p_id uuid) RETURNS void
@@ -14565,7 +14173,6 @@ CREATE FUNCTION public.workflows_tick() RETURNS void
     SET search_path TO 'public'
     AS $$
 begin
-  perform product_events_sync();
   perform workflow_scan();
   perform workflow_due();
 end;

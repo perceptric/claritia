@@ -26,9 +26,6 @@ CREATE TRIGGER blocks_workspace BEFORE INSERT OR UPDATE OF project_id ON public.
 -- trigger: companies companies_cleanup
 CREATE TRIGGER companies_cleanup AFTER DELETE ON public.companies FOR EACH ROW EXECUTE FUNCTION public.record_cleanup();
 
--- trigger: account_domains companies_follow_account
-CREATE TRIGGER companies_follow_account AFTER INSERT ON public.account_domains FOR EACH ROW EXECUTE FUNCTION public.companies_follow_account();
-
 -- trigger: contact_events contact_events_webhooks
 CREATE TRIGGER contact_events_webhooks AFTER INSERT ON public.contact_events FOR EACH ROW EXECUTE FUNCTION public.contact_events_webhooks();
 
@@ -43,12 +40,6 @@ CREATE TRIGGER contacts_crm_owner BEFORE UPDATE OF owner_crm_id ON public.contac
 
 -- trigger: contacts contacts_enrich_new
 CREATE TRIGGER contacts_enrich_new AFTER INSERT ON public.contacts FOR EACH ROW EXECUTE FUNCTION public.contacts_enrich_new();
-
--- trigger: identifiers contacts_follow_identifier
-CREATE TRIGGER contacts_follow_identifier AFTER INSERT OR DELETE OR UPDATE OF person_id, value_clean ON public.identifiers FOR EACH ROW EXECUTE FUNCTION public.contacts_follow_identifier();
-
--- trigger: persons contacts_follow_merge
-CREATE TRIGGER contacts_follow_merge AFTER UPDATE OF merged_into ON public.persons FOR EACH ROW EXECUTE FUNCTION public.contacts_follow_merge();
 
 -- trigger: contacts contacts_owner_meeting_task
 CREATE TRIGGER contacts_owner_meeting_task AFTER UPDATE ON public.contacts FOR EACH ROW WHEN (((new.owner_user_id IS DISTINCT FROM old.owner_user_id) AND (new.owner_user_id IS NOT NULL) AND (COALESCE(((new.field_sources -> 'owner'::text) ->> 's'::text), ''::text) = 'crm'::text))) EXECUTE FUNCTION public.contacts_owner_meeting_task();
@@ -223,4 +214,4 @@ ALTER EVENT TRIGGER pgrst_drop_watch OWNER TO supabase_admin;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict vCP1Kyc84vZkJ5ntguA21MUMI2rqCiiDXIP31WEqhdKdQ1qncZinOEAWxHsyj7C
+\unrestrict IgkWCuNuD9eLIJQKpafoeiG4X0LcbNiRUmJovoKupBgRCYzZO2SdSrAZhgJAFwb
