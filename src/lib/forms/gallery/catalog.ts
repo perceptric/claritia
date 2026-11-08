@@ -21,6 +21,8 @@ import { WAVE1_OPS } from "./templates/wave1-ops.ts";
 import { WAVE1_QUIZZES } from "./templates/wave1-quizzes.ts";
 import { WAVE2_MULTIPAGE } from "./templates/wave2-multipage.ts";
 import { WAVE3_LEADS } from "./templates/wave3-leads.ts";
+import { WAVE3_MULTIPAGE_B } from "./templates/wave3-multipage-b.ts";
+import { WAVE3_MULTIPAGE_A } from "./templates/wave3-multipage-a.ts";
 import { WAVE3_INTAKE, WAVE3_OPS, WAVE3_LEGAL } from "./templates/wave3-ops.ts";
 import { WAVE3_FEEDBACK, WAVE3_QUIZZES } from "./templates/wave3-feedback.ts";
 import { WAVE3_APPLY, WAVE3_EVENTS } from "./templates/wave3-apply.ts";
@@ -69,6 +71,8 @@ const RAW: FormTemplate[] = [
   ...WAVE2_MULTIPAGE,
   // Wave 3: simple one-page forms and plain multi-page forms (docs/template-wave3-plan.md).
   ...WAVE3_LEADS,
+  ...WAVE3_MULTIPAGE_B,
+  ...WAVE3_MULTIPAGE_A,
   ...WAVE3_INTAKE,
   ...WAVE3_OPS,
   ...WAVE3_LEGAL,

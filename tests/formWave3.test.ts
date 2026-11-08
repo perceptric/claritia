@@ -28,6 +28,9 @@ test("new multi-page forms: 3 to 6 titled pages, no photo, opening on page 1", (
     assert.ok(t.schema.pages.length >= 3 && t.schema.pages.length <= 6, `${t.id} has 3 to 6 pages`);
     assert.ok(t.schema.pages.every((p) => p.title?.trim()), `${t.id} titles every page`);
     assert.ok(!t.schema.cover, `${t.id} opens on page 1, no welcome screen or photo`);
+    t.schema.pages.forEach((p, i) => {
+      for (const j of [...(p.skip ? [p.skip] : []), ...(p.jumps ?? [])]) assert.ok(j.to > i + 1, `${t.id}: page ${i + 1}'s skip points forward`);
+    });
   }
 });
 

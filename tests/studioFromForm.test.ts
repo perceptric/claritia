@@ -1,5 +1,5 @@
 // Older forms and gallery templates as studio pages (src/lib/studio/fromForm.ts, docs/forms-chat-plan.md Part 8 and
-// Part 10 "Round trip"): every one of the 700 templates turned into a page passes the form check, keeps every
+// Part 10 "Round trip"): every one of the 740 templates turned into a page passes the form check, keeps every
 // question with its id, type, choices, points, formula and payment, works out the same numbers, and takes the same
 // answers as before.
 
@@ -74,7 +74,7 @@ const byId = (form: Form, values: Record<string, unknown>) => {
 };
 
 test("every template turns into a page that keeps its questions, choices, points, formulas and payments", () => {
-  assert.equal(TEMPLATES.length, 700);
+  assert.equal(TEMPLATES.length, 740);
   for (const t of TEMPLATES) {
     const before = checked(templateForm(t));
     const after = asPage(before);
