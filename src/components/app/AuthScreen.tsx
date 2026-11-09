@@ -25,7 +25,7 @@ export function takeNext(): string {
 }
 
 const appUrl = () => {
-  if (window.location.pathname.startsWith("/oauth/")) return window.location.href;
+  if (/^\/(oauth|claim)\//.test(window.location.pathname)) return window.location.href;
   let next = "/forms";
   try {
     const v = sessionStorage.getItem(NEXT_KEY);
@@ -36,10 +36,10 @@ const appUrl = () => {
 
 /** Moves a signed-out visit to /signin (or keeps /signup), remembering the page it was for. */
 function useAuthAddress(): "signin" | "signup" {
-  const [mode, setMode] = useState<"signin" | "signup">(() => (typeof window !== "undefined" && window.location.pathname === "/signup" ? "signup" : "signin"));
+  const [mode, setMode] = useState<"signin" | "signup">(() => (typeof window !== "undefined" && /^\/(signup$|claim\/)/.test(window.location.pathname) ? "signup" : "signin"));
   useEffect(() => {
     const { pathname, search } = window.location;
-    if (pathname.startsWith("/oauth/")) return;
+    if (/^\/(oauth|claim)\//.test(pathname)) return;
     if (isAppPath(pathname)) {
       try {
         sessionStorage.setItem(NEXT_KEY, pathname + cleanSearch(search));

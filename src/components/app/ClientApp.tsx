@@ -10,6 +10,7 @@ import { LogOut, Moon, Sun } from "../Icons";
 import { Logo } from "../Logo";
 import { AuthScreen, isAuthPath, takeNext } from "./AuthScreen";
 import { OAuthApprove } from "./OAuthApprove";
+import { ClaimForm } from "./ClaimForm";
 import { Dots } from "./Ai";
 import { CommandBar, type Command } from "./CommandBar";
 import { askText, DialogHost, tell } from "./Dialogs";
@@ -155,7 +156,7 @@ export function ClientApp({ config }: { config: SupaConfig }) {
   useEffect(() => {
     const sync = () => {
       // An app's sign-in keeps its own address (the approve screen reads it); so do the sign-in screens.
-      if (window.location.pathname.startsWith("/oauth/") || isAuthPath(window.location.pathname)) return;
+      if (/^\/(oauth|claim)\//.test(window.location.pathname) || isAuthPath(window.location.pathname)) return;
       const l = readLoc();
       setLoc(l);
       // Old and unknown addresses show where they landed.
@@ -263,6 +264,7 @@ export function ClientApp({ config }: { config: SupaConfig }) {
     );
   if (!ws) return <Splash />;
   if (typeof window !== "undefined" && window.location.pathname === "/oauth/authorize") return <OAuthApprove session={session} ws={ws} />;
+  if (typeof window !== "undefined" && window.location.pathname.startsWith("/claim/")) return <ClaimForm session={session} pick={savePicked} />;
 
   const props: ViewProps = { sb, session, ws, role, navigate, id: loc.id, onWorkspace };
   const email = session.user.email ?? "";
