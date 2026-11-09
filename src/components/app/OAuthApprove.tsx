@@ -7,10 +7,11 @@ import { BrandLogo } from "./BrandLogo";
 import { Button, ErrorNote, errorText, postJson, type Workspace } from "./ui";
 
 // The approve screen an app's sign-in opens (/oauth/authorize, src/lib/oauth/clients.ts): Zapier, Make or
-// Activepieces asks to use this workspace's forms, bookings and workflows. Allow sends the person back with a
+// Activepieces, or an MCP app like ChatGPT or Claude (which names itself, so its return address shows too), asks to
+// use this workspace's forms, bookings and workflows. Allow sends the person back with a
 // one-time code; Cancel sends them back with access_denied.
 
-type Client = { id: string; name: string; domain: string };
+type Client = { id: string; name: string; domain: string; public?: boolean };
 
 export function OAuthApprove({ session, ws }: { session: Session; ws: Workspace }) {
   const [query] = useState(() => Object.fromEntries(new URLSearchParams(window.location.search)));
@@ -52,6 +53,7 @@ export function OAuthApprove({ session, ws }: { session: Session; ws: Workspace 
                 {client.name} gets access to {ws.name}: forms, fills, bookings and workflows.
               </p>
             </div>
+            {client.public ? <p className="text-[12.5px] text-muted wrap-anywhere">Returns to {client.domain}</p> : null}
             <p className="text-[12.5px] text-muted wrap-anywhere">Signed in as {session.user.email}</p>
           </>
         ) : null}
