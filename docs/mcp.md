@@ -25,6 +25,25 @@ mkdir -p ~/.claude/skills/claritia && curl -s https://app.tryclaritia.com/skill.
 { "mcpServers": { "claritia": { "url": "https://app.tryclaritia.com/api/mcp", "headers": { "Authorization": "Bearer clr_..." } } } }
 ```
 
+## Connect from ChatGPT or Claude
+
+ChatGPT, Claude and other MCP apps connect with one click: add `https://app.tryclaritia.com/api/mcp` as a connector,
+click Connect, and approve on Claritia's page (it shows the app's name and the site it returns to). No key to paste.
+
+How it works (`supabase/migrations/141_mcp_oauth_clients.sql`, `src/lib/oauth/`):
+- `/api/mcp` without a key answers 401 with `WWW-Authenticate: Bearer resource_metadata=...`.
+- `/.well-known/oauth-protected-resource` (RFC 9728) names the sign-in server; `/.well-known/oauth-authorization-server`
+  (RFC 8414, also at `/.well-known/openid-configuration`) lists its addresses.
+- `/api/oauth/register` (RFC 7591): the app registers its name and return addresses (https, or http on localhost) and
+  gets an `mcp_...` client id with no secret. Ten a minute per address. Apps that never sign in go after 7 days.
+- `/oauth/authorize` is the same approve page Zapier uses. These apps must send a PKCE check (S256) and may only return
+  to an address they registered.
+- `/api/oauth/token` turns the code into an API key named after the app. Revoking it in Settings › API keys signs the
+  app out.
+
+Next: forms made from chat before signing up (with Claim this form), chat-sized tools, and the Claude and ChatGPT
+directory listings.
+
 ## Tools
 
 | Tool | Does |
@@ -45,5 +64,8 @@ write steps.
 
 ## Running cost
 
-$0 added at Beta (50 teams) and Growth (500 teams): it runs on the existing Fly web app, and agent runs use the
+$0 added at Beta (50 teams) and Growth (500 teams): it runs on the existing web app on the VPS, and agent runs use the
 same runner, cloud minutes and Claude calls as any other run.
+
+One-click sign-in adds $0 at Beta and Growth: a few small rows per connected app in the database the app already runs
+on, and no AI calls (ChatGPT or Claude does the writing on its side).

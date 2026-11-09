@@ -130,3 +130,41 @@ test("a sign-in code works once; a second use revokes the key it made; an old on
   assert.equal((await q(`select oauth_code_use($1, 'make') as x`, [old]))[0].x, null);
   await assert.rejects(q(`select oauth_code_add($1, 'zapier', $2, $3, 'https://x', '')`, [hex(64), s.ws, randomUUID()]), /not_member/);
 });
+
+test("an MCP app registers, signs in once with its own code, and is kept once used; unused ones go after 7 days", async () => {
+  const s = await setup();
+  const id = `mcp_${hex(32)}`;
+  await q(`select oauth_client_add($1, 'Claude', $2)`, [id, ["https://claude.ai/api/mcp/auth_callback"]]);
+  assert.deepEqual((await q(`select oauth_client_get($1) as x`, [id]))[0].x, { name: "Claude", redirect_uris: ["https://claude.ai/api/mcp/auth_callback"] });
+  assert.equal((await q(`select oauth_client_get('mcp_${"n".repeat(24)}') as x`))[0].x, null);
+  await assert.rejects(q(`select oauth_client_add('evil', 'X', $1)`, [["https://a.io"]]), /check/);
+  await assert.rejects(q(`select oauth_client_add($1, 'X', $2)`, [`mcp_${hex(32)}`, []]), /check/);
+  const code = hex(64);
+  await q(`select oauth_code_add($1, $2, $3, $4, 'https://claude.ai/api/mcp/auth_callback', $5)`, [code, id, s.ws, s.user, "c".repeat(43)]);
+  assert.ok((await q(`select used_at from oauth_clients where id = $1`, [id]))[0].used_at, "kept once someone approves it");
+  assert.equal((await q(`select oauth_code_use($1, 'zapier') as x`, [code]))[0].x, null, "another app can't use its code");
+  const used = (await q(`select oauth_code_use($1, $2) as x`, [code, id]))[0].x;
+  assert.equal(used.ok, true);
+  assert.equal(used.challenge, "c".repeat(43));
+  const kid = (await q(`select oauth_key_make($1, 'Claude', 'clr_mcp1', $2) as x`, [code, hex(64)]))[0].x;
+  assert.equal((await q(`select name from api_keys where id = $1`, [kid]))[0].name, "Claude");
+  // An app that registered and never signed in goes after 7 days; one that did stays.
+  const stale = `mcp_${hex(32)}`;
+  await q(`select oauth_client_add($1, 'Old', $2)`, [stale, ["https://a.io/cb"]]);
+  await q(`update oauth_clients set created_at = now() - interval '8 days' where id in ($1, $2)`, [stale, id]);
+  await q(`select oauth_client_add($1, 'New', $2)`, [`mcp_${hex(32)}`, ["https://b.io/cb"]]);
+  assert.equal((await q(`select count(*)::int as n from oauth_clients where id = $1`, [stale]))[0].n, 0);
+  assert.equal((await q(`select count(*)::int as n from oauth_clients where id = $1`, [id]))[0].n, 1);
+  // Nobody but the server reads or writes them.
+  for (const role of ["anon", "authenticated"]) {
+    const c = await pool.connect();
+    try {
+      await c.query("begin");
+      await c.query(`set local role ${role}`);
+      await assert.rejects(c.query(`select oauth_client_get($1)`, [id]), /permission denied/);
+    } finally {
+      await c.query("rollback").catch(() => {});
+      c.release();
+    }
+  }
+});
