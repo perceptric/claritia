@@ -164,7 +164,7 @@ export type PageRun = { done(): void; start(): void; refresh(): void; errors(byN
 export function around(thanks: Element, w: Element): HTMLElement[] {
   const out: HTMLElement[] = [];
   const add = (el: Element): void => {
-    if (el.matches("img[data-cl-logo],[data-cl-cover]")) return;
+    if (el.matches("img[data-cl-logo],[data-cl-cover],.cl-badges")) return;
     if (!el.querySelector("img[data-cl-logo]")) out.push(el as HTMLElement);
     else for (const c of el.children) add(c);
   };
@@ -188,6 +188,28 @@ export const CAL_CSS =
   ":where(.cl-cal button){background:transparent;color:inherit;border:1.5px solid rgba(127,127,127,.35);border-radius:10px}:where(.cl-cal button[aria-pressed=true]){border-color:currentColor;font-weight:600}.cl-cal{display:flex;flex-direction:column;gap:14px;margin-top:6px;text-align:start}.cl-host{display:flex;align-items:center;gap:10px}.cl-host img{width:40px;height:40px;border-radius:50%;object-fit:cover;flex:none}.cl-host b{display:block;font-weight:600}.cl-host small{display:block;opacity:.7;font-size:13px}.cl-cal .cl-days{display:flex;flex-wrap:nowrap;gap:8px;overflow-x:auto;padding:2px 2px 6px;scrollbar-width:thin}.cl-cal .cl-days button{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:2px;width:auto;min-width:68px;height:auto;margin:0;padding:8px 12px;font:inherit;line-height:1.2;cursor:pointer}.cl-cal .cl-days small{font-size:11px;letter-spacing:.06em;text-transform:uppercase;opacity:.75}.cl-cal .cl-days strong{font-size:15px}.cl-cal .cl-times{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}@media (max-width:420px){.cl-cal .cl-times{grid-template-columns:repeat(2,minmax(0,1fr))}}.cl-cal .cl-times button{width:100%;min-width:0;height:42px;margin:0;padding:0 8px;font:inherit;font-size:15px;white-space:nowrap;cursor:pointer}.cl-cal .cl-link{align-self:flex-start;background:none;border:0;padding:0;margin:0;font:inherit;font-size:14px;color:inherit;text-decoration:underline;text-underline-offset:3px;cursor:pointer;width:auto;height:auto;box-shadow:none}.cl-cal .cl-zone{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;font-size:13px;opacity:.85}.cl-cal .cl-zone .cl-link{font-size:13px}" +
   // The plain calendar (Free): Claritia's own look on a white card, whatever the form wears.
   ".cl-cal.cl-plain{background:#fff;color:#1f1f1f;border:1px solid rgba(0,0,0,.1);border-radius:12px;padding:16px;font:14px/1.4 Inter,system-ui,-apple-system,sans-serif;letter-spacing:normal;text-transform:none}.cl-plain h3{margin:0;font-size:17px;font-weight:600}.cl-plain p{margin:0}.cl-plain button{background:#fff;color:#1f1f1f;border:1px solid rgba(0,0,0,.14);border-radius:8px;box-shadow:none;text-transform:none;letter-spacing:normal;font-weight:500}.cl-plain button[aria-pressed=true]{background:#1f1f1f;color:#fff;border-color:#1f1f1f}.cl-plain .cl-link{background:none;border:0;color:#1f1f1f}";
+
+// The Claritia badge under a live form on Free ("Made with Claritia") and Starter (the mark and the name). It links to
+// the website with ?ref=form, so every form sent is a way in. Its own look, whatever the form wears.
+const BADGE_MARK =
+  '<svg width="16" height="16" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8.5" fill="#0C8C5E"/><rect x="4" y="8" width="10" height="6" rx="3" fill="#fff" fill-opacity=".35"/><rect x="18" y="8" width="10" height="6" rx="3" fill="#fff" fill-opacity=".35"/><rect x="4" y="18" width="10" height="6" rx="3" fill="#fff" fill-opacity=".35"/><rect x="18" y="18" width="10" height="6" rx="3" fill="#fff"/></svg>';
+export const BADGE_CSS =
+  ".cl-badges{flex:0 0 auto!important;display:flex;justify-content:center;padding:20px 16px 16px}.cl-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;background:#fff;color:#333;box-shadow:0 0 0 1px rgba(0,0,0,.08);font:500 12px/1.2 Inter,system-ui,-apple-system,sans-serif;letter-spacing:normal;text-transform:none;text-decoration:none;white-space:nowrap}.cl-badge b{font-weight:600}.cl-badge svg{flex:none;display:block}.cl-badge:hover{box-shadow:0 0 0 1px rgba(0,0,0,.16)}.cl-badge.cl-small{padding:4px 10px;font-size:11px}";
+
+/** The badge row for a plan's badge kind; null when the plan has none. */
+export function badgeRow(kind: "full" | "small" | "none" | undefined): HTMLElement | null {
+  if (!kind || kind === "none") return null;
+  const row = document.createElement("div");
+  row.className = "cl-badges";
+  const a = document.createElement("a");
+  a.className = kind === "small" ? "cl-badge cl-small" : "cl-badge";
+  a.href = `https://tryclaritia.com/?ref=form`;
+  a.target = "_blank";
+  a.rel = "noopener";
+  a.innerHTML = `${BADGE_MARK}${kind === "small" ? "<b>Claritia</b>" : "<span>Made with</span><b>Claritia</b>"}`;
+  row.append(a);
+  return row;
+}
 
 /** A time zone in words people know: "Saigon (GMT+7)". */
 export function zoneWords(tz: string): string {

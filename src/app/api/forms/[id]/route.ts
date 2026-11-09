@@ -20,6 +20,7 @@ import { persistStudio } from "@/lib/studio/persist";
 import { knownFor } from "@/lib/share/known";
 import { readPersonal } from "@/lib/share/personal";
 import { brandPlan } from "@/lib/meetings/brandPage";
+import { formBadge } from "@/lib/plans";
 
 // The live version of a form, for <claritia-form> on any site (docs/form-builder.md Part 6). Public: answers only
 // with what the form shows, plus whether the consent box applies to this visitor, and the region lists when a
@@ -32,18 +33,23 @@ const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 /** Forms this server is already keeping as pages, so a busy form starts it once. */
 const keeping = new Set<string>();
 
-/** Whether the booking calendar wears the form's style: paid plans do, Free gets the plain calendar. Kept a minute. */
-const planCache = new Map<string, { at: number; brand: boolean }>();
-async function calendarBrand(db: NonNullable<ReturnType<typeof serviceClient>>, ws: string): Promise<boolean> {
+/**
+ * What the plan changes on the live form, kept a minute: whether the booking calendar wears the form's style (paid
+ * plans; Free gets the plain calendar) and the Claritia badge (full on Free, small on Starter, none from Pro).
+ */
+type PlanLook = { calBrand: boolean; badge: "full" | "small" | "none" };
+const planCache = new Map<string, { at: number; look: PlanLook }>();
+async function planLook(db: NonNullable<ReturnType<typeof serviceClient>>, ws: string): Promise<PlanLook> {
   const hit = planCache.get(ws);
-  if (hit && Date.now() - hit.at < 60_000) return hit.brand;
+  if (hit && Date.now() - hit.at < 60_000) return hit.look;
   const r = await db.from("workspace_billing").select("plan").eq("workspace_id", ws).maybeSingle();
-  // A plan that can't be read keeps the form's style, and isn't kept.
-  if (r.error) return true;
-  const brand = brandPlan((r.data as { plan?: string } | null)?.plan ?? "free");
+  // A plan that can't be read keeps the form's style and shows no badge, and isn't kept.
+  if (r.error) return { calBrand: true, badge: "none" };
+  const plan = (r.data as { plan?: string } | null)?.plan ?? "free";
+  const look: PlanLook = { calBrand: brandPlan(plan), badge: formBadge(plan) };
   if (planCache.size > 5000) planCache.clear();
-  planCache.set(ws, { at: Date.now(), brand });
-  return brand;
+  planCache.set(ws, { at: Date.now(), look });
+  return look;
 }
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -71,10 +77,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const token = new URL(request.url).searchParams.get("p");
     const person = token ? readPersonal(token, process.env.SECRETS_KEY, f.workspace_id) : null;
     const known = person ? await knownFor(db, person, f.body).catch(() => ({})) : null;
-    const calBrand = await calendarBrand(db, f.workspace_id);
+    const { calBrand, badge } = await planLook(db, f.workspace_id);
     return json(
       // tokens: always empty, only so a form script cached from before 123 (5 minutes at most) doesn't stop on it.
-      { id: f.id, version: f.version, status, ...(closed ? { closed } : {}), body: publicForm(f.body), tokens: {}, logo_url: f.logo_url, strict: regionOf(country ?? "", "") === "strict", turnstile: turnstileSiteKey() || undefined, ...formServices(f.body), ...(usesRegions(f.body) ? { regions: allRegions() } : {}), ...(known ? { known } : {}), calBrand },
+      { id: f.id, version: f.version, status, ...(closed ? { closed } : {}), body: publicForm(f.body), tokens: {}, logo_url: f.logo_url, strict: regionOf(country ?? "", "") === "strict", turnstile: turnstileSiteKey() || undefined, ...formServices(f.body), ...(usesRegions(f.body) ? { regions: allRegions() } : {}), ...(known ? { known } : {}), calBrand, badge },
       200,
       token ? { "Cache-Control": "private, no-store" } : { "Cache-Control": `public, max-age=${f.body.access ? 10 : 30}`, Vary: "cf-ipcountry" },
     );

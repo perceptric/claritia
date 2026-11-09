@@ -62,6 +62,9 @@ export type Feature = keyof typeof FEATURES;
 /** Whether a plan has a feature. */
 export const allows = (plan: string | null | undefined, f: Feature): boolean => ORDER.indexOf(planById(plan).id) >= ORDER.indexOf(FEATURES[f]);
 
+/** The Claritia badge on live forms (docs/pricing.md Part 3): the full badge on Free, a small one on Starter, none from Pro. */
+export const formBadge = (plan: string | null | undefined): "full" | "small" | "none" => (allows(plan, "no_badge") ? "none" : planById(plan).id === "free" ? "full" : "small");
+
 /** The lowest plan with a feature, for the upgrade line. */
 export const planFor = (f: Feature): Plan => planById(FEATURES[f]);
 
