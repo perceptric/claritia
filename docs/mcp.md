@@ -41,8 +41,27 @@ How it works (`supabase/migrations/141_mcp_oauth_clients.sql`, `src/lib/oauth/`)
 - `/api/oauth/token` turns the code into an API key named after the app. Revoking it in Settings › API keys signs the
   app out.
 
-Next: forms made from chat before signing up (with Claim this form), chat-sized tools, and the Claude and ChatGPT
-directory listings.
+## Forms before sign-up
+
+Without a key, `/api/mcp` is the guest server (`src/lib/forms/guestMcp.ts`, `supabase/migrations/142_guest_forms.sql`).
+Someone asks ChatGPT or Claude for a form, and it goes live at once, before they have an account:
+
+| Tool | Does |
+|---|---|
+| `find_form_template` | Searches the 740 templates; rare words count most ("yoga" over "class") |
+| `create_form` | From a template id or the page the app wrote, in one of the 18 styles. Returns the live link, the claim link, the embed code and a key |
+| `update_form` | Changes it by its key, until it's claimed |
+| `list_forms`, `get_answers` | Listed so apps know they exist; calling one answers 401, which starts the sign-in |
+
+- The form lives in a workspace of its own with no members, on the Free plan, so it carries the Claritia badge.
+- The claim link (`/claim/<key>`) signs the person in (sign-up opens first) and makes them the workspace's owner. An
+  empty workspace their sign-in just made is dropped, so a new account opens on the form. A claim works once.
+- Unclaimed, it closes after 14 days: the public read shows it closed and sends get 410. Claiming opens it again.
+- One address makes at most 20 a day. Only the key's hash is stored.
+- A form nobody owns can't ask for a password, sign-in, card or bank details, or codes (`guestRisk` in
+  `src/lib/forms/guest.ts`), checked on the page as written and on each question's name.
+
+Next: the Claude and ChatGPT directory listings.
 
 ## Tools
 
@@ -69,3 +88,6 @@ same runner, cloud minutes and Claude calls as any other run.
 
 One-click sign-in adds $0 at Beta and Growth: a few small rows per connected app in the database the app already runs
 on, and no AI calls (ChatGPT or Claude does the writing on its side).
+
+Forms before sign-up add $0 at Beta and Growth: a workspace, a form and its versions per guest form in the same
+database, closed after 14 days unless claimed, and no AI calls (the app writes the page on its side).

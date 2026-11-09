@@ -123,6 +123,23 @@ export const formTools: Tool<ApiCaller>[] = [
     },
   },
   {
+    name: "get_answers",
+    title: "Get answers",
+    description: "A form's latest answers, newest first (spam and tests left out).",
+    inputSchema: { type: "object", properties: { form: { type: "string", description: "Form name or id." }, limit: { type: "number", description: "How many, 1 to 50. Default 20." } }, required: ["form"] },
+    readOnly: true,
+    async run(ctx, args) {
+      const f = await findForm(ctx, args.form);
+      const n = Math.min(50, Math.max(1, Math.floor(Number(args.limit) || 20)));
+      const { data, error } = await ctx.sb.from("submissions").select("id, created_at, values").eq("workspace_id", ctx.workspaceId).eq("form_id", f.id).eq("spam", false).eq("test", false).order("created_at", { ascending: false }).limit(n);
+      if (error) throw new Error(error.message);
+      const rows = (data ?? []) as { id: string; created_at: string; values: Record<string, unknown> }[];
+      if (!rows.length) return { text: `${f.name} has no answers yet.`, data: { answers: [] } };
+      const line = (r: (typeof rows)[number]) => `${r.created_at.slice(0, 16).replace("T", " ")}: ${Object.entries(r.values ?? {}).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : String(v)}`).join("; ")}`;
+      return { text: `${f.name}, ${rows.length} latest answers:\n${rows.map(line).join("\n")}`, data: { answers: rows } };
+    },
+  },
+  {
     name: "publish_form",
     title: "Publish a form",
     description: "Make the draft live. Needs a key made by a workspace owner. Returns the embed code.",

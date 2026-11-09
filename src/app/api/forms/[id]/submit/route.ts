@@ -36,6 +36,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   try {
     const f = await loadForSend(db, id, raw.version);
     if (!f || f.status !== "live") return json({ error: f ? closedMessage(f.body) : "This form isn't taking answers." }, 410);
+    // A form made before sign-up (142) takes no answers once its 14 days are up, until it's claimed.
+    const g = await db.rpc("guest_state", { p_ws: f.workspace_id });
+    if (!g.error && (g.data as { open?: boolean } | null)?.open === false) return json({ error: closedMessage(f.body), closed: true }, 410);
     // An email or phone set to "Verify with a code" needs the proof its typed code got (src/lib/forms/codes.ts).
     const test = qaOk(id, raw.qa, process.env.SECRETS_KEY);
     if (!test) {

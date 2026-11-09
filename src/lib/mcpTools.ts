@@ -219,7 +219,7 @@ export const mcp = mcpServer<Ctx>({
   instructions:
     "Claritia runs end-to-end tests written in plain English, in a cloud browser. list_projects first. To check a change: " +
     "verify_change on the environment or preview address where it's live, then fix app bugs it reports. Write or edit tests with save_test (YAML). " +
-    "Lead forms: list_forms, create_form, edit_form with ops, then publish_form. " +
+    "Lead forms: list_forms, create_form, set_form_page, then publish_form; get_answers reads what came in. " +
     "Lead routing: get_router, route_explain, route_test; route_suggest saves a draft a person publishes.",
   tools: [...tools, ...formTools, ...routerTools],
 });
