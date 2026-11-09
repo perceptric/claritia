@@ -595,6 +595,8 @@ export type StudioSend = { id: string; kind: string; name: string; domain: strin
 export type StudioApi = {
   brands(): Promise<StudioBrand[]>;
   meetings(): Promise<StudioMeeting[]>;
+  /** Whether the booking calendar wears the form's style (paid plans) or the plain calendar (Free). */
+  calendarBrand?(): Promise<boolean>;
   readSite(host: string): Promise<{ url: string; site: string; name: string; logo: string | null; logoUrl: string | null; logoSvg: string | null }>;
   scan(host: string): Promise<{ kitId: string }>;
   kit(id: string): Promise<{ name: string; logo: string | null; logoUrl: string | null; logoSvg: string | null; scanStatus: string | null } | null>;
@@ -695,6 +697,8 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
   // ── State ─────────────────────────────────────────────────────────────────────────────────────────────
   let brands = [];
   let MEETINGS = [];
+  // Paid plans book in the form's own style; Free gets the plain calendar.
+  let CAL_BRAND = true;
   // The people who take meetings, for the Team member field.
   let PEOPLE = ["Anyone"];
   let chats = [];
@@ -939,8 +943,8 @@ ${CAL_CSS}
       const view = S.view;
       steps.forEach((s, i) => (s.hidden = editing ? !(view === "all" || view === i) : done || i !== stepAt));
       if (thanks) thanks.hidden = editing ? !(view === "all" || view === "thanks") : !done;
-      // A one-page form: its thank-you takes its place once sent, and in Edit when the thank-you is picked.
-      if (thanks && !steps.length && ((editing && view === "thanks") || (!editing && done))) for (const x of around(thanks, w)) x.hidden = true;
+      // The thank-you takes the form's place, heading included, once sent and in Edit when the thank-you is picked.
+      if (thanks && ((editing && view === "thanks") || (!editing && done))) for (const x of around(thanks, w)) x.hidden = true;
       const pos = shown.indexOf(steps[stepAt]);
       const p = steps.length ? (done ? 1 : (Math.max(0, pos) + 1) / Math.max(1, shown.length)) : done ? 1 : 0;
       w.querySelectorAll("[data-cl-progress]").forEach((el) => el.style.setProperty("--cl-progress", String(editing ? 0.5 : p)));
@@ -980,6 +984,8 @@ ${CAL_CSS}
     w.addEventListener("submit", (e) => e.preventDefault());
     apply();
     if (done && !editing) booking(w, values(w));
+    // Edit shows the booking under the message, as visitors will see it.
+    if (editing && S.view === "thanks" && body().after?.kind === "meeting" && w.querySelector("[data-cl-thanks] [data-cl-book]")) booking(w, {});
   }
   // After the send in the preview: the page, or a sample of the booking calendar for the meeting the answers pick.
   // Real open times per meeting type, read once a minute at most.
@@ -998,6 +1004,7 @@ ${CAL_CSS}
     return sampleCalendar(w);
   }
   // Claritia's calendar with the meeting type's real open times, in the brand's classes, as the live form draws it.
+  const calBtn = (on) => (CAL_BRAND ? (on ? "btn" : "btn-secondary") : "");
   async function realCalendar(w, v, spot) {
     const a = body().after;
     // The same rows the live form runs; past fills aren't known in the preview, so those rows wait.
@@ -1013,14 +1020,14 @@ ${CAL_CSS}
     const days = [];
     for (const s of t?.starts || []) { const k = fmt(s, { year: "numeric", month: "2-digit", day: "2-digit" }); let d = days.find((x) => x.k === k); if (!d) { if (days.length >= 14) continue; d = { k, starts: [] }; days.push(d); } d.starts.push(s); }
     // The same calendar the live form draws in a studio page (CAL_CSS), with the meeting's real open times.
-    const cal = h("div", { class: "cl-cal" }, h("div", { class: "cl-host" }, h("div", {}, h("b", { text: m.name }), h("small", { text: `${t?.length || m.length} min` }))));
+    const cal = h("div", { class: CAL_BRAND ? "cl-cal" : "cl-cal cl-plain" }, h("div", { class: "cl-host" }, h("div", {}, h("b", { text: m.name }), h("small", { text: `${t?.length || m.length} min` }))));
     if (!days.length) { cal.append(h("p", { class: "text", text: t ? "No open times right now." : "Couldn't read the open times." })); return spot.replaceChildren(cal); }
     let pick = days[0], more = false;
     const dRow = h("div", { class: "cl-days", role: "group", "aria-label": "Day" }), tRow = h("div", { class: "cl-times", role: "group", "aria-label": "Times" }), moreBtn = h("button", { type: "button", class: "cl-link" });
-    const drawDays = () => dRow.replaceChildren(...days.map((d) => h("button", { type: "button", class: `${d === pick ? "btn" : "btn-secondary"} cl-day`, "aria-pressed": String(d === pick), onclick: () => { pick = d; more = false; drawDays(); drawTimes(); } }, h("small", { text: fmt(d.starts[0], { weekday: "short" }) }), h("strong", { text: fmt(d.starts[0], { month: "short", day: "numeric" }) }))));
+    const drawDays = () => dRow.replaceChildren(...days.map((d) => h("button", { type: "button", class: `${calBtn(d === pick)} cl-day`, "aria-pressed": String(d === pick), onclick: () => { pick = d; more = false; drawDays(); drawTimes(); } }, h("small", { text: fmt(d.starts[0], { weekday: "short" }) }), h("strong", { text: fmt(d.starts[0], { month: "short", day: "numeric" }) }))));
     const drawTimes = () => {
       const shown = more ? pick.starts : pick.starts.slice(0, 9);
-      tRow.replaceChildren(...shown.map((s) => h("button", { type: "button", class: "btn-secondary cl-time", text: fmt(s, { hour: "numeric", minute: "2-digit" }), onclick: () => cal.replaceChildren(h("h3", { class: "heading", text: "You're booked" }), h("p", { class: "text", text: `${fmt(s, { weekday: "long", month: "long", day: "numeric" })}, ${fmt(s, { hour: "numeric", minute: "2-digit" })}. Preview only: nothing was booked.` })) })));
+      tRow.replaceChildren(...shown.map((s) => h("button", { type: "button", class: `${calBtn(false)} cl-time`, text: fmt(s, { hour: "numeric", minute: "2-digit" }), onclick: () => cal.replaceChildren(h("h3", { class: CAL_BRAND ? "heading" : "", text: "You're booked" }), h("p", { class: CAL_BRAND ? "text" : "", text: `${fmt(s, { weekday: "long", month: "long", day: "numeric" })}, ${fmt(s, { hour: "numeric", minute: "2-digit" })}. Preview only: nothing was booked.` })) })));
       moreBtn.hidden = shown.length >= pick.starts.length;
       moreBtn.textContent = `${pick.starts.length - shown.length} more times`;
     };
@@ -1192,7 +1199,9 @@ ${CAL_CSS}
     const onCov = !editing && !!cover && coverOn && !done;
     if (steps.length) steps.forEach((st, i) => { if (i) bar.append(conn()); bar.append(pill(String(i + 1), stepName(st, i), !after && (editing ? S.view === i : !done && !onCov && at === i), () => go(i), passed(i) && !onCov ? "done" : "")); });
     else bar.append(pill("1", "Form", !after && (editing ? S.view === 0 : !done && !onCov), () => go(0), !editing && !after && done ? "done" : ""));
-    if (thanks) { bar.append(conn()); bar.append(pill("tick", "Thank-you", !after && (editing ? S.view === "thanks" : done), () => go("thanks"))); }
+    // The end step follows On submission: a message, a redirect, or the booking under the message.
+    const endKind = body().after?.kind || "thanks";
+    if (thanks) { bar.append(conn()); bar.append(pill("tick", endKind === "page" ? "Redirect" : endKind === "meeting" ? "Booking" : "Thank-you", !after && (editing ? S.view === "thanks" : done), () => go(editing && endKind === "page" ? "after" : "thanks"))); }
     // On submission is the last step: what happens once it's sent (the meeting, routing, the team's email).
     if (S.mode !== "preview") { bar.append(conn()); bar.append(pill("bolt", "On submission", after, () => go("after"), "after")); }
     if (editing && (steps.length > 1 || thanks)) bar.append(h("button", { class: "sp all", "aria-pressed": String(S.view === "all"), "aria-label": "All pages", "data-tip": "All pages", html: SVG(P.layers, 15), onclick: () => go("all") }));
@@ -2654,12 +2663,24 @@ ${CAL_CSS}
   function renderAfter() {
     const box = $("afterInner"); box.innerHTML = "";
     const a = body().after;
-    const set = (p) => { snap(); body().after = { ...a, ...p }; changed(); renderAfter(); runCheck(); };
-    const c1 = h("div", { class: "card2" }, h("h3", { text: "After they send it" }), pills([["thanks", "Show the thank-you"], ["page", "Go to a page"], ["meeting", "Book a meeting"]], a.kind, (k) => set({ kind: k, ...(k === "meeting" && !a.meeting && MEETINGS[0] ? { meeting: MEETINGS[0].id } : {}) })));
+    const set = (p) => { snap(); if (p.kind === "meeting") bookSpot(); body().after = { ...a, ...p }; changed(); renderAfter(); stepUi(); runCheck(); };
+    const c1 = h("div", { class: "card2" }, h("h3", { text: "After they send it" }), pills([["thanks", "Show a message"], ["page", "Redirect to a page"], ["meeting", "Book a meeting"]], a.kind, (k) => set({ kind: k, ...(k === "meeting" && !a.meeting && MEETINGS[0] ? { meeting: MEETINGS[0].id } : {}) })));
     if (a.kind === "page") { const i = h("input", { class: "in", placeholder: "https://yourcompany.com/thanks", value: a.url || "", "aria-label": "Page address", style: "height:34px" }); i.addEventListener("change", () => set({ url: i.value.trim() })); c1.append(i); }
     box.append(c1);
     if (a.kind === "meeting") meetingCards(box, a, set);
     box.append(alwaysCard(a, set));
+  }
+
+  // Book a meeting: the calendar sits under the thank-you's message, so the message stays the team's to edit.
+  function bookSpot() {
+    const t = src.querySelector("[data-cl-thanks]");
+    if (!t || t.querySelector("[data-cl-book]")) return;
+    const d = document.createElement("div");
+    d.setAttribute("data-cl-book", "");
+    d.id = "book";
+    d.setAttribute("data-k", String(++kSeq));
+    t.append(d);
+    body().html = sourceHtml();
   }
 
   const pills = (opts, val, fn) => h("div", { class: "chips" }, ...opts.map(([v, t]) => h("button", { class: `pill${v === val ? " on" : ""}`, text: t, onclick: () => fn(v) })));
@@ -3500,6 +3521,7 @@ ${CAL_CSS}
     if (!alive) return;
     brands = bs.map((b) => ({ ...b, lookErr: "" }));
     MEETINGS = ms;
+    void api.calendarBrand?.().then((v) => { if (alive && v !== CAL_BRAND) { CAL_BRAND = v; if (built()) draw(); } }).catch(() => {});
     chats = cs;
     loaded = true;
     let first = null;

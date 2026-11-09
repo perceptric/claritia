@@ -19,6 +19,7 @@ import { serviceClient } from "@/lib/serviceClient";
 import { persistStudio } from "@/lib/studio/persist";
 import { knownFor } from "@/lib/share/known";
 import { readPersonal } from "@/lib/share/personal";
+import { brandPlan } from "@/lib/meetings/brandPage";
 
 // The live version of a form, for <claritia-form> on any site (docs/form-builder.md Part 6). Public: answers only
 // with what the form shows, plus whether the consent box applies to this visitor, and the region lists when a
@@ -30,6 +31,20 @@ import { readPersonal } from "@/lib/share/personal";
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 /** Forms this server is already keeping as pages, so a busy form starts it once. */
 const keeping = new Set<string>();
+
+/** Whether the booking calendar wears the form's style: paid plans do, Free gets the plain calendar. Kept a minute. */
+const planCache = new Map<string, { at: number; brand: boolean }>();
+async function calendarBrand(db: NonNullable<ReturnType<typeof serviceClient>>, ws: string): Promise<boolean> {
+  const hit = planCache.get(ws);
+  if (hit && Date.now() - hit.at < 60_000) return hit.brand;
+  const r = await db.from("workspace_billing").select("plan").eq("workspace_id", ws).maybeSingle();
+  // A plan that can't be read keeps the form's style, and isn't kept.
+  if (r.error) return true;
+  const brand = brandPlan((r.data as { plan?: string } | null)?.plan ?? "free");
+  if (planCache.size > 5000) planCache.clear();
+  planCache.set(ws, { at: Date.now(), brand });
+  return brand;
+}
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -56,9 +71,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const token = new URL(request.url).searchParams.get("p");
     const person = token ? readPersonal(token, process.env.SECRETS_KEY, f.workspace_id) : null;
     const known = person ? await knownFor(db, person, f.body).catch(() => ({})) : null;
+    const calBrand = await calendarBrand(db, f.workspace_id);
     return json(
       // tokens: always empty, only so a form script cached from before 123 (5 minutes at most) doesn't stop on it.
-      { id: f.id, version: f.version, status, ...(closed ? { closed } : {}), body: publicForm(f.body), tokens: {}, logo_url: f.logo_url, strict: regionOf(country ?? "", "") === "strict", turnstile: turnstileSiteKey() || undefined, ...formServices(f.body), ...(usesRegions(f.body) ? { regions: allRegions() } : {}), ...(known ? { known } : {}) },
+      { id: f.id, version: f.version, status, ...(closed ? { closed } : {}), body: publicForm(f.body), tokens: {}, logo_url: f.logo_url, strict: regionOf(country ?? "", "") === "strict", turnstile: turnstileSiteKey() || undefined, ...formServices(f.body), ...(usesRegions(f.body) ? { regions: allRegions() } : {}), ...(known ? { known } : {}), calBrand },
       200,
       token ? { "Cache-Control": "private, no-store" } : { "Cache-Control": `public, max-age=${f.body.access ? 10 : 30}`, Vary: "cf-ipcountry" },
     );

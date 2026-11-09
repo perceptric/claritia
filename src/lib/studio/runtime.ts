@@ -158,8 +158,8 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export type PageRun = { done(): void; start(): void; refresh(): void; errors(byName: Record<string, string>): void; busy(on: boolean): void; alert(text: string): void };
 
 /**
- * What sits around the thank-you on a one-page form, to hide once it's sent: everything but the logo, so the form's
- * own heading and line go too. The welcome screen hides on its own.
+ * What sits around the thank-you, to hide once it's sent: everything but the logo, so the form's own heading and
+ * line go too, on one-page and multi-page forms alike. The welcome screen hides on its own.
  */
 export function around(thanks: Element, w: Element): HTMLElement[] {
   const out: HTMLElement[] = [];
@@ -185,7 +185,9 @@ export function consentSpot(send: Element, w: Element): Element {
  * rules only size them, so the brand's colors, corners and fonts show.
  */
 export const CAL_CSS =
-  ":where(.cl-cal button){background:transparent;color:inherit;border:1.5px solid rgba(127,127,127,.35);border-radius:10px}:where(.cl-cal button[aria-pressed=true]){border-color:currentColor;font-weight:600}.cl-cal{display:flex;flex-direction:column;gap:14px;margin-top:6px;text-align:start}.cl-host{display:flex;align-items:center;gap:10px}.cl-host img{width:40px;height:40px;border-radius:50%;object-fit:cover;flex:none}.cl-host b{display:block;font-weight:600}.cl-host small{display:block;opacity:.7;font-size:13px}.cl-cal .cl-days{display:flex;flex-wrap:nowrap;gap:8px;overflow-x:auto;padding:2px 2px 6px;scrollbar-width:thin}.cl-cal .cl-days button{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:2px;width:auto;min-width:68px;height:auto;margin:0;padding:8px 12px;font:inherit;line-height:1.2;cursor:pointer}.cl-cal .cl-days small{font-size:11px;letter-spacing:.06em;text-transform:uppercase;opacity:.75}.cl-cal .cl-days strong{font-size:15px}.cl-cal .cl-times{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}@media (max-width:420px){.cl-cal .cl-times{grid-template-columns:repeat(2,minmax(0,1fr))}}.cl-cal .cl-times button{width:100%;min-width:0;height:42px;margin:0;padding:0 8px;font:inherit;font-size:15px;white-space:nowrap;cursor:pointer}.cl-cal .cl-link{align-self:flex-start;background:none;border:0;padding:0;margin:0;font:inherit;font-size:14px;color:inherit;text-decoration:underline;text-underline-offset:3px;cursor:pointer;width:auto;height:auto;box-shadow:none}.cl-cal .cl-zone{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;font-size:13px;opacity:.85}.cl-cal .cl-zone .cl-link{font-size:13px}";
+  ":where(.cl-cal button){background:transparent;color:inherit;border:1.5px solid rgba(127,127,127,.35);border-radius:10px}:where(.cl-cal button[aria-pressed=true]){border-color:currentColor;font-weight:600}.cl-cal{display:flex;flex-direction:column;gap:14px;margin-top:6px;text-align:start}.cl-host{display:flex;align-items:center;gap:10px}.cl-host img{width:40px;height:40px;border-radius:50%;object-fit:cover;flex:none}.cl-host b{display:block;font-weight:600}.cl-host small{display:block;opacity:.7;font-size:13px}.cl-cal .cl-days{display:flex;flex-wrap:nowrap;gap:8px;overflow-x:auto;padding:2px 2px 6px;scrollbar-width:thin}.cl-cal .cl-days button{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:2px;width:auto;min-width:68px;height:auto;margin:0;padding:8px 12px;font:inherit;line-height:1.2;cursor:pointer}.cl-cal .cl-days small{font-size:11px;letter-spacing:.06em;text-transform:uppercase;opacity:.75}.cl-cal .cl-days strong{font-size:15px}.cl-cal .cl-times{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}@media (max-width:420px){.cl-cal .cl-times{grid-template-columns:repeat(2,minmax(0,1fr))}}.cl-cal .cl-times button{width:100%;min-width:0;height:42px;margin:0;padding:0 8px;font:inherit;font-size:15px;white-space:nowrap;cursor:pointer}.cl-cal .cl-link{align-self:flex-start;background:none;border:0;padding:0;margin:0;font:inherit;font-size:14px;color:inherit;text-decoration:underline;text-underline-offset:3px;cursor:pointer;width:auto;height:auto;box-shadow:none}.cl-cal .cl-zone{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;font-size:13px;opacity:.85}.cl-cal .cl-zone .cl-link{font-size:13px}" +
+  // The plain calendar (Free): Claritia's own look on a white card, whatever the form wears.
+  ".cl-cal.cl-plain{background:#fff;color:#1f1f1f;border:1px solid rgba(0,0,0,.1);border-radius:12px;padding:16px;font:14px/1.4 Inter,system-ui,-apple-system,sans-serif;letter-spacing:normal;text-transform:none}.cl-plain h3{margin:0;font-size:17px;font-weight:600}.cl-plain p{margin:0}.cl-plain button{background:#fff;color:#1f1f1f;border:1px solid rgba(0,0,0,.14);border-radius:8px;box-shadow:none;text-transform:none;letter-spacing:normal;font-weight:500}.cl-plain button[aria-pressed=true]{background:#1f1f1f;color:#fff;border-color:#1f1f1f}.cl-plain .cl-link{background:none;border:0;color:#1f1f1f}";
 
 /** A time zone in words people know: "Saigon (GMT+7)". */
 export function zoneWords(tz: string): string {
@@ -286,8 +288,8 @@ export function runPage(w: HTMLElement, onSend: (v: Vals) => void, hooks: PageHo
     const shown = steps.filter((s) => !s.hasAttribute("data-cl-show-if") || holds(s.getAttribute("data-cl-show-if")!, v));
     steps.forEach((s, i) => (s.hidden = finished || i !== at));
     if (thanks) thanks.hidden = !finished;
-    // A one-page form: the thank-you takes its place (the logo stays).
-    if (finished && thanks && !steps.length) for (const x of around(thanks, w)) x.hidden = true;
+    // The thank-you takes the form's place, heading included (the logo stays).
+    if (finished && thanks) for (const x of around(thanks, w)) x.hidden = true;
     const pos = shown.indexOf(steps[at]!);
     const p = steps.length ? (finished ? 1 : (Math.max(0, pos) + 1) / Math.max(1, shown.length)) : finished ? 1 : 0;
     w.querySelectorAll<HTMLElement>("[data-cl-progress]").forEach((el) => el.style.setProperty("--cl-progress", String(p)));

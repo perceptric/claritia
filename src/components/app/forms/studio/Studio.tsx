@@ -19,6 +19,7 @@ import { readLines as readStream } from "../../streamLines";
 import { askConfirm, askText, tell } from "../../Dialogs";
 import { rt, type Screen } from "../../routing/rt/api";
 import { whoBooks } from "@/lib/meetings/dynamicWords";
+import { brandPlan } from "@/lib/meetings/brandPage";
 import { entryOf } from "@/lib/sources/catalog";
 import { moveForm } from "../folders";
 
@@ -99,6 +100,11 @@ export function Studio({ sb, session, ws, navigate, formId = "", chatId = "", fr
         return kits
           .filter((k) => k.source_url)
           .map((k) => ({ id: k.id, name: brandName(k), site: hostOf(k.source_url), logo: logoOf(k), css: k.studio_css || read<string>(cssKey(k.id), ""), profile: readProfile(k.studio_profile) ?? readProfile(read(profileKey(k.id), null)) }));
+      },
+      // Paid plans book in the form's own style; Free books in the plain calendar. Unread counts as paid.
+      calendarBrand: async () => {
+        const r = await sb.from("workspace_billing").select("plan").eq("workspace_id", ws.id).maybeSingle();
+        return r.error ? true : brandPlan((r.data as { plan?: string } | null)?.plan ?? "free");
       },
       meetings: async () => {
         const types = (await fetchMeetingTypes(sb, ws.id)).filter((t) => t.active);

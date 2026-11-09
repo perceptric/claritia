@@ -52,7 +52,7 @@ const needsX = (f: Field, map?: string) =>
 
 /** regions: the region lists, sent with the form when a list follows a country field (src/lib/forms/regions.ts). */
 /** known: a personal link's person, for the contact questions the form asks (src/lib/share/known.ts). */
-type Loaded = { id: string; version: number; status: "live" | "paused"; closed?: string; body: Form; logo_url?: string | null; strict?: boolean; turnstile?: string; regions?: Record<string, string[]>; known?: Record<string, string>; map?: string; codes?: { email?: boolean; sms?: boolean } };
+type Loaded = { id: string; version: number; status: "live" | "paused"; closed?: string; body: Form; logo_url?: string | null; strict?: boolean; turnstile?: string; regions?: Record<string, string[]>; known?: Record<string, string>; calBrand?: boolean; map?: string; codes?: { email?: boolean; sms?: boolean } };
 
 /** A personal link's token, from the address (src/lib/share/personal.ts): the server says whether it's good. */
 const personalParam = (): string => {
@@ -1105,12 +1105,14 @@ export class ClaritiaForm extends Base {
       // The page's own thank-you already says it: no second heading over an outside scheduler.
       if (end.querySelector("iframe")) end.querySelector(":scope > .h")?.remove();
       // Claritia's calendar in the brand's own classes, so it matches the page around it.
-      end.querySelectorAll(".h").forEach((x) => x.classList.add("heading"));
-      end.querySelectorAll(".i").forEach((x) => x.classList.add("text"));
-      end.querySelectorAll(".lb").forEach((x) => x.classList.add("label"));
-      end.querySelectorAll(".in").forEach((x) => x.classList.add("field"));
-      end.querySelectorAll(".bt").forEach((x) => x.classList.add("btn"));
-      end.querySelectorAll(".pl").forEach((x) => x.classList.add(x.getAttribute("aria-pressed") === "true" ? "btn" : "btn-secondary"));
+      // On Free, the plain calendar keeps Claritia's own look.
+      const wear = (q: string, c: (x: Element) => string) => end.querySelectorAll(q).forEach((x) => { if (!x.closest(".cl-plain")) x.classList.add(c(x)); });
+      wear(".h", () => "heading");
+      wear(".i", () => "text");
+      wear(".lb", () => "label");
+      wear(".in", () => "field");
+      wear(".bt", () => "btn");
+      wear(".pl", (x) => (x.getAttribute("aria-pressed") === "true" ? "btn" : "btn-secondary"));
       spot.replaceChildren(end);
     }
   }
@@ -2300,9 +2302,10 @@ export class ClaritiaForm extends Base {
     const days = byDay(b.slots, tz);
     const day = days.find((d) => d.day === this.bkDay) ?? days[0];
     this.bkDay = day?.day ?? "";
-    const box = el("div", { class: "cl-cal" });
+    const brand = this.calBrand();
+    const box = el("div", { class: brand ? "cl-cal" : "cl-cal cl-plain" });
     const btn = (on: boolean, attrs: Record<string, string | undefined>, ...kids: (Node | string)[]) => {
-      const x = el("button", { type: "button", class: on ? "btn" : "btn-secondary", "aria-pressed": on ? "true" : "false", disabled: this.bkBusy, ...attrs }, ...kids);
+      const x = el("button", { type: "button", class: brand ? (on ? "btn" : "btn-secondary") : "", "aria-pressed": on ? "true" : "false", disabled: this.bkBusy, ...attrs }, ...kids);
       return x;
     };
     if (b.host) box.append(el("div", { class: "cl-host" }, b.host.photo ? el("img", { src: b.host.photo, alt: "" }) : null, el("div", {}, el("b", { text: b.host.name }), el("small", { text: `${b.length} min` }))));
@@ -2366,11 +2369,17 @@ export class ClaritiaForm extends Base {
     return box;
   }
 
+  /** Paid plans book in the form's own style; Free gets the plain calendar. A form read without the flag keeps its style. */
+  private calBrand(): boolean {
+    return this.data?.calBrand !== false;
+  }
+
   private booked(): HTMLElement {
     const m = this.bkDone!;
     const tz = this.bkTz;
     if (this.pg) {
-      const box = el("div", { class: "cl-cal", role: "status", tabindex: "-1" }, el("h3", { class: "heading", text: "You're booked" }), el("p", { class: "text", text: `${dayText(m.start, tz)}, ${timeText(m.start, tz)} to ${timeText(m.end, tz)}, ${zoneWords(tz)}` }), m.host ? el("div", { class: "cl-host" }, m.host.photo ? el("img", { src: m.host.photo, alt: "" }) : null, el("div", {}, el("b", { text: m.host.name }))) : null, el("p", { class: "text", text: "The invite is on its way to your inbox." }), m.manage && /^https:\/\//.test(m.manage) ? el("a", { class: "cl-link", href: m.manage, target: "_blank", rel: "noopener", text: "Change or cancel" }) : null);
+      const brand = this.calBrand();
+      const box = el("div", { class: brand ? "cl-cal" : "cl-cal cl-plain", role: "status", tabindex: "-1" }, el("h3", { class: brand ? "heading" : "", text: "You're booked" }), el("p", { class: brand ? "text" : "", text: `${dayText(m.start, tz)}, ${timeText(m.start, tz)} to ${timeText(m.end, tz)}, ${zoneWords(tz)}` }), m.host ? el("div", { class: "cl-host" }, m.host.photo ? el("img", { src: m.host.photo, alt: "" }) : null, el("div", {}, el("b", { text: m.host.name }))) : null, el("p", { class: "text", text: "The invite is on its way to your inbox." }), m.manage && /^https:\/\//.test(m.manage) ? el("a", { class: "cl-link", href: m.manage, target: "_blank", rel: "noopener", text: "Change or cancel" }) : null);
       queueMicrotask(() => box.focus());
       return box;
     }
