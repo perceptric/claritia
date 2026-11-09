@@ -18,7 +18,7 @@ import { allFields, isContent, nextStep, numOf, optionsFor, pickOutcome, product
 import { checkAnswers, OTHER, stepPath, type Answers } from "./values.ts";
 import { answerFrom } from "../share/emailForm.ts";
 import { VIA } from "../share/channels.ts";
-import { ACCESS_CSS, CAL_CSS, consentSpot, pageValues, runPage, shownValues, showsByIf, zoneWords, type PageRun, type Vals } from "../studio/runtime.ts";
+import { ACCESS_CSS, BADGE_CSS, badgeRow, CAL_CSS, consentSpot, pageValues, runPage, shownValues, showsByIf, zoneWords, type PageRun, type Vals } from "../studio/runtime.ts";
 import type { XCtx } from "./extras.ts";
 
 /** The form script's second part (extras.ts, /forms/x1.js): loaded once, on the first form that has one of its fields. */
@@ -52,7 +52,7 @@ const needsX = (f: Field, map?: string) =>
 
 /** regions: the region lists, sent with the form when a list follows a country field (src/lib/forms/regions.ts). */
 /** known: a personal link's person, for the contact questions the form asks (src/lib/share/known.ts). */
-type Loaded = { id: string; version: number; status: "live" | "paused"; closed?: string; body: Form; logo_url?: string | null; strict?: boolean; turnstile?: string; regions?: Record<string, string[]>; known?: Record<string, string>; calBrand?: boolean; map?: string; codes?: { email?: boolean; sms?: boolean } };
+type Loaded = { id: string; version: number; status: "live" | "paused"; closed?: string; body: Form; logo_url?: string | null; strict?: boolean; turnstile?: string; regions?: Record<string, string[]>; known?: Record<string, string>; calBrand?: boolean; badge?: "full" | "small" | "none"; map?: string; codes?: { email?: boolean; sms?: boolean } };
 
 /** A personal link's token, from the address (src/lib/share/personal.ts): the server says whether it's good. */
 const personalParam = (): string => {
@@ -972,7 +972,7 @@ export class ClaritiaForm extends Base {
         void loadX(this.base).then(() => this.render(), () => setTimeout(() => this.render(), 1500 * xTries));
         return;
       }
-      const st = el("style", { text: `${style.textContent}\n${ACCESS_CSS}.cl-langs{display:flex;justify-content:flex-end;gap:4px;padding:8px 12px}.cl-langs button{font:inherit;font-size:12px;border:1px solid rgba(127,127,127,.45);background:rgba(255,255,255,.9);color:#222;border-radius:999px;padding:5px 11px;cursor:pointer}.cl-langs button[aria-pressed=true]{background:#111;color:#fff;border-color:#111}.cl .ps,.cl .tm{gap:8px}\n:host{display:block}.cl-root{min-height:inherit;display:flex;flex-direction:column}.cl-root>*{flex:1 0 auto}[hidden]{display:none!important}.cl-alert{color:#b23a26}\n${css.replace(/(^|[\s,{}])(?::root|html|body)(?=[\s,{:.[])/g, "$1:host")}` });
+      const st = el("style", { text: `${style.textContent}\n${ACCESS_CSS}${BADGE_CSS}.cl-langs{display:flex;justify-content:flex-end;gap:4px;padding:8px 12px}.cl-langs button{font:inherit;font-size:12px;border:1px solid rgba(127,127,127,.45);background:rgba(255,255,255,.9);color:#222;border-radius:999px;padding:5px 11px;cursor:pointer}.cl-langs button[aria-pressed=true]{background:#111;color:#fff;border-color:#111}.cl .ps,.cl .tm{gap:8px}\n:host{display:block}.cl-root{min-height:inherit;display:flex;flex-direction:column}.cl-root>*{flex:1 0 auto}[hidden]{display:none!important}.cl-alert{color:#b23a26}\n${css.replace(/(^|[\s,{}])(?::root|html|body)(?=[\s,{:.[])/g, "$1:host")}` });
       const wrap = el("div", { class: "cl-root" });
       wrap.innerHTML = html;
       if (one) xOf()?.page?.split(wrap);
@@ -1013,6 +1013,9 @@ export class ClaritiaForm extends Base {
         }
         wrap.prepend(sw);
       }
+      // The Claritia badge under the form on Free and Starter, kept on the thank-you too.
+      const badge = this.data?.id === "preview" ? null : badgeRow(this.data?.badge);
+      if (badge) (wrap.querySelector<HTMLElement>(".page") ?? wrap).append(badge);
       const logo = this.data?.logo_url ?? "";
       const ok = /^https:\/\//.test(logo) ? !!safeUrl(logo) : /^data:image\/svg\+xml[;,]/.test(logo);
       wrap.querySelectorAll("img[data-cl-logo]").forEach((img) => (ok ? img.setAttribute("src", logo) : ((img as HTMLElement).hidden = true)));
