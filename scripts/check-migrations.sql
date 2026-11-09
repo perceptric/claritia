@@ -35,5 +35,6 @@ select migration, applied from (values
   ('136', to_regclass('public.identity_settings') is null),
   ('137', exists(select 1 from pg_constraint where conname = 'saved_views_screen_check' and pg_get_constraintdef(oid) not like '%accounts%')),
   ('138', exists(select 1 from pg_constraint where conname = 'team_domains_pkey')),
-  ('139', exists(select 1 from pg_proc where proname = 'prune_jobs' and prosrc not like '%ip_lookup%'))
+  ('139', exists(select 1 from pg_proc where proname = 'prune_jobs' and prosrc not like '%ip_lookup%')),
+  ('140', exists(select 1 from pg_proc where proname = 'job_kind_removed' and prosrc not like '%stitch%'))
 ) as v(migration, applied) order by migration;

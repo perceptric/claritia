@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { budget, claimBackoff, enqueueJob, enqueueJobs, JobError, jobLoop, Lanes, runJob, startLoops, Wake, type Job, type Rpc } from "../src/lib/jobs.ts";
 
-const job = (over: Partial<Job> = {}): Job => ({ id: "j1", workspace_id: "w", kind: "stitch", key: "dev-1", payload: {}, attempts: 1, max_attempts: 5, ...over });
+const job = (over: Partial<Job> = {}): Job => ({ id: "j1", workspace_id: "w", kind: "route", key: "dev-1", payload: {}, attempts: 1, max_attempts: 5, ...over });
 
 function fakeRpc(answers: Record<string, unknown> = {}) {
   const calls: { fn: string; args: Record<string, unknown> }[] = [];
@@ -177,13 +177,13 @@ test("lanes: two loops keep to lane 0, the rest take every lane with at most bul
 
 test("lanes: a kind at its cap isn't claimed again until one ends", () => {
   const l = new Lanes({ bulkMax: 2, kindMax: { import_file: 1 } });
-  assert.deepEqual(l.pick(["import_file", "stitch"], 2).kinds, ["import_file", "stitch"]);
+  assert.deepEqual(l.pick(["import_file", "route"], 2).kinds, ["import_file", "route"]);
   l.start(job({ kind: "import_file", priority: 2 }));
-  assert.deepEqual(l.pick(["import_file", "stitch"], 2), { kinds: ["stitch"], maxLane: 2 });
+  assert.deepEqual(l.pick(["import_file", "route"], 2), { kinds: ["route"], maxLane: 2 });
   l.start(job({ kind: "enrich_contact", priority: 2 }));
-  assert.equal(l.pick(["stitch"], 2).maxLane, 1, "two bulk jobs: no third");
+  assert.equal(l.pick(["route"], 2).maxLane, 1, "two bulk jobs: no third");
   l.end(job({ kind: "import_file", priority: 2 }));
-  assert.deepEqual(l.pick(["import_file", "stitch"], 2), { kinds: ["import_file", "stitch"], maxLane: 2 });
+  assert.deepEqual(l.pick(["import_file", "route"], 2), { kinds: ["import_file", "route"], maxLane: 2 });
 });
 
 test("an idle loop wakes at once when a job in its lane is queued, and not for a lane it doesn't take", async () => {
@@ -204,7 +204,7 @@ test("an idle loop wakes at once when a job in its lane is queued, and not for a
 
 test("enqueueJobs sends one call; budget runs out", async () => {
   const { rpc, calls } = fakeRpc({ enqueue_jobs: 2 });
-  assert.equal(await enqueueJobs(rpc, [{ workspaceId: "w", kind: "score_account", key: "a" }, { workspaceId: "w", kind: "score_account", key: "b", delayS: 60 }]), 2);
+  assert.equal(await enqueueJobs(rpc, [{ workspaceId: "w", kind: "route", key: "a" }, { workspaceId: "w", kind: "route", key: "b", delayS: 60 }]), 2);
   assert.equal(calls.length, 1);
   assert.deepEqual((calls[0].args.p_jobs as { key: string; delay_s: number }[]).map((j) => [j.key, j.delay_s]), [["a", 0], ["b", 60]]);
   assert.equal(await enqueueJobs(rpc, []), 0);
