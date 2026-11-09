@@ -51,6 +51,15 @@ open Availability › Team.
 Studio forms (`src/components/app/forms/studio/studio.ts`, the rows in `src/lib/studio/routes.ts`) keep the same rule:
 the form picks the meeting type, the meeting picks the person.
 
+- **After they send it**: Show a message (the default, the thank-you every template comes with), Redirect to a page,
+  or Book a meeting. The last step in the bar over the form follows it: Thank-you, Redirect (opens On submission) or
+  Booking. The thank-you takes the whole form's place once sent, its heading included, on one-page and multi-page
+  forms. Book a meeting puts the calendar under the thank-you's message (`data-cl-book`), so the message stays
+  editable, and Edit shows the calendar there.
+- **Calendar style**: paid plans book in the form's own style; Free gets the plain calendar (`cl-plain` in
+  `CAL_CSS`, `src/lib/studio/runtime.ts`). It is the `booking_brand` feature in `src/lib/plans.ts`, the same one as
+  branded booking pages. The public form read (`/api/forms/[id]`) sends `calBrand`, with the plan kept a minute.
+
 - **Who books it**: when the picked meeting (or a route's meeting) is Dynamic, its rules show in one line, like
   "Locations is at least 50 → Enterprise, otherwise anyone on the team" (`src/lib/meetings/dynamicWords.ts`).
   **Edit routing** opens that meeting type's panel. The routing stays on the meeting type.
@@ -143,6 +152,7 @@ Both run the same steps: questions, routing, the rep's calendar, booked.
 Nothing is added to the monthly bill. There is no new service and no AI call; publishing makes a few more routing
 calls than before, once per publish. Past fills add one indexed database read per send, only on forms and meetings
 whose rules test one; it fits in the database the app already runs on.
+The calendar style adds one plan read per workspace per minute when a form loads, on the same database.
 
 | Stage | Added per month |
 |---|---|
