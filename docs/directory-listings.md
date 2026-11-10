@@ -72,12 +72,9 @@ directory accepts).
 
 ## Before submitting
 
-- The privacy policy still lists Supabase in Japan and Fly.io as hosts; both moved to the Hostinger VPS. It also needs a
-  paragraph on the Claude and ChatGPT connector and forms made before sign-in (draft below).
-- Draft paragraph: "Claritia in Claude and ChatGPT. When you use Claritia from an AI app, Claritia receives only what the
-  app sends to its tools: the form you ask for and, once you connect your account, which forms to read. Forms made
-  before you sign in are kept for 14 days unless claimed, with a hash of the internet address that made them. We don't
-  receive your chat, and we don't use any of it to train AI."
+- The privacy policy covers the connector and forms made before sign-in, and names Hostinger as the host (claritia-site,
+  November 10, 2026).
+- Make the reviewer test account above.
 
 ## Running cost
 
