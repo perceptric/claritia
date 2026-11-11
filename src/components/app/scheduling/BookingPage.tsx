@@ -27,6 +27,7 @@ import { Badge, Button, ErrorNote, errorText, Input, invalidate, Loading, Page, 
 import { CopyButton, meetingsApi, usePeople } from "../meetings/parts";
 import { useMeetingTypes, type TypeRow } from "../meetings/TypesList";
 import { IconSeg, Labeled, PanelFooter, PanelSection } from "./panel";
+import { svgDataUri } from "@/lib/brand/svgData";
 
 type Info = {
   team: string | null;
@@ -40,7 +41,7 @@ type PreviewStep = "page" | "meeting" | "details" | "done" | "move";
 
 /** A brand's logo as a picture address: its https logo, or its SVG drawn as a picture (no scripts run in one). */
 const logoOf = (k: Pick<BrandRow, "logo_url" | "logo_svg">): string | null =>
-  k.logo_url && /^https:\/\//.test(k.logo_url) ? k.logo_url : k.logo_svg && /^\s*<svg[\s>]/i.test(k.logo_svg) ? `data:image/svg+xml;utf8,${encodeURIComponent(k.logo_svg)}` : null;
+  k.logo_url && /^https:\/\//.test(k.logo_url) ? k.logo_url : k.logo_svg && /^\s*<svg[\s>]/i.test(k.logo_svg) ? svgDataUri(k.logo_svg) : null;
 type SectionKey = "link" | "profile" | "shown" | "welcome" | "styling";
 
 const isMine = (t: TypeRow, me: string) => t.owner_user_id === me || (!t.owner_user_id && (t.kind === "one" || t.kind === "group") && t.hosts[0]?.user_id === me);

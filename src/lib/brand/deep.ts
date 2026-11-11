@@ -6,6 +6,7 @@
 // Claude turns this into the brand book (book.ts); nothing here guesses.
 
 import { cssRules, firstFamily, toHex } from "./quick.ts";
+import { withSvgNs } from "./svgData.ts";
 
 export type Page = { url: string; html: string };
 export type Sheet = { url: string; text: string };
@@ -48,6 +49,8 @@ const abs = (u: string | undefined | null, base: string) => {
 const attr = (tag: string, name: string) => new RegExp(`\\b${name}=["']([^"']*)["']`, "i").exec(tag)?.[1];
 
 /** Only the drawing parts of an inline SVG, with no scripts, links, events or outside references. */
+const CASED: Record<string, string> = { lineargradient: "linearGradient", radialgradient: "radialGradient", clippath: "clipPath" };
+
 export function cleanSvg(svg: string): string | null {
   const ok = /^(svg|g|path|rect|circle|ellipse|line|polyline|polygon|defs|lineargradient|radialgradient|stop|clippath|mask|title|use)$/i;
   const okAttr = /^(viewbox|width|height|d|x|y|x1|x2|y1|y2|cx|cy|r|rx|ry|points|fill|fill-rule|clip-rule|stroke|stroke-width|stroke-linecap|stroke-linejoin|transform|offset|stop-color|stop-opacity|opacity|fill-opacity|id|clip-path|mask|gradientunits|gradienttransform|xmlns|preserveaspectratio|href|xlink:href)$/i;
@@ -61,17 +64,20 @@ export function cleanSvg(svg: string): string | null {
       if (!m[1] && !m[4] && /^(script|style|foreignobject|a)$/i.test(name)) return null;
       continue;
     }
+    // SVG names are case-sensitive: gradients and clip paths keep their own spelling.
+    const tag = CASED[name] ?? name;
     if (m[1]) {
-      out += `</${name}>`;
+      out += `</${tag}>`;
       continue;
     }
     const attrs = [...m[3]!.matchAll(/([a-zA-Z:-]+)\s*=\s*"([^"]*)"|([a-zA-Z:-]+)\s*=\s*'([^']*)'/g)]
       .map((a) => [a[1] ?? a[3]!, a[2] ?? a[4]!] as const)
       .filter(([k, v]) => okAttr.test(k) && !/javascript:|data:|https?:/i.test(v) && !(/href$/i.test(k) && !v.startsWith("#")))
       .map(([k, v]) => `${k}="${v.replace(/"/g, "&quot;")}"`);
-    out += `<${name}${attrs.length ? ` ${attrs.join(" ")}` : ""}${m[4] ? "/" : ""}>`;
+    out += `<${tag}${attrs.length ? ` ${attrs.join(" ")}` : ""}${m[4] ? "/" : ""}>`;
   }
-  return out.startsWith("<svg") && out.length < 60_000 ? out : null;
+  // The namespace, which the attribute check above takes out: without it a picture made from the drawing is broken.
+  return out.startsWith("<svg") && out.length < 60_000 ? withSvgNs(out) : null;
 }
 
 /** Everything the pages and stylesheets say about the brand. The first page is the home page. */

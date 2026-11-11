@@ -94,7 +94,7 @@ export function FormHeader({
             value={tab}
             onChange={onTab}
             tabs={[
-              ...(build ? [{ value: "build" as const, label: "Build", icon: <Ic n="build" /> }] : []),
+              ...(build ? [{ value: "build" as const, label: "Editor", icon: <Ic n="build" /> }] : []),
               { value: "submissions", label: "Submissions", icon: <Ic n="inbox" />, count: subs },
               { value: "share", label: "Share", icon: <Ic n="share" /> },
               { value: "sync", label: "Sync", icon: <Ic n="sync" />, dot: syncDot },
