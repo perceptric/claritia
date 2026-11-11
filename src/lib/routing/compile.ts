@@ -9,8 +9,13 @@ import { incomplete, ruleMatches, toNumber, type FieldDef } from "../router/cond
 import type { Cond, Rule, RouterBody } from "../router/types.ts";
 import { fieldOf } from "./screenModel.ts";
 
-/** One condition row of the form: when all its conditions hold, the lead books `meet`. */
-export type FormRoute = { id: string; conds: Cond[]; meet: string };
+/**
+ * One rule of the form: when all its conditions hold (or any, with match "any"), the lead books `meet`, with the
+ * meeting's own people, or with `with` (one person, or a team taking turns) when set.
+ */
+export type FormRoute = { id: string; conds: Cond[]; meet: string; match?: "all" | "any"; name?: string; with?: { kind: "user" | "team"; id: string } };
+/** The checks before any rule, when the form sets them: the spam check and keeping existing owners. */
+export type FormBefore = { spam?: boolean; keep?: boolean };
 /** Where a Dynamic meeting sends a lead: one rep, or a team whose members take turns (a team key). */
 export type Dest = { kind: "user"; id: string } | { kind: "team"; id: string };
 export type DynamicRule = { id: string; conds: Cond[]; to: Dest };
@@ -35,7 +40,7 @@ function withDest(r: Omit<Rule, "queue" | "then" | "user">, d: Dest): Rule {
  * value missing, a team that's gone. A half-made row never catches a lead. With no Default meeting, leads no condition
  * matched have nowhere to go (Everyone else is empty), so the form shows its message.
  */
-export function compileRouting(base: RouterBody, o: { def: string | null | undefined; routes: FormRoute[]; types: MeetingLite[]; teamKeys: Set<string> }): { body: RouterBody; problems: string[] } {
+export function compileRouting(base: RouterBody, o: { def: string | null | undefined; routes: FormRoute[]; types: MeetingLite[]; teamKeys: Set<string>; before?: FormBefore }): { body: RouterBody; problems: string[] } {
   const problems: string[] = [];
   const list: Rule[] = [];
   const meeting = (id: string | null | undefined) => (id ? o.types.find((t) => t.id === id && t.active) : undefined);
@@ -77,9 +82,25 @@ export function compileRouting(base: RouterBody, o: { def: string | null | undef
       problems.push("A condition's meeting is gone or off");
       continue;
     }
-    const { rules, rest } = expand(t, row.conds, `f_${row.id}`, "Condition");
-    list.push(...rules);
-    if (rest) list.push(withDest({ id: `f_${row.id}`.slice(0, 40), name: short(`Condition, ${t.name}`), match: "all", conds: row.conds, meet: t.id }, rest));
+    const label = row.name || "Condition";
+    if (row.with) {
+      // Booked with one person or team, whatever the meeting's own routing says: one router rule, all or any.
+      if (!destOk(row.with)) {
+        problems.push(`${label}: its team is gone`);
+        continue;
+      }
+      list.push(withDest({ id: `f_${row.id}`.slice(0, 40), name: short(`${label}, ${t.name}`), match: row.match === "any" ? "any" : "all", conds: row.conds, meet: t.id }, row.with));
+      continue;
+    }
+    // An "or" rule over a Dynamic meeting is one path per condition, each joined with the meeting's own rules, so
+    // "(A or B) and the meeting's rule" runs in the router's flat rules, in the same order.
+    const branches = row.match === "any" && row.conds.length > 1 ? row.conds.map((c) => [c]) : [row.conds];
+    branches.forEach((when, k) => {
+      const id = branches.length > 1 ? `f_${row.id}_${k + 1}` : `f_${row.id}`;
+      const { rules, rest } = expand(t, when, id, label);
+      list.push(...rules);
+      if (rest) list.push(withDest({ id: id.slice(0, 40), name: short(`${label}, ${t.name}`), match: "all", conds: when, meet: t.id }, rest));
+    });
   }
 
   let fallback: RouterBody["fallback"] = null;
@@ -90,7 +111,10 @@ export function compileRouting(base: RouterBody, o: { def: string | null | undef
     list.push(...rules);
     if (rest) fallback = { kind: rest.kind === "user" ? "user" : "queue", id: rest.id, meet: def.id };
   }
-  return { body: { ...base, rules: { ...base.rules, on: true, list }, fallback }, problems };
+  const b = o.before;
+  const spam = b && typeof b.spam === "boolean" ? { ...base.spam, on: b.spam } : base.spam;
+  const keep = b && typeof b.keep === "boolean" ? { ...base.keep, on: b.keep } : base.keep;
+  return { body: { ...base, spam, keep, rules: { ...base.rules, on: true, list }, fallback }, problems };
 }
 
 /** What a compiled body does with a lead's answers (Try a lead): the rule that matched (or Everyone else) and its meeting and destination. */

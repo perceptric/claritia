@@ -6,8 +6,8 @@
 
 import { linkProblem, type ScheduleTool } from "../forms/schedule.ts";
 import { languageName } from "./industries.ts";
-import { cleanPage, type PageAfter, type PageQuestion } from "./page.ts";
-import { cleanRoute, PAST_ROUTES, routeIncomplete, routeKind } from "./routes.ts";
+import { cleanPage, isRouting, type PageAfter, type PageQuestion } from "./page.ts";
+import { cleanRoute, condsOf, neverRuns, PAST_ROUTES, routeIncomplete, routeKind, type StudioRoute } from "./routes.ts";
 
 export type Issue = { level: "error" | "warning"; code: string; text: string; fix?: string };
 
@@ -186,23 +186,28 @@ export function checkStudioPage(p: { html: string; after: PageAfter; meetings: {
     if (p.meetings && !p.meetings.length) add("error", "no-meetings", "On submission books a meeting, but the workspace has no meeting types yet.");
     else if (!a.meeting || !known(a.meeting)) add("error", "meeting-gone", "On submission books a meeting that isn't there any more. Pick one in On submission.");
     if (!all(tree, (n) => "data-cl-book" in n.attrs).length) add("warning", "no-book-spot", "There's no booking spot, so the calendar shows at the end of the thank-you.", "Add <div data-cl-book id=\"book\"></div> inside the thank-you section.");
-    (a.routes ?? []).forEach((raw, i) => {
+    const rules = isRouting(a) ? (a.routes ?? []) : [];
+    const clean: StudioRoute[] = [];
+    rules.forEach((raw, i) => {
       const r = cleanRoute(raw);
-      const n = `Route ${i + 1}`;
+      const n = r?.name ? `Rule ${i + 1}, ${r.name},` : `Rule ${i + 1}`;
       if (!r) return add("error", "route-gone", `${n} can't be read. Fix it in On submission.`);
-      const past = r.field.startsWith("past.");
-      const q = byName.get(r.field);
-      if (past && !PAST_ROUTES.some((p) => p.field === r.field)) add("error", "route-gone", `${n} reads a past fill that isn't there any more. Fix it in On submission.`);
-      else if (!past && !q) add("error", "route-gone", `${n} reads "${r.field}", which isn't a question any more. Fix it in On submission.`);
-      else {
-        const kind = routeKind(r.field, q);
-        const vals = Array.isArray(r.value) ? r.value.map(String) : r.value === undefined ? [] : [String(r.value)];
-        const gone = kind === "choice" && (r.op === "one_of" || r.op === "not_one_of" || r.op === "is" || r.op === "is_not") ? vals.filter((v) => !q!.options.some((o) => o.value === v)) : [];
-        if (gone.length) add("error", "route-value", `${n} waits for "${gone[0]}" on "${q!.label}", which isn't one of its answers any more. Fix it in On submission.`);
-        else if (routeIncomplete(r, kind)) add("error", "route-empty", `${n} has no value yet. Fill it in or remove it in On submission.`);
+      clean.push(r);
+      for (const c of condsOf(r)) {
+        const past = c.field.startsWith("past.");
+        const q = byName.get(c.field);
+        if (past && !PAST_ROUTES.some((p) => p.field === c.field)) { add("error", "route-gone", `${n} reads a past fill that isn't there any more. Fix it in On submission.`); break; }
+        if (!past && !q) { add("error", "route-gone", `${n} reads "${c.field}", which isn't a question any more. Fix it in On submission.`); break; }
+        const kind = routeKind(c.field, q);
+        const vals = Array.isArray(c.value) ? c.value.map(String) : c.value === undefined ? [] : [String(c.value)];
+        const gone = kind === "choice" && (c.op === "one_of" || c.op === "not_one_of" || c.op === "is" || c.op === "is_not") ? vals.filter((v) => !q!.options.some((o) => o.value === v)) : [];
+        if (gone.length) { add("error", "route-value", `${n} waits for "${gone[0]}" on "${q!.label}", which isn't one of its answers any more. Fix it in On submission.`); break; }
+        if (routeIncomplete(c, kind)) { add("error", "route-empty", `${n} has no value yet. Fill it in or remove it in On submission.`); break; }
       }
       if (!r.meeting || !known(r.meeting)) add("error", "route-meeting", `${n} books a meeting that isn't there any more. Fix it in On submission.`);
     });
+    // A rule an earlier one always catches first never runs (only sure cases are named).
+    if (clean.length === rules.length) neverRuns(clean, questions).forEach((by, j) => { if (by >= 0) add("warning", "route-never", `Rule ${j + 1}${clean[j]!.name ? `, ${clean[j]!.name},` : ""} can never run: rule ${by + 1} catches every lead it would. Move it up or narrow rule ${by + 1}.`); });
   }
   if (a.always?.email && !a.always.to?.length) add("error", "always-email", "Notification emails the team, but has no emails yet. Add them in On submission.");
 

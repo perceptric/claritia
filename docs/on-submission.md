@@ -51,24 +51,42 @@ open Availability › Team.
 Studio forms (`src/components/app/forms/studio/studio.ts`, the rows in `src/lib/studio/routes.ts`) keep the same rule:
 the form picks the meeting type, the meeting picks the person.
 
-- **After they send it**: Show a message (the default, the thank-you every template comes with), Redirect to a page,
-  or Book a meeting. The last step in the bar over the form follows it: Thank-you, Redirect (opens On submission) or
-  Booking. The thank-you takes the whole form's place once sent, its heading included, on one-page and multi-page
-  forms. Book a meeting puts the calendar under the thank-you's message (`data-cl-book`), so the message stays
-  editable, and Edit shows the calendar there.
+- **The screen**: On submission is a sidebar beside the canvas, and the canvas shows the end page as it runs: the
+  thank-you, the redirect, or the booking page with the real calendar. **Edit the thank-you page** and **Edit the
+  booking page** open that page in Edit, where it's changed like any other page.
+- **After they send it**: Show a thank-you message (the default, the thank-you every template comes with), Redirect
+  to a page, or Book a meeting. The last step in the bar over the form follows it: Thank-you, Redirect (opens On
+  submission) or Booking. The thank-you takes the whole form's place once sent, its heading included, on one-page and
+  multi-page forms. Book a meeting puts the calendar under the thank-you's message (`data-cl-book`), so the message
+  stays editable, and Edit shows the calendar there.
 - **Calendar style**: paid plans book in the form's own style; Free gets the plain calendar (`cl-plain` in
   `CAL_CSS`, `src/lib/studio/runtime.ts`). It is the `booking_brand` feature in `src/lib/plans.ts`, the same one as
   branded booking pages. The public form read (`/api/forms/[id]`) sends `calBrand`, with the plan kept a minute.
-
-- **Who books it**: when the picked meeting (or a route's meeting) is Dynamic, its rules show in one line, like
-  "Locations is at least 50 → Enterprise, otherwise anyone on the team" (`src/lib/meetings/dynamicWords.ts`).
-  **Edit routing** opens that meeting type's panel. The routing stays on the meeting type.
-- **Route by answer**: rows of "When <question> <test> <value>, book <meeting>", read top to bottom, then
-  **Otherwise, book** the form's meeting. The tests fit the question: is or is not one of its answers for a choice;
-  less than, more than, at most, at least, between and is for a number; contains, is, is not and starts with for text;
-  is answered and is empty for all. Numbers are compared as numbers. Rows saved before tests ("Plan is Enterprise")
-  read as "is" that answer. Each row compiles to one condition on `answer.<key>` (`pageForm` in
-  `src/lib/studio/page.ts`); a row whose question is gone or whose value is blank never routes anyone.
+- **Individual or Routing** (`after.mode`, `isRouting` in `src/lib/studio/page.ts`). **Individual**: everyone books
+  one meeting. When that meeting is Dynamic its rules show in one line, like "Locations is at least 50 → Enterprise,
+  otherwise anyone on the team" (`src/lib/meetings/dynamicWords.ts`), and **Edit meeting** opens it. **Routing**: the
+  rules below. A form saved before the switch is Routing when it has rules. Rules stay on the page under Individual,
+  unused, so switching back keeps them.
+- **Routing** (`src/lib/studio/routes.ts`): named rules in run order, first match wins, then **Otherwise** (the form's
+  meeting), fixed last. A rule is "When <question> <test> <value>", then more conditions joined by **+ and** or
+  **+ or**; **Book** <meeting>; **With** "As the meeting says" (the meeting's own host or Dynamic rules), a team that
+  takes turns, or one person. Rules move up and down and can be deleted. The first condition sits at the top of the
+  rule (field, op, value) as rows did before, and the rest in `more`, so older rows read as they were. The tests fit
+  the question: is or is not one of its answers for a choice; less than, more than, at most, at least, between and is
+  for a number; contains, is, is not and starts with for text; is answered and is empty for all. Numbers are compared
+  as numbers. Rows saved before tests ("Plan is Enterprise") read as "is" that answer. Each rule compiles to router
+  conditions on `answer.<key>` (`pageForm` in `src/lib/studio/page.ts`); a rule with a question gone or a value
+  blank never routes anyone.
+- **Before any rule**: **Spam check** and **Keep existing owners**, both on. Turned off, the form's own policy turns
+  that check off (`schedule.before`, `compileRouting`).
+- **If no one is free** (Routing, or a Dynamic meeting): **Show the thank-you** or **Email times later**
+  (`schedule.none`).
+- **Preview as**: one chip per rule and Otherwise over the canvas. The chip's lead (answers that meet the rule,
+  `sampleFor`) runs through every rule as a live lead would, so the booking page shows the meeting that lead really
+  gets, and a line says so when an earlier rule catches them first.
+- **Can never run** (`neverRuns`): a rule whose every lead an earlier rule catches says so on its card and in the
+  form check. Only sure cases are named (number ranges inside each other, answers inside each other, the same test),
+  so the warning is never wrong; an overlap it can't prove stays quiet.
 - **Past fills** (rule fields for both the form's rows and Dynamic rules, `PAST_FIELDS` in
   `src/lib/router/conditions.ts`): **Has sent this form before**, **Has a meeting booked**, and **Booked in the last N
   days** (days since they last booked, at most N). The server reads them once per send, only when a rule tests one
@@ -84,21 +102,24 @@ the form picks the meeting type, the meeting picks the person.
   the form's Settings, so the last place it changed wins (`teamAlert` in `src/lib/studio/page.ts`), the alert's subject
   stays, and a chat opened after a Settings change shows the alert as it is now. A form with no Always do keeps the
   alert it had.
-- **The form check** (`src/lib/studio/check.ts`) stops Publish on a route that reads a deleted question or answer, a
-  past fill that's gone, a blank value, a deleted meeting, a page or part shown by a question asked on a later page,
-  and Email the team with no emails.
+- **The form check** (`src/lib/studio/check.ts`) stops Publish on a rule with any condition that reads a deleted
+  question or answer, a past fill that's gone, a blank value, a deleted meeting, a page or part shown by a question
+  asked on a later page, and Email the team with no emails. A rule that can never run is a warning.
 
-Tested in `tests/routeByAnswer.test.ts` and `scripts/studio-check.ts`.
+Tested in `tests/routeByAnswer.test.ts`, `tests/routingRules.test.ts` and `scripts/studio-check.ts`.
 
 ## How it runs
 
 `src/lib/routing/compile.ts` turns the form's routing and its meetings into one routing policy:
 
-1. Each form row expands into one rule per rule of its meeting (the row's conditions and the meeting's, together),
-   then one for the meeting's Otherwise (or its host). Each rule names its rep or team and the meeting it books (`meet`).
+1. Each form rule expands into one router rule per rule of its meeting (the rule's conditions and the meeting's,
+   together), then one for the meeting's Otherwise (or its host). Each names its rep or team and the meeting it books
+   (`meet`). An "or" rule is one path per condition, each joined with the meeting's rules, in the same order. A rule
+   **With** a team or person is one router rule to them, with its and or or kept, and the meeting's own rules skipped.
 2. The Default meeting's rules come next, and its Otherwise (or host) is Everyone else.
 3. Paths that can't route are left out and listed: a value missing, a meeting deleted or off, a team that's gone, a
-   meeting with no host. A half-made row never catches a lead. Tested in `tests/routingCompile.test.ts`.
+   meeting with no host. A half-made rule never catches a lead. Tested in `tests/routingCompile.test.ts` and
+   `tests/routingRules.test.ts`.
 
 The router then runs it like any policy: the spam check, existing owners, away, caps and turns all work as before, and
 the booking shows the picked rep's times for the rule's meeting.
@@ -152,7 +173,8 @@ Both run the same steps: questions, routing, the rep's calendar, booked.
 Nothing is added to the monthly bill. There is no new service and no AI call; publishing makes a few more routing
 calls than before, once per publish. Past fills add one indexed database read per send, only on forms and meetings
 whose rules test one; it fits in the database the app already runs on.
-The calendar style adds one plan read per workspace per minute when a form loads, on the same database.
+The calendar style adds one plan read per workspace per minute when a form loads, on the same database. Routing's
+teams and people for **With** are one routing read the first time On submission opens with Routing, on the same server.
 
 | Stage | Added per month |
 |---|---|

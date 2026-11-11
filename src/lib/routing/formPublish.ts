@@ -68,7 +68,7 @@ export async function publishFormRouting(rpc: Rpc, db: SupabaseClient, o: { ws: 
   const start = row.draft ?? row.live;
   if (!start) throw new Error("This form's routing has nothing to start from.");
   const teamKeys = new Set(screen.teams.flatMap((t) => t.keys));
-  const { body, problems } = compileRouting(toV2(start, { reviewer: screen.me, teamKeys }), { def: s.meetingTypeId, routes: s.routes, types, teamKeys });
+  const { body, problems } = compileRouting(toV2(start, { reviewer: screen.me, teamKeys }), { def: s.meetingTypeId, routes: s.routes, types, teamKeys, ...(s.before ? { before: s.before } : {}) });
   await S.save(rpc, c, { policy: row.id, body: withScope(body), ...(rename ? { name: o.formName.slice(0, 80) || "Form" } : {}), revision: row.draft_revision });
 
   // The form's connection: on this policy, booking the Default meeting.

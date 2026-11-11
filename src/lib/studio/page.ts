@@ -7,14 +7,20 @@
 import { layoutOf, mediaOk } from "../forms/media.ts";
 import { CONTACT_KEYS, DEFAULT_CONSENT, type FieldKey, type FieldType } from "../forms/schema.ts";
 import { DEFAULT_NOTIFY } from "../forms/notify.ts";
-import { cleanRoute, routeCond, routeField, routeKind, type StudioRoute } from "./routes.ts";
+import { cleanRoute, condsOf, routeCond, routeField, routeKind, type StudioRoute } from "./routes.ts";
 
 /** After the send. A meeting books with Claritia's own calendar (`meeting`, with `routes`) or an outside scheduler (`tool` and its `link`). */
 /**
- * What happens after the send. `routes`: Route by answer, read top to bottom, Otherwise `meeting`
- * (src/lib/studio/routes.ts). `always`: what every send does, whatever it books: email the team, post to Slack.
+ * What happens after the send. Book a meeting is Individual (`mode` "one": everyone books `meeting`) or Routing
+ * (`routes`, read top to bottom, first match wins, Otherwise `meeting`; src/lib/studio/routes.ts). A form saved before
+ * `mode` is Routing when it has routes. `none`: when no one is free, show the thank-you (left out) or email times
+ * later. `before`: the checks before any rule. `always`: what every send does: email the team, post to Slack.
  */
-export type PageAfter = { kind: "thanks" | "page" | "meeting"; url?: string; meeting?: string; routes?: StudioRoute[]; tool?: string; link?: string; always?: PageAlways };
+export type PageAfter = { kind: "thanks" | "page" | "meeting"; url?: string; meeting?: string; mode?: "one" | "routing"; routes?: StudioRoute[]; none?: "later"; before?: PageBefore; tool?: string; link?: string; always?: PageAlways };
+/** Before any rule: the spam check and keeping existing owners (both on unless turned off). */
+export type PageBefore = { spam: boolean; keep: boolean };
+/** Whether Book a meeting routes: Routing picked, or rules saved before Individual and Routing. */
+export const isRouting = (a: Pick<PageAfter, "mode" | "routes">) => a.mode === "routing" || (a.mode !== "one" && !!a.routes?.length);
 export type PageAlways = { email?: boolean; to?: string[]; slack?: boolean };
 const OUTSIDE = ["calendly", "calcom", "hubspot_meetings", "savvycal", "link"];
 /** The page on a published form: its HTML, its own CSS, the brand's CSS, each question's name to its field id. */
@@ -708,20 +714,26 @@ export function pageForm(p: { html: string; css: string; brand: string; after: P
           tool: "claritia",
           url: "",
           meetingTypeId: a.meeting,
-          // Each row is one condition; a row whose question is gone or whose value is missing never routes anyone.
-          routes: (a.routes ?? []).flatMap((raw, i) => {
+          // Individual books everyone into the meeting. Routing: each rule's conditions on the router's fields; a rule
+          // with a question gone or a value missing never routes anyone.
+          routes: (isRouting(a) ? (a.routes ?? []) : []).flatMap((raw, i) => {
             const r = cleanRoute(raw);
             if (!r || !r.meeting) return [];
-            const field = routeField(r, (name) => (ids[name] ? keyOf.get(ids[name]!) : null));
-            const c = field ? routeCond(r, field, routeKind(r.field, questions.find((q) => q.name === r.field))) : null;
-            return c ? [{ id: `r${i + 1}`, meet: r.meeting, conds: [c] }] : [];
+            const conds = condsOf(r).map((x) => {
+              const field = routeField(x, (name) => (ids[name] ? keyOf.get(ids[name]!) : null));
+              return field ? routeCond(x, field, routeKind(x.field, questions.find((q) => q.name === x.field))) : null;
+            });
+            if (conds.some((c) => !c)) return [];
+            return [{ id: `r${i + 1}`, meet: r.meeting, conds: conds as NonNullable<(typeof conds)[number]>[], ...(r.match === "any" ? { match: "any" as const } : {}), ...(r.name ? { name: r.name } : {}), ...(r.with ? { with: r.with } : {}) }];
           }),
+          ...(a.none === "later" ? { none: "later" as const } : {}),
+          ...(isRouting(a) && a.before ? { before: { spam: a.before.spam, keep: a.before.keep } } : {}),
         }
       : null);
   const end = a.kind === "page" && a.url ? { kind: "redirect", url: a.url } : { kind: "message", title: "Thanks, we got it." };
   const routes = (a.routes ?? []).map(cleanRoute).filter((r): r is StudioRoute => !!r).slice(0, 30);
   const always = cleanAlways(a.always);
-  const after: PageAfter = { kind: a.kind, ...(a.url ? { url: a.url.slice(0, 500) } : {}), ...(a.meeting ? { meeting: a.meeting } : {}), ...(routes.length ? { routes } : {}), ...(outside ? { tool: outside.tool, link: outside.url } : {}), ...(always ? { always } : {}) };
+  const after: PageAfter = { kind: a.kind, ...(a.url ? { url: a.url.slice(0, 500) } : {}), ...(a.meeting ? { meeting: a.meeting } : {}), ...afterExtras(a), ...(routes.length ? { routes } : {}), ...(outside ? { tool: outside.tool, link: outside.url } : {}), ...(always ? { always } : {}) };
   // Email the team and post to Slack: the form's team alert (src/lib/forms/notify.ts), sent on every real send.
   const notify = always ? { ...DEFAULT_NOTIFY, on: !!(always.email && always.to?.length) || !!always.slack, to: always.email ? (always.to ?? []) : [], slack: !!always.slack } : null;
   return {
@@ -771,8 +783,19 @@ export function checkPage(raw: unknown, fieldIds: Set<string>): Page | null {
     .filter((r): r is StudioRoute => !!r);
   const always = cleanAlways(af.always);
   const tool = typeof af.tool === "string" && OUTSIDE.includes(af.tool) ? af.tool : "";
-  const after: PageAfter = { kind, ...(tool ? { tool, ...(typeof af.link === "string" && /^https:\/\//.test(af.link) ? { link: af.link.slice(0, 500) } : {}) } : {}), ...(typeof af.url === "string" && af.url ? { url: af.url.slice(0, 500) } : {}), ...(typeof af.meeting === "string" && af.meeting ? { meeting: af.meeting.slice(0, 40) } : {}), ...(routes.length ? { routes } : {}), ...(always ? { always } : {}) };
+  const after: PageAfter = { kind, ...afterExtras(af), ...(tool ? { tool, ...(typeof af.link === "string" && /^https:\/\//.test(af.link) ? { link: af.link.slice(0, 500) } : {}) } : {}), ...(typeof af.url === "string" && af.url ? { url: af.url.slice(0, 500) } : {}), ...(typeof af.meeting === "string" && af.meeting ? { meeting: af.meeting.slice(0, 40) } : {}), ...(routes.length ? { routes } : {}), ...(always ? { always } : {}) };
   return { html, css: cleanPageCss(String(r.css ?? "")), brand: cleanPageCss(String(r.brand ?? "")), ids, after, ...pageLangs(r.lang, r.langs) };
+}
+
+/** Individual or Routing, If no one is free and Before any rule, cleaned. */
+function afterExtras(a: Record<string, unknown> | PageAfter): Pick<PageAfter, "mode" | "none" | "before"> {
+  const x = a as Record<string, unknown>;
+  const b = x.before && typeof x.before === "object" ? (x.before as Record<string, unknown>) : null;
+  return {
+    ...(x.mode === "one" || x.mode === "routing" ? { mode: x.mode } : {}),
+    ...(x.none === "later" ? { none: "later" as const } : {}),
+    ...(b ? { before: { spam: b.spam !== false, keep: b.keep !== false } } : {}),
+  };
 }
 
 const EMAIL = /^[^\s@<>()",;:]{1,64}@[a-z0-9-]+(\.[a-z0-9-]+)+$/i;

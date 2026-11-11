@@ -1,7 +1,10 @@
 # After submit: routing and endings in one step
 
-Status: plan, 11 November 2026. Replaces the Studio's **Booking** and **On submission** steps with one step,
-**After submit**, and reworks the 740 templates to use it.
+Status: the routing part is built, 11 November 2026, in the owner's own model, which replaced the path cards in Parts 2
+and 3: On submission stays the last step, as a sidebar beside the end page on the canvas; Book a meeting is
+**Individual** or **Routing** (named rules with and or or, Book, With, Otherwise, Before any rule, If no one is free,
+Preview as, Can never run). How it works now is in `docs/on-submission.md`. Parts 2 and 3 are kept as the earlier idea.
+Part 4, the template rework, is still to do. Not built yet: 30-day counts on each rule.
 
 ## Part 1. The problem
 

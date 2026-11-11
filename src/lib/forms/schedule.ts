@@ -3,7 +3,7 @@
 // links to its fill for sure. Where a tool takes the id (Calendly's utm_content, Cal.com's metadata) is noted per
 // tool; the rest are linked by email as a maybe. Runs in the browser and on the server.
 
-import type { FormRoute } from "../routing/compile.ts";
+import type { FormBefore, FormRoute } from "../routing/compile.ts";
 
 export type SchedulerTool = "calendly" | "calcom" | "hubspot_meetings" | "savvycal" | "link";
 /** Where the lead books: Claritia's own calendar (a meeting type, booked in the form) or an outside scheduler. */
@@ -43,6 +43,8 @@ export type Schedule = {
    * edited this way: publishing then compiles it into the form's routing policy (src/lib/routing/compile.ts).
    */
   routes?: FormRoute[];
+  /** With `routes`: the checks before any rule (spam check, keep existing owners); left out keeps the policy's own. */
+  before?: FormBefore;
   /** Fill in the lead's name and email on the scheduler. On unless turned off. */
   prefill?: boolean;
 };

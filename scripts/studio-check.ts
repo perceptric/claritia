@@ -214,7 +214,7 @@ try {
   await $("#m-build").click();
   check((await $("#adds").isVisible()) && !(await $("#aiBody").isVisible()), "Build shows Add fields; AI is one switch away");
   // Steps: one at a time, the thank-you, or all with dividers
-  check((await $("#stepBar .sp").count()) === 5 && (await $("#stepBar .sp").nth(2).textContent()) === "Thank-you" && (await $("#stepBar .sp").nth(3).textContent()) === "On submission", "the steps list each page, the thank-you, On submission last, and All");
+  check((await $("#stepBar .sp").count()) === 5 && (await $("#stepBar .sp").nth(2).textContent()) === "Booking" && (await $("#stepBar .sp").nth(3).textContent()) === "On submission", "the steps list each page, the booking page, On submission last, and All");
   check((await $("#stepBar .sp").nth(2).getAttribute("aria-pressed")) === "true", "Edit opens on the step the preview was showing (here the thank-you)");
   await $("#stepBar .sp").nth(0).click();
   check((await form.locator("#nm").isVisible()) && !(await form.locator('input[name="email"]').isVisible()) && !(await form.locator("#thanks").isVisible()), "Edit shows one step at a time");
@@ -222,7 +222,8 @@ try {
   await $("#stepBar .sp").nth(1).click();
   check((await form.locator('input[name="email"]').isVisible()) && !(await form.locator("#nm").isVisible()), "picking step 2 shows step 2");
   await $("#stepBar .sp").nth(2).click();
-  check((await form.locator("#thanks").isVisible()) && (await form.locator(".cl-bookph").isVisible()), "the thank-you shows on its own, with its booking spot");
+  await form.locator("#book .cl-cal").waitFor();
+  check(await form.locator("#thanks").isVisible(), "the booking page shows on its own, with the calendar in its booking spot");
   await $("#stepBar .sp").nth(4).click();
   check((await form.locator(".cl-divider").count()) === 3, "All shows every step with a divider");
   await $("#stepBar .sp").nth(0).click();
@@ -460,26 +461,48 @@ try {
   await $("#afterInner input[aria-label='Scheduler link']").press("Enter");
   await toEdit();
   await toPreview();
-  await $("#stepBar .sp").filter({ hasText: "Thank-you" }).click();
+  await $("#stepBar .sp").filter({ hasText: "Booking" }).click();
   await form.locator("#book iframe").waitFor({ state: "attached" });
   check((await form.locator("#book iframe").getAttribute("src")) === "https://calendly.com/finch/coach", "Calendly opens in the form's booking spot");
   await toAfter();
   await $("#afterInner .pill").filter({ hasText: "Claritia calendar" }).click();
-  check((await $("#afterInner").textContent())!.includes("Route by answer"), "back to Claritia's calendar with its routes");
-  // Who books it: the picked meeting is Dynamic, so its rules show in one line, with Edit routing.
+  // Routing: a rule saved before tests and names still reads, with Otherwise last; the canvas shows the booking page.
+  const rt = (await $("#afterInner").textContent())!;
+  check(rt.includes("Before any rule") && rt.includes("Otherwise") && rt.includes("Tender"), "back to Claritia's calendar: a rule saved before tests reads in Routing, with Otherwise");
+  check((await $("#canvas").isVisible()) && (await $("#asBar").isVisible()) && (await $("#asBar").textContent())!.includes("Preview as"), "On submission keeps the end page on the canvas, with Preview as");
+  // Individual: one meeting; a Dynamic one says who books it in one line, with Edit meeting.
+  await $("#afterInner .seg button").filter({ hasText: "Individual" }).click();
+  await $("#afterInner .pill").filter({ hasText: "Product demo" }).click();
   const who = (await $("#afterInner").textContent())!;
-  check(who.includes("Who books it") && who.includes("Locations is at least 50 → Enterprise, otherwise anyone on the team"), "a Dynamic meeting shows who books it in one line");
-  await $("#afterInner .pill").filter({ hasText: "Edit routing" }).click();
-  check((await calls()).some((c) => c.mode === "openMeeting" && c.body === "22222222-2222-4222-8222-222222222222"), "Edit routing opens that meeting type");
-  check(who.includes("Otherwise, book") && who.includes("Tender"), "a route saved before tests still reads, with Otherwise");
-  // Route by answer: a past fill, and a number test on a text question changes the value box.
-  await $("#afterInner .pill").filter({ hasText: "Add a route" }).click();
-  await $("#afterInner [aria-label='Question']").nth(1).click();
+  check(who.includes("Locations is at least 50 → Enterprise, otherwise anyone on the team") && !(await $("#asBar").isVisible()), "Individual: a Dynamic meeting shows who books it in one line, and no Preview as");
+  await $("#afterInner .pill").filter({ hasText: "Edit meeting" }).click();
+  check((await calls()).some((c) => c.mode === "openMeeting" && c.body === "22222222-2222-4222-8222-222222222222"), "Edit meeting opens that meeting type");
+  await $("#afterInner .seg button").filter({ hasText: "Routing" }).click();
+  check((await $("#afterInner").textContent())!.includes("Tender"), "Routing keeps its rules after Individual");
+  // A new rule: its name, a past fill, a second condition joined by or, any test that fits, then moved first.
+  await $("#afterInner .pill").filter({ hasText: "Add a rule" }).click();
+  const open = $("#afterInner .rcard.on").first();
+  await open.locator("input[aria-label='Rule name']").fill("Returning");
+  await open.locator("input[aria-label='Rule name']").press("Enter");
+  await $("#afterInner .rcard.on [aria-label='Question']").first().click();
   await $(".menu .mi").filter({ hasText: "Has sent this form before" }).click();
-  check((await $("#afterInner .rule").nth(1).textContent())!.includes("Has sent this form before") && (await $("#afterInner .rule").nth(1).textContent())!.includes("Yes"), "a route can test a past fill");
-  await $("#afterInner [aria-label='Test']").first().click();
+  const r1 = (await $("#afterInner .rcard.on .rule").first().textContent())!;
+  check(r1.includes("Has sent this form before") && r1.includes("Yes"), "a rule can test a past fill");
+  await $("#afterInner .rcard.on .pill").filter({ hasText: "+ or" }).click();
+  check((await $("#afterInner .rcard.on .rule").nth(1).textContent())!.startsWith("or"), "+ or adds a condition joined by or");
+  await $("#afterInner .rcard.on [aria-label='Test']").first().click();
   await $(".menu .mi").filter({ hasText: "is not" }).click();
-  check((await $("#afterInner .rule").first().textContent())!.includes("is not"), "a route can use any test that fits its question");
+  check((await $("#afterInner .rcard.on .rule").nth(1).textContent())!.includes("is not"), "a condition can use any test that fits its question");
+  await $("#afterInner .rcard.on [aria-label='Move up']").click();
+  check((await $("#afterInner .rcard").first().locator("input[aria-label='Rule name']").inputValue()) === "Returning" && (await $("#asBar .pill").first().textContent()) === "1. Returning", "a rule moves up, and Preview as follows the order");
+  await $("#asBar .pill").filter({ hasText: "Otherwise" }).click();
+  check((await $("#asBar .pill.on").textContent()) === "Otherwise" && ((await $("#afterInner .rcard.on").textContent()) ?? "").includes("Otherwise"), "Preview as picks Otherwise, and its card lights up");
+  // Two rules where the first catches every lead of the second: the second says it can never run.
+  await $("#afterInner .rcard").nth(1).locator(".rname").click();
+  await $("#afterInner .rcard.on [aria-label='Question']").first().click();
+  await $(".menu .mi").filter({ hasText: "Has sent this form before" }).click();
+  check(((await $("#afterInner .rcard").nth(1).textContent()) ?? "").includes("Can never run: rule 1"), "a rule an earlier one always catches says it can never run");
+  if (shots) await p.screenshot({ path: `${shots}/4a-routing.png` });
   // Always do
   await $("#afterInner .pill").filter({ hasText: "Email the team" }).click();
   await $("#afterInner input[aria-label='Team emails']").fill("coach@finch.care");
