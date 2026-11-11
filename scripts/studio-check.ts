@@ -382,6 +382,11 @@ try {
   await form.locator('label:has(input[value="tender"])').first().click();
   await form.locator("[data-cl-next]").first().click();
   check(await form.locator('input[name="email"]').isVisible(), "Tender jumps past the page in between");
+  const slide = await form.locator("section[data-cl-step]:not([hidden])").first().evaluate((e) => getComputedStyle(e).animationName);
+  check(slide === "cl-in", `Preview slides the next page in (${slide})`);
+  await form.locator("[data-cl-back]:visible").first().click().catch(() => undefined);
+  const back = await form.locator("section[data-cl-step]:not([hidden])").first().evaluate((e) => getComputedStyle(e).animationName);
+  check(back === "cl-bk", `Back slides the other way (${back})`);
   await toEdit();
   // The Form tab: the look over the brand's, and a hidden field.
   check((await $("#panel [role='tab']").count()) === 0 && (await $("#p-theme").count()) === 0, "the panel is one panel: no Settings, Style or Theme tabs");
@@ -390,6 +395,25 @@ try {
   await $("#pscroll input[aria-label='Add a hidden field']").fill("ref");
   await $("#pscroll input[aria-label='Add a hidden field']").press("Enter");
   check((await form.locator("[data-cl-field='hidden'][data-cl-param='ref']").count()) === 1, "a hidden field from the link is added");
+  // Design: a theme from the gallery, then Basic or Advanced styling.
+  const design = $("#pscroll .sec").filter({ has: p.locator("h4", { hasText: /^Design$/ }) });
+  check((await design.textContent())!.includes("Brand color") && (await design.textContent())!.includes("Font"), "Design opens on Basic: brand color, background, font");
+  await design.locator(".pill").filter({ hasText: "Change" }).click();
+  check((await $("#themeDlg .tcard").count()) >= 18, "Change opens the theme gallery with every style");
+  if (shots) await p.screenshot({ path: `${shots}/2d-theme.png` });
+  const styleBefore = await p.evaluate(() => Object.values((window as unknown as { saved: Record<string, { body?: { style?: string } }> }).saved).map((c) => c.body?.style ?? "").join(","));
+  await $("#themeDlg .tcard").filter({ hasText: "Midnight" }).click();
+  check((await $("#themeDlg").count()) === 0, "picking a theme closes the gallery");
+  await p.waitForFunction(() => Object.values((window as unknown as { saved: Record<string, { body?: { style?: string } }> }).saved).some((c) => c.body?.style === "midnight"));
+  check(!styleBefore.includes("midnight"), "the picked theme is the form's style");
+  await $("#undo").click();
+  await design.locator(".seg button").filter({ hasText: "Advanced" }).click();
+  const adv = (await design.textContent())!;
+  check(["Corners", "Buttons", "Fields", "Form width"].every((x) => adv.includes(x)) && !adv.includes("Brand color"), "Advanced holds corners, buttons, fields and width");
+  await design.locator(".seg button").filter({ hasText: "Basic" }).click();
+  await design.locator("button[aria-label='blue']").click();
+  await p.waitForFunction(() => Object.values((window as unknown as { saved: Record<string, { body?: { css: string } }> }).saved).some((c) => c.body?.css.includes("--brand-primary:#1e6bf0")));
+  check(true, "Basic's brand color goes into the form's own CSS");
   if (shots) await p.screenshot({ path: `${shots}/2b-builder.png` });
   // Back to the form as it was.
   for (let i = 0; i < 30 && !(await $("#undo").isDisabled()); i++) {
@@ -452,6 +476,10 @@ try {
   const after = (await $("#endBox").textContent())!;
   check(after.includes("Ending type") && after.includes("Message") && after.includes("Redirect") && after.includes("Book a meeting") && after.includes("Team meeting"), "Ending type is Message, Redirect or Book a meeting, and a meeting is Individual or Team meeting");
   check(!(await $("#flow").isHidden()) && (await $("#flow").textContent())!.includes("Otherwise"), "Team meeting's rules are edited in the center");
+  await $("#endBox button[aria-label='Show confetti']").click();
+  check((await form.locator("[data-cl-thanks][data-cl-confetti]").count()) === 1 && (await form.locator(".cl-conf i").count()) > 20, "Confetti turns on for the thank-you, and shows once on the canvas");
+  await $("#endBox button[aria-label='Show confetti']").click();
+  check((await form.locator("[data-cl-thanks][data-cl-confetti]").count()) === 0, "and off again");
   // The picked pill keeps its words on hover (it used to turn ink on ink), and each scheduler shows its logo.
   const picked = $("#endBox .pill.on").first();
   await picked.hover();
