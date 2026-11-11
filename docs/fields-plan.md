@@ -44,7 +44,7 @@ Every field below is in Form Studio's Add list (and the "/" menu), with its own 
 - **Display conditions** read dates (is before, is after, is within the next N days) and numbers (is over, is under).
 
 How it runs: the new widgets are a second file, `/forms/x1.js` (`src/lib/forms/extras.ts`, about 9 KB gzipped), loaded
-only by forms that have one; a failed load is tried again. The main `v1.js` is about 43.6 KB of its 44 KB limit. The
+only by forms that have one; a failed load is tried again. The main `v1.js` is about 44.4 KB of its 45 KB limit. The
 server checks every new answer (`src/lib/forms/values.ts`), products are priced on the server, and codes are checked
 with a signed proof (`src/lib/forms/codes.ts`, `/api/forms/[id]/code`). Tests: `tests/fields.test.ts`,
 `scripts/fields-check.ts` (a real browser, with x1.js failing once, an upload failing once, an address lookup that

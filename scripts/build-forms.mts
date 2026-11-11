@@ -14,8 +14,9 @@ import { createHash } from "node:crypto";
 // page, slider, popover, side tab and full screen on phones (docs/sharing-plan.md); 39 KB with window.Claritia and
 // its events (docs/embed.md); 41 KB with the no-code builder's rules: limits, shuffle and answers in text
 // (src/lib/studio/builder.ts); 44 KB with the fields plan's loader for x1.js, email and phone codes, videos, long
-// lists and the page's timer, review, formats and date rules (docs/fields-plan.md).
-const LIMIT = 44 * 1024;
+// lists and the page's timer, review, formats and date rules (docs/fields-plan.md); 45 KB with pages that slide and
+// confetti on the thank-you (docs/on-submission.md).
+const LIMIT = 45 * 1024;
 // The second part (src/lib/forms/extras.ts, x1.js): the fields that need more than an input (docs/fields-plan.md),
 // loaded only on forms that have one.
 const X_LIMIT = 16 * 1024;

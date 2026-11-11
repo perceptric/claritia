@@ -10,7 +10,7 @@ import { THEMES } from "../../../../lib/forms/gallery/themes";
 import { cleanRoute, condsOf, neverRuns, OP_LABEL, PAST_ROUTES, ROUTE_OPS, routeIndex, routeKind, routeMeeting, routeStart, ruleWords, sampleFor, withConds } from "../../../../lib/studio/routes";
 import { linkProblem, SCHEDULERS } from "../../../../lib/forms/schedule";
 import { INDUSTRIES, industryOf, isRtl, languageName, profileWords, recipeText } from "../../../../lib/studio/industries";
-import { ACCESS_CSS, around, CAL_CSS, consentSpot, limitMsg, linkErrors, pageBox, pipes, showCover, shuffle, zoneWords } from "../../../../lib/studio/runtime";
+import { ACCESS_CSS, around, CAL_CSS, confetti, consentSpot, limitMsg, linkErrors, pageBox, pipes, showCover, shuffle, zoneWords } from "../../../../lib/studio/runtime";
 import { MEDIA_CSS, ONE_CSS, oneKeys, PICK_CSS, pickers, showMedia, splitOne } from "../../../../lib/studio/pageParts";
 import { sizedUrl, widthsOf } from "../../../../lib/forms/media";
 import { baseName, isLayout, PICK_KINDS, SAVES, QGROUPS, QNAME, questionHtml, readJumps, renameValueIn, stepShowIfs, TEXT_KINDS, uniqueName, uniqueValue, valueFollows, writeJumps } from "../../../../lib/studio/builder";
@@ -143,6 +143,20 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .steps .conn { width: 18px; height: 1.5px; border-radius: 1px; background: var(--line-strong); flex: none; }
 .steps .sp.all { width: 30px; padding: 0; justify-content: center; margin-left: 6px; color: var(--muted); }
 .steps .sp.all[aria-pressed="true"] { background: var(--paper-deep); color: var(--ink); }
+.throw { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.thname { flex: 1; min-width: 0; font-size: 12.5px; font-weight: 500; color: var(--ink); overflow-wrap: anywhere; }
+.dlgbox.tbox { width: min(880px, 100%); gap: 16px; }
+.tbox .thead { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.tbox .seg { align-self: center; }
+.tgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; }
+.tcard { border: 0; background: transparent; padding: 0; display: flex; flex-direction: column; gap: 6px; text-align: center; min-width: 0; }
+.tcard .tsw { height: 104px; border-radius: 12px; box-shadow: 0 0 0 1px var(--line); display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 10px; padding: 0 20px; transition: transform .15s var(--ease); }
+.tcard:hover .tsw { transform: translateY(-2px); }
+.tcard[aria-pressed="true"] .tsw { box-shadow: 0 0 0 2px var(--ink); }
+.tcard .tsw b { font-size: 15px; font-weight: 600; }
+.tcard .tsw i { font-style: normal; font-size: 13px; font-weight: 500; padding: 7px 14px; }
+.tcard .nm { font-size: 13px; color: var(--body); overflow-wrap: anywhere; }
+@media (prefers-reduced-motion: reduce) { .tcard .tsw { transition: none; } }
 .themes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .themes .th { border: 0; background: transparent; padding: 0; display: flex; flex-direction: column; gap: 4px; text-align: left; min-width: 0; }
 .themes .sw2 { height: 40px; border-radius: 8px; box-shadow: 0 0 0 1px var(--line); display: flex; align-items: center; justify-content: center; overflow: hidden; }
@@ -841,7 +855,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
   // ── Drawing ───────────────────────────────────────────────────────────────────────────────────────────
   const host = $("host");
   const root = host.attachShadow({ mode: "open" });
-  const BASE = `${ACCESS_CSS}${PICK_CSS}${MEDIA_CSS}${ONE_CSS}.cl-edit select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 6l4 4 4-4' fill='none' stroke='gray' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")!important;background-repeat:no-repeat!important;background-position:right 14px center!important;background-size:14px 14px!important;padding-inline-end:38px!important;cursor:pointer}.cl-bookph{border:1px dashed rgba(127,127,127,.6);border-radius:10px;padding:18px;text-align:center;font:500 12px system-ui,sans-serif;opacity:.7}.cl-divider{font:600 11px/1 system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#7a7a7a;border-top:1px dashed rgba(127,127,127,.55);padding:10px 0 0;margin:20px 0 10px}.cl-edit [data-cl-if]{outline:1px dashed rgba(109,40,217,.55);outline-offset:3px}.cl-edit [data-cl-if]::before{content:attr(data-cl-if);display:block;width:max-content;max-width:100%;font:500 11px/1.7 system-ui,sans-serif;color:#6d28d9;background:rgba(109,40,217,.08);border-radius:4px;padding:0 6px;margin-bottom:6px;white-space:normal}.cl-block{display:flex;flex-direction:column;gap:8px}.cl-two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.cl-addr{display:flex;flex-direction:column;gap:8px}.cl-rate{display:flex;flex-wrap:wrap;gap:6px;font-size:26px;line-height:1;opacity:.6}.cl-ends{display:flex;justify-content:space-between;gap:12px;font-size:12px;opacity:.6}.cl-num{font-size:14px;border:1px solid currentColor;border-radius:8px;padding:8px 12px}.cl-sign{min-height:110px}.cl-calc{display:block;font-variant-numeric:tabular-nums}.cl-pay{display:flex;justify-content:space-between;gap:12px;align-items:baseline}.cl-pay b,.cl-res b{font-size:1.4em;font-variant-numeric:tabular-nums}.cl-res{display:flex;flex-direction:column;gap:4px}.cl-grid{width:100%;border-collapse:collapse}.cl-grid th,.cl-grid td{padding:6px;text-align:center}.cl-grid th:first-child,.cl-grid td:first-child{text-align:start}.cl-rank{margin:0;padding-inline-start:20px;display:flex;flex-direction:column;gap:6px}.cl-hid{font:500 11px/1.8 system-ui,sans-serif;opacity:.6;border:1px dashed currentColor;border-radius:6px;padding:0 8px;width:max-content}
+  const BASE = `${ACCESS_CSS}${PICK_CSS}${MEDIA_CSS}${ONE_CSS}.cl-edit [data-cl-step],.cl-edit [data-cl-thanks]{animation:none!important}.cl-edit select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 6l4 4 4-4' fill='none' stroke='gray' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")!important;background-repeat:no-repeat!important;background-position:right 14px center!important;background-size:14px 14px!important;padding-inline-end:38px!important;cursor:pointer}.cl-bookph{border:1px dashed rgba(127,127,127,.6);border-radius:10px;padding:18px;text-align:center;font:500 12px system-ui,sans-serif;opacity:.7}.cl-divider{font:600 11px/1 system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#7a7a7a;border-top:1px dashed rgba(127,127,127,.55);padding:10px 0 0;margin:20px 0 10px}.cl-edit [data-cl-if]{outline:1px dashed rgba(109,40,217,.55);outline-offset:3px}.cl-edit [data-cl-if]::before{content:attr(data-cl-if);display:block;width:max-content;max-width:100%;font:500 11px/1.7 system-ui,sans-serif;color:#6d28d9;background:rgba(109,40,217,.08);border-radius:4px;padding:0 6px;margin-bottom:6px;white-space:normal}.cl-block{display:flex;flex-direction:column;gap:8px}.cl-two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.cl-addr{display:flex;flex-direction:column;gap:8px}.cl-rate{display:flex;flex-wrap:wrap;gap:6px;font-size:26px;line-height:1;opacity:.6}.cl-ends{display:flex;justify-content:space-between;gap:12px;font-size:12px;opacity:.6}.cl-num{font-size:14px;border:1px solid currentColor;border-radius:8px;padding:8px 12px}.cl-sign{min-height:110px}.cl-calc{display:block;font-variant-numeric:tabular-nums}.cl-pay{display:flex;justify-content:space-between;gap:12px;align-items:baseline}.cl-pay b,.cl-res b{font-size:1.4em;font-variant-numeric:tabular-nums}.cl-res{display:flex;flex-direction:column;gap:4px}.cl-grid{width:100%;border-collapse:collapse}.cl-grid th,.cl-grid td{padding:6px;text-align:center}.cl-grid th:first-child,.cl-grid td:first-child{text-align:start}.cl-rank{margin:0;padding-inline-start:20px;display:flex;flex-direction:column;gap:6px}.cl-hid{font:500 11px/1.8 system-ui,sans-serif;opacity:.6;border:1px dashed currentColor;border-radius:6px;padding:0 8px;width:max-content}
 .cl-consent{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.4;opacity:.85}.cl-consent input{margin:2px 0 0}
 .cl-pick{display:flex;justify-content:space-between;align-items:center;gap:8px;opacity:.75}.cl-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}.cl-card{display:flex;flex-direction:column;gap:6px;padding:8px;height:auto}.cl-card img,.cl-ph{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px;background:rgba(127,127,127,.15);display:block}.cl-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.cl-row>input{flex:1 1 120px;min-width:0}.cl-btn2{display:inline-flex;width:max-content;font:500 12px/1 system-ui,sans-serif;border:1px solid currentColor;border-radius:999px;padding:7px 12px;opacity:.7}.cl-qty{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 12px;align-items:center}.cl-step{display:inline-flex;gap:12px;align-items:center;border:1px solid rgba(127,127,127,.5);border-radius:999px;padding:4px 12px}.cl-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.cl-chip{display:inline-flex;align-items:center;padding:6px 12px;height:auto;width:auto;border-radius:999px;border:1px solid rgba(127,127,127,.5);font-size:13px}.cl-map{height:160px;position:relative;background:repeating-linear-gradient(45deg,rgba(127,127,127,.08) 0 12px,rgba(127,127,127,.14) 12px 24px)}.cl-pin{position:absolute;left:50%;top:50%;width:16px;height:16px;margin:-16px 0 0 -8px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:#d93025}.cl-crop{width:160px;aspect-ratio:1;height:auto}.cl-media{border:1px dashed rgba(127,127,127,.6);border-radius:10px;padding:22px;text-align:center;font:500 12px system-ui,sans-serif;opacity:.7;overflow-wrap:anywhere}.cl-edit [data-cl-review]:empty::before{content:"Answer review: the answers show here before sending";display:block;font:500 12px system-ui,sans-serif;opacity:.6;border:1px dashed rgba(127,127,127,.6);border-radius:8px;padding:14px}.cl-edit .cl-section{outline:1px dashed rgba(127,127,127,.45);outline-offset:6px;border-radius:4px}
 :host{all:initial;display:flex;flex-direction:column;flex:1}*,*::before,*::after{box-sizing:border-box}[hidden]{display:none!important}.cl-root{flex:1;min-height:560px;display:flex;flex-direction:column}.cl-root>*{flex:1 0 auto}
@@ -1043,7 +1057,7 @@ ${CAL_CSS}
       }
       return ok;
     };
-    const move = (dir) => { const shown = apply(); let i = stepAt + dir; while (i >= 0 && i < steps.length && !shown.includes(steps[i])) i += dir; if (i >= 0 && i < steps.length) stepAt = i; apply(); };
+    const move = (dir) => { const shown = apply(); let i = stepAt + dir; while (i >= 0 && i < steps.length && !shown.includes(steps[i])) i += dir; if (i >= 0 && i < steps.length) stepAt = i; w.setAttribute("data-cl-dir", dir < 0 ? "b" : "f"); apply(); };
     w.addEventListener("input", apply); w.addEventListener("change", apply);
     w.addEventListener("click", (e) => {
       if (editing) return;
@@ -1053,7 +1067,7 @@ ${CAL_CSS}
       if (t.hasAttribute("data-cl-start")) { coverOn = false; apply(); stepUi(); return; }
       if (t.hasAttribute("data-cl-back")) return move(-1);
       if (t.hasAttribute("data-cl-next")) { if (check(steps[stepAt] || w)) move(1); return; }
-      if (check(w)) { done = true; apply(); booking(w, values(w)); }
+      if (check(w)) { done = true; apply(); booking(w, values(w)); if (thanks?.hasAttribute("data-cl-confetti")) confetti(pageBox(w)); }
     });
     w.addEventListener("submit", (e) => e.preventDefault());
     apply();
@@ -2319,7 +2333,6 @@ ${CAL_CSS}
     for (const th of THEMES) grid.append(h("button", { class: "th", "aria-pressed": String(body().style === th.id), "aria-label": `${th.name} style`, onclick: () => { after?.(); useStyle(th.id); } }, h("span", { class: "sw2", style: `background:${th.bg}` }, h("i", { style: `background:${th.card}` }, h("u", { style: `background:${th.accent}` }))), h("span", { class: "nm", text: th.name })));
     return grid;
   }
-  /** Settings with nothing picked: the whole form's settings, starting with hidden values from the link. */
   function screenEl() {
     const v = S.view;
     if (v === "cover") return src.querySelector("[data-cl-cover]");
@@ -2398,9 +2411,101 @@ ${CAL_CSS}
     }
     p.append(Ph);
   }
+  /**
+   * Design, with nothing picked: the theme (from the gallery), then Basic (brand color, background, font, progress
+   * bar) or Advanced (corners, buttons, fields, width). Every change goes into the form's own CSS, over the theme.
+   */
+  function designSec(p) {
+    if (!cur) return;
+    const D = h("div", { class: "sec" }, h("h4", { text: "Design" }));
+    const style = body().style, b = brandOf(cur);
+    D.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Theme" }), h("div", { class: "throw" }, h("span", { class: "thname", text: style ? styleName(style).replace(/ style$/, "") : b?.name || "Your brand" }), h("button", { class: "pill", text: "Change", onclick: themeGallery }))));
+    S.design ||= "basic";
+    D.append(h("div", { class: "seg", role: "group", "aria-label": "Styling" }, ...[["basic", "Basic"], ["advanced", "Advanced"]].map(([v, t]) => h("button", { "aria-pressed": String(S.design === v), text: t, onclick: () => { S.design = v; panel(); } }))));
+    if (S.design === "basic") {
+      const accent = ruleGet(":root", "--brand-primary");
+      const sw = h("div", { class: "swatches", role: "group", "aria-label": "Brand color" });
+      for (const [val, hex, nm] of [["", "conic-gradient(from 0deg,#e5e5e5,#bdbdbd)", "Theme default"], ...brandColors().slice(0, 4), ["#0c8c5e", "#0c8c5e", "green"], ["#1e6bf0", "#1e6bf0", "blue"], ["#5429d6", "#5429d6", "violet"], ["#d9480f", "#d9480f", "orange"], ["#111111", "#111111", "black"]]) sw.append(h("button", { "aria-label": nm, title: nm, "aria-pressed": String(accent === val), style: `background:${hex}`, onclick: () => ruleSet(":root", [["--brand-primary", val], ["--brand-focus", val]]) }));
+      D.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Brand color" }), sw));
+      const bg = ruleGet(":root", "--brand-bg");
+      const bgs = [["", "Theme default"], ["#ffffff", "White"], ["color-mix(in srgb, var(--brand-primary) 6%, #ffffff)", "Tinted"]];
+      D.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Background" }), pick(bgs.find(([v]) => v === bg)?.[1] || "Custom", bgs.map(([v, t]) => [t, () => ruleSet(":root", [["--brand-bg", v]]), v === bg]))));
+      const font = (/^"([^"]+)"/.exec(ruleGet(":root", "--brand-font")) || [])[1] || "";
+      D.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Font" }), pick(FONTS.find(([v]) => v === font)?.[1] || font, FONTS.map(([v, t]) => [t, () => setFont(v), v === font]))));
+      const steps = stepsIn(src);
+      if (steps.length > 1) {
+        const bar = src.querySelector("[data-cl-progress]");
+        const on = !!bar && !bar.hasAttribute("hidden");
+        D.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Progress bar" }), h("div", {}, h("button", { class: "sw", role: "switch", "aria-checked": String(on), "aria-label": "Progress bar", onclick: () => {
+          snap();
+          if (bar) on ? bar.setAttribute("hidden", "") : bar.removeAttribute("hidden");
+          else { const b2 = clean('<div class="bar" data-cl-progress><i></i></div>').firstElementChild; [b2, ...b2.querySelectorAll("*")].forEach((x) => x.setAttribute("data-k", String(++kSeq))); steps[0].before(b2); }
+          commit();
+        } }))));
+      }
+    } else {
+      const rad = ruleGet(":root", "--brand-radius");
+      const corners = [["", "Theme default"], ["4px", "None"], ["10px", "Small"], ["18px", "Large"]];
+      D.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Corners" }), pick(corners.find(([v]) => v === rad)?.[1] || "Theme default", corners.map(([v, t]) => [t, () => ruleSet(":root", [["--brand-radius", v], ["--brand-card-radius", v ? `${parseInt(v, 10) + 6}px` : ""], ...(ruleGet(":root", "--brand-btn-radius") === "999px" ? [] : [["--brand-btn-radius", v]])]), v === rad]))));
+      const round = ruleGet(":root", "--brand-btn-radius") === "999px";
+      D.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Buttons" }), pick(round ? "Rounded" : "Square", [["Square", () => ruleSet(":root", [["--brand-btn-radius", rad]]), !round], ["Rounded", () => ruleSet(":root", [["--brand-btn-radius", "999px"]]), round]])));
+      // Fields: the theme's look, a soft fill, an outline, or a line underneath (a line any theme shows: the text color, faded).
+      const LINE = "color-mix(in srgb, var(--brand-text) 24%, transparent)";
+      const fv = ruleGet(":root", "--brand-field"), fu = ruleGet(".field", "border-width");
+      const fieldNow = fu ? "line" : fv === "transparent" ? "outline" : fv ? "fill" : "";
+      const LOOKS = [
+        ["", "Theme default", [["--brand-field", ""], ["--brand-bw", ""]], []],
+        ["fill", "Filled", [["--brand-field", "color-mix(in srgb, var(--brand-primary) 7%, var(--brand-surface))"], ["--brand-bw", "0px"]], []],
+        ["outline", "Outlined", [["--brand-field", "transparent"], ["--brand-bw", "1px"]], [["border-color", LINE]]],
+        ["line", "Underlined", [["--brand-field", "transparent"], ["--brand-bw", "1px"]], [["border-color", LINE], ["border-width", "0 0 1px 0"], ["border-radius", "0"], ["padding-inline", "0"]]],
+      ];
+      const fieldLook = (rootVars, field) => {
+        snap();
+        const r = rules();
+        const put = (sel, pairs) => { r[sel] = r[sel] || {}; for (const [k, v] of pairs) { if (v === "") delete r[sel][k]; else r[sel][k] = v; } if (!Object.keys(r[sel]).length) delete r[sel]; };
+        put(":root", rootVars);
+        put(".field", [["border-color", ""], ["border-width", ""], ["border-radius", ""], ["padding-inline", ""], ...field]);
+        put(".choice", [["border-color", field.length ? LINE : ""]]);
+        writeRules(r); commit();
+      };
+      D.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Fields" }), pick(LOOKS.find(([v]) => v === fieldNow)?.[1] || "Theme default", LOOKS.map(([v, t, rv, field]) => [t, () => fieldLook(rv, field), v === fieldNow]))));
+      const wd = ruleGet(".page .form-card", "max-width");
+      const wds = [["", "Theme default"], ["520px", "Narrow"], ["760px", "Wide"]];
+      D.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Form width" }), pick(wds.find(([v]) => v === wd)?.[1] || wd, wds.map(([v, t]) => [t, () => ruleSet(".page .form-card", [["max-width", v]]), v === wd]))));
+    }
+    p.append(D);
+  }
+  /** The theme gallery: every style as a card in its own colors, and the workspace's brands. A pick applies at once. */
+  function themeGallery() {
+    closeMenu();
+    $("themeDlg")?.remove();
+    let tab = "library";
+    const grid = h("div", { class: "tgrid" });
+    const tabs = h("div", { class: "seg", role: "group", "aria-label": "Themes" });
+    const dlg = h("div", { class: "dlg", id: "themeDlg" });
+    const close = () => dlg.remove();
+    dlg.addEventListener("click", (e) => { if (e.target === dlg) close(); });
+    dlg.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
+    const card = (name, on, look, fn) => h("button", { class: "tcard", "aria-pressed": String(on), "aria-label": `${name} theme`, onclick: () => { fn(); close(); } }, h("span", { class: "tsw", style: `background:${look.bg};color:${look.text}` }, h("b", { text: "Question" }), h("i", { style: `background:${look.accent};color:${look.ink};border-radius:${look.r}px`, text: "Button" })), h("span", { class: "nm", text: name }));
+    const fill = () => {
+      tabs.replaceChildren(...[["library", "Library"], ["brands", "Your brands"]].map(([v, t]) => h("button", { "aria-pressed": String(v === tab), text: t, onclick: () => { tab = v; fill(); } })));
+      grid.replaceChildren();
+      if (tab === "library") for (const th of THEMES) grid.append(card(th.name, body().style === th.id, { bg: th.card, text: th.text, accent: th.accent, ink: th.accentInk, r: Math.min(th.btnRadius, 18) }, () => useStyle(th.id)));
+      else {
+        const mine = brands.filter((x) => x.css);
+        if (!mine.length) grid.append(h("p", { class: "hint0", text: "No brands yet." }));
+        const v = (css, k) => (new RegExp(`--brand-${k}\\s*:\\s*([^;}]+)`).exec(css) || [])[1]?.trim();
+        for (const x of mine) grid.append(card(x.name, !body().style && cur.brandId === x.id, { bg: v(x.css, "bg") || "#ffffff", text: v(x.css, "text") || "#111111", accent: v(x.css, "primary") || "#111111", ink: v(x.css, "on-primary") || "#ffffff", r: 8 }, () => useBrand(x.id)));
+      }
+    };
+    dlg.append(h("div", { class: "dlgbox tbox", role: "dialog", "aria-modal": "true", "aria-label": "Select a theme" }, h("div", { class: "thead" }, h("h2", { text: "Select a theme" }), h("button", { class: "ib", "aria-label": "Close", html: SVG(P.x, 16), onclick: close })), tabs, grid));
+    fill();
+    $("layer").append(dlg);
+    (dlg.querySelector(".tcard[aria-pressed='true']") || dlg.querySelector(".tcard"))?.focus();
+  }
   /** Settings with nothing picked: the whole form's settings, starting with hidden values from the link. */
   function formSettings(p) {
-    p.append(h("div", { class: "sec" }, h("p", { class: "hint0", text: "Select a field on the form to edit it. Click selected text again to type." })));
+    designSec(p);
     welcomeSec(p);
     oneSec(p);
     photoSec(p);
@@ -2688,6 +2793,17 @@ ${CAL_CSS}
     const seg = (label, opts, val, fn) => h("div", { class: "seg", role: "group", "aria-label": label }, ...opts.map(([v, t]) => h("button", { "aria-pressed": String(v === val), text: t, onclick: () => fn(v) })));
     const c1 = h("div", { class: "card2" }, h("span", { class: "lbl", text: "Ending type" }), seg("Ending type", [["thanks", "Message"], ["page", "Redirect"], ["meeting", "Book a meeting"]], a.kind, (k) => set({ kind: k, ...(k === "meeting" && !a.meeting && MEETINGS[0] ? { meeting: MEETINGS[0].id } : {}) })));
     if (a.kind === "page") { const i = h("input", { class: "in", placeholder: "https://yourcompany.com/thanks", value: a.url || "", "aria-label": "Page address", style: "height:34px" }); i.addEventListener("change", () => set({ url: i.value.trim() })); c1.append(i); }
+    // Confetti over the thank-you once it's sent (data-cl-confetti on the thank-you, run by the form script).
+    const tk = src.querySelector("[data-cl-thanks]");
+    if (a.kind !== "page" && tk) {
+      const on = tk.hasAttribute("data-cl-confetti");
+      c1.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Confetti" }), h("div", {}, h("button", { class: "sw", role: "switch", "aria-checked": String(on), "aria-label": "Show confetti", onclick: () => {
+        snap();
+        if (on) tk.removeAttribute("data-cl-confetti"); else tk.setAttribute("data-cl-confetti", "");
+        commit(); endUi();
+        if (!on) requestAnimationFrame(() => { const w = root.querySelector(".cl-root"); if (w) confetti(pageBox(w)); });
+      } }))));
+    }
     box.append(c1);
     if (a.kind === "meeting") meetingCards(box, a, set);
     box.append(alwaysCard(a, set));

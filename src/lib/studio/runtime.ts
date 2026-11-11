@@ -231,7 +231,25 @@ export function linkErrors(w: ParentNode) {
  * motion stops for people who ask for less. */
 export const ACCESS_CSS =
   "[data-cl-behind-cover]{display:none!important}.cl-consent,.cl-notice{flex:1 0 100%;margin:14px 0 8px}.cl-unit{display:flex;align-items:center;gap:8px}.cl-unit>input{flex:1;min-width:0}.cl-switch input{appearance:none;-webkit-appearance:none;width:36px;height:20px;border-radius:999px;background:rgba(127,127,127,.45);position:relative;flex:none;margin:0;cursor:pointer}.cl-switch input::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .15s}.cl-switch input:checked{background:var(--brand-primary,#111)}.cl-switch input:checked::after{transform:translateX(16px)}.cl-section{display:flex;flex-direction:column;gap:inherit}.cl-progress{height:6px;border-radius:999px;background:rgba(127,127,127,.2);overflow:hidden}.cl-progress>i{display:block;height:100%;width:calc(var(--cl-progress,0)*100%);background:var(--brand-primary,currentColor);transition:width .3s}.cl-review{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:6px 16px;margin:0}.cl-review dt{opacity:.7}.cl-review dd{margin:0;overflow-wrap:anywhere}.cl-timer{font-variant-numeric:tabular-nums}" +
+  // Pages slide in (back slides the other way), and confetti falls on a thank-you that asks for it.
+  "[data-cl-step]:not([hidden]),[data-cl-thanks]:not([hidden]){animation:cl-in .36s cubic-bezier(.22,1,.36,1)}[data-cl-dir=b] [data-cl-step]:not([hidden]){animation-name:cl-bk}@keyframes cl-in{from{opacity:0;transform:translateX(32px)}}@keyframes cl-bk{from{opacity:0;transform:translateX(-32px)}}.cl-conf{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:9}.cl-conf i{position:absolute;top:-12px;width:8px;height:13px;border-radius:2px;animation:cl-fall 2.4s cubic-bezier(.25,.6,.4,1) forwards}@keyframes cl-fall{to{transform:translate(var(--x),105vh) rotate(var(--r));opacity:0}}" +
   "@layer base{:where(input,button,select,textarea,a,summary):focus-visible{outline:2px solid currentColor;outline-offset:2px}label:has(input:focus-visible){outline:2px solid currentColor;outline-offset:2px}}@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}";
+
+/** Confetti over `box` for a moment (none for people who ask for less motion). */
+export function confetti(box: HTMLElement) {
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  if (getComputedStyle(box).position === "static") box.style.position = "relative";
+  const c = document.createElement("div");
+  c.className = "cl-conf";
+  c.setAttribute("aria-hidden", "true");
+  for (let i = 0; i < 70; i++) {
+    const b = document.createElement("i");
+    b.style.cssText = `left:${Math.random() * 100}%;background:hsl(${(i * 47) % 360} 85% 58%);animation-delay:${Math.random() * 0.5}s;--x:${Math.round((Math.random() - 0.5) * 180)}px;--r:${Math.round(Math.random() * 900)}deg`;
+    c.append(b);
+  }
+  box.append(c);
+  setTimeout(() => c.remove(), 3200);
+}
 
 /** The page box the photo fills: the page's .page, else the root. */
 export const pageBox = (w: HTMLElement) => w.querySelector<HTMLElement>(".page") ?? w;
@@ -349,6 +367,7 @@ export function runPage(w: HTMLElement, onSend: (v: Vals) => void, hooks: PageHo
     let i = at + dir;
     while (i >= 0 && i < steps.length && !shown.includes(steps[i]!)) i += dir;
     if (i >= 0 && i < steps.length) at = i;
+    w.setAttribute("data-cl-dir", dir < 0 ? "b" : "f");
     apply();
   };
   const clear = (e: Event) => {
@@ -375,10 +394,15 @@ export function runPage(w: HTMLElement, onSend: (v: Vals) => void, hooks: PageHo
   w.addEventListener("submit", (e) => (e.preventDefault(), send()));
   apply();
   let note: HTMLElement | null = null;
+  let burst = false;
   return {
     done: () => {
       finished = true;
       apply();
+      if (!burst && thanks?.hasAttribute("data-cl-confetti")) {
+        burst = true;
+        confetti(page);
+      }
     },
     start,
     refresh: () => void apply(),

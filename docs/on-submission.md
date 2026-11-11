@@ -59,6 +59,12 @@ the form picks the meeting type, the meeting picks the person.
   Ending as tabs. A page drags to a new place; its ⋯ renames it (`data-cl-page`, else "Page N"), duplicates, copies
   (kept on this computer, pasted from Add page into this form or another), sets a timer, or deletes it. **Add page**
   adds a page, a payment page (a page with the payment block) or the scheduling page (the Ending books a meeting).
+- **Confetti**: a switch on the Ending (Message and Book a meeting) puts `data-cl-confetti` on the thank-you; the form
+  script (`confetti` in `src/lib/studio/runtime.ts`) drops confetti over the form once when it shows, and none for
+  people who ask for less motion. Pages slide in as people move through them, and back slides the other way.
+- **Design** (nothing picked on the form): the theme, changed from a gallery of every style and the workspace's
+  brands, then **Basic** (brand color, background, font, progress bar) or **Advanced** (corners, buttons, fields,
+  form width), all written into the form's own CSS over the theme.
 - **After they send it**: Show a thank-you message (the default, the thank-you every template comes with), Redirect
   to a page, or Book a meeting. The last step in the bar over the form follows it: Thank-you, Redirect (opens On
   submission) or Booking. The thank-you takes the whole form's place once sent, its heading included, on one-page and
