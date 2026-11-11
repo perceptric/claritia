@@ -70,7 +70,9 @@ try {
   const toPreview = async () => { if (!(await $("#exitPrev").isVisible())) await p.locator("#hdrPreview").click(); };
   const toEdit = async () => { if (await $("#exitPrev").isVisible()) await $("#exitPrev").click(); };
   // The Ending page holds what happens after the send: Ending type in the sidebar, Team meeting's rules in the center.
-  const toAfter = async () => { await toEdit(); await $("#m-build").click(); await $("#stepBar .sp").filter({ hasText: "Ending" }).click(); };
+  const toAfter = async () => { await toEdit(); if (await $("#aiBody").isVisible()) await $("#aiClose").click(); await $("#stepBar .pg.end .sp").click(); };
+  const addField = async () => { if (await $("#adds").isHidden()) await $("#addFieldBtn").click(); };
+  const openTia = async () => { if (!(await $("#aiBody").isVisible())) await $("#askBox button[type=submit]").click(); };
   const addPageNow = async () => { await $("#pageTools [data-add-page]").click(); await $(".menu .mi").filter({ hasText: /^Page$/ }).click(); };
 
   // 0. While the form loads, the canvas is blank: the templates never flash before a form
@@ -196,7 +198,7 @@ try {
   // 5. The preview still runs: required, steps, show-if, the booking calendar
   check(!(await $("#exitPrev").isVisible()) && (await $("#panel").isVisible()), "the Studio opens in the editor, with no view tabs");
   await toPreview();
-  check((await $("#exitPrev").isVisible()) && !(await $("#chat").isVisible()) && !(await $("#panel").isVisible()), "Preview from the header fills the screen, with Back to editor");
+  check((await $("#exitPrev").isVisible()) && (await $("#stepBar").isVisible()) && !(await $("#aiBody").isVisible()) && !(await $("#panel").isVisible()) && (await $("#tools").isHidden()), "Preview shows the form and its pages, with Back to editor, and no editing tools");
   await form.locator("[data-cl-next]").click();
   check(((await form.locator('[data-cl-error-for="name"]').textContent()) ?? "").length > 0, "a required answer stops the next step");
   await form.locator("#nm").fill("Sam");
@@ -212,13 +214,14 @@ try {
 
   // 6. Edit: pick, type in place, the floating bar, undo, and nothing covers anything
   await toEdit();
-  check((await $("#aiBody").isVisible()) && (await $("#m-ai").getAttribute("aria-selected")) === "true", "a form Tia built stays on AI in the sidebar");
-  await $("#m-build").click();
-  check((await $("#adds").isVisible()) && !(await $("#aiBody").isVisible()), "Build shows Add fields; AI is one switch away");
+  check(await $("#aiBody").isVisible(), "Tia's chat stays open over the pages while Tia builds");
+  await $("#aiClose").click();
+  check(!(await $("#aiBody").isVisible()) && (await $("#stepBar").isVisible()) && (await $("#adds").isHidden()), "closing the chat shows the pages; the fields wait behind Add field");
+  check((await $("#askBox input").count()) === 1 && (await $("#tools #addFieldBtn").count()) === 1 && (await $("#tools #designBtn").count()) === 1, "Add field and Design sit over the form, the Tia box under it");
   // Pages as tabs: one at a time, the Ending, or all with dividers
-  const tabs = async () => (await $("#stepBar .pg").allTextContents()).map((x) => x.trim());
-  check(JSON.stringify(await tabs()) === JSON.stringify(["Page 1", "Page 2", "Ending"]) && (await $("#stepBar .sp.all").count()) === 1, "the page bar lists each page as a page, the Ending last, and All");
-  check((await $("#stepDock #stepBar").count()) === 1, "the page bar sits under the form");
+  const tabs = async () => (await $("#stepBar .pg .sp span:last-child").allTextContents()).map((x) => x.trim());
+  check(JSON.stringify(await tabs()) === JSON.stringify(["Page 1", "Page 2", "Booking page"]) && (await $("#stepBar .psep").textContent()) === "Ending", "the sidebar lists each page as a page, then the Ending");
+  check((await $("#chat #stepBar").count()) === 1, "the pages sit in the left sidebar");
   check((await $("#stepBar .sp").nth(2).getAttribute("aria-pressed")) === "true", "Edit opens on the page the preview was showing (here the Ending)");
   await $("#stepBar .sp").nth(0).click();
   check((await form.locator("#nm").isVisible()) && !(await form.locator('input[name="email"]').isVisible()) && !(await form.locator("#thanks").isVisible()), "Edit shows one page at a time");
@@ -228,8 +231,6 @@ try {
   await $("#stepBar .sp").nth(2).click();
   await form.locator("#book .cl-cal").waitFor();
   check(await form.locator("#thanks").isVisible(), "the Ending shows on its own, with the calendar in its booking spot");
-  await $("#stepBar .sp.all").click();
-  check((await form.locator(".cl-divider").count()) === 3, "All shows every page with a divider");
   await $("#stepBar .sp").nth(0).click();
   await addPageNow();
   check((await $("#stepBar .pg").count()) === 4 && (await form.locator("section[data-cl-step]").nth(1).locator("[data-cl-next]").count()) === 1 && (await form.locator("section[data-cl-step]").nth(2).locator("[type=submit]").count()) === 1, "a new page goes in with Next, and the send button stays on the last page");
@@ -276,11 +277,15 @@ try {
   const order = () => p.evaluate(() => [...document.querySelector("#studio")!.shadowRoot!.querySelector("#host")!.shadowRoot!.querySelectorAll("[data-k]")].map((e) => (e.getAttribute("name") || e.getAttribute("data-cl-error-for") ? `${e.tagName.toLowerCase()}:${e.getAttribute("name") || `err-${e.getAttribute("data-cl-error-for")}`}` : e.id ? `#${e.id}` : e.tagName.toLowerCase())));
   const builtHtml = () => p.evaluate(() => Object.values((window as unknown as { saved: Record<string, { body?: { html: string; css: string } }> }).saved).map((c) => `${c.body?.html ?? ""}\n${c.body?.css ?? ""}`).find((x) => x.includes('id="title"')) ?? "");
   await $("#stepBar .sp").nth(0).click();
-  check((await $("#adds").isVisible()) && (await $("#addList button[data-add]").count()) >= 20, "Edit opens with the Add list, every question type in it");
+  await $("#addFieldBtn").click();
+  check((await $("#adds").isVisible()) && (await $("#addList button[data-add]").count()) >= 20, "Add field opens the list, every question type in it");
   await $("#addQ").fill("check");
   check((await $("#addList button[data-add]").count()) === 1, "the Add list finds a type as you type");
   await $("#addQ").fill("");
+  await p.keyboard.press("Escape");
+  check(await $("#adds").isHidden(), "Escape closes the fields list");
   await form.locator("#nm").click();
+  await addField();
   await $("#addList button[data-add='long']").click();
   let o = await order();
   check(o.indexOf("textarea:details") > o.indexOf("span:err-name") && o.indexOf("textarea:details") < o.indexOf("#q"), "a question added from the list lands after the picked one, past its error line");
@@ -293,7 +298,16 @@ try {
   await $("#layer .menu input").fill("date picker");
   await p.keyboard.press("Enter");
   check((await form.locator("[data-cl-field='date']").count()) === 1, "/ opens the list, and Enter adds the first match");
-  await $("#addList button[data-add='yesno']").dragTo(form.locator("#q"), { targetPosition: { x: 10, y: 2 } });
+  await addField();
+  // Dragged with the mouse: the list steps aside once the drag starts, so the drop spot behind it is free.
+  const dsrc = (await $("#addList button[data-add='yesno']").boundingBox())!;
+  await p.mouse.move(dsrc.x + 10, dsrc.y + 10);
+  await p.mouse.down();
+  await p.mouse.move(dsrc.x + 30, dsrc.y + 30, { steps: 5 });
+  await p.waitForTimeout(80);
+  const dtgt = (await form.locator("#q").boundingBox())!;
+  await p.mouse.move(dtgt.x + 10, dtgt.y + 2, { steps: 10 });
+  await p.mouse.up();
   o = await order();
   check(o.includes("input:yes_no") && o.indexOf("input:yes_no") < o.indexOf("#q"), "a type dragged onto the form lands where it's dropped");
   // Change type keeps the answer's name.
@@ -314,6 +328,7 @@ try {
   await $("#pscroll input[aria-label='Max characters']").blur();
   check((await form.locator("#nm").getAttribute("maxlength")) === "40", "the most letters is set on the answer");
   // Options: a dropdown's list is added to, renamed, moved, pasted and trimmed; a renamed option saves what it says.
+  await addField();
   await $("#addList button[data-add='dropdown']").click();
   const dd = form.locator("select[name='pick']");
   check((await dd.locator("option").count()) === 4, "a new dropdown comes with three options");
@@ -351,9 +366,11 @@ try {
   await $("#pscroll input[aria-label='Label']").blur();
   check(((await form.locator("#q").textContent()) ?? "") === "How do you feel?", "a choice question's words are set from the panel, even in a line of their own");
   // Blocks: a ranking's list and a payment's price.
+  await addField();
   await $("#addList button[data-add='ranking']").click();
   await $("#pscroll button").filter({ hasText: /^Add$/ }).click();
   check(((await form.locator("[data-cl-field='ranking']").getAttribute("data-cl-options")) ?? "").split("|").length === 4, "a ranking's list takes another option");
+  await addField();
   await $("#addList button[data-add='payment']").click();
   await $("#pscroll input[aria-label='Price']").fill("99");
   await $("#pscroll input[aria-label='Price']").press("Enter");
@@ -392,12 +409,16 @@ try {
   check((await $("#panel [role='tab']").count()) === 0 && (await $("#p-theme").count()) === 0, "the panel is one panel: no Settings, Style or Theme tabs");
   // Nothing picked: Settings is the whole form's, with its hidden fields.
   await $("#canvas").click({ position: { x: 6, y: 6 } });
+  check((await $("#selName").textContent()) === "Form", "nothing picked shows the form's settings");
   await $("#pscroll input[aria-label='Add a hidden field']").fill("ref");
   await $("#pscroll input[aria-label='Add a hidden field']").press("Enter");
   check((await form.locator("[data-cl-field='hidden'][data-cl-param='ref']").count()) === 1, "a hidden field from the link is added");
   // Design: a theme from the gallery, then Basic or Advanced styling.
+  await $("#designBtn").click();
+  check((await $("#selName").textContent()) === "Design" && (await $("#pscroll #brandBtn").count()) === 1, "Design opens in the right panel, with the brand");
   const design = $("#pscroll .sec").filter({ has: p.locator("h4", { hasText: /^Design$/ }) });
-  check((await design.textContent())!.includes("Brand color") && (await design.textContent())!.includes("Font"), "Design opens on Basic: brand color, background, font");
+  const basic = (await design.textContent())!;
+  check(["Background", "Questions", "Answers", "Buttons", "Button text", "Alignment", "Font size", "Logo", "Round corners"].every((x) => basic.includes(x)) && basic.includes("Open theme gallery"), "Design opens on Basic: five colors, alignment, font, size, logo and corners");
   await design.locator(".pill").filter({ hasText: "Change" }).click();
   check((await $("#themeDlg .tcard").count()) >= 18, "Change opens the theme gallery with every style");
   if (shots) await p.screenshot({ path: `${shots}/2d-theme.png` });
@@ -409,9 +430,16 @@ try {
   await $("#undo").click();
   await design.locator(".seg button").filter({ hasText: "Advanced" }).click();
   const adv = (await design.textContent())!;
-  check(["Corners", "Buttons", "Fields", "Form width"].every((x) => adv.includes(x)) && !adv.includes("Brand color"), "Advanced holds corners, buttons, fields and width");
+  check(["Form", "Typography", "Inputs", "Choices", "Buttons", "Reset advanced settings"].every((x) => adv.includes(x)) && !adv.includes("Answers"), "Advanced holds Form, Typography, Inputs, Choices and Buttons");
+  await design.locator(".ahead").filter({ hasText: "Buttons" }).click();
+  await design.locator(".seg button").filter({ hasText: "Pill" }).click();
+  await p.waitForFunction(() => Object.values((window as unknown as { saved: Record<string, { body?: { css: string } }> }).saved).some((c) => c.body?.css.includes("--brand-btn-radius:999px")));
+  await design.locator(".pill").filter({ hasText: "Reset advanced settings" }).click();
+  await p.waitForFunction(() => !Object.values((window as unknown as { saved: Record<string, { body?: { css: string } }> }).saved).some((c) => c.body?.css.includes("--brand-btn-radius:999px")));
+  check(true, "an Advanced change goes into the form's CSS, and Reset takes it out");
   await design.locator(".seg button").filter({ hasText: "Basic" }).click();
-  await design.locator("button[aria-label='blue']").click();
+  await design.locator("button[aria-label='Buttons']").click();
+  await $("#layer .menu button[aria-label='blue']").click();
   await p.waitForFunction(() => Object.values((window as unknown as { saved: Record<string, { body?: { css: string } }> }).saved).some((c) => c.body?.css.includes("--brand-primary:#1e6bf0")));
   check(true, "Basic's brand color goes into the form's own CSS");
   if (shots) await p.screenshot({ path: `${shots}/2b-builder.png` });
@@ -446,20 +474,19 @@ try {
   check((await $("#publish").count()) + (await $("#checkBtn").count()) + (await $("#shareBtn").count()) + (await $("#backBtn").count()) === 0, "Publish, the check, Share and Back live in the page's header, never in the Studio's bar");
   for (const id of ["d-desk", "d-tab", "d-phone"]) if (!(await $(`#${id}`).getAttribute("data-tip"))) check(false, `${id} has a tooltip`);
   check((await $("#t-edit").count()) + (await $("#t-preview").count()) + (await $("#t-after").count()) + (await $("#addBtn").count()) === 0, "no Preview, Edit and On submission tabs, and no Add button in the bar");
-  // The pages, Add page and undo sit under the form.
+  // The pages and Add page in the sidebar; Add field, Design, undo over the form; the Tia box under it.
   const canvasBox = await $("#canvas").boundingBox();
-  const stepsBox = await $("#stepBar").boundingBox();
-  const toolsBox = await $("#pageTools").boundingBox();
-  check(!!canvasBox && !!stepsBox && stepsBox.y >= canvasBox.y + canvasBox.height - 2, "the pages sit under the form");
-  check(!!canvasBox && !!toolsBox && toolsBox.y >= canvasBox.y + canvasBox.height - 2 && (await $("#stepDock #undo").count()) === 1, "the page tools and undo sit under the form");
+  const askBox = await $("#askBox").boundingBox();
+  check(!!canvasBox && !!askBox && askBox.y >= canvasBox.y + canvasBox.height - 2, "the Tia box sits under the form");
+  check((await $(".bar #undo").count()) === 1 && (await $("#chat #pageTools [data-add-page]").count()) === 1, "undo sits over the form; Add page beside the pages");
   check(await $("#stepBar .sp").first().evaluate((e) => parseFloat(getComputedStyle(e).fontSize) >= 13 && getComputedStyle(e).textOverflow !== "ellipsis"), "page names are 13 px and never cut short");
   const controls = await p.evaluate(() => [...document.querySelector("#studio")!.shadowRoot!.querySelectorAll("section.stage > .bar > button, section.stage > .bar > a, section.stage > .bar > .grp > button")].filter((b) => !(b as HTMLElement).hidden).length);
   if (shots) await p.screenshot({ path: `${shots}/bars.png` });
-  check(controls <= 11, `the bar holds at most 11 controls besides the steps (${controls})`);
+  check(controls <= 13, `the bar holds at most 13 controls (${controls})`);
   await $("#moreBtn").click();
   check((await $("#layer .menu").textContent())!.includes("Back to page 1"), "⋯ holds Back to page 1");
   await $("#moreBtn").click();
-  check((await $("#s-layers").count()) + (await $("#navi").count()) === 0 && !(await $("#adds").isHidden()), "Build is Add fields only: no Layers");
+  check((await $("#s-layers").count()) + (await $("#navi").count()) === 0, "no Layers");
   await $("#stepBar .sp").nth(1).click();
   await form.locator("#photo").click();
   check((await $("#pscroll").textContent())!.includes("File upload") && (await $("#pscroll").textContent())!.includes("File types"), "a block's settings show its kind, label and the files it takes");
@@ -472,48 +499,60 @@ try {
   // 7. On submission (the form's code is on Share › Embed HTML, scripts/formpage-check.ts)
   check((await $("#t-code").count()) === 0, "the Studio has no Code view: the code is on Share");
   await toAfter();
-  check((await $("#stepBar .pg.on").textContent())!.trim() === "Ending" && !(await $("#endBox").isHidden()), "the Ending opens with its settings in the sidebar");
-  const after = (await $("#endBox").textContent())!;
+  check((await $("#stepBar .pg.on.end").count()) === 1 && (await $("#selName").textContent()) === "Ending", "the Ending opens with its settings in the right panel");
+  const after = (await $("#pscroll").textContent())!;
   check(after.includes("Ending type") && after.includes("Message") && after.includes("Redirect") && after.includes("Book a meeting") && after.includes("Team meeting"), "Ending type is Message, Redirect or Book a meeting, and a meeting is Individual or Team meeting");
-  check(!(await $("#flow").isHidden()) && (await $("#flow").textContent())!.includes("Otherwise"), "Team meeting's rules are edited in the center");
-  await $("#endBox button[aria-label='Show confetti']").click();
+  // Team meeting: the rules are edited in Logic, beside the form's flow.
+  await $("#pscroll .pill").filter({ hasText: "Edit rules in Logic" }).click();
+  check((await $("#logicView").isVisible()) && (await $("#canvas").isHidden()) && (await $("#flow").isVisible()) && (await $("#flow").textContent())!.includes("Otherwise"), "Edit rules in Logic opens the flow with the team's rules");
+  const graph = (await $("#lgraph").textContent())!;
+  check(graph.includes("Page 1") && graph.includes("Page 2") && graph.includes("Booking page") && graph.includes("Otherwise"), "Logic shows the pages, the Ending and its routing in order");
+  await $("#lgraph .lnode").first().click();
+  check((await $("#ltitle").textContent()) === "After Page 1" && (await $("#flow").isHidden()), "picking a page in Logic shows what comes after it");
+  await $("#logicBtn").click();
+  check((await $("#canvas").isVisible()) && (await $("#logicView").isHidden()), "Logic closes back to the form");
+  await $("#stepBar .pg.end .sp").click();
+  await $("#pscroll button[aria-label='Show confetti']").click();
   check((await form.locator("[data-cl-thanks][data-cl-confetti]").count()) === 1 && (await form.locator(".cl-conf i").count()) > 20, "Confetti turns on for the thank-you, and shows once on the canvas");
-  await $("#endBox button[aria-label='Show confetti']").click();
+  await $("#pscroll button[aria-label='Show confetti']").click();
   check((await form.locator("[data-cl-thanks][data-cl-confetti]").count()) === 0, "and off again");
   // The picked pill keeps its words on hover (it used to turn ink on ink), and each scheduler shows its logo.
-  const picked = $("#endBox .pill.on").first();
+  const picked = $("#pscroll .pill.on").first();
   await picked.hover();
   const [fg, bg] = await picked.evaluate((e) => [getComputedStyle(e).color, getComputedStyle(e).backgroundColor]);
   check(fg !== bg, `a picked pill keeps its words on hover (${fg} on ${bg})`);
-  check((await $("#endBox .pill .logo").count()) >= 5, "Book with shows each scheduler's logo");
+  check((await $("#pscroll .pill .logo").count()) >= 5, "Book with shows each scheduler's logo");
   if (shots) await p.screenshot({ path: `${shots}/4-after.png` });
   // An outside scheduler: its link, checked, and opened in the form's booking spot
-  await $("#endBox .pill").filter({ hasText: "Calendly" }).click();
-  await $("#endBox input[aria-label='Scheduler link']").fill("https://evil.example/x");
-  await $("#endBox input[aria-label='Scheduler link']").press("Enter");
-  await $("#endBox .err").waitFor();
+  await $("#pscroll .pill").filter({ hasText: "Calendly" }).click();
+  await $("#pscroll input[aria-label='Scheduler link']").fill("https://evil.example/x");
+  await $("#pscroll input[aria-label='Scheduler link']").press("Enter");
+  await $("#pscroll .err").waitFor();
   check(true, "a scheduler link that isn't the scheduler's is caught");
-  await $("#endBox input[aria-label='Scheduler link']").fill("https://calendly.com/finch/coach");
-  await $("#endBox input[aria-label='Scheduler link']").press("Enter");
+  await $("#pscroll input[aria-label='Scheduler link']").fill("https://calendly.com/finch/coach");
+  await $("#pscroll input[aria-label='Scheduler link']").press("Enter");
   await toEdit();
   await toPreview();
-  await $("#stepBar .sp").filter({ hasText: "Ending" }).click();
+  await $("#stepBar .pg.end .sp").click();
   await form.locator("#book iframe").waitFor({ state: "attached" });
   check((await form.locator("#book iframe").getAttribute("src")) === "https://calendly.com/finch/coach", "Calendly opens in the form's booking spot");
   await toAfter();
-  await $("#endBox .pill").filter({ hasText: "Claritia calendar" }).click();
+  await $("#pscroll .pill").filter({ hasText: "Claritia calendar" }).click();
   // Routing: a rule saved before tests and names still reads, with Otherwise last; the canvas shows the booking page.
+  await $("#pscroll .pill").filter({ hasText: "Edit rules in Logic" }).click();
   const rt = (await $("#flow").textContent())!;
   check(rt.includes("Before any rule") && rt.includes("Otherwise") && rt.includes("Tender"), "back to Claritia's calendar: a rule saved before tests reads in Team meeting, with Otherwise");
+  await $("#logicBtn").click();
   check((await $("#canvas").isVisible()) && (await $("#asBar").isVisible()) && (await $("#asBar").textContent())!.includes("Preview as") && (await form.locator("#thanks").isVisible()), "the rules sit beside the booking page, with Preview as");
   // Individual: one meeting; a Dynamic one says who books it in one line, with Edit meeting.
-  await $("#endBox .seg button").filter({ hasText: "Individual" }).click();
-  await $("#endBox .pill").filter({ hasText: "Product demo" }).click();
-  const who = (await $("#endBox").textContent())!;
+  await $("#pscroll .seg button").filter({ hasText: "Individual" }).click();
+  await $("#pscroll .pill").filter({ hasText: "Product demo" }).click();
+  const who = (await $("#pscroll").textContent())!;
   check(who.includes("Locations is at least 50 → Enterprise, otherwise anyone on the team") && !(await $("#asBar").isVisible()) && (await $("#flow").isHidden()), "Individual: a Dynamic meeting shows who books it in one line, and no rules or Preview as");
-  await $("#endBox .pill").filter({ hasText: "Edit meeting" }).click();
+  await $("#pscroll .pill").filter({ hasText: "Edit meeting" }).click();
   check((await calls()).some((c) => c.mode === "openMeeting" && c.body === "22222222-2222-4222-8222-222222222222"), "Edit meeting opens that meeting type");
-  await $("#endBox .seg button").filter({ hasText: "Team meeting" }).click();
+  await $("#pscroll .seg button").filter({ hasText: "Team meeting" }).click();
+  await $("#pscroll .pill").filter({ hasText: "Edit rules in Logic" }).click();
   check((await $("#flow").textContent())!.includes("Tender"), "Team meeting keeps its rules after Individual");
   // A new rule: its name, a past fill, a second condition joined by or, any test that fits, then moved first.
   await $("#flow .pill").filter({ hasText: "Add a rule" }).click();
@@ -530,26 +569,30 @@ try {
   await $(".menu .mi").filter({ hasText: "is not" }).click();
   check((await $("#flow .rcard.on .rule").nth(1).textContent())!.includes("is not"), "a condition can use any test that fits its question");
   await $("#flow .rcard.on [aria-label='Move up']").click();
-  check((await $("#flow .rcard").first().locator("input[aria-label='Rule name']").inputValue()) === "Returning" && (await $("#asBar .pill").first().textContent()) === "1. Returning", "a rule moves up, and Preview as follows the order");
+  check((await $("#flow .rcard").first().locator("input[aria-label='Rule name']").inputValue()) === "Returning" && (await $("#lgraph").textContent())!.includes("1. Returning"), "a rule moves up, and Preview as follows the order");
+  await $("#logicBtn").click();
+  check((await $("#asBar .pill").first().textContent()) === "1. Returning", "Preview as follows the order");
   await $("#asBar .pill").filter({ hasText: "Otherwise" }).click();
-  check((await $("#asBar .pill.on").textContent()) === "Otherwise" && ((await $("#flow .rcard.on").textContent()) ?? "").includes("Otherwise"), "Preview as picks Otherwise, and its card lights up");
+  check((await $("#asBar .pill.on").textContent()) === "Otherwise", "Preview as picks Otherwise");
+  await $("#pscroll .pill").filter({ hasText: "Edit rules in Logic" }).click();
   // Two rules where the first catches every lead of the second: the second says it can never run.
   await $("#flow .rcard").nth(1).locator(".rname").click();
   await $("#flow .rcard.on [aria-label='Question']").first().click();
   await $(".menu .mi").filter({ hasText: "Has sent this form before" }).click();
   check(((await $("#flow .rcard").nth(1).textContent()) ?? "").includes("Can never run: rule 1"), "a rule an earlier one always catches says it can never run");
   if (shots) await p.screenshot({ path: `${shots}/4a-routing.png` });
+  await $("#logicBtn").click();
   // Always do
-  await $("#endBox .pill").filter({ hasText: "Email the team" }).click();
-  await $("#endBox input[aria-label='Team emails']").fill("coach@finch.care");
-  await $("#endBox input[aria-label='Team emails']").press("Enter");
-  await $("#endBox .pill").filter({ hasText: "Post to Slack" }).click();
-  await $("#endBox [aria-label='Send to']").click();
+  await $("#pscroll .pill").filter({ hasText: "Email the team" }).click();
+  await $("#pscroll input[aria-label='Team emails']").fill("coach@finch.care");
+  await $("#pscroll input[aria-label='Team emails']").press("Enter");
+  await $("#pscroll .pill").filter({ hasText: "Post to Slack" }).click();
+  await $("#pscroll [aria-label='Send to']").click();
   await $(".menu .mi").filter({ hasText: "Webhook" }).click();
-  await $("#endBox .pill").filter({ hasText: "hooks.acme.dev" }).waitFor();
+  await $("#pscroll .pill").filter({ hasText: "hooks.acme.dev" }).waitFor();
   const cs = await calls();
   check(cs.some((c) => c.mode === "saveDraft") && cs.some((c) => c.mode === "addSend"), "Send to saves the form once, then adds the webhook");
-  await $("#endBox [aria-label='New follow-up']").click();
+  await $("#pscroll [aria-label='New follow-up']").click();
   await $(".menu .mi").filter({ hasText: "When they don't book" }).click();
   check((await calls()).some((c) => c.mode === "newFollowUp" && (c.body as { when: string }).when === "not_booked"), "New follow-up starts a workflow on this form");
   if (shots) await p.screenshot({ path: `${shots}/4b-after.png` });
@@ -567,7 +610,7 @@ try {
   check((await savedHtml()).includes("data-cl-id="), "every question carries its field id");
   // The send button deleted in Edit, from the floating bar.
   await toEdit();
-  await $("#stepBar .sp").last().click();
+  await $("#stepBar .pg:not(.end) .sp").last().click();
   await form.locator("[type=submit]").first().click();
   await $("#fbar button[aria-label='Delete']").click();
   await toPreview();
@@ -691,23 +734,32 @@ try {
   await $("#layer .menu button").filter({ hasText: "New chat" }).click();
   check(!(await form.locator("#title").count()) && (await $(".starts button").count()) > 0, "a new chat starts empty, with ideas");
   await $("#blankBtn").click();
-  check((await form.locator("input[type='email']").count()) === 1 && (await form.locator("[type=submit]").count()) === 1 && (await $("#adds").isVisible()), "Start blank makes an email question and a send button, and opens Edit with the Add list");
+  check((await form.locator("input[type='email']").count()) === 1 && (await form.locator("[type=submit]").count()) === 1 && (await $("#tools").isVisible()), "Start blank makes an email question and a send button, and opens Edit with the Add list");
   // The new fields: 39 in the Add list, each added in one click
+  await $("#addFieldBtn").click();
   check((await $("#addList [data-add]").count()) === 79, "the Add list has 79 fields");
+  await addField();
   await $("#addList [data-add='nps']").click();
+  await addField();
   await $("#addList [data-add='website']").click();
+  await addField();
   await $("#addList [data-add='matrix']").click();
+  await addField();
   await $("#addList [data-add='slider']").click();
   const npsNums = await form.locator(".cl-rate .cl-num").allTextContents();
   check(npsNums[0] === "0" && npsNums.at(-1) === "10" && (await form.locator(".cl-ends").textContent())!.includes("Not likely"), "Net Promoter Score runs 0 to 10 with words at each end");
   check((await form.locator("input[type='url']").count()) === 1 && (await form.locator(".cl-grid tr").count()) === 4 && (await form.locator("input[type='range']").count()) === 1, "Website, Matrix and Slider add in one click");
   // A dependent dropdown comes with the list it follows; a quiz's score adds up its questions
+  await addField();
   await $("#addList [data-add='dependent']").click();
   check((await form.locator("select[name='category']").count()) === 1 && (await form.locator("[data-cl-field='list'][data-cl-by='category']").count()) === 1, "a dependent dropdown adds the list it follows");
+  await addField();
   await $("#addList [data-add='quiz']").click();
+  await addField();
   await $("#addList [data-add='score']").click();
   const quizName = await form.locator("[data-cl-quiz] input").first().getAttribute("name");
   check((await p.evaluate(() => document.querySelector("#studio")!.shadowRoot!.getElementById("host")!.shadowRoot!.querySelector('[data-cl-field="calc"][data-cl-quiz]')?.getAttribute("data-cl-formula"))) === `{${quizName}}`, "the score adds up the quiz questions");
+  await addField();
   await $("#addList [data-add='video']").click();
   check((await form.locator(".cl-media").last().textContent())!.includes("Video"), "a video shows where it plays");
   await $("#pscroll input[aria-label='Video link']").fill("https://youtu.be/dQw4w9WgXcQ");
@@ -729,7 +781,7 @@ try {
   check((await form.locator("#title").textContent()) === "How was today?", "switching back keeps the first chat's form");
 
   // 9b. A built form switches brand only when asked, keeps its look until the new one is ready, then Tia moves it
-  await $("#m-ai").click();
+  await openTia();
   await $("#brandBtn").click();
   await $("#ownSite").fill("acme.dev");
   await $("#ownSite").press("Enter");
@@ -745,7 +797,7 @@ try {
   check((await $("#brandBtn").textContent())!.trim() === "Acme", "the form is on the new brand");
 
   // 9c. A template on a new chat's empty canvas makes the form in the chat's brand, opens it, and the empty chat goes
-  await $("#m-ai").click();
+  await openTia();
   await $("#chatPick").click();
   await $("#layer .menu button").filter({ hasText: "New chat" }).click();
   await $("#tplGrid .tpl").first().waitFor();
@@ -768,7 +820,9 @@ try {
   await toEdit();
   await $("#stepBar .sp").first().click();
   await $("#pscroll button[aria-label='Welcome screen']").click();
-  check((await form.locator("[data-cl-cover] [data-cl-start]").count()) === 1 && (await $("#stepBar .sp").first().textContent()) === "Welcome" && (await $("#stepBar .sp").first().getAttribute("aria-pressed")) === "true", "the Welcome screen switch adds a first screen with Start, shown in Edit");
+  check((await form.locator("[data-cl-cover] [data-cl-start]").count()) === 1 && (await $("#stepBar .sp span:last-child").first().textContent()) === "Welcome" && (await $("#stepBar .sp").first().getAttribute("aria-pressed")) === "true", "the Welcome screen switch adds a first screen with Start, shown in Edit");
+  // The photo is part of Design.
+  await $("#designBtn").click();
   await $("#pscroll button").filter({ hasText: "Add photo" }).click();
   await $("#pscroll .phgrid button[aria-label='Team photo']").click();
   await form.locator(".page[data-cl-lay='left'] > .cl-fig img").waitFor();
@@ -796,6 +850,7 @@ try {
   await toEdit();
   // One question at a time: the switch, then Preview shows one question a screen and OK moves on
   await $("#stepBar .sp").nth(1).click();
+  await $("#designBtn").click();
   await $("#pscroll button[aria-label='One question at a time']").click();
   check((await form.locator("form[data-cl-one]").count()) === 1, "the One question at a time switch turns it on");
   await toPreview();
@@ -806,6 +861,7 @@ try {
   if (shots) await p.screenshot({ path: `${shots}/9e-one.png` });
   await toEdit();
   await $("#stepBar .sp").nth(1).click();
+  await $("#designBtn").click();
   await $("#pscroll button[aria-label='One question at a time']").click();
   check((await form.locator("form[data-cl-one]").count()) === 0, "and off again");
 

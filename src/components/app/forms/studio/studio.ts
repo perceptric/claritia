@@ -45,7 +45,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 .app, .chat, .bar, .panel, .navi { user-select: none; -webkit-user-select: none; }
 input, textarea { user-select: text; -webkit-user-select: text; }
 .tia { --tia-ink: var(--ink); --tia-face: var(--bg); --tia-signal: var(--signal); }
-.app { height: 100%; min-height: 0; display: flex; }
+.app { height: 100%; min-height: 0; display: flex; position: relative; }
 
 /* Chat */
 .chat { flex: none; width: 340px; display: flex; flex-direction: column; border-right: 1px solid var(--line); transition: width .2s var(--ease); min-height: 0; }
@@ -53,7 +53,7 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .chat.folded > :not(.chathead) { display: none; }
 .chat.folded .chathead > :not(.foldbtn) { display: none; }
 .chat.folded .chathead { justify-content: center; padding: 0; }
-.chat.prev { display: none; }
+.chat.prev .aibody, .chat.prev .ptools { display: none; }
 .chathead { height: 52px; flex: none; display: flex; align-items: center; gap: 6px; padding: 0 8px 0 10px; border-bottom: 1px solid var(--line); }
 .chatpick { flex: 1; min-width: 0; height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; text-align: left; }
 .chatpick:hover { background: var(--hover); }
@@ -132,17 +132,13 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .tipright[data-tip]:hover::after, .tipright[data-tip]:focus-visible::after { transform: none; }
 .work { flex: 1; min-height: 0; display: flex; }
 .mid { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
-.steps { flex: 0 1 auto; min-width: 0; display: flex; align-items: center; flex-wrap: wrap; row-gap: 4px; padding: 2px; }
-.steps .sp { min-height: 32px; padding: 4px 8px; border-radius: 8px; border: 0; background: transparent; color: var(--body); font-size: 13px; line-height: 1.3; text-align: start; display: inline-flex; align-items: center; gap: 8px; flex: 0 1 auto; min-width: 0; }
-.steps .sp span:last-child { min-width: 0; overflow-wrap: anywhere; }
-.steps .sp:hover { color: var(--ink); background: var(--hover); }
-.steps .sp .n { width: 22px; height: 22px; border-radius: 999px; border: 1.5px solid var(--line-strong); display: inline-flex; align-items: center; justify-content: center; flex: none; font: 600 11px var(--sans); color: var(--body); background: var(--bg); }
-.steps .sp[aria-pressed="true"] { color: var(--ink); font-weight: 500; }
-.steps .sp[aria-pressed="true"] .n { background: var(--ink); border-color: var(--ink); color: var(--bg); }
-.steps .sp.done .n { background: var(--signal-soft); border-color: var(--signal); color: var(--signal); }
-.steps .conn { width: 18px; height: 1.5px; border-radius: 1px; background: var(--line-strong); flex: none; }
-.steps .sp.all { width: 30px; padding: 0; justify-content: center; margin-left: 6px; color: var(--muted); }
-.steps .sp.all[aria-pressed="true"] { background: var(--paper-deep); color: var(--ink); }
+.dsec .seg { display: flex; flex-wrap: wrap; justify-self: stretch; }
+.dsec .seg button { flex: 1 1 auto; }
+.dsec .row2 { grid-template-columns: 92px minmax(0, 1fr); }
+.gallerybtn { justify-content: center; background: var(--signal-soft); border-color: var(--signal); color: var(--ink); }
+.agroup { border-radius: 10px; box-shadow: 0 0 0 1px var(--line); overflow: hidden; }
+.ahead { width: 100%; border: 0; background: var(--bg); padding: 11px 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; font-weight: 500; color: var(--ink); }
+.abody { padding: 4px 12px 12px; display: flex; flex-direction: column; gap: 10px; }
 .throw { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .thname { flex: 1; min-width: 0; font-size: 12.5px; font-weight: 500; color: var(--ink); overflow-wrap: anywhere; }
 .dlgbox.tbox { width: min(880px, 100%); gap: 16px; }
@@ -169,7 +165,7 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .themes .nm { font-size: 11.5px; color: var(--body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .navi { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .navi .ptitle { display: none; }
-.adds { flex: 1; min-height: 0; display: flex; flex-direction: column; padding-top: 10px; }
+.adds { min-height: 0; display: flex; flex-direction: column; padding-top: 10px; }
 .adds .ptitle { display: none; }
 .adds .in { margin: 0 10px 8px; width: auto; flex: none; height: 30px; }
 .aibody { flex: 1; min-height: 0; display: flex; flex-direction: column; }
@@ -184,29 +180,47 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .subt button[aria-selected="true"] { background: var(--paper); color: var(--ink); font-weight: 500; box-shadow: 0 0 0 1px var(--line); }
 .addlist.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; align-content: start; }
 .addlist.grid .ag { grid-column: 1 / -1; padding: 8px 2px 0; }
+.adds.pop2 .addlist.grid { grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 0 10px 12px; }
 .addlist.grid button { height: auto; flex-direction: column; justify-content: center; gap: 5px; padding: 9px 4px 7px; border-radius: 10px; background: var(--bg); box-shadow: 0 0 0 1px var(--line); text-align: center; font-size: 11.5px; line-height: 1.25; min-width: 0; }
 .addlist.grid button:hover { box-shadow: 0 0 0 1px var(--line-strong), 0 2px 6px rgb(0 0 0 / .06); background: var(--bg); }
 .addlist.grid button i { width: 26px; height: 26px; border-radius: 7px; box-shadow: none; }
 .addlist.grid button .nm { overflow-wrap: anywhere; }
-.stepdock { flex: none; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; min-height: 52px; padding: 6px 12px; border-top: 1px solid var(--line); background: var(--bg); }
-.stepdock .steps { padding: 0; gap: 2px; }
-.steps .pg { position: relative; display: inline-flex; align-items: center; border-radius: 8px; min-width: 0; }
-.steps .pg::after { content: ""; position: absolute; left: 8px; right: 8px; bottom: -7px; height: 2px; border-radius: 2px; background: transparent; }
-.steps .pg.on::after { background: var(--ink); }
-.steps .pg.drop { box-shadow: inset 2px 0 0 var(--signal); }
+.ptools { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.pagesec { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; padding: 10px 10px 16px; gap: 6px; }
+.phead { display: flex; align-items: center; justify-content: space-between; padding: 4px 4px 2px; font-size: 12px; color: var(--muted); }
+.steps { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.steps .psep { font-size: 12px; color: var(--muted); padding: 12px 4px 2px; }
+.steps .pg { position: relative; display: flex; align-items: center; gap: 2px; min-width: 0; border-radius: 10px; background: var(--bg); box-shadow: 0 0 0 1px var(--line); padding-inline-end: 4px; }
+.steps .pg.on { box-shadow: 0 0 0 1px var(--signal), 0 0 0 3px var(--signal-soft); }
+.steps .pg.drop { box-shadow: 0 -3px 0 var(--signal); }
 .steps .pg[draggable="true"] { cursor: grab; }
-.steps .pg .sp .n { border: 0; background: transparent; width: 18px; height: 18px; color: var(--muted); }
-.steps .pg.on .sp .n { background: transparent; color: var(--ink); }
-.steps .pg .pm { width: 24px; height: 24px; margin-inline-start: -4px; }
-.steps .pg .ren { height: 28px; width: 120px; }
-.ptools { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; min-width: 0; }
-.ptools .pill { margin-inline-end: 6px; }
-.ptools .vsep { margin: 0 4px; }
+.steps .sp { flex: 1; min-width: 0; min-height: 40px; padding: 6px 8px; border: 0; border-radius: 10px; background: transparent; color: var(--body); font-size: 13px; line-height: 1.3; text-align: start; display: flex; align-items: center; gap: 10px; }
+.steps .sp span:last-child { min-width: 0; overflow-wrap: anywhere; }
+.steps .pg.on .sp { color: var(--ink); font-weight: 500; }
+.steps .sp .n { width: 24px; height: 24px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; flex: none; font: 600 11px var(--sans); color: var(--ink); background: var(--paper-deep); }
+.steps .pg.end .sp .n { background: var(--signal-soft); color: var(--signal); }
+.steps .pg .pm { width: 26px; height: 26px; opacity: 0; }
+.steps .pg:hover .pm, .steps .pg.on .pm, .steps .pg .pm:focus-visible, .steps .pg .pm[aria-expanded="true"] { opacity: 1; }
+.steps .pg .ren { flex: 1; min-width: 0; height: 34px; margin: 3px; }
+.stepdock { flex: none; display: flex; justify-content: center; padding: 10px 16px 14px; background: var(--paper); }
+.askbox { width: min(720px, 100%); display: flex; align-items: center; gap: 8px; padding: 5px 5px 5px 14px; border-radius: 999px; background: var(--bg); box-shadow: 0 0 0 1px var(--line), 0 8px 24px -12px rgb(0 0 0 / .2); }
+.askbox .tia { position: relative; display: inline-flex; flex: none; }
+.askbox .tia .mdot { position: absolute; top: -2px; right: -3px; }
+.askbox input { flex: 1; min-width: 0; height: 34px; border: 0; outline: none; background: transparent; font: inherit; font-size: 13.5px; color: var(--ink); }
+.askbox .pill { height: 34px; padding: 0 18px; }
+.tools { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.tools .pill[aria-pressed="true"] { background: var(--signal-soft); border-color: var(--signal); color: var(--ink); }
+.chat { position: relative; }
+.aibody { position: absolute; z-index: 40; inset: 52px 0 0 0; background: var(--bg); }
+.aihead { height: 52px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 10px 0 14px; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+.mid { position: relative; }
+.adds.pop2 { position: absolute; z-index: 30; top: 8px; left: 12px; width: min(560px, calc(100% - 24px)); max-height: min(72vh, 640px); flex: none; background: var(--bg); border-radius: 14px; box-shadow: 0 0 0 1px var(--line), 0 24px 48px -16px rgb(0 0 0 / .3); overflow: hidden; }
+.adds.pop2 .addlist { overflow-y: auto; }
+.adds.pop2.dragging { opacity: 0; pointer-events: none; }
 .tipup[data-tip]::after { top: auto; bottom: calc(100% + 6px); transform: translateX(-50%) translateY(2px); }
 .tipup.tipleft[data-tip]::after { transform: translateY(2px); }
 .tipup[data-tip]:hover::after, .tipup[data-tip]:focus-visible::after { transform: translateX(-50%); }
 .tipup.tipleft[data-tip]:hover::after, .tipup.tipleft[data-tip]:focus-visible::after { transform: none; }
-.steps .sp.after .n { border-style: dashed; }
 .exitprev { display: inline-flex; align-items: center; gap: 6px; }
 .peekbar { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
 .peeknm { font-weight: 600; color: var(--ink); min-width: 0; overflow-wrap: anywhere; }
@@ -321,8 +335,29 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .pill.on:hover:not(:disabled), .pill.primary:hover:not(:disabled) { color: var(--bg); border-color: var(--ink); opacity: .9; }
 .pill .logo { width: 16px; height: 16px; border-radius: 4px; flex: none; object-fit: contain; }
 .pill .logo.mark { border-radius: 0; }
-.stage { flex: 1; min-width: 0; max-width: 1100px; display: flex; flex-direction: column; gap: 12px; }
-.flow { flex: none; width: 360px; align-self: flex-start; display: flex; flex-direction: column; gap: 10px; margin-inline-end: 16px; }
+.cstage { flex: 1; min-width: 0; max-width: 1100px; display: flex; flex-direction: column; gap: 12px; }
+.flow { display: flex; flex-direction: column; gap: 10px; }
+.logic { flex: 1; min-height: 0; display: flex; background: var(--paper); }
+.lmain { flex: 1; min-width: 0; overflow: auto; padding: 32px 24px; background-image: radial-gradient(var(--line) 1px, transparent 1px); background-size: 18px 18px; }
+.lgraph { display: flex; align-items: flex-start; width: max-content; margin: auto; }
+.lstep { display: flex; align-items: flex-start; }
+.lcol { width: 168px; display: flex; flex-direction: column; gap: 8px; }
+.lnode { min-height: 46px; border: 0; border-radius: 12px; background: var(--bg); box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgb(0 0 0 / .05); padding: 8px 12px; display: flex; align-items: center; gap: 10px; text-align: start; font-size: 13px; color: var(--ink); }
+.lnode[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--signal); }
+.lnode .n { width: 24px; height: 24px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; flex: none; font: 600 11px var(--sans); background: var(--paper-deep); }
+.lnode.end .n { background: var(--signal-soft); color: var(--signal); }
+.lnode span:last-child { min-width: 0; overflow-wrap: anywhere; }
+.lchip { font-size: 12px; line-height: 1.35; padding: 6px 8px; border-radius: 8px; background: var(--signal-soft); color: var(--ink); overflow-wrap: anywhere; }
+.lchip.if { background: var(--paper-deep); }
+.larrow { width: 36px; height: 46px; display: flex; align-items: center; justify-content: center; color: var(--faint); flex: none; }
+.lroutes { width: 220px; display: flex; flex-direction: column; gap: 8px; }
+.lroute { padding: 8px 12px; border-radius: 12px; background: var(--bg); box-shadow: 0 0 0 1px var(--line); font-size: 12.5px; display: flex; flex-direction: column; gap: 2px; overflow-wrap: anywhere; }
+.lroute b { font-weight: 600; color: var(--ink); }
+.lroute span { color: var(--muted); }
+.lside { flex: none; width: 380px; overflow-y: auto; padding: 16px; background: var(--bg); border-left: 1px solid var(--line); display: flex; flex-direction: column; gap: 12px; }
+.lside h3 { margin: 0; font-size: 14px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.lbody { display: flex; flex-direction: column; gap: 12px; }
+.lbody .sec { padding: 0; border: 0; }
 .endbox { flex: none; display: flex; flex-direction: column; gap: 10px; padding: 0 10px 12px; margin-bottom: 10px; border-bottom: 1px solid var(--line); }
 .endbox .card2 { padding: 12px; gap: 10px; }
 .endbox .lbl { color: var(--muted); font-size: 12px; }
@@ -359,7 +394,7 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .ib.sm { width: 18px; height: 18px; margin-right: -6px; }
 
 /* Element panel */
-.panel { flex: none; width: 288px; border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; background: var(--bg); }
+.panel { flex: none; width: 320px; border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; background: var(--bg); }
 .ptabs { height: 44px; flex: none; display: flex; align-items: center; gap: 4px; padding: 0 10px; border-bottom: 1px solid var(--line); }
 .ptabs .pt { height: 30px; padding: 0 10px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; }
 .ptabs .pt[aria-selected="true"] { background: var(--paper-deep); color: var(--ink); }
@@ -540,7 +575,8 @@ input, textarea { user-select: text; -webkit-user-select: text; }
   .canvas { min-height: 70vh; padding: 12px; }
   .panel { width: auto; border-left: 0; border-top: 1px solid var(--line); }
   .canvas { flex-direction: column; }
-  .flow { width: auto; align-self: stretch; margin: 0 0 12px; }
+  .logic { flex-direction: column; }
+  .lside { width: auto; border-left: 0; border-top: 1px solid var(--line); }
 }
 @media (prefers-reduced-motion: reduce) { .chat, .frame { transition: none; } .live .sk span { animation: none; } }
 `;
@@ -582,10 +618,10 @@ export const STUDIO_HTML = `
       <button class="chatpick" id="chatPick" aria-haspopup="menu" aria-expanded="false" aria-label="Chats"></button>
       <button class="ib foldbtn tipleft" id="chatFold"></button>
     </div>
-    <div class="brandrow"><button class="brandbtn" id="brandBtn" aria-haspopup="menu" aria-label="Brand"></button><button class="profile" id="profileBtn" aria-haspopup="menu" aria-label="Industry, country and language" hidden></button><div class="bstatus" id="brandStatus" hidden></div></div>
-    <div class="sidemode"><div class="mseg" role="tablist" aria-label="Editor"><button role="tab" id="m-build" aria-selected="true">${SVG(P.cursor, 14)}Build</button><button role="tab" id="m-ai" aria-selected="false">${tiaSvg(16)}AI<span class="mdot" id="aiDot" hidden></span></button></div></div>
-    <aside class="adds" id="adds" aria-label="Add fields" hidden><div class="endbox" id="endBox" aria-label="Ending" hidden></div><div class="ptitle">Add</div><input class="in" id="addQ" placeholder="Search fields" aria-label="Search fields" autocomplete="off"><div class="addlist grid" id="addList"></div></aside>
+    <div class="pagesec" id="pageSec"><div class="phead"><span>Pages</span><div class="ptools" id="pageTools" role="toolbar" aria-label="Add page"></div></div><div class="steps" id="stepBar" role="list" aria-label="Pages" hidden></div></div>
     <div class="aibody" id="aiBody">
+    <div class="aihead">${tiaSvg(18)}<b>Tia</b><span class="spacer"></span><button class="ib" id="aiClose" data-tip="Close" aria-label="Close Tia">${SVG(P.x, 14)}</button></div>
+    <div id="brandHome"><div class="brandrow" id="brandRow"><button class="brandbtn" id="brandBtn" aria-haspopup="menu" aria-label="Brand"></button><button class="profile" id="profileBtn" aria-haspopup="menu" aria-label="Industry, country and language" hidden></button><div class="bstatus" id="brandStatus" hidden></div></div></div>
     <div class="msgs" id="msgs" aria-live="polite"></div>
     <div class="compose">
       <div class="about" id="about" hidden><span id="aboutText"></span><button id="aboutX" aria-label="Not about this element">${SVG(P.x, 12)}</button></div>
@@ -598,6 +634,7 @@ export const STUDIO_HTML = `
     <div class="bar">
       <button class="pill exitprev" id="exitPrev" hidden>${SVG(P.back, 14)}Back to editor</button>
       <div class="peekbar" id="peekBar" hidden><button class="pill" id="peekBack">${SVG(P.back, 14)}All templates</button><span class="peeknm" id="peekName"></span><button class="pill primary" id="peekUse">Use this template</button></div>
+      <div class="tools" id="tools"><button class="pill primary" id="addFieldBtn" aria-haspopup="true" aria-expanded="false">${SVG(P.plus, 14)}Add field</button><button class="pill" id="designBtn" aria-pressed="false">${SVG(P.brush, 14)}Design</button><button class="pill" id="logicBtn" aria-pressed="false">${SVG('<circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="12" r="2.5"/><path d="M6 8.5v7M8.3 7l7.4 3.8M8.3 17l7.4-3.8"/>', 14)}Logic</button></div>
       <span class="spacer"></span>
       <div class="grp" role="group" aria-label="Device">
         <button class="ib" id="d-desk" data-tip="Desktop" aria-label="Desktop" aria-pressed="true">${SVG(P.desk)}</button>
@@ -606,13 +643,14 @@ export const STUDIO_HTML = `
       </div>
       <button class="langbtn" id="langBtn" data-tip="Languages" aria-label="Languages" aria-haspopup="menu"></button>
       <span class="vsep"></span>
+      <button class="ib" id="undo" data-tip="Undo" aria-label="Undo" disabled>${SVG(P.undo)}</button><button class="ib" id="redo" data-tip="Redo" aria-label="Redo" disabled>${SVG(P.redo)}</button>
       <button class="ib tipleft" id="moreBtn" data-tip="More" aria-label="More" aria-haspopup="menu">${SVG(P.more)}</button>
     </div>
     <div class="work" id="work">
       <div class="mid" id="mid">
+    <aside class="adds pop2" id="adds" aria-label="Add fields" hidden><div class="ptitle">Add</div><input class="in" id="addQ" placeholder="Search fields" aria-label="Search fields" autocomplete="off"><div class="addlist grid" id="addList"></div></aside>
       <div class="canvas" id="canvas">
-        <div class="flow" id="flow" aria-label="Team meeting" hidden></div>
-        <div class="stage" id="stage">
+        <div class="cstage" id="stage">
         <div class="asbar" id="asBar" role="group" aria-label="Preview as" hidden></div>
         <div class="frame" id="frame">
           <div id="host"></div>
@@ -624,12 +662,13 @@ export const STUDIO_HTML = `
         </div>
         </div>
       </div>
+      <div class="logic" id="logicView" hidden><div class="lmain"><div class="lgraph" id="lgraph" role="list" aria-label="The form's flow"></div></div><aside class="lside" aria-label="Logic"><h3 id="ltitle"></h3><div class="lbody" id="lbody"></div><div class="flow" id="flow" aria-label="Team meeting" hidden></div></aside></div>
       <div class="code" id="codeView" hidden>
         <div class="seg" role="group" aria-label="File"><button id="c-html" aria-pressed="true">HTML</button><button id="c-css" aria-pressed="false">Form CSS</button><button id="c-brand" aria-pressed="false">Brand CSS</button></div>
         <textarea id="codeText" spellcheck="false" aria-label="Code"></textarea>
         <div><button class="pill primary" id="codeApply">Apply</button></div>
       </div>
-      <div class="stepdock" id="stepDock"><div class="ptools" id="pageTools" role="toolbar" aria-label="Page tools"></div><div class="steps" id="stepBar" role="toolbar" aria-label="Pages" hidden></div><span class="spacer"></span><button class="ib tipup" id="undo" data-tip="Undo" aria-label="Undo" disabled>${SVG(P.undo)}</button><button class="ib tipup tipleft" id="redo" data-tip="Redo" aria-label="Redo" disabled>${SVG(P.redo)}</button></div>
+      <div class="stepdock" id="stepDock"><form class="askbox" id="askBox"><span class="tia" aria-hidden="true">${tiaSvg(18)}<span class="mdot" id="aiDot" hidden></span></span><input id="askIn" autocomplete="off" placeholder="Build with Tia: add questions, logic, design…" aria-label="Ask Tia"><button class="pill primary" type="submit">Ask</button></form></div>
       </div>
       <aside class="panel" id="panel" aria-label="Element" hidden>
         <div class="ptabs"><span class="who2" id="selName"></span></div>
@@ -1205,6 +1244,7 @@ ${CAL_CSS}
   }
   function select(k) {
     S.sel = k;
+    if (k) S.design = false;
     // Picked in Layers inside another step: show that step.
     const el = byK(k);
     if (S.mode === "edit" && el && S.view !== "all") {
@@ -1269,23 +1309,26 @@ ${CAL_CSS}
     const bar = $("stepBar");
     const steps = stepsIn(src), thanks = src.querySelector("[data-cl-thanks]");
     bar.hidden = !cur || !built() || S.mode === "code";
-    // The page tools sit under the form while editing; undo and redo stay there in every view.
-    $("stepDock").hidden = bar.hidden;
-    if (bar.hidden) return;
+    // The Tia box sits under the form in every view but Code; the editing tools over it only while editing.
+    $("stepDock").hidden = !cur || S.mode === "code";
+    $("tools").hidden = S.mode !== "edit" || !built();
+    $("designBtn").setAttribute("aria-pressed", String(!!S.design && S.mode === "edit"));
+    if (bar.hidden) { $("pageTools").innerHTML = ""; return; }
     const editing = S.mode === "edit";
     const cover = src.querySelector("[data-cl-cover]");
     if (editing && ((typeof S.view === "number" && S.view >= Math.max(1, steps.length)) || (S.view === "cover" && !cover))) S.view = 0;
     bar.innerHTML = "";
-    // Pages as tabs (Fillout's page bar): the welcome screen, each page, and the Ending last. While editing, a page
-    // drags to a new place, and its ⋯ renames, duplicates, copies or deletes it.
+    // Pages in the sidebar (Youform's blocks list): the welcome screen, each page, then the Ending. While editing, a
+    // page drags to a new place, and its ⋯ renames, duplicates, copies, times or deletes it.
     const go = (v) => {
-      if (editing) { S.view = v; S.sel = null; draw(); panel(); tree(); endUi(); }
+      if (editing && S.logic) { S.lsel = v; S.view = v; logicUi(); endUi(); stepUi(); }
+      else if (editing) { S.view = v; S.sel = null; S.design = false; draw(); panel(); tree(); endUi(); }
       else { if (v === "thanks") done = true; else if (v === "cover") { done = false; coverOn = true; } else { done = false; coverOn = false; stepAt = oneMap.length ? Math.max(0, oneMap.indexOf(v)) : v; } draw(); }
     };
     const at = editing ? S.view : done ? "thanks" : coverOn && cover ? "cover" : oneMap.length ? (oneMap[stepAt] ?? 0) : stepAt;
-    const tab = (icon, text, v, menu, drag) => {
+    const tab = (mark, text, v, menu, drag, cls = "") => {
       const on = at === v;
-      const wrap = h("div", { class: `pg${on ? " on" : ""}` });
+      const wrap = h("div", { class: `pg${on ? " on" : ""}${cls ? ` ${cls}` : ""}`, role: "listitem" });
       if (renaming === v && editing) {
         const i = h("input", { class: "in ren", value: text, "aria-label": "Page name" });
         const done2 = (keep) => { if (renaming !== v) return; renaming = null; if (keep) renameStep(v, i.value); else stepUi(); };
@@ -1295,8 +1338,8 @@ ${CAL_CSS}
         requestAnimationFrame(() => { i.focus(); i.select(); });
         return wrap;
       }
-      wrap.append(h("button", { class: "sp", "aria-pressed": String(on), onclick: () => go(v), ondblclick: () => { if (editing && typeof v === "number") { renaming = v; stepUi(); } } }, h("span", { class: "n", html: SVG(icon, 14) }), h("span", { text })));
-      if (editing && on && menu) wrap.append(h("button", { class: "ib pm", "aria-label": `${text} options`, "data-tip": "Options", "aria-haspopup": "menu", html: SVG(P.more, 14), onclick: (e) => openMenu(e.currentTarget, menu(), 200) }));
+      wrap.append(h("button", { class: "sp", "aria-pressed": String(on), onclick: () => go(v), ondblclick: () => { if (editing && typeof v === "number") { renaming = v; stepUi(); } } }, h("span", { class: "n", ...(mark.startsWith("<") ? { html: mark } : { text: mark }) }), h("span", { text })));
+      if (editing && menu) wrap.append(h("button", { class: "ib pm", "aria-label": `${text} options`, "data-tip": "Options", "aria-haspopup": "menu", html: SVG(P.more, 14), onclick: (e) => openMenu(e.currentTarget, menu(), 200) }));
       if (editing && drag !== undefined) {
         wrap.setAttribute("draggable", "true");
         wrap.addEventListener("dragstart", (e) => { dragPage = drag; e.dataTransfer.effectAllowed = "move"; try { e.dataTransfer.setData("text/plain", `page:${drag}`); } catch {} });
@@ -1312,17 +1355,18 @@ ${CAL_CSS}
       item("Rename", () => { renaming = i; stepUi(); }),
       item("Duplicate", () => dupStep(i)),
       item("Copy", () => copyPage(i)),
-      item("Timer", () => requestAnimationFrame(() => { const b = bar.querySelector(".pg.on .pm"); if (b) timerMenu(b, i); })),
+      item("Timer", () => requestAnimationFrame(() => { const b = bar.querySelectorAll(".pg .pm")[i + (cover ? 1 : 0)]; if (b) timerMenu(b, i); })),
       h("div", { class: "msep" }),
       item("Delete", () => delStep(i), steps.length < 2),
     ];
-    if (cover) bar.append(tab(P.image, "Welcome", "cover", editing ? () => [item("Delete", () => delCover())] : null));
-    if (steps.length) steps.forEach((st, i) => bar.append(tab(P.section, stepName(st, i), i, pageMenu(i), steps.length > 1 ? i : undefined)));
-    else bar.append(tab(P.section, "Page 1", 0, null));
-    if (thanks) bar.append(tab(P.check, "Ending", "thanks", null));
-    if (editing && (steps.length > 1 || thanks)) bar.append(h("button", { class: "sp all", "aria-pressed": String(S.view === "all"), "aria-label": "All pages", "data-tip": "All pages", html: SVG(P.layers, 15), onclick: () => go("all") }));
+    if (cover) bar.append(tab("★", "Welcome", "cover", editing ? () => [item("Delete", () => delCover())] : null));
+    if (steps.length) steps.forEach((st, i) => bar.append(tab(String(i + 1), stepName(st, i), i, pageMenu(i), steps.length > 1 ? i : undefined)));
+    else bar.append(tab("1", "Page 1", 0, null));
+    if (thanks) { bar.append(h("div", { class: "psep", text: "Ending" })); bar.append(tab(SVG(P.check, 12), endKindName(), "thanks", null, undefined, "end")); }
     pageTools();
+    logicUi();
   }
+  const endKindName = () => { const k = body().after?.kind; return k === "page" ? "Redirect" : k === "meeting" ? "Booking page" : "Thank-you page"; };
   let dragPage = null, renaming = null;
   /** Add page: a plain page, a payment page, the scheduling page (the Ending books a meeting), or a page copied before. */
   function pageTools() {
@@ -1330,7 +1374,7 @@ ${CAL_CSS}
     box.innerHTML = "";
     if (S.mode !== "edit") return;
     const item = (ic, text, fn) => { const b = h("button", { class: "mi small", role: "menuitem", html: `${SVG(ic, 15)}<span class="nm"></span>`, onclick: () => { closeMenu(); fn(); } }); b.querySelector(".nm").textContent = text; return b; };
-    const b = h("button", { class: "pill", "data-add-page": "", "aria-label": "Add page", "aria-haspopup": "menu", html: `${SVG(P.plus, 14)}Add page` });
+    const b = h("button", { class: "ib", "data-add-page": "", "aria-label": "Add page", "data-tip": "Add page", "aria-haspopup": "menu", html: SVG(P.plus, 15) });
     b.onclick = () => { const copied = store.get("clr-studio-page", ""); openMenu(b, [
       item(P.section, "Page", addPage),
       item(P.payment, "Payment page", addPaymentPage),
@@ -1490,16 +1534,20 @@ ${CAL_CSS}
   let panelKey = "";
   function panel() {
     const p = $("pscroll");
-    const key = `${S.sel}|${S.ptab}|${S.mode}`;
+    const key = `${S.sel}|${S.ptab}|${S.mode}|${S.design ? 1 : 0}|${S.view}`;
     const keep = key === panelKey ? p.scrollTop : 0;
     panelKey = key;
     panelDraw(p);
     if (keep) p.scrollTop = keep;
   }
   function panelDraw(p) {
+    $("brandHome").append($("brandRow"));
     p.innerHTML = "";
     const el = S.sel ? byK(S.sel) : null;
-    $("selName").textContent = el ? nameOf(el) : "Form";
+    const ending = !el && S.mode === "edit" && S.view === "thanks";
+    $("selName").textContent = S.design && !el ? "Design" : el ? nameOf(el) : ending ? "Ending" : "Form";
+    if (S.design && !el) return designPanel(p);
+    if (ending) return renderAfter(p);
     if (!el) return formSettings(p);
     settings(p, el);
     quickStyle(p, el);
@@ -1768,7 +1816,8 @@ ${CAL_CSS}
     // A group of choices on a page whose style never mentions one: no browser frame around it.
     if (node.matches("fieldset") && !/fieldset/i.test(`${body().css}\n${brandOf(cur)?.css || ""}`)) { const r = rules(); r.fieldset = { border: "0", margin: "0", padding: "0", "min-width": "0" }; r.legend = { padding: "0" }; writeRules(r); }
     S.sel = node.getAttribute("data-k");
-    S.ptab = "settings";
+    S.ptab = "settings"; S.design = false;
+    addsOpen(false);
     commit();
     toast(`${QNAME[type]} added`);
     requestAnimationFrame(() => live(S.sel)?.scrollIntoView({ block: "nearest", behavior: "smooth" }));
@@ -1783,8 +1832,9 @@ ${CAL_CSS}
       for (const [t, n] of shown) {
         const b = h("button", { draggable: "true", "data-add": t, title: "Click to add, or drag onto the form", html: `<i>${SVG(TI(t), 13)}</i><span class="nm"></span>`, onclick: () => addQuestion(t) });
         b.querySelector(".nm").textContent = n;
-        b.addEventListener("dragstart", (e) => { dragType = t; e.dataTransfer.effectAllowed = "copy"; try { e.dataTransfer.setData("text/plain", t); } catch {} });
-        b.addEventListener("dragend", () => { dragType = null; $("dropl").hidden = true; });
+        // While a field is dragged, the list steps out of the way (still there, so the drag carries on).
+        b.addEventListener("dragstart", (e) => { dragType = t; e.dataTransfer.effectAllowed = "copy"; try { e.dataTransfer.setData("text/plain", t); } catch {} setTimeout(() => $("adds").classList.add("dragging"), 0); });
+        b.addEventListener("dragend", () => { dragType = null; $("dropl").hidden = true; $("adds").classList.remove("dragging"); addsOpen(false); });
         list.append(b);
       }
     }
@@ -1928,7 +1978,7 @@ ${CAL_CSS}
       if (uses) el.setAttribute("data-cl-pipe", t); else el.removeAttribute("data-cl-pipe");
     });
   }
-  function jumpsSec(p, q, c) {
+  function jumpsSec(p, q, c, title) {
     const steps = stepsIn(src), from = steps.findIndex((st) => st.contains(q));
     if (from < 0 || from >= steps.length - 2) return;
     steps.forEach(stepId);
@@ -1937,7 +1987,7 @@ ${CAL_CSS}
     const later = steps.map((st, i) => [st.id, `${i + 1}. ${stepName(st, i)}`, i]).filter(([, , i]) => i > from + 1);
     const js = readJumps(q.getAttribute("data-cl-jump"));
     const write = (next) => { snap(); next.length ? q.setAttribute("data-cl-jump", writeJumps(next)) : q.removeAttribute("data-cl-jump"); commit(); };
-    const J = h("div", { class: "sec" }, h("h4", { text: "Page skip rules" }));
+    const J = h("div", { class: "sec" }, h("h4", { text: title || "Page skip rules" }));
     js.forEach((j, i) => {
       const lbl = vals.find(([v]) => v === j.value)?.[1] || j.value;
       const to = later.find(([id]) => id === j.to)?.[1] || "Pick";
@@ -2412,66 +2462,114 @@ ${CAL_CSS}
     p.append(Ph);
   }
   /**
-   * Design, with nothing picked: the theme (from the gallery), then Basic (brand color, background, font, progress
-   * bar) or Advanced (corners, buttons, fields, width). Every change goes into the form's own CSS, over the theme.
+   * Design, with nothing picked (Youform's design panel): the theme (from the gallery), then Basic (colors, alignment,
+   * font, size, logo, corners, progress bar) or Advanced (Form, Typography, Inputs, Choices, Buttons, each opening on
+   * its own). Every change goes into the form's own CSS, over the theme, and Reset takes Advanced's back out.
    */
+  /** A color as the form shows it now: the first of `probe`'s elements, read for `css`. */
+  const shown = (probe, css) => { for (const q of probe.split("|")) { const el = root.querySelector(q); if (el) { const c = getComputedStyle(el)[css]; if (c && c !== "rgba(0, 0, 0, 0)") return c; } } return ""; };
+  const hexOf = (c) => { const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(c); return m ? `#${[m[1], m[2], m[3]].map((n) => Number(n).toString(16).padStart(2, "0")).join("")}` : c; };
+  function varColor(label, sel, prop, probe, css) {
+    const v = ruleGet(sel, prop), c = v || shown(probe, css);
+    const b = h("button", { class: "colorrow", "aria-label": label }, h("span", { class: "dot" }, h("i", { style: `background:${c}` })), h("span", { class: `v${v ? "" : " ph"}`, text: v || hexOf(c) || "Theme default" }));
+    b.onclick = () => {
+      const pal = h("div", { class: "pal" });
+      for (const [val, hex, nm] of [...brandColors(), ["#ffffff", "#ffffff", "white"], ["#111111", "#111111", "black"], ["#0c8c5e", "#0c8c5e", "green"], ["#1e6bf0", "#1e6bf0", "blue"], ["#5429d6", "#5429d6", "violet"], ["#d9480f", "#d9480f", "orange"]]) pal.append(h("button", { "aria-label": nm, title: nm, style: `background:${hex}`, onclick: () => { closeMenu(); ruleSet(sel, [[prop, val]]); } }));
+      const hx = h("input", { class: "in", placeholder: "#hex", value: v, "aria-label": `${label} value` });
+      hx.addEventListener("keydown", (e) => { if (e.key === "Enter") { closeMenu(); ruleSet(sel, [[prop, hx.value.trim()]]); } });
+      openMenu(b, [pal, h("div", { style: "padding:0 8px 8px;display:flex;gap:6px" }, hx, h("button", { class: "pill", text: "Reset", onclick: () => { closeMenu(); ruleSet(sel, [[prop, ""]]); } }))]);
+    };
+    return b;
+  }
+  /** Rule changes made by Advanced, so Reset can take them all out at once. */
+  const ADV = [[".page .form-card", ["max-width", "background", "box-shadow", "border", "padding"]], [":root", ["--brand-card-radius", "--brand-radius", "--brand-btn-radius", "--brand-field", "--brand-bw"]], ["h1.heading", ["font-size"]], [".label", ["font-weight", "font-size"]], [".field", ["border-color", "border-width", "border-radius", "padding-inline"]], [".choice", ["border-color", "background", "min-height"]], [".page .choices", ["gap"]], [".btn", ["min-height", "padding", "width", "font-size"]]];
   function designSec(p) {
     if (!cur) return;
-    const D = h("div", { class: "sec" }, h("h4", { text: "Design" }));
+    const D = h("div", { class: "sec dsec" }, h("h4", { text: "Design" }));
     const style = body().style, b = brandOf(cur);
     D.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Theme" }), h("div", { class: "throw" }, h("span", { class: "thname", text: style ? styleName(style).replace(/ style$/, "") : b?.name || "Your brand" }), h("button", { class: "pill", text: "Change", onclick: themeGallery }))));
-    S.design ||= "basic";
-    D.append(h("div", { class: "seg", role: "group", "aria-label": "Styling" }, ...[["basic", "Basic"], ["advanced", "Advanced"]].map(([v, t]) => h("button", { "aria-pressed": String(S.design === v), text: t, onclick: () => { S.design = v; panel(); } }))));
-    if (S.design === "basic") {
-      const accent = ruleGet(":root", "--brand-primary");
-      const sw = h("div", { class: "swatches", role: "group", "aria-label": "Brand color" });
-      for (const [val, hex, nm] of [["", "conic-gradient(from 0deg,#e5e5e5,#bdbdbd)", "Theme default"], ...brandColors().slice(0, 4), ["#0c8c5e", "#0c8c5e", "green"], ["#1e6bf0", "#1e6bf0", "blue"], ["#5429d6", "#5429d6", "violet"], ["#d9480f", "#d9480f", "orange"], ["#111111", "#111111", "black"]]) sw.append(h("button", { "aria-label": nm, title: nm, "aria-pressed": String(accent === val), style: `background:${hex}`, onclick: () => ruleSet(":root", [["--brand-primary", val], ["--brand-focus", val]]) }));
-      D.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Brand color" }), sw));
-      const bg = ruleGet(":root", "--brand-bg");
-      const bgs = [["", "Theme default"], ["#ffffff", "White"], ["color-mix(in srgb, var(--brand-primary) 6%, #ffffff)", "Tinted"]];
-      D.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Background" }), pick(bgs.find(([v]) => v === bg)?.[1] || "Custom", bgs.map(([v, t]) => [t, () => ruleSet(":root", [["--brand-bg", v]]), v === bg]))));
+    D.append(h("button", { class: "pill gallerybtn", html: `${SVG(P.grid, 14)}<span>Open theme gallery</span>`, onclick: themeGallery }));
+    S.dlevel ||= "basic";
+    D.append(h("div", { class: "seg", role: "group", "aria-label": "Styling" }, ...[["basic", "Basic"], ["advanced", "Advanced"]].map(([v, t]) => h("button", { "aria-pressed": String(S.dlevel === v), text: t, onclick: () => { S.dlevel = v; panel(); } }))));
+    const row = (label, ctl) => h("div", { class: "row2" }, h("span", { class: "lbl", text: label }), ctl);
+    const segOf = (label, opts, now, fn) => h("div", { class: "seg", role: "group", "aria-label": label }, ...opts.map(([v, t]) => h("button", { "aria-pressed": String(v === now), text: t, onclick: () => fn(v) })));
+    const sw = (label, on, fn) => h("div", {}, h("button", { class: "sw", role: "switch", "aria-checked": String(on), "aria-label": label, onclick: fn }));
+    if (S.dlevel === "basic") {
+      D.append(
+        row("Background", varColor("Background", ":root", "--brand-bg", ".page .form-card|.page|.cl-root", "backgroundColor")),
+        row("Questions", varColor("Questions", ":root", "--brand-text", ".label|.heading", "color")),
+        row("Answers", varColor("Answers", ".field", "color", ".field|.choice", "color")),
+        row("Buttons", varColor("Buttons", ":root", "--brand-primary", ".btn", "backgroundColor")),
+        row("Button text", varColor("Button text", ":root", "--brand-on-primary", ".btn", "color")),
+      );
+      const al = ruleGet(".page .form-card", "text-align") || "left";
+      D.append(row("Alignment", segOf("Alignment", [["left", "Left"], ["center", "Center"]], al, (v) => { snap(); const r = rules(); const put = (sel, pairs) => { r[sel] = r[sel] || {}; for (const [k, x] of pairs) { if (!x) delete r[sel][k]; else r[sel][k] = x; } if (!Object.keys(r[sel]).length) delete r[sel]; }; const c = v === "center"; put(".page .form-card", [["text-align", c ? "center" : ""]]); put(".page .nav", [["justify-content", c ? "center" : ""]]); put(".page .choices", [["justify-items", c ? "center" : ""]]); writeRules(r); commit(); })));
       const font = (/^"([^"]+)"/.exec(ruleGet(":root", "--brand-font")) || [])[1] || "";
-      D.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Font" }), pick(FONTS.find(([v]) => v === font)?.[1] || font, FONTS.map(([v, t]) => [t, () => setFont(v), v === font]))));
+      D.append(row("Font", pick(FONTS.find(([v]) => v === font)?.[1] || font, FONTS.map(([v, t]) => [t, () => setFont(v), v === font]))));
+      const fs = ruleGet(".page.page", "font-size");
+      D.append(row("Font size", segOf("Font size", [["14px", "Small"], ["", "Medium"], ["17px", "Large"]], fs, (v) => ruleSet(".page.page", [["font-size", v]]))));
+      const logoOff = ruleGet(".page .logo", "display") === "none";
+      D.append(row("Logo", sw("Logo", !logoOff, () => ruleSet(".page .logo", [["display", logoOff ? "" : "none"]]))));
+      const square = ruleGet(":root", "--brand-radius") === "2px";
+      D.append(row("Round corners", sw("Round corners", !square, () => ruleSet(":root", [["--brand-radius", square ? "" : "2px"], ["--brand-btn-radius", square ? "" : "2px"], ["--brand-card-radius", square ? "" : "4px"]]))));
       const steps = stepsIn(src);
       if (steps.length > 1) {
         const bar = src.querySelector("[data-cl-progress]");
         const on = !!bar && !bar.hasAttribute("hidden");
-        D.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Progress bar" }), h("div", {}, h("button", { class: "sw", role: "switch", "aria-checked": String(on), "aria-label": "Progress bar", onclick: () => {
+        D.append(row("Progress bar", sw("Progress bar", on, () => {
           snap();
           if (bar) on ? bar.setAttribute("hidden", "") : bar.removeAttribute("hidden");
           else { const b2 = clean('<div class="bar" data-cl-progress><i></i></div>').firstElementChild; [b2, ...b2.querySelectorAll("*")].forEach((x) => x.setAttribute("data-k", String(++kSeq))); steps[0].before(b2); }
           commit();
-        } }))));
+        })));
       }
     } else {
-      const rad = ruleGet(":root", "--brand-radius");
-      const corners = [["", "Theme default"], ["4px", "None"], ["10px", "Small"], ["18px", "Large"]];
-      D.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Corners" }), pick(corners.find(([v]) => v === rad)?.[1] || "Theme default", corners.map(([v, t]) => [t, () => ruleSet(":root", [["--brand-radius", v], ["--brand-card-radius", v ? `${parseInt(v, 10) + 6}px` : ""], ...(ruleGet(":root", "--brand-btn-radius") === "999px" ? [] : [["--brand-btn-radius", v]])]), v === rad]))));
-      const round = ruleGet(":root", "--brand-btn-radius") === "999px";
-      D.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Buttons" }), pick(round ? "Rounded" : "Square", [["Square", () => ruleSet(":root", [["--brand-btn-radius", rad]]), !round], ["Rounded", () => ruleSet(":root", [["--brand-btn-radius", "999px"]]), round]])));
-      // Fields: the theme's look, a soft fill, an outline, or a line underneath (a line any theme shows: the text color, faded).
-      const LINE = "color-mix(in srgb, var(--brand-text) 24%, transparent)";
-      const fv = ruleGet(":root", "--brand-field"), fu = ruleGet(".field", "border-width");
-      const fieldNow = fu ? "line" : fv === "transparent" ? "outline" : fv ? "fill" : "";
-      const LOOKS = [
-        ["", "Theme default", [["--brand-field", ""], ["--brand-bw", ""]], []],
-        ["fill", "Filled", [["--brand-field", "color-mix(in srgb, var(--brand-primary) 7%, var(--brand-surface))"], ["--brand-bw", "0px"]], []],
-        ["outline", "Outlined", [["--brand-field", "transparent"], ["--brand-bw", "1px"]], [["border-color", LINE]]],
-        ["line", "Underlined", [["--brand-field", "transparent"], ["--brand-bw", "1px"]], [["border-color", LINE], ["border-width", "0 0 1px 0"], ["border-radius", "0"], ["padding-inline", "0"]]],
-      ];
-      const fieldLook = (rootVars, field) => {
-        snap();
-        const r = rules();
-        const put = (sel, pairs) => { r[sel] = r[sel] || {}; for (const [k, v] of pairs) { if (v === "") delete r[sel][k]; else r[sel][k] = v; } if (!Object.keys(r[sel]).length) delete r[sel]; };
-        put(":root", rootVars);
-        put(".field", [["border-color", ""], ["border-width", ""], ["border-radius", ""], ["padding-inline", ""], ...field]);
-        put(".choice", [["border-color", field.length ? LINE : ""]]);
-        writeRules(r); commit();
+      const group = (id, title, build) => {
+        const open = S.dopen === id;
+        const g = h("div", { class: "agroup" }, h("button", { class: "ahead", "aria-expanded": String(open), onclick: () => { S.dopen = open ? "" : id; panel(); } }, h("span", { text: title }), h("span", { html: SVG(open ? P.up : P.down, 13) })));
+        if (open) g.append(h("div", { class: "abody" }, ...build()));
+        return g;
       };
-      D.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Fields" }), pick(LOOKS.find(([v]) => v === fieldNow)?.[1] || "Theme default", LOOKS.map(([v, t, rv, field]) => [t, () => fieldLook(rv, field), v === fieldNow]))));
-      const wd = ruleGet(".page .form-card", "max-width");
-      const wds = [["", "Theme default"], ["520px", "Narrow"], ["760px", "Wide"]];
-      D.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Form width" }), pick(wds.find(([v]) => v === wd)?.[1] || wd, wds.map(([v, t]) => [t, () => ruleSet(".page .form-card", [["max-width", v]]), v === wd]))));
+      const LINE = "color-mix(in srgb, var(--brand-text) 24%, transparent)";
+      D.append(
+        group("form", "Form", () => {
+          const wd = ruleGet(".page .form-card", "max-width");
+          const card = ruleGet(".page .form-card", "background") !== "transparent";
+          const cr = ruleGet(":root", "--brand-card-radius");
+          return [
+            row("Width", segOf("Width", [["520px", "Narrow"], ["", "Default"], ["760px", "Wide"]], wd, (v) => ruleSet(".page .form-card", [["max-width", v]]))),
+            row("Card", sw("Show questions in a card", card, () => ruleSet(".page .form-card", card ? [["background", "transparent"], ["box-shadow", "none"], ["border", "0"], ["padding", "0"]] : [["background", ""], ["box-shadow", ""], ["border", ""], ["padding", ""]]))),
+            row("Card corners", segOf("Card corners", [["4px", "None"], ["", "Default"], ["28px", "Large"]], cr, (v) => ruleSet(":root", [["--brand-card-radius", v]]))),
+          ];
+        }),
+        group("type", "Typography", () => [
+          row("Title size", segOf("Title size", [["24px", "Small"], ["", "Default"], ["40px", "Large"]], ruleGet("h1.heading", "font-size"), (v) => ruleSet("h1.heading", [["font-size", v]]))),
+          row("Questions", segOf("Question weight", [["400", "Regular"], ["", "Default"], ["700", "Bold"]], ruleGet(".label", "font-weight"), (v) => ruleSet(".label", [["font-weight", v]]))),
+        ]),
+        group("inputs", "Inputs", () => {
+          const fv = ruleGet(":root", "--brand-field"), fu = ruleGet(".field", "border-width");
+          const now = fu ? "line" : fv === "transparent" ? "outline" : fv ? "fill" : "";
+          const LOOKS = { "": [[["--brand-field", ""], ["--brand-bw", ""]], []], fill: [[["--brand-field", "color-mix(in srgb, var(--brand-primary) 7%, var(--brand-surface))"], ["--brand-bw", "0px"]], []], outline: [[["--brand-field", "transparent"], ["--brand-bw", "1px"]], [["border-color", LINE]]], line: [[["--brand-field", "transparent"], ["--brand-bw", "1px"]], [["border-color", LINE], ["border-width", "0 0 1px 0"], ["border-radius", "0"], ["padding-inline", "0"]]] };
+          const look = (k) => { snap(); const r = rules(); const put = (sel, pairs) => { r[sel] = r[sel] || {}; for (const [a, x] of pairs) { if (x === "") delete r[sel][a]; else r[sel][a] = x; } if (!Object.keys(r[sel]).length) delete r[sel]; }; const [rv, f] = LOOKS[k]; put(":root", rv); put(".field", [["border-color", ""], ["border-width", ""], ["border-radius", ""], ["padding-inline", ""], ...f]); put(".choice", [["border-color", f.length ? LINE : ""]]); writeRules(r); commit(); };
+          return [
+            row("Style", segOf("Field style", [["", "Theme"], ["fill", "Filled"], ["outline", "Outlined"], ["line", "Line"]], now, look)),
+            row("Corners", segOf("Field corners", [["2px", "None"], ["", "Default"], ["14px", "Large"]], ruleGet(":root", "--brand-radius"), (v) => ruleSet(":root", [["--brand-radius", v]]))),
+          ];
+        }),
+        group("choices", "Choices", () => [
+          row("Boxes", sw("Choices in boxes", ruleGet(".choice", "background") !== "transparent", () => { const off = ruleGet(".choice", "background") === "transparent"; ruleSet(".choice", off ? [["background", ""], ["border-color", ""], ["min-height", ""]] : [["background", "transparent"], ["border-color", "transparent"], ["min-height", "32px"]]); })),
+          row("Spacing", segOf("Choice spacing", [["4px", "Tight"], ["", "Default"], ["14px", "Roomy"]], ruleGet(".page .choices", "gap"), (v) => ruleSet(".page .choices", [["gap", v]]))),
+        ]),
+        group("buttons", "Buttons", () => {
+          const br = ruleGet(":root", "--brand-btn-radius");
+          return [
+            row("Shape", segOf("Button shape", [["4px", "Square"], ["", "Theme"], ["999px", "Pill"]], br, (v) => ruleSet(":root", [["--brand-btn-radius", v]]))),
+            row("Size", segOf("Button size", [["36px", "Small"], ["", "Medium"], ["54px", "Large"]], ruleGet(".btn", "min-height"), (v) => ruleSet(".btn", [["min-height", v], ["padding", v === "54px" ? "0 30px" : v ? "0 16px" : ""], ["font-size", v === "54px" ? "16px" : ""]]))),
+            row("Full width", sw("Full width buttons", ruleGet(".btn", "width") === "100%", () => ruleSet(".btn", [["width", ruleGet(".btn", "width") === "100%" ? "" : "100%"]]))),
+          ];
+        }),
+        h("button", { class: "pill", text: "Reset advanced settings", onclick: () => { snap(); const r = rules(); for (const [sel, props] of ADV) { if (!r[sel]) continue; for (const k of props) delete r[sel][k]; if (!Object.keys(r[sel]).length) delete r[sel]; } writeRules(r); commit(); toast("Advanced settings reset"); } }),
+      );
     }
     p.append(D);
   }
@@ -2504,11 +2602,15 @@ ${CAL_CSS}
     (dlg.querySelector(".tcard[aria-pressed='true']") || dlg.querySelector(".tcard"))?.focus();
   }
   /** Settings with nothing picked: the whole form's settings, starting with hidden values from the link. */
-  function formSettings(p) {
+  /** Design: the brand or theme, Basic or Advanced, the background picture and one question at a time. */
+  function designPanel(p) {
+    p.append(h("div", { class: "sec" }, $("brandRow")));
     designSec(p);
-    welcomeSec(p);
-    oneSec(p);
     photoSec(p);
+    oneSec(p);
+  }
+  function formSettings(p) {
+    welcomeSec(p);
     // Hidden values from the link: ?utm_source=… or ?ref=… kept with each fill.
     const Hd = h("div", { class: "sec" }, h("h4", { text: "Hidden fields" }));
     const hidden = [...src.querySelectorAll('[data-cl-field="hidden"][data-cl-from="param"]')];
@@ -2713,7 +2815,7 @@ ${CAL_CSS}
     if (m === "after") { S.view = "thanks"; m = "edit"; S.mode = "edit"; }
     $("codeView").hidden = m !== "code";
 
-    $("panel").hidden = m !== "edit";
+    $("panel").hidden = m !== "edit" || !!S.logic;
     $("chat").classList.toggle("prev", m === "preview");
     $("exitPrev").hidden = m !== "preview" || !!PK;
     if (m !== "edit") { S.sel = null; $("hov").hidden = true; }
@@ -2726,21 +2828,104 @@ ${CAL_CSS}
     emit();
   }
   $("exitPrev").onclick = () => setMode("edit");
-  // The editor sidebar: Build (Add fields, Layers) or AI (the chat with Tia). The last choice is kept on this computer.
-  S.side = store.get("clr-studio-side", "build") === "ai" ? "ai" : "build";
+  // The sidebar lists the pages; Tia's chat opens over it ("ai") from the box under the form, and closes again.
+  S.side = "build";
   S.sub = "add";
   function sideUi() {
     const build = S.side === "build";
-    $("m-build").setAttribute("aria-selected", String(build)); $("m-ai").setAttribute("aria-selected", String(!build));
-    $("adds").hidden = !build;
     $("aiBody").hidden = build;
     if (!build) $("aiDot").hidden = true;
     S.nav = false;
-    if (build) { addsUi(); endUi(); }
+    if (build) endUi();
   }
-  function setSide(v, remember = true) { S.side = v; if (remember) store.set("clr-studio-side", v); sideUi(); setTimeout(overlay, 0); }
-  $("m-build").onclick = () => setSide("build");
-  $("m-ai").onclick = () => { setSide("ai"); $("input").focus(); };
+  function setSide(v) { S.side = v; sideUi(); setTimeout(overlay, 0); }
+  $("aiClose").onclick = () => setSide("build");
+  // Add field: the fields list opens over the form, and closes once one is added or dragged out.
+  function addsOpen(on) {
+    $("adds").hidden = !on;
+    $("addFieldBtn").setAttribute("aria-expanded", String(on));
+    if (on) { addsUi(); requestAnimationFrame(() => $("addQ").focus()); }
+  }
+  $("addFieldBtn").onclick = () => addsOpen($("adds").hidden);
+  listen(document, "pointerdown", (e) => { if ($("adds").hidden) return; const path = e.composedPath(); if (!path.includes($("adds")) && !path.includes($("addFieldBtn"))) addsOpen(false); });
+  listen(document, "keydown", (e) => { if (e.key === "Escape" && !$("adds").hidden) addsOpen(false); });
+  // Design: the right panel shows the form's look (theme, Basic, Advanced) until something is picked.
+  $("designBtn").onclick = () => { S.design = !S.design; if (S.design) { S.sel = null; overlay(); } panel(); stepUi(); };
+  // Logic: the form's flow in place of the form, and the step picked on the right (jumps, or the Ending's routing).
+  $("logicBtn").onclick = () => { S.logic = !S.logic; S.design = false; if (S.logic && S.lsel === undefined) S.lsel = S.view === "all" ? 0 : S.view; S.sel = null; overlay(); setMode("edit"); };
+  function logicUi() {
+    const on = !!S.logic && S.mode === "edit" && built();
+    $("logicView").hidden = !on;
+    $("logicBtn").setAttribute("aria-pressed", String(on));
+    $("addFieldBtn").hidden = on; $("designBtn").hidden = on;
+    if (S.mode === "edit") { $("canvas").hidden = on; $("panel").hidden = on; }
+    if (!on) return;
+    const steps = stepsIn(src), cover = src.querySelector("[data-cl-cover]"), thanks = src.querySelector("[data-cl-thanks]");
+    if (S.lsel === "cover" && !cover) S.lsel = 0;
+    if (typeof S.lsel === "number" && S.lsel >= Math.max(1, steps.length)) S.lsel = 0;
+    const g = $("lgraph"); g.innerHTML = "";
+    const label = (q, c) => (q.querySelector("legend,label,.label")?.textContent || nameIn(c) || "").replace(/\s+/g, " ").replace(/\*$/, "").trim();
+    const chipsOf = (st, i) => {
+      const out = [];
+      st.querySelectorAll("[data-cl-jump]").forEach((q) => {
+        const c = q.matches(CONTROLS) ? q : q.querySelector(CONTROLS);
+        if (!c) return;
+        const opts = [...q.querySelectorAll("input[value],option[value]")];
+        for (const j of readJumps(q.getAttribute("data-cl-jump"))) {
+          const to = steps.findIndex((x) => x.id === j.to);
+          const ans = (opts.find((o) => o.value === j.value)?.closest("label")?.textContent || j.value).trim();
+          if (to > i) out.push(["", `If ${label(q, c)} is ${ans}, skip to ${stepName(steps[to], to)}`]);
+        }
+      });
+      const own = st.hasAttribute("data-cl-own") ? st.getAttribute("data-cl-own") : st.getAttribute("data-cl-show-if");
+      if (own) out.push(["if", ifWords(own)]);
+      return out;
+    };
+    const nodes = [...(cover ? [{ v: "cover", mark: "★", name: "Welcome" }] : []), ...(steps.length ? steps.map((st, i) => ({ v: i, mark: String(i + 1), name: stepName(st, i), chips: chipsOf(st, i) })) : [{ v: 0, mark: "1", name: "Page 1" }]), ...(thanks ? [{ v: "thanks", mark: SVG(P.check, 12), name: endKindName(), end: true }] : [])];
+    const arrow = () => h("span", { class: "larrow", "aria-hidden": "true", html: '<svg width="28" height="10" viewBox="0 0 28 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M0 5h24M20 1l4 4-4 4"/></svg>' });
+    nodes.forEach((n, i) => {
+      const col = h("div", { class: "lcol", role: "listitem" }, h("button", { class: `lnode${n.end ? " end" : ""}`, "aria-pressed": String(S.lsel === n.v), onclick: () => { S.lsel = n.v; logicUi(); endUi(); } }, h("span", { class: "n", ...(n.mark.startsWith("<") ? { html: n.mark } : { text: n.mark }) }), h("span", { text: n.name })), ...(n.chips || []).map(([cls, t]) => h("span", { class: `lchip${cls ? ` ${cls}` : ""}`, text: t })));
+      g.append(h("div", { class: "lstep" }, col, i < nodes.length - 1 ? arrow() : null));
+    });
+    // A Team meeting branches after the Ending: its rules in order, then Otherwise.
+    const a = body().after;
+    const routes = a?.kind === "meeting" && (!a.tool || a.tool === "claritia") && isRouting(a) ? (a.routes || []).map(cleanRoute).filter(Boolean) : null;
+    if (routes) {
+      const qs = cleanPage(sourceHtml()).questions;
+      const qOf2 = (n) => qs.find((x) => x.name === n);
+      const fl = (f) => PAST_ROUTES.find((x) => x.field === f)?.label || qOf2(f)?.label || f;
+      const mName = (id) => MEETINGS.find((m) => m.id === id)?.name || "A meeting";
+      g.append(arrow(), h("div", { class: "lroutes" }, ...routes.map((r, i) => h("div", { class: "lroute" }, h("b", { text: `${i + 1}. ${r.name || `Rule ${i + 1}`}` }), h("span", { text: `${ruleWords(r, qOf2, fl)} → ${mName(r.meeting)}` }))), h("div", { class: "lroute" }, h("b", { text: "Otherwise" }), h("span", { text: `→ ${mName(a.meeting)}` }))));
+    }
+    // The step picked.
+    const box = $("lbody"); box.innerHTML = "";
+    if (S.lsel === "thanks") {
+      $("ltitle").textContent = routes ? "Team meeting" : endKindName();
+      if (!routes) box.append(h("p", { class: "hint0", text: a?.kind === "meeting" ? "Everyone books the same meeting." : "Everyone sees the Ending." }), h("div", {}, h("button", { class: "pill", text: "Open the Ending", onclick: () => { S.logic = false; S.view = "thanks"; setMode("edit"); } })));
+      return;
+    }
+    if (S.lsel === "cover") { $("ltitle").textContent = "Welcome"; box.append(h("p", { class: "hint0", text: "Everyone starts here." })); return; }
+    const i = typeof S.lsel === "number" ? S.lsel : 0, st = steps[i];
+    $("ltitle").textContent = `After ${st ? stepName(st, i) : "Page 1"}`;
+    if (!st) return;
+    const seen = new Set();
+    st.querySelectorAll('input[type="radio"],select').forEach((c) => {
+      const n = c.name; if (!n || seen.has(n)) return; seen.add(n);
+      const q = qOf(c) || c;
+      jumpsSec(box, q, c, label(q, c));
+    });
+    if (!box.children.length) box.append(h("p", { class: "hint0", text: i >= steps.length - 2 ? "This page goes on to the next one." : "Add a choice question to this page to skip pages by answer." }));
+    const own = st.hasAttribute("data-cl-own") ? st.getAttribute("data-cl-own") : st.getAttribute("data-cl-show-if");
+    box.append(h("div", { class: "sec" }, h("h4", { text: "Display condition" }), h("p", { class: "hint0", text: own ? ifWords(own) : "Always shown" }), h("div", {}, h("button", { class: "pill", text: "Edit display condition", onclick: () => { S.logic = false; S.view = i; setMode("edit"); select(st.getAttribute("data-k")); panel(); } }))));
+  }
+
+  // Ask Tia: the chat opens with the question sent.
+  $("askBox").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const t = $("askIn").value.trim();
+    setChatFold(false); setSide("ai");
+    if (t) { $("askIn").value = ""; void send(t); } else $("input").focus();
+  });
   function setDevice(d) { S.device = d; $("frame").className = `frame${d === "tab" ? " tablet" : d === "phone" ? " phone" : ""}`; for (const [id, v] of [["d-desk", "desk"], ["d-tab", "tab"], ["d-phone", "phone"]]) $(id).setAttribute("aria-pressed", String(d === v)); setTimeout(overlay, 340); }
   $("d-desk").onclick = () => setDevice("desk"); $("d-tab").onclick = () => setDevice("tab"); $("d-phone").onclick = () => setDevice("phone");
   // The bar's ⋯: Back to step 1, the live form, Layers (docs/form-ui-plan.md step 2).
@@ -2775,18 +2960,19 @@ ${CAL_CSS}
   let openRule = 0;
   const onEnding = () => S.mode === "edit" && S.view === "thanks" && !!cur && built();
   function endUi() {
-    const box = $("endBox"), flow = $("flow");
-    const show = onEnding() && S.side === "build";
-    box.hidden = !show;
+    const flow = $("flow");
     const a = cur ? body().after : null;
-    const team = onEnding() && a?.kind === "meeting" && (!a.tool || a.tool === "claritia") && isRouting(a) && MEETINGS.length > 0;
+    const routing = a?.kind === "meeting" && (!a.tool || a.tool === "claritia") && isRouting(a) && MEETINGS.length > 0;
+    // A Team meeting's rules are edited in Logic, with the Ending picked.
+    const team = routing && !!S.logic && S.mode === "edit" && S.lsel === "thanks";
     flow.hidden = !team;
     if (!team) flow.replaceChildren();
-    if (!show && !team) return box.replaceChildren();
-    renderAfter();
+    // The Ending's settings are the right panel while nothing on it is picked.
+    if (onEnding() && !S.sel && !S.design && !S.logic) panel();
+    if (team) renderAfter(h("div"));
   }
-  function renderAfter() {
-    const box = $("endBox"); box.innerHTML = "";
+  function renderAfter(box) {
+    box = box || $("pscroll");
     const flow = $("flow"); flow.innerHTML = "";
     const a = body().after;
     const set = (p) => { snap(); if (p.kind === "meeting") bookSpot(); body().after = { ...a, ...p }; changed(); stepUi(); runCheck(); draw(); endUi(); };
@@ -2858,7 +3044,12 @@ ${CAL_CSS}
       cB.append(pills(MEETINGS.map((m) => [m.id, `${m.name}, ${m.length} min`]), a.meeting, (id) => set({ meeting: id })));
       const m = MEETINGS.find((x) => x.id === a.meeting);
       if (m) cB.append(h("div", { class: "who" }, h("p", { text: m.dynamic ? m.who || "Dynamic" : "" }), h("button", { class: "pill", text: "Edit meeting", onclick: () => api.openMeeting(m.id) })));
-    } else routingCards($("flow"), a, set, mName);
+    } else {
+      // Team meeting: its rules are edited in Logic, beside the form's flow.
+      routingCards($("flow"), a, set, mName);
+      const n = (a.routes || []).length;
+      cB.append(h("p", { class: "hint0", text: `${n} ${n === 1 ? "rule" : "rules"}, then Otherwise` }), h("div", {}, h("button", { class: "pill primary", text: "Edit rules in Logic", onclick: () => { S.logic = true; S.lsel = "thanks"; S.sel = null; setMode("edit"); endUi(); } })));
+    }
     if (routing || MEETINGS.find((x) => x.id === a.meeting)?.dynamic) {
       const none = a.none === "later" ? "later" : "message";
       box.append(h("div", { class: "card2" }, h("span", { class: "lbl", text: "If no one is free" }), h("div", { class: "seg", role: "group", "aria-label": "If no one is free" }, ...[["message", "Show the thank-you"], ["later", "Email times later"]].map(([v, t]) => h("button", { "aria-pressed": String(v === none), text: t, onclick: () => set({ none: v === "later" ? "later" : undefined }) })))));
@@ -2959,7 +3150,7 @@ ${CAL_CSS}
     const [sends, tools, flows] = await Promise.all([id ? api.sends(id).catch(() => []) : [], extra.tools || api.tools().catch(() => []), id ? api.followUps(id).catch(() => []) : []]);
     if (!alive || extra.form !== id) return;
     extra = { ...extra, sends, tools, flows, busy: false };
-    renderAfter();
+    endUi();
   }
   async function ensureForm() {
     const c = cur;
@@ -3234,7 +3425,7 @@ ${CAL_CSS}
     S.lang = "";
     if (!c.body.lang && brandOf(c)?.profile?.language) c.body.lang = brandOf(c).profile.language;
     // A form with nothing built yet opens on AI (Tia builds it, or Start blank); a built one on the side last used.
-    S.side = built() ? (store.get("clr-studio-side", "build") === "ai" ? "ai" : "build") : "ai";
+    S.side = built() ? "build" : "ai";
     if (S.mode !== "edit") S.mode = "edit";
     S.view = 0;
     aboutUi(); chatHead(); brandUi(); renderLog(); sideUi(); setMode("edit"); pubUi(); buttons(); langUi();
