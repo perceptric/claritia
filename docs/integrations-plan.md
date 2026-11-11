@@ -512,3 +512,20 @@ With texts sold as a paid add-on (or sent on the team's own Twilio), the added c
 Growth. One-time costs: the Shopify App Store listing fee, about $19 (check). Listing on Zapier, Make, Activepieces,
 WordPress, Webflow, Framer and GoHighLevel is free (check). Google's app check for the Sheets, Drive and Docs scopes
 is free (check).
+
+
+### 13b. Import from Typeform and Tally (built)
+
+- **Where:** Forms, **Import a form**: paste a Google Forms, Typeform or Tally link. The tool is read from the link
+  (`formLink` in `src/lib/forms/linkImport.ts`); Google goes to `/api/forms/google-import` as before.
+- **No sign-in:** both serve a published form's questions to anyone who opens it. `/api/forms/link-import` reads
+  `form.typeform.com/forms/<id>` (JSON) or `tally.so/r/<id>` (the page's Next.js data), from fixed hosts with only
+  the checked id, 15 seconds and 5 MB at most, 20 imports a minute per address.
+- **What comes along:** every question kind each tool has, in the page's own classes, with labels, help lines,
+  options (Other kept), required, the first email saved to the contact, the welcome screen (Typeform), pages
+  (Typeform question groups, Tally page breaks), the thank-you, and hidden fields. Typeform forms open one question
+  at a time, as they were. Logic, scores and calculations, payments, Calendly steps, recalled answers and text shown
+  only by logic are named in the notes.
+- **Tests:** `tests/linkImport.test.ts`: links and look-alikes, every Typeform field and Tally block kind, escaping,
+  the notes, and each import passing the same page check as a Studio form.
+- **Cost:** $0 at Beta and Growth: one read of a public page per import, no AI.
