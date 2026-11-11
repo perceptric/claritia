@@ -17,6 +17,7 @@ import { BTN, copyText, GHOST, IB, Seg, SegN, Thumb, useNote } from "./parts";
 import { Menu } from "./Menu";
 import { confirmPause } from "./pause";
 import { folderKey, moveForm, renameFolder, useFormFolders } from "./folders";
+import { formLink } from "@/lib/forms/linkImport";
 
 export type ListRow = {
   id: string;
@@ -105,16 +106,19 @@ export function FormHome(props: ViewProps & { folder?: string }) {
       note.show(`${r.name} deleted`);
     });
 
-  // Import from Google Forms (docs/integrations-plan.md, Next step 13): the form read from Google, saved the way a new
-  // form is saved, opened as a draft. A first import signs in to Google, then picks up here with the same link.
+  // Import a form from Google Forms, Typeform or Tally (docs/integrations-plan.md, Next step 13 and "Import from
+  // Typeform and Tally"): the form read from its link, saved the way a new form is saved, opened as a draft. A first
+  // Google import signs in to Google, then picks up here with the same link; Typeform and Tally need no sign-in.
   const [importing, setImporting] = useState(false);
   const importGoogle = async (resume?: string) => {
-    const link = resume ?? (await askText("Google Form link", { placeholder: "https://docs.google.com/forms/d/…/edit", ok: "Import" }));
+    const link = resume ?? (await askText("Form link", { placeholder: "A Google Forms, Typeform or Tally link", ok: "Import" }));
     if (!link?.trim()) return;
+    const tool = formLink(link)?.tool;
+    if (!tool) return setError("Paste a Google Forms, Typeform or Tally link.");
     setImporting(true);
     setError("");
     try {
-      const r = await postJson<{ signIn?: string; name?: string; html?: string; css?: string; brand?: string; notes?: string[]; questions?: number }>(session, "/api/forms/google-import", { workspaceId: ws.id, link });
+      const r = await postJson<{ signIn?: string; name?: string; html?: string; css?: string; brand?: string; notes?: string[]; questions?: number }>(session, tool === "google" ? "/api/forms/google-import" : "/api/forms/link-import", { workspaceId: ws.id, link });
       if (r.signIn) {
         try {
           sessionStorage.setItem(GIMPORT, link);
@@ -196,7 +200,7 @@ export function FormHome(props: ViewProps & { folder?: string }) {
       {rows?.length ? (
         <button type="button" className={GHOST} disabled={importing} onClick={() => void importGoogle()}>
           <Ic n="down" />
-          {importing ? "Importing" : "Import from Google Forms"}
+          {importing ? "Importing" : "Import a form"}
         </button>
       ) : null}
       {rows?.length ? (
