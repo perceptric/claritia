@@ -9,7 +9,7 @@ import type { Cond, Field, Form, Rule, Step } from "../forms/schema.ts";
 import type { PageAfter } from "./page.ts";
 import { writeList } from "./page.ts";
 import { photoAttrs } from "../forms/media.ts";
-import type { StudioRoute } from "./routes.ts";
+import { withConds, type RouteCond, type StudioRoute } from "./routes.ts";
 
 export type Converted = { html: string; css: string; after: PageAfter; title: string; lost: string[] };
 
@@ -355,18 +355,22 @@ function afterOf(form: Form, name: (id: string) => string | undefined, lost: Set
   if (sch?.tool && sch.tool !== "claritia" && sch.url) return { kind: "meeting", tool: sch.tool, link: sch.url };
   if (sch?.tool === "claritia" && sch.meetingTypeId) {
     const routes: StudioRoute[] = [];
-    for (const r of (sch as { routes?: { meet?: string; conds?: Cond[] }[] }).routes ?? []) {
-      const c = r.conds?.length === 1 ? r.conds[0]! : null;
-      const n = c ? name(c.field) : undefined;
+    for (const r of (sch as { routes?: { meet?: string; conds?: Cond[]; match?: "all" | "any"; name?: string; with?: StudioRoute["with"] }[] }).routes ?? []) {
       // A route's ops are Routing's: any of and none of are its one of and not one of.
-      const op = c ? (({ any_of: "one_of", none_of: "not_one_of" }) as Record<string, string>)[c.op] ?? c.op : "";
-      if (!c || !n || !r.meet || !ROUTE_OP.has(op)) {
+      const conds = (r.conds ?? []).map((c) => {
+        const n = name(c.field);
+        const op = (({ any_of: "one_of", none_of: "not_one_of" }) as Record<string, string>)[c.op] ?? c.op;
+        return n && ROUTE_OP.has(op) ? { field: n, op: op as StudioRoute["op"], ...(c.values?.length ? { value: c.values } : c.value !== undefined ? { value: c.value } : {}) } : null;
+      });
+      const rule = r.meet && conds.length && conds.every(Boolean) ? withConds({ field: "", op: "is", meeting: r.meet, ...(r.name ? { name: r.name } : {}), ...(r.match === "any" ? { match: "any" as const } : {}), ...(r.with ? { with: r.with } : {}) }, conds as RouteCond[]) : null;
+      if (!rule) {
         lost.add("A meeting route Routing can't read from the page: set it again in On submission");
         continue;
       }
-      routes.push({ field: n, op: op as StudioRoute["op"], ...(c.values?.length ? { value: c.values } : c.value !== undefined ? { value: c.value } : {}), meeting: r.meet });
+      routes.push(rule);
     }
-    return { kind: "meeting", meeting: sch.meetingTypeId, ...(routes.length ? { routes } : {}) };
+    const before = (sch as { before?: { spam?: boolean; keep?: boolean } }).before;
+    return { kind: "meeting", meeting: sch.meetingTypeId, mode: routes.length ? "routing" : "one", ...(routes.length ? { routes } : {}), ...(sch.none === "later" ? { none: "later" as const } : {}), ...(before ? { before: { spam: before.spam !== false, keep: before.keep !== false } } : {}) };
   }
   if (end?.kind === "redirect") return { kind: "page", url: end.url };
   return { kind: "thanks" };

@@ -106,6 +106,13 @@ export function Studio({ sb, session, ws, navigate, formId = "", chatId = "", fr
         const r = await sb.from("workspace_billing").select("plan").eq("workspace_id", ws.id).maybeSingle();
         return r.error ? true : brandPlan((r.data as { plan?: string } | null)?.plan ?? "free");
       },
+      routingFacts: async () => {
+        const screen = await rt<Screen>(sessionRef.current, ws.id, "rt_screen");
+        return {
+          teams: screen.teams.filter((t) => t.keys[0]).map((t) => ({ key: t.keys[0]!, name: t.name })),
+          people: screen.people.map((p) => ({ id: p.id, name: p.name })),
+        };
+      },
       meetings: async () => {
         const types = (await fetchMeetingTypes(sb, ws.id)).filter((t) => t.active);
         // A Dynamic meeting shows who books it in one line; the names come from the routing screen.

@@ -1166,7 +1166,21 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
           .slice(0, 30)
           .map((x) => (x && typeof x === "object" ? (x as Record<string, unknown>) : {}))
           .filter((x) => typeof x.id === "string" && /^[\w-]{1,24}$/.test(x.id) && typeof x.meet === "string" && /^[0-9a-f-]{36}$/.test(x.meet))
-          .map((x) => ({ id: x.id as string, meet: x.meet as string, conds: (Array.isArray(x.conds) ? x.conds : []).slice(0, 10).map(cleanCondition).filter((c): c is NonNullable<typeof c> => !!c) }));
+          .map((x) => {
+            const w = x.with && typeof x.with === "object" ? (x.with as Record<string, unknown>) : null;
+            const withOk = w && (w.kind === "user" || w.kind === "team") && typeof w.id === "string" && /^[\w.:-]{1,80}$/.test(w.id);
+            const name = str(x.name, 60);
+            return {
+              id: x.id as string,
+              meet: x.meet as string,
+              conds: (Array.isArray(x.conds) ? x.conds : []).slice(0, 10).map(cleanCondition).filter((c): c is NonNullable<typeof c> => !!c),
+              ...(x.match === "any" ? { match: "any" as const } : {}),
+              ...(name ? { name } : {}),
+              ...(withOk ? { with: { kind: w!.kind as "user" | "team", id: w!.id as string } } : {}),
+            };
+          });
+        const bf = sch.before && typeof sch.before === "object" ? (sch.before as Record<string, unknown>) : null;
+        if (bf && (typeof bf.spam === "boolean" || typeof bf.keep === "boolean")) schedule.before = { ...(typeof bf.spam === "boolean" ? { spam: bf.spam } : {}), ...(typeof bf.keep === "boolean" ? { keep: bf.keep } : {}) };
       }
       if (sch.prefill === false && tool !== "claritia") schedule.prefill = false;
     }

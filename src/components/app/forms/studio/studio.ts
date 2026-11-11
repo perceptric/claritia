@@ -3,11 +3,11 @@
 import { checkForm, DEFAULT_CONSENT, emptyForm } from "../../../../lib/forms/schema";
 import { formToPage } from "../../../../lib/studio/fromForm";
 import { checkStudioPage } from "../../../../lib/studio/check";
-import { cleanPage } from "../../../../lib/studio/page";
+import { cleanPage, isRouting } from "../../../../lib/studio/page";
 import { pageNumbers } from "../../../../lib/studio/numbers";
 import { styleCssById, styleName } from "../../../../lib/studio/styleCss";
 import { THEMES } from "../../../../lib/forms/gallery/themes";
-import { cleanRoute, OP_LABEL, PAST_ROUTES, ROUTE_OPS, routeKind, routeMeeting, routeStart } from "../../../../lib/studio/routes";
+import { cleanRoute, condsOf, neverRuns, OP_LABEL, PAST_ROUTES, ROUTE_OPS, routeIndex, routeKind, routeMeeting, routeStart, ruleWords, sampleFor, withConds } from "../../../../lib/studio/routes";
 import { linkProblem, SCHEDULERS } from "../../../../lib/forms/schedule";
 import { INDUSTRIES, industryOf, isRtl, languageName, profileWords, recipeText } from "../../../../lib/studio/industries";
 import { ACCESS_CSS, around, CAL_CSS, consentSpot, limitMsg, linkErrors, pageBox, pipes, showCover, shuffle, zoneWords } from "../../../../lib/studio/runtime";
@@ -297,8 +297,25 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .pill.on:hover:not(:disabled), .pill.primary:hover:not(:disabled) { color: var(--bg); border-color: var(--ink); opacity: .9; }
 .pill .logo { width: 16px; height: 16px; border-radius: 4px; flex: none; object-fit: contain; }
 .pill .logo.mark { border-radius: 0; }
-.after { flex: 1; min-height: 0; overflow: auto; padding: 24px; display: flex; justify-content: center; background: var(--paper); }
-.after .inner { width: min(600px, 100%); display: flex; flex-direction: column; gap: 14px; }
+.after { flex: none; width: 380px; min-height: 0; overflow: auto; padding: 16px; border-left: 1px solid var(--line); background: var(--bg); }
+.after .inner { display: flex; flex-direction: column; gap: 12px; }
+.after h2 { margin: 0; font-size: 15px; font-weight: 600; color: var(--ink); }
+.canvas.as { flex-direction: column; align-items: center; justify-content: flex-start; gap: 12px; }
+.asbar { width: 100%; max-width: 1100px; display: flex; flex-direction: column; gap: 8px; }
+.asbar .chips { align-items: center; }
+.asbar .w { color: var(--muted); font-size: 12.5px; margin-right: 2px; }
+.asbar p { margin: 0; font-size: 12.5px; color: var(--body); }
+.rcard { gap: 10px; padding: 12px; }
+.rcard.on { box-shadow: 0 0 0 1px var(--signal); border-color: var(--signal); }
+.rhead { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.rnum { width: 20px; height: 20px; border-radius: 6px; background: var(--paper-deep); font: 600 11px var(--sans); display: inline-flex; align-items: center; justify-content: center; flex: none; margin-right: 4px; }
+.rname { flex: 1; min-width: 0; border: 0; background: transparent; padding: 0; text-align: start; font: 600 13px var(--sans); color: var(--ink); overflow-wrap: anywhere; }
+.rhead .in { flex: 1; min-width: 0; height: 30px; font-weight: 600; }
+.rsum { border: 0; background: transparent; padding: 0; text-align: start; display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; color: var(--muted); line-height: 1.45; overflow-wrap: anywhere; }
+.rsum b { font-weight: 500; color: var(--ink); }
+.rcard .rule:first-of-type { border-top: 0; padding-top: 0; }
+.rcard .lbl { color: var(--muted); font-size: 12px; }
+.rwarn { margin: 0; color: var(--rose); font-size: 12.5px; line-height: 1.45; }
 .card2 { border: 1px solid var(--line); border-radius: 10px; background: var(--bg); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
 .card2 h3 { margin: 0; font-size: 14px; font-weight: 600; }
 .rule { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; border-top: 1px solid var(--line); padding-top: 12px; }
@@ -491,6 +508,7 @@ input, textarea { user-select: text; -webkit-user-select: text; }
   .adds { width: auto; border-right: 0; border-bottom: 1px solid var(--line); max-height: 220px; }
   .canvas { min-height: 70vh; padding: 12px; }
   .panel { width: auto; border-left: 0; border-top: 1px solid var(--line); }
+  .after { width: auto; border-left: 0; border-top: 1px solid var(--line); }
 }
 @media (prefers-reduced-motion: reduce) { .chat, .frame { transition: none; } .live .sk span { animation: none; } }
 `;
@@ -563,6 +581,7 @@ export const STUDIO_HTML = `
     <div class="work" id="work">
       <div class="mid" id="mid">
       <div class="canvas" id="canvas">
+        <div class="asbar" id="asBar" role="group" aria-label="Preview as" hidden></div>
         <div class="frame" id="frame">
           <div id="host"></div>
           <div class="empty" id="empty" hidden><div class="wait" id="tplWait"><div class="sk" aria-hidden="true"><span style="width:55%;height:16px"></span><span style="width:80%"></span><span class="b2"></span><span style="width:30%"></span><span class="b2"></span><span class="bt2"></span></div><span id="emptyText">Your form shows here as Tia builds it</span></div><div class="tpls" id="tpls" hidden><div class="tplhead"><h2 id="tplTitle">Start from a template</h2><div class="tplact"><label class="tplq">${SVG(P.search, 14)}<input id="tplQ" type="search" placeholder="Search templates" aria-label="Search templates" autocomplete="off"></label><button class="pill" id="blankBtn">${SVG(P.plus, 13)}Start blank</button></div></div><div class="tplfam" id="tplFam" role="group" aria-label="Category"></div><div class="tplgrid" id="tplGrid"></div><div class="tplfoot"><button class="pill" id="tplMore" hidden>Show more</button></div></div></div>
@@ -577,7 +596,6 @@ export const STUDIO_HTML = `
         <textarea id="codeText" spellcheck="false" aria-label="Code"></textarea>
         <div><button class="pill primary" id="codeApply">Apply</button></div>
       </div>
-      <div class="after" id="afterView" hidden><div class="inner" id="afterInner"></div></div>
       <div class="stepdock" id="stepDock"><div class="ptools" id="pageTools" role="toolbar" aria-label="Page tools"></div><span class="spacer"></span><button class="ib tipup" id="undo" data-tip="Undo" aria-label="Undo" disabled>${SVG(P.undo)}</button><button class="ib tipup tipleft" id="redo" data-tip="Redo" aria-label="Redo" disabled>${SVG(P.redo)}</button></div>
       </div>
       <aside class="panel" id="panel" aria-label="Element" hidden>
@@ -589,6 +607,7 @@ export const STUDIO_HTML = `
         </div>
         <div class="pscroll" id="pscroll"></div>
       </aside>
+      <aside class="after" id="afterView" aria-label="On submission" hidden><div class="inner" id="afterInner"></div></aside>
     </div>
   </section>
 </div>
@@ -604,6 +623,8 @@ export type StudioApi = {
   meetings(): Promise<StudioMeeting[]>;
   /** Whether the booking calendar wears the form's style (paid plans) or the plain calendar (Free). */
   calendarBrand?(): Promise<boolean>;
+  /** Routing's teams (a team key each) and people, for who takes a rule's meeting. */
+  routingFacts?(): Promise<{ teams: { key: string; name: string }[]; people: { id: string; name: string }[] }>;
   /** preview: the home page with its scripts out, for a frame that runs nothing; shot: its share picture. */
   readSite(host: string): Promise<{ url: string; site: string; name: string; logo: string | null; logoUrl: string | null; logoSvg: string | null; preview?: string | null; shot?: string | null }>;
   scan(host: string): Promise<{ kitId: string }>;
@@ -853,8 +874,27 @@ ${CAL_CSS}
     }
     run(wrap);
     stepUi();
+    asUi();
     requestAnimationFrame(overlay);
     runCheck();
+  }
+  // Preview as (On submission with Routing): one chip per rule and Otherwise; the booking page shows what that lead
+  // gets, and says so when an earlier rule catches them first.
+  function asUi() {
+    const bar = $("asBar"), a = body().after;
+    const routes = S.mode === "after" && a?.kind === "meeting" && (!a.tool || a.tool === "claritia") && isRouting(a) ? (a.routes || []).map(cleanRoute).filter(Boolean) : [];
+    bar.hidden = !routes.length;
+    $("canvas").classList.toggle("as", !!routes.length);
+    if (!routes.length) return bar.replaceChildren();
+    if (!(S.as >= -1 && S.as < routes.length)) S.as = 0;
+    const qs = cleanPage(sourceHtml()).questions;
+    const pick = (i) => { S.as = i; openRule = i; draw(); renderAfter(); };
+    const chip = (i, text) => h("button", { class: `pill${S.as === i ? " on" : ""}`, "aria-pressed": String(S.as === i), text, onclick: () => pick(i) });
+    const lead = S.as >= 0 ? sampleFor(routes[S.as], qs) : { values: {}, past: {} };
+    const hit = routeIndex(routes, lead.values, qs, lead.past);
+    const nameOf = (i) => `Rule ${i + 1}${routes[i].name ? `, ${routes[i].name},` : ""}`;
+    const line = hit !== S.as ? (hit >= 0 ? `${nameOf(hit)} catches this lead first.` : "No rule catches this lead, so Otherwise books it.") : "";
+    bar.replaceChildren(h("div", { class: "chips" }, h("span", { class: "w", text: "Preview as" }), ...routes.map((r, i) => chip(i, `${i + 1}. ${r.name || `Rule ${i + 1}`}`)), chip(-1, "Otherwise")), ...(line ? [h("p", { text: line })] : []));
   }
   const live = (k) => root.querySelector(`[data-k="${k}"]`);
   const BLOCK_NAMES = { file: "File upload", phone: "Phone", address: "Address", date: "Date", time: "Time", daterange: "Date range", rating: "Rating", signature: "Signature", country: "Country", calc: "Calculation", payment: "Payment", result: "Result", grid: "Grid", ranking: "Ranking", hidden: "Hidden value", list: "Searchable list", pictures: "Picture choice", group: "Repeating group", sum: "Points to spread", range: "Range slider", table: "Table input", slots: "Availability grid", products: "Product picker", amount: "Amount picker", duration: "Duration", rich: "Rich text", draw: "Drawing", location: "Current location", map: "Map pin", record: "Audio or video answer", crop: "Image with crop", image: "Image", video: "Video" };
@@ -1025,8 +1065,11 @@ ${CAL_CSS}
   async function realCalendar(w, v, spot) {
     const a = body().after;
     // The same rows the live form runs; past fills aren't known in the preview, so those rows wait.
-    const routes = (a.routes || []).map(cleanRoute).filter(Boolean);
-    const m = MEETINGS.find((x) => x.id === routeMeeting(routes, a.meeting, v, cleanPage(sourceHtml()).questions)) || MEETINGS[0];
+    const routes = isRouting(a) ? (a.routes || []).map(cleanRoute).filter(Boolean) : [];
+    const qs0 = cleanPage(sourceHtml()).questions;
+    // On submission: the lead picked in Preview as, run through every rule as a live lead would be.
+    const as = S.mode === "after" && routes.length ? (S.as >= 0 && routes[S.as] ? sampleFor(routes[S.as], qs0) : { values: {}, past: {} }) : null;
+    const m = MEETINGS.find((x) => x.id === (as ? routeMeeting(routes, a.meeting, as.values, qs0, as.past) : routeMeeting(routes, a.meeting, v, qs0))) || MEETINGS[0];
     spot.hidden = false;
     if (!m) return spot.replaceChildren(h("p", { class: "text", text: "No meeting types yet." }));
     spot.replaceChildren(h("p", { class: "text", text: "\u2026" }));
@@ -1943,7 +1986,8 @@ ${CAL_CSS}
   function renameValue(name, from, to) {
     for (const a of ["data-cl-show-if", "data-cl-own"]) src.querySelectorAll(`[${a}]`).forEach((e) => e.setAttribute(a, renameValueIn(e.getAttribute(a), name, from, to)));
     src.querySelectorAll("[data-cl-jump]").forEach((q) => { if (namesIn(q).has(name)) q.setAttribute("data-cl-jump", writeJumps(readJumps(q.getAttribute("data-cl-jump")).map((j) => (j.value === from ? { ...j, value: to } : j)))); });
-    body().after.routes = (body().after.routes || []).map((r) => (r.field !== name ? r : Array.isArray(r.value) ? { ...r, value: r.value.map((v) => (v === from ? to : v)) } : r.value === from ? { ...r, value: to } : r));
+    const swap = (c) => (c.field !== name ? c : Array.isArray(c.value) ? { ...c, value: c.value.map((v) => (v === from ? to : v)) } : c.value === from ? { ...c, value: to } : c);
+    body().after.routes = (body().after.routes || []).map((r) => ({ ...swap(r), ...(r.more ? { more: r.more.map(swap) } : {}) }));
   }
   function optionsSec(p, input, q) {
     const name = input.name, kind = input.tagName === "SELECT" ? "select" : input.type;
@@ -2092,7 +2136,8 @@ ${CAL_CSS}
       src.querySelectorAll(`[data-cl-error-for="${CSS.escape(name)}"]`).forEach((e) => e.setAttribute("data-cl-error-for", v));
       for (const a of ["data-cl-show-if", "data-cl-own"]) src.querySelectorAll(`[${a}]`).forEach((e) => e.setAttribute(a, e.getAttribute(a).replace(new RegExp(`\\b${name}\\b`, "g"), v)));
       src.querySelectorAll("[data-cl-pipe]").forEach((e) => { const t = e.textContent.replace(new RegExp(`\\{${name}\\}`, "g"), `{${v}}`); e.textContent = t; });
-      body().after.routes = (body().after.routes || []).map((r) => (r.field === name ? { ...r, field: v } : r));
+      const ren = (c) => (c.field === name ? { ...c, field: v } : c);
+      body().after.routes = (body().after.routes || []).map((r) => ({ ...ren(r), ...(r.more ? { more: r.more.map(ren) } : {}) }));
       if (body().ids?.[name]) { body().ids[v] = body().ids[name]; delete body().ids[name]; }
       commit();
     });
@@ -2626,7 +2671,9 @@ ${CAL_CSS}
     if (PK && m !== "preview") { PK = null; setSource(""); peekUi(); }
     const was = S.mode;
     S.mode = m;
-    $("canvas").hidden = m === "code" || m === "after";
+    $("canvas").hidden = m === "code";
+    // On submission shows the end page as it runs (the thank-you, the redirect or the booking page) beside its settings.
+    if (m === "after") { done = true; coverOn = false; }
     $("codeView").hidden = m !== "code";
     $("afterView").hidden = m !== "after";
     $("panel").hidden = m !== "edit";
@@ -2694,19 +2741,21 @@ ${CAL_CSS}
     commit(); toast("Applied");
   };
 
-  // On submission: a thank-you, a page or a meeting, which meeting each answer books, who books it, and what every
-  // send does.
+  // On submission: a thank-you, a page or a meeting; Individual (one meeting) or Routing (rules, first match wins,
+  // Otherwise the meeting), who takes it, and what every send does. The canvas shows the end page beside it.
+  let openRule = 0;
   function renderAfter() {
     const box = $("afterInner"); box.innerHTML = "";
     const a = body().after;
-    const set = (p) => { snap(); if (p.kind === "meeting") bookSpot(); body().after = { ...a, ...p }; changed(); renderAfter(); stepUi(); runCheck(); };
-    const c1 = h("div", { class: "card2" }, h("h3", { text: "After they send it" }), pills([["thanks", "Show a message"], ["page", "Redirect to a page"], ["meeting", "Book a meeting"]], a.kind, (k) => set({ kind: k, ...(k === "meeting" && !a.meeting && MEETINGS[0] ? { meeting: MEETINGS[0].id } : {}) })));
+    const set = (p) => { snap(); if (p.kind === "meeting") bookSpot(); body().after = { ...a, ...p }; changed(); renderAfter(); stepUi(); runCheck(); draw(); };
+    box.append(h("h2", { text: "On submission" }));
+    const c1 = h("div", { class: "card2" }, pills([["thanks", "Show a thank-you message"], ["page", "Redirect to a page"], ["meeting", "Book a meeting"]], a.kind, (k) => set({ kind: k, ...(k === "meeting" && !a.meeting && MEETINGS[0] ? { meeting: MEETINGS[0].id } : {}) })));
     if (a.kind === "page") { const i = h("input", { class: "in", placeholder: "https://yourcompany.com/thanks", value: a.url || "", "aria-label": "Page address", style: "height:34px" }); i.addEventListener("change", () => set({ url: i.value.trim() })); c1.append(i); }
+    if (a.kind !== "page") c1.append(h("div", {}, h("button", { class: "pill", text: a.kind === "meeting" ? "Edit the booking page" : "Edit the thank-you page", onclick: () => { S.view = "thanks"; setMode("edit"); } })));
     box.append(c1);
     if (a.kind === "meeting") meetingCards(box, a, set);
     box.append(alwaysCard(a, set));
   }
-
   // Book a meeting: the calendar sits under the thank-you's message, so the message stays the team's to edit.
   function bookSpot() {
     const t = src.querySelector("[data-cl-thanks]");
@@ -2748,47 +2797,104 @@ ${CAL_CSS}
     box.append(cS);
     if (!MEETINGS.length) { box.append(h("div", { class: "card2" }, h("h3", { text: "No meeting types yet" }), h("div", {}, h("button", { class: "pill", text: "Open Meetings", onclick: () => api.openMeetings() })))); return; }
     const mName = (id) => MEETINGS.find((m) => m.id === id)?.name || "Pick";
-    box.append(h("div", { class: "card2" }, h("h3", { text: "Meeting" }), pills(MEETINGS.map((m) => [m.id, `${m.name}, ${m.length} min`]), a.meeting, (id) => set({ meeting: id }))));
-
-    // Who books it: a Dynamic meeting's rules in one line. The routing lives on the meeting type.
-    const used = [...new Set([a.meeting, ...(a.routes || []).map((r) => r.meeting)])].map((id) => MEETINGS.find((m) => m.id === id)).filter((m) => m?.dynamic);
-    if (used.length) {
-      const cW = h("div", { class: "card2" }, h("h3", { text: "Who books it" }));
-      for (const m of used) cW.append(h("div", { class: "who" }, h("p", {}, ...(used.length > 1 ? [h("b", { text: `${m.name}: ` })] : []), document.createTextNode(m.who || "Dynamic")), h("button", { class: "pill", text: "Edit routing", onclick: () => api.openMeeting(m.id) })));
-      box.append(cW);
+    const routing = isRouting(a);
+    const seg = h("div", { class: "seg", role: "group", "aria-label": "Who they book with" }, ...[["one", "Individual"], ["routing", "Routing"]].map(([v, t]) => h("button", { "aria-pressed": String((v === "routing") === routing), text: t, onclick: () => set({ mode: v }) })));
+    const cB = h("div", { class: "card2" }, seg);
+    box.append(cB);
+    if (!routing) {
+      // Individual: everyone books this meeting, with the people the meeting names.
+      cB.append(pills(MEETINGS.map((m) => [m.id, `${m.name}, ${m.length} min`]), a.meeting, (id) => set({ meeting: id })));
+      const m = MEETINGS.find((x) => x.id === a.meeting);
+      if (m) cB.append(h("div", { class: "who" }, h("p", { text: m.dynamic ? m.who || "Dynamic" : "" }), h("button", { class: "pill", text: "Edit meeting", onclick: () => api.openMeeting(m.id) })));
+    } else routingCards(box, a, set, mName);
+    if (routing || MEETINGS.find((x) => x.id === a.meeting)?.dynamic) {
+      const none = a.none === "later" ? "later" : "message";
+      box.append(h("div", { class: "card2" }, h("h3", { text: "If no one is free" }), h("div", { class: "seg", role: "group", "aria-label": "If no one is free" }, ...[["message", "Show the thank-you"], ["later", "Email times later"]].map(([v, t]) => h("button", { "aria-pressed": String(v === none), text: t, onclick: () => set({ none: v === "later" ? "later" : undefined }) })))));
     }
+  }
 
-    // Route by answer: any test on any question or past fill, top to bottom, Otherwise the meeting above.
+  // Routing's teams and people, for who takes a rule's meeting. Read once, when Routing is first open.
+  let FACTS = null, factsAsked = false;
+  function needFacts() {
+    if (factsAsked || !api.routingFacts) return;
+    factsAsked = true;
+    api.routingFacts().then((f) => { FACTS = f; if (alive && S.mode === "after") renderAfter(); }).catch(() => {});
+  }
+
+  // Routing: Before any rule, the rules in run order (first match wins), Otherwise, and Add a rule.
+  function routingCards(box, a, set, mName) {
+    needFacts();
     const qs = cleanPage(sourceHtml()).questions;
     const qOf = (name) => qs.find((x) => x.name === name);
     const fieldLabel = (f) => PAST_ROUTES.find((p) => p.field === f)?.label || qOf(f)?.label || f;
     const routes = (a.routes || []).map((r) => cleanRoute(r) || r);
-    const c3 = h("div", { class: "card2" }, h("h3", { text: "Route by answer" }));
+    const setRoutes = (list) => set({ routes: list, mode: "routing" });
+
+    const bf = { spam: a.before?.spam !== false, keep: a.before?.keep !== false };
+    const tog = (k, text) => h("button", { class: `pill${bf[k] ? " on" : ""}`, "aria-pressed": String(bf[k]), text, onclick: () => set({ before: { ...bf, [k]: !bf[k] } }) });
+    box.append(h("div", { class: "card2" }, h("h3", { text: "Before any rule" }), h("div", { class: "chips" }, tog("spam", "Spam check"), tog("keep", "Keep existing owners"))));
+
+    const teamName = (id) => FACTS?.teams?.find((t) => t.key === id)?.name || "A team";
+    const personName = (id) => FACTS?.people?.find((p) => p.id === id)?.name || "A teammate";
+    const withWords = (r) => (r.with ? (r.with.kind === "team" ? `${teamName(r.with.id)} takes turns` : personName(r.with.id)) : "As the meeting says");
+    const never = routes.every((r) => r && r.field) ? neverRuns(routes, qs) : routes.map(() => -1);
+    if (openRule >= routes.length) openRule = routes.length - 1;
+
     routes.forEach((r, i) => {
-      const q = qOf(r.field);
-      const kind = routeKind(r.field, q);
-      const upd = (p2) => set({ routes: routes.map((x, j) => (j === i ? { ...x, ...p2 } : x)) });
-      const row = h("div", { class: "rule" }, h("span", { class: "w", text: i ? "Or when" : "When" }));
-      row.append(menuPill(fieldLabel(r.field), [...qs.map((x) => [x.label, () => upd({ field: x.name, ...routeStart(x.name, x) }), x.name === r.field]), "sep", ...PAST_ROUTES.map((p) => [p.label, () => upd({ field: p.field, ...routeStart(p.field) }), p.field === r.field])], "Question"));
-      const ops = ROUTE_OPS[kind];
-      if (ops.length > 1) row.append(menuPill(OP_LABEL[r.op] || "is", ops.map((op) => [OP_LABEL[op], () => upd({ op, value: op === "between" ? ["", ""] : op === "filled" || op === "empty" ? undefined : Array.isArray(r.value) && kind !== "choice" ? r.value[0] : r.value === undefined ? (kind === "choice" ? [] : "") : r.value }), op === r.op]), "Test"));
-      const num = (v, label, fn) => { const i2 = h("input", { class: "in num", type: "number", inputmode: "decimal", value: v ?? "", "aria-label": label }); i2.addEventListener("change", () => fn(i2.value.trim())); return i2; };
-      if (r.op !== "filled" && r.op !== "empty") {
-        if (kind === "choice") {
-          const vals = Array.isArray(r.value) ? r.value : r.value ? [r.value] : [];
-          row.append(menuPill(vals.map((v) => q?.options.find((o) => o.value === v)?.label || v).join(" or ") || "Pick", (q?.options || []).map((o) => [o.label || o.value, () => upd({ value: vals.includes(o.value) ? vals.filter((v) => v !== o.value) : [...vals, o.value] }), vals.includes(o.value)]), "Answer"));
-        } else if (kind === "yesno") row.append(menuPill(r.value === "false" ? "No" : "Yes", [["Yes", () => upd({ value: "true" }), r.value !== "false"], ["No", () => upd({ value: "false" }), r.value === "false"]], "Yes or no"));
-        else if (kind === "days") row.append(num(r.value, "Days", (v) => upd({ value: v === "" ? "" : Number(v) })), h("span", { class: "w", text: "days" }));
-        else if (r.op === "between") { const v2 = Array.isArray(r.value) ? r.value : ["", ""]; row.append(num(v2[0], "From", (v) => upd({ value: [v, v2[1]] })), h("span", { class: "w", text: "and" }), num(v2[1], "To", (v) => upd({ value: [v2[0], v] }))); }
-        else if (kind === "number") row.append(num(Array.isArray(r.value) ? r.value[0] : r.value, "Number", (v) => upd({ value: v })));
-        else { const t = h("input", { class: "in txt", value: Array.isArray(r.value) ? r.value[0] || "" : r.value ?? "", "aria-label": "Answer" }); t.addEventListener("change", () => upd({ value: t.value.trim() })); row.append(t); }
+      const open = openRule === i;
+      const upd = (p2) => setRoutes(routes.map((x, j) => (j === i ? { ...x, ...p2 } : x)));
+      const conds = condsOf(r);
+      const setConds = (list) => { const next = withConds(r, list); if (next) setRoutes(routes.map((x, j) => (j === i ? next : x))); };
+      const move = (d) => { const j = i + d; if (j < 0 || j >= routes.length) return; const list = routes.slice(); [list[i], list[j]] = [list[j], list[i]]; openRule = j; if (S.as === i) S.as = j; setRoutes(list); };
+      const card = h("div", { class: `card2 rcard${open ? " on" : ""}` });
+      const head = h("div", { class: "rhead" }, h("span", { class: "rnum", text: String(i + 1) }));
+      if (open) { const n = h("input", { class: "in", value: r.name || "", placeholder: `Rule ${i + 1}`, "aria-label": "Rule name" }); n.addEventListener("change", () => upd({ name: n.value.trim().slice(0, 60) || undefined })); head.append(n); }
+      else head.append(h("button", { class: "rname", text: r.name || `Rule ${i + 1}`, onclick: () => { openRule = i; S.as = i; renderAfter(); draw(); } }));
+      head.append(
+        h("button", { class: "ib", "aria-label": "Move up", "data-tip": "Move up", html: SVG(P.up, 14), disabled: i === 0 ? "" : null, onclick: () => move(-1) }),
+        h("button", { class: "ib", "aria-label": "Move down", "data-tip": "Move down", html: SVG(P.down, 14), disabled: i === routes.length - 1 ? "" : null, onclick: () => move(1) }),
+        h("button", { class: "ib", "aria-label": "Delete the rule", "data-tip": "Delete", html: SVG(P.x, 14), onclick: () => { openRule = Math.max(0, i - 1); S.as = 0; setRoutes(routes.filter((_, j) => j !== i)); } }),
+      );
+      card.append(head);
+      if (!open) {
+        card.append(h("button", { class: "rsum", onclick: () => { openRule = i; S.as = i; renderAfter(); draw(); } }, h("span", { text: ruleWords(r, qOf, fieldLabel) }), h("b", { text: `${mName(r.meeting)}, ${withWords(r)}` })));
+      } else {
+        conds.forEach((c, j) => card.append(condRow(c, j ? (r.match === "any" ? "or" : "and") : "When", qs, qOf, fieldLabel, (p2) => setConds(conds.map((x, k) => (k === j ? { ...x, ...p2 } : x))), conds.length > 1 ? () => setConds(conds.filter((_, k) => k !== j)) : null)));
+        const addC = (match) => { if (conds.length >= 10) return; const f = qs.find((x) => x.options.length) || qs[0]; const field = f ? f.name : PAST_ROUTES[0].field; const next = withConds(r, [...conds, { field, ...routeStart(field, f) }]); setRoutes(routes.map((x, j) => (j === i ? { ...next, ...(match === "any" ? { match: "any" } : { match: undefined }) } : x))); };
+        card.append(h("div", { class: "chips" }, h("button", { class: "pill", text: "+ and", onclick: () => addC("all") }), h("button", { class: "pill", text: "+ or", onclick: () => addC("any") })));
+        card.append(h("div", { class: "rule" }, h("span", { class: "w", text: "Book" }), menuPill(mName(r.meeting), MEETINGS.map((m) => [`${m.name}, ${m.length} min`, () => upd({ meeting: m.id }), m.id === r.meeting]), "Meeting")));
+        const withItems = [["As the meeting says", () => upd({ with: undefined }), !r.with], ...((FACTS?.teams || []).length ? ["sep"] : []), ...(FACTS?.teams || []).map((t) => [`${t.name} takes turns`, () => upd({ with: { kind: "team", id: t.key } }), r.with?.kind === "team" && r.with.id === t.key]), ...((FACTS?.people || []).length ? ["sep"] : []), ...(FACTS?.people || []).map((p) => [p.name, () => upd({ with: { kind: "user", id: p.id } }), r.with?.kind === "user" && r.with.id === p.id])];
+        card.append(h("div", { class: "rule" }, h("span", { class: "w", text: "With" }), menuPill(withWords(r), withItems, "With")));
       }
-      row.append(h("span", { class: "w", text: "book" }), menuPill(mName(r.meeting), MEETINGS.map((m) => [m.name, () => upd({ meeting: m.id }), m.id === r.meeting]), "Meeting"), h("button", { class: "ib", "aria-label": "Remove the route", html: SVG(P.x, 14), onclick: () => set({ routes: routes.filter((_, j) => j !== i) }) }));
-      c3.append(row);
+      if (never[i] >= 0) card.append(h("p", { class: "rwarn", text: `Can never run: rule ${never[i] + 1} catches every lead it would.` }));
+      box.append(card);
     });
-    if (routes.length) c3.append(h("div", { class: "rule" }, h("span", { class: "w", text: "Otherwise, book" }), menuPill(mName(a.meeting), MEETINGS.map((m) => [m.name, () => set({ meeting: m.id }), m.id === a.meeting]), "Otherwise")));
-    c3.append(h("div", {}, h("button", { class: "pill", html: `${SVG(P.plus, 14)}Add a route`, onclick: () => { const f = qs.find((x) => x.options.length) || qs[0]; const field = f ? f.name : PAST_ROUTES[0].field; set({ routes: [...routes, { field, ...routeStart(field, f), meeting: MEETINGS.find((m) => m.id !== a.meeting)?.id || MEETINGS[0].id }] }); } })));
-    box.append(c3);
+
+    box.append(h("div", { class: `card2 rcard${S.as === -1 ? " on" : ""}` }, h("div", { class: "rhead" }, h("span", { class: "rname", text: routes.length ? "Otherwise" : "Everyone" })), h("div", { class: "rule" }, h("span", { class: "w", text: "Book" }), menuPill(mName(a.meeting), MEETINGS.map((m) => [`${m.name}, ${m.length} min`, () => set({ meeting: m.id }), m.id === a.meeting]), "Otherwise"))));
+    if (routes.length < 30) box.append(h("div", {}, h("button", { class: "pill", html: `${SVG(P.plus, 14)}Add a rule`, onclick: () => { const f = qs.find((x) => x.options.length) || qs[0]; const field = f ? f.name : PAST_ROUTES[0].field; openRule = routes.length; S.as = routes.length; setRoutes([...routes, { field, ...routeStart(field, f), meeting: MEETINGS.find((m) => m.id !== a.meeting)?.id || MEETINGS[0].id }]); } })));
+  }
+
+  /** One condition: the question or past fill, its test and its value, with a lead word (When, and, or). */
+  function condRow(r, lead, qs, qOf, fieldLabel, upd, remove) {
+    const q = qOf(r.field);
+    const kind = routeKind(r.field, q);
+    const row = h("div", { class: "rule" }, h("span", { class: "w", text: lead }));
+    row.append(menuPill(fieldLabel(r.field), [...qs.map((x) => [x.label, () => upd({ field: x.name, ...routeStart(x.name, x) }), x.name === r.field]), "sep", ...PAST_ROUTES.map((p) => [p.label, () => upd({ field: p.field, ...routeStart(p.field) }), p.field === r.field])], "Question"));
+    const ops = ROUTE_OPS[kind];
+    if (ops.length > 1) row.append(menuPill(OP_LABEL[r.op] || "is", ops.map((op) => [OP_LABEL[op], () => upd({ op, value: op === "between" ? ["", ""] : op === "filled" || op === "empty" ? undefined : Array.isArray(r.value) && kind !== "choice" ? r.value[0] : r.value === undefined ? (kind === "choice" ? [] : "") : r.value }), op === r.op]), "Test"));
+    const num = (v, label, fn) => { const i2 = h("input", { class: "in num", type: "number", inputmode: "decimal", value: v ?? "", "aria-label": label }); i2.addEventListener("change", () => fn(i2.value.trim())); return i2; };
+    if (r.op !== "filled" && r.op !== "empty") {
+      if (kind === "choice") {
+        const vals = Array.isArray(r.value) ? r.value : r.value ? [r.value] : [];
+        row.append(menuPill(vals.map((v) => q?.options.find((o) => o.value === v)?.label || v).join(" or ") || "Pick", (q?.options || []).map((o) => [o.label || o.value, () => upd({ value: vals.includes(o.value) ? vals.filter((v) => v !== o.value) : [...vals, o.value] }), vals.includes(o.value)]), "Answer"));
+      } else if (kind === "yesno") row.append(menuPill(r.value === "false" ? "No" : "Yes", [["Yes", () => upd({ value: "true" }), r.value !== "false"], ["No", () => upd({ value: "false" }), r.value === "false"]], "Yes or no"));
+      else if (kind === "days") row.append(num(r.value, "Days", (v) => upd({ value: v === "" ? "" : Number(v) })), h("span", { class: "w", text: "days" }));
+      else if (r.op === "between") { const v2 = Array.isArray(r.value) ? r.value : ["", ""]; row.append(num(v2[0], "From", (v) => upd({ value: [v, v2[1]] })), h("span", { class: "w", text: "and" }), num(v2[1], "To", (v) => upd({ value: [v2[0], v] }))); }
+      else if (kind === "number") row.append(num(Array.isArray(r.value) ? r.value[0] : r.value, "Number", (v) => upd({ value: v })));
+      else { const t = h("input", { class: "in txt", value: Array.isArray(r.value) ? r.value[0] || "" : r.value ?? "", "aria-label": "Answer" }); t.addEventListener("change", () => upd({ value: t.value.trim() })); row.append(t); }
+    }
+    if (remove) row.append(h("button", { class: "ib", "aria-label": "Remove the condition", html: SVG(P.x, 14), onclick: remove }));
+    return row;
   }
 
   // Always do: what every send does, whatever it books. Email and Slack ride on the form; Send to and Follow-ups are
@@ -3524,7 +3630,7 @@ ${CAL_CSS}
       changedSomething = true;
     }
     if (add?.closed && add.body.trim()) { const css = c.body.css; const i = css.indexOf(EDIT); c.body.css = i >= 0 ? `${css.slice(0, i).trimEnd()}\n${add.body.trim()}\n${css.slice(i)}` : `${css.trimEnd()}\n${add.body.trim()}`; changedSomething = true; }
-    if (af?.closed) { try { const a = JSON.parse(af.body); if (["thanks", "page", "meeting"].includes(a.kind)) { c.body.after = { kind: a.kind, url: String(a.url || ""), ...(a.tool && a.tool !== "claritia" && SCHEDULERS.some((x) => x.value === a.tool) ? { tool: a.tool, link: String(a.link || "") } : {}), meeting: MEETINGS.some((m) => m.id === a.meeting) ? a.meeting : c.body.after.meeting || MEETINGS[0]?.id || "", routes: Array.isArray(a.routes) ? a.routes.map(cleanRoute).filter((r) => r && MEETINGS.some((m) => m.id === r.meeting)) : [], ...(c.body.after.always ? { always: c.body.after.always } : {}) }; changedSomething = true; } } catch {} }
+    if (af?.closed) { try { const a = JSON.parse(af.body); if (["thanks", "page", "meeting"].includes(a.kind)) { c.body.after = { kind: a.kind, url: String(a.url || ""), ...(a.tool && a.tool !== "claritia" && SCHEDULERS.some((x) => x.value === a.tool) ? { tool: a.tool, link: String(a.link || "") } : {}), meeting: MEETINGS.some((m) => m.id === a.meeting) ? a.meeting : c.body.after.meeting || MEETINGS[0]?.id || "", routes: Array.isArray(a.routes) ? a.routes.map(cleanRoute).filter((r) => r && MEETINGS.some((m) => m.id === r.meeting)) : [], ...(a.mode === "one" || a.mode === "routing" ? { mode: a.mode } : c.body.after.mode ? { mode: c.body.after.mode } : {}), ...(c.body.after.none ? { none: c.body.after.none } : {}), ...(c.body.after.before ? { before: c.body.after.before } : {}), ...(c.body.after.always ? { always: c.body.after.always } : {}) }; changedSomething = true; } } catch {} }
     // Built is built: a question only stands when nothing changed.
     if (ask?.closed && !(wasBuilt && changedSomething)) { try { const a = JSON.parse(ask.body); if (a.question) reply.ask = { question: String(a.question), options: (a.options || []).map(String).slice(0, 5) }; } catch {} }
     if (changedSomething) reply.did = (did?.closed && did.body.trim().slice(0, 60)) || (wasBuilt ? "Changed the form" : "Built the form");
