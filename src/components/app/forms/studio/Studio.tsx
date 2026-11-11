@@ -7,7 +7,7 @@
 // while the Studio is open and comes back as it was after.
 
 import { useEffect, useRef, type MutableRefObject } from "react";
-import { logoOf, type KitLite } from "./brandKit";
+import { logoOf, logosOf, type KitLite } from "./brandKit";
 import { styleCssById, styleOf } from "@/lib/studio/styleCss";
 import { fetchMeetingTypes } from "../../meetings/TypesList";
 import { brandName } from "@/lib/brand/name";
@@ -99,7 +99,7 @@ export function Studio({ sb, session, ws, navigate, formId = "", chatId = "", fr
         const kits = (must(res) ?? []) as (KitLite & { name?: string | null; studio_css?: string | null; studio_profile?: unknown })[];
         return kits
           .filter((k) => k.source_url)
-          .map((k) => ({ id: k.id, name: brandName(k), site: hostOf(k.source_url), logo: logoOf(k), css: k.studio_css || read<string>(cssKey(k.id), ""), profile: readProfile(k.studio_profile) ?? readProfile(read(profileKey(k.id), null)) }));
+          .map((k) => ({ id: k.id, name: brandName(k), site: hostOf(k.source_url), logo: logoOf(k), logos: logosOf(k), css: k.studio_css || read<string>(cssKey(k.id), ""), profile: readProfile(k.studio_profile) ?? readProfile(read(profileKey(k.id), null)) }));
       },
       // Paid plans book in the form's own style; Free books in the plain calendar. Unread counts as paid.
       calendarBrand: async () => {

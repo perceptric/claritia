@@ -47,7 +47,7 @@ test("the deep read: a builder site's type presets, gradient button, own fonts, 
 test("an SVG with a script, a link or an outside picture is refused or stripped", () => {
   assert.equal(cleanSvg('<svg><script>alert(1)</script><path d="M0 0"/></svg>'), null);
   assert.equal(cleanSvg('<svg><a href="https://x.com"><path d="M0 0"/></a></svg>'), null);
-  assert.equal(cleanSvg('<svg><image href="https://x.com/a.png"/><path d="M0 0" fill="url(https://x)"/></svg>'), '<svg><path d="M0 0"/></svg>');
+  assert.equal(cleanSvg('<svg><image href="https://x.com/a.png"/><path d="M0 0" fill="url(https://x)"/></svg>'), '<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0"/></svg>');
 });
 
 test("the book keeps only colors and fonts the site uses, and sets the tokens and font CSS", async () => {

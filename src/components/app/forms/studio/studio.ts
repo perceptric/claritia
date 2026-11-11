@@ -59,6 +59,9 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .chatpick:hover { background: var(--hover); }
 .chatpick .nm { font-weight: 600; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .bmark { height: 20px; max-width: 64px; flex: none; object-fit: contain; object-position: left; }
+.smark { width: 22px; height: 20px; border-radius: 5px; box-shadow: 0 0 0 1px var(--line); display: inline-flex; align-items: center; justify-content: center; flex: none; overflow: hidden; }
+.smark i { width: 64%; height: 58%; border-radius: 2px; display: flex; align-items: flex-end; padding: 2px; box-sizing: border-box; }
+.smark u { width: 60%; height: 2px; border-radius: 2px; }
 .bempty { width: 20px; height: 20px; border-radius: 999px; border: 1px dashed var(--line-strong); color: var(--muted); display: inline-flex; align-items: center; justify-content: center; flex: none; font-size: 10.5px; font-weight: 600; }
 .badge { height: 20px; padding: 0 8px; border-radius: 999px; font-size: 11px; font-weight: 500; display: inline-flex; align-items: center; flex: none; background: var(--paper-deep); color: var(--muted); }
 .badge.live { background: var(--signal-soft); color: var(--signal); }
@@ -444,7 +447,11 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .lcatch i:nth-child(4) { right: 0; bottom: 0; border-right-width: 2px; border-bottom-width: 2px; }
 .lscan { position: absolute; left: 0; right: 0; top: 0; height: 2px; background: var(--signal); opacity: .5; pointer-events: none; animation: lscan 2.4s var(--ease) infinite alternate; }
 @keyframes lscan { from { transform: translateY(32px); } to { transform: translateY(var(--lscan-to, 220px)); } }
-.learn.done .lscan, .learn.done .lcatch { opacity: 0; }
+.learn.done .lscan, .learn.done .lcatch, .learn.real .lscan, .learn.real .lcatch { opacity: 0; }
+/* The site's own home page, in a frame that runs nothing, drawn at desktop width and scaled to fit. */
+.lreal { position: relative; overflow: hidden; background: #fff; aspect-ratio: 16 / 10; }
+.lreal iframe { position: absolute; left: 0; top: 0; width: 1280px; height: 800px; border: 0; transform-origin: 0 0; pointer-events: none; background: #fff; }
+.lreal img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
 /* Painted: the sketch in the brand's own colors, fonts and corners */
 .learn.painted .lpage { background: var(--brand-bg, var(--paper)); color: var(--brand-text, var(--ink)); font-family: var(--brand-font, var(--sans)); }
 .learn.painted .lh1 { color: var(--brand-text, var(--ink)); font-family: var(--brand-head, var(--brand-font, var(--sans))); }
@@ -587,7 +594,7 @@ export const STUDIO_HTML = `
 </div>
 <div id="layer"></div>`;
 
-export type StudioBrand = { id: string; name: string; site: string; logo: string | null; css: string; profile?: { industry: string; language: string; country: string; languages: string[] } | null };
+export type StudioBrand = { id: string; name: string; site: string; logo: string | null; logos?: string[]; css: string; profile?: { industry: string; language: string; country: string; languages: string[] } | null };
 export type StudioMeeting = { id: string; name: string; length: number; dynamic?: boolean; who?: string };
 export type StudioChat = { id: string; name: string; state: "new" | "draft" | "live" | "changed"; brandId: string; formId: string; updatedAt?: string; brandCss?: string; body?: { html: string; css: string; after: unknown; turns: unknown[]; log: unknown[] } };
 export type StudioSend = { id: string; kind: string; name: string; domain: string | null };
@@ -597,7 +604,8 @@ export type StudioApi = {
   meetings(): Promise<StudioMeeting[]>;
   /** Whether the booking calendar wears the form's style (paid plans) or the plain calendar (Free). */
   calendarBrand?(): Promise<boolean>;
-  readSite(host: string): Promise<{ url: string; site: string; name: string; logo: string | null; logoUrl: string | null; logoSvg: string | null }>;
+  /** preview: the home page with its scripts out, for a frame that runs nothing; shot: its share picture. */
+  readSite(host: string): Promise<{ url: string; site: string; name: string; logo: string | null; logoUrl: string | null; logoSvg: string | null; preview?: string | null; shot?: string | null }>;
   scan(host: string): Promise<{ kitId: string }>;
   kit(id: string): Promise<{ name: string; logo: string | null; logoUrl: string | null; logoSvg: string | null; scanStatus: string | null } | null>;
   confirm(b: { url: string; name: string; logoUrl: string | null; logoSvg: string | null }): Promise<{ kitId: string }>;
@@ -689,6 +697,15 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
     return e;
   };
   const off = [];
+  // Each way to show a brand's logo, best first (Studio.tsx's logosOf), and an <img> that moves to the next one when a
+  // picture won't load, then gives up (hidden, or the brand's letter).
+  const logoList = (b) => (b?.logos?.length ? b.logos : b?.logo ? [b.logo] : []);
+  const tryLogo = (img, list, giveUp) => {
+    let i = 0;
+    const next = () => { if (i >= list.length) { img.onerror = null; giveUp?.(); return; } img.src = list[i++]; };
+    img.onerror = next;
+    next();
+  };
   const listen = (t, ev, fn, o) => { t.addEventListener(ev, fn, o); off.push(() => t.removeEventListener(ev, fn, o)); };
   const store = { get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} } };
   const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) => (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16)));
@@ -816,8 +833,8 @@ ${CAL_CSS}
     const lang = other ? S.lang : mainLang();
     if (lang) { wrap.setAttribute("lang", lang); wrap.setAttribute("dir", isRtl(lang) ? "rtl" : "ltr"); }
     root.append(st, wrap);
-    const logo = PK ? PK.logo : brandOf(cur)?.logo;
-    wrap.querySelectorAll("img[data-cl-logo]").forEach((img) => { if (logo) img.setAttribute("src", logo); else img.hidden = true; });
+    const logos = PK ? (PK.logo ? [PK.logo] : []) : logoList(brandOf(cur));
+    wrap.querySelectorAll("img[data-cl-logo]").forEach((img) => { if (logos.length) tryLogo(img, logos, () => { img.hidden = true; }); else img.hidden = true; });
     // Claritia blocks, as the live form draws them (the form script fills them with its own inputs).
     wrap.querySelectorAll("[data-cl-field]").forEach((hd) => hd.replaceChildren(blockPreview(hd)));
     // The consent line every form shows where the law asks for it, as the live form draws it.
@@ -1048,6 +1065,8 @@ ${CAL_CSS}
   // ── Edit on the form: hover tags, pick, type in place, the floating bar ─────────────────────────────────
   const NAMES = { H1: "Heading", H2: "Heading", H3: "Heading", H4: "Heading", P: "Text", SPAN: "Text", LABEL: "Label", BUTTON: "Button", INPUT: "Input", TEXTAREA: "Text box", SELECT: "Dropdown", IMG: "Logo", FORM: "Form", SECTION: "Step", DIV: "Box", I: "Fill", B: "Text", STRONG: "Text", EM: "Text", A: "Link", UL: "List", LI: "Item", FIELDSET: "Group", LEGEND: "Heading" };
   const nameOf = (el) => { if (!el) return ""; const qk = questionKind(el); if (qk) return qk; if (el.hasAttribute?.("data-cl-field")) return BLOCK_NAMES[el.getAttribute("data-cl-field")] || "Block"; if (el.matches?.("label.choice,label.check")) return "Choice"; if (el.hasAttribute?.("data-cl-step")) return "Step"; if (el.hasAttribute?.("data-cl-thanks")) return "Thanks"; if (el.hasAttribute?.("data-cl-book")) return "Booking"; return NAMES[el.tagName] || "Box"; };
+  // "Logo" → "logos", "Box" → "boxes", "Text" → "texts".
+  const plural = (n) => { const w = String(n || "item").toLowerCase(); return /(s|x|ch|sh)$/.test(w) ? `${w}es` : `${w}s`; };
   const leaf = (el) => el && !el.children.length && !["INPUT", "IMG", "TEXTAREA", "SELECT", "BR", "HR"].includes(el.tagName) && el.textContent.trim();
   const kOf = (e) => e.composedPath().find((n) => n instanceof Element && n.hasAttribute?.("data-k"));
   let editingK = null;
@@ -1295,7 +1314,11 @@ ${CAL_CSS}
 
   // ── Layers ────────────────────────────────────────────────────────────────────────────────────────────
   function tree() {
-    const t = $("tree"); t.innerHTML = "";
+    const t = $("tree");
+    // The layers list keeps its place too: picking a layer low in the list leaves it where it was.
+    const box = t.parentElement, keepT = t.scrollTop, keepB = box?.scrollTop ?? 0;
+    t.innerHTML = "";
+    queueMicrotask(() => { t.scrollTop = keepT; if (box) box.scrollTop = keepB; });
     if (!S.nav) return;
     const walk = (el, d) => { for (const c of el.children) { const k = c.getAttribute("data-k"); const label = c.id ? `#${c.id}` : leaf(c) ? c.textContent.trim().slice(0, 24) : c.classList[0] ? `.${c.classList[0]}` : ""; t.append(h("button", { class: k === S.sel ? "sel" : "", style: `padding-left:${6 + d * 12}px`, onclick: () => select(k) }, h("span", { class: "tg", text: nameOf(c) }), h("span", { text: label }))); if (d < 9) walk(c, d + 1); } };
     walk(src, 0);
@@ -1314,8 +1337,19 @@ ${CAL_CSS}
   const unit = (v) => { v = String(v).trim(); return /^-?\d*\.?\d+$/.test(v) ? `${v}px` : v; };
 
   // ── The panel: Style and Settings ─────────────────────────────────────────────────────────────────────
+  // The panel is drawn again after every change: it keeps its place while the same thing is picked on the same tab,
+  // so a setting low in a long panel doesn't send it back to the top.
+  let panelKey = "";
   function panel() {
-    const p = $("pscroll"); p.innerHTML = "";
+    const p = $("pscroll");
+    const key = `${S.sel}|${S.ptab}|${S.mode}`;
+    const keep = key === panelKey ? p.scrollTop : 0;
+    panelKey = key;
+    panelDraw(p);
+    if (keep) p.scrollTop = keep;
+  }
+  function panelDraw(p) {
+    p.innerHTML = "";
     const el = S.sel ? byK(S.sel) : null;
     $("selName").textContent = el ? nameOf(el) : "";
     $("p-style").setAttribute("aria-selected", String(S.ptab === "style")); $("p-set").setAttribute("aria-selected", String(S.ptab === "settings")); $("p-theme").setAttribute("aria-selected", String(S.ptab === "theme"));
@@ -1324,8 +1358,10 @@ ${CAL_CSS}
     if (!el) { p.append(h("div", { class: "sec" }, h("p", { class: "hint0", text: "Select a field on the form to style it." }))); return; }
     if (S.ptab === "settings") return settings(p, el);
     const cls = el.classList[0];
-    p.append(h("div", { class: "sec" }, h("div", { class: "sel-head" }, h("span", { class: `cls${S.scope === "class" && cls ? "" : " off"}`, text: S.scope === "class" && cls ? `.${cls}` : el.id ? `#${el.id}` : "this one" }), h("span", { class: "spacer" }),
-      h("div", { class: "seg" }, h("button", { "aria-pressed": String(S.scope === "el" || !cls), onclick: () => { S.scope = "el"; panel(); }, text: "This one" }), cls ? h("button", { "aria-pressed": String(S.scope === "class"), onclick: () => { S.scope = "class"; panel(); }, text: "All like it" }) : null)),
+    // What a style change reaches, in words: only this one, or every one like it on the form (by its class).
+    const alike = cls ? src.querySelectorAll(`.${CSS.escape(cls)}`).length : 0;
+    p.append(h("div", { class: "sec" }, h("div", { class: "sel-head" }, h("span", { class: "lbl", text: "Apply to" }), h("span", { class: "spacer" }),
+      h("div", { class: "seg" }, h("button", { "aria-pressed": String(S.scope === "el" || !cls || alike <= 1), onclick: () => { S.scope = "el"; panel(); }, text: "Only this" }), cls && alike > 1 ? h("button", { "aria-pressed": String(S.scope === "class"), onclick: () => { S.scope = "class"; panel(); }, text: `All ${alike} ${plural(nameOf(el))}` }) : null)),
       // States, like Framer's variants: the look on hover and while it's being typed in.
       h("div", { class: "sel-head" }, h("span", { class: "lbl2", text: "State" }), h("span", { class: "spacer" }), h("div", { class: "seg" }, ...[["", "Default"], [":hover", "Hover"], [":focus-within", "Focus"]].map(([v, t]) => h("button", { "aria-pressed": String((S.state || "") === v), onclick: () => { S.state = v; panel(); }, text: t }))))));
     // Layout
@@ -2992,7 +3028,21 @@ ${CAL_CSS}
     setTimeout(overlay, 220);
   }
   $("chatFold").onclick = () => setChatFold(!$("chat").classList.contains("folded"));
-  const mark = (b) => (b?.logo ? h("img", { class: "bmark", src: b.logo, alt: "" }) : h("span", { class: "bempty", text: b ? b.name.charAt(0) : "+" }));
+  // A brand's mark: its logo (each way to show it tried in turn, so a picture the site won't share never shows broken),
+  // else its first letter. A style shows its own colors: page, card and button.
+  const letter = (b) => h("span", { class: "bempty", text: b ? b.name.charAt(0) : "+" });
+  const styleMark = (id) => {
+    const th = THEMES.find((t) => t.id === id) || THEMES[0];
+    return h("span", { class: "smark", style: `background:${th.bg}`, "aria-hidden": "true" }, h("i", { style: `background:${th.card}` }, h("u", { style: `background:${th.accent}` })));
+  };
+  const mark = (b) => {
+    if (b?.style) return styleMark(b.style);
+    const list = logoList(b);
+    if (!list.length) return letter(b);
+    const img = h("img", { class: "bmark", alt: "" });
+    tryLogo(img, list, () => img.replaceWith(letter(b)));
+    return img;
+  };
   const stateBadge = (c) => h("span", { class: `badge${c.state === "live" ? " live" : ""}`, text: c.state === "live" ? "Live" : c.state === "changed" ? "Changes not live" : "Draft" });
   function chatHead() { const b = $("chatPick"); b.innerHTML = ""; if (!cur) return; b.append(mark(brandOf(cur)), h("span", { class: "nm", text: cur.name }), h("span", { html: SVG(P.chev, 14), style: "color:var(--muted);display:inline-flex" })); }
   let deleting = "";
@@ -3161,6 +3211,30 @@ ${CAL_CSS}
     box.append(acts);
     setTimeout(() => site.focus(), 0);
   }
+  function realPage(el) {
+    const html = draft.look?.preview, shot = draft.look?.shot;
+    const sk = el.querySelector(".lsite"), sketch = el.querySelector(".lpage");
+    const has = el.querySelector(".lreal");
+    if (draft.step < 2 || (!html && !shot)) { if (has) { has.remove(); sketch.hidden = false; el.classList.remove("real"); } return; }
+    if (has) return;
+    const box = h("div", { class: "lreal" });
+    if (html) {
+      // No scripts, no same origin, no forms or popups: the page is only drawn.
+      const f = h("iframe", { sandbox: "", referrerpolicy: "no-referrer", title: `${hostOf(draft.look.site || draft.url)} home page`, tabindex: "-1", "aria-hidden": "true" });
+      f.srcdoc = html;
+      box.append(f);
+      const fit = () => { if (box.isConnected && box.clientWidth) f.style.transform = `scale(${box.clientWidth / 1280})`; };
+      new ResizeObserver(fit).observe(box);
+      requestAnimationFrame(fit);
+    } else {
+      const img = h("img", { src: shot, alt: "", referrerpolicy: "no-referrer" });
+      img.addEventListener("error", () => { box.remove(); sketch.hidden = false; el.classList.remove("real"); });
+      box.append(img);
+    }
+    sketch.hidden = true;
+    sk.querySelector(".lpage").after(box);
+    el.classList.add("real");
+  }
   /** The learning screen: built once, then kept in step so the corners and colors move instead of jumping. */
   function learnUi(box) {
     const host = hostOf(draft.look?.site || draft.url);
@@ -3189,6 +3263,9 @@ ${CAL_CSS}
     if (logo && slot.querySelector("img")?.getAttribute("src") !== logo) { slot.replaceChildren(h("img", { src: logo, alt: "" })); fav.replaceChildren(h("img", { src: logo, alt: "" })); }
     const done = draft.step === 4;
     el.classList.toggle("done", done);
+    // Once read: the site's own home page in place of the sketch (its share picture when the page draws nothing
+    // without its scripts), so the owner sees the site they know.
+    realPage(el);
     // The brand's own variables on the screen, so the sketch paints in them.
     if (draft.kit?.css && !draft.vars) {
       loadFonts(draft.kit.css);
@@ -3221,7 +3298,7 @@ ${CAL_CSS}
       const nm = h("input", { class: "in nameedit", value: draft.look.name, id: "dlgName", "aria-label": "Brand name" });
       const yes = h("button", { class: "pill primary", text: draft.busy === "confirm" ? "Saving" : "Yes, use this brand", disabled: !!draft.busy || !draft.look.name.trim() || null, onclick: () => void confirmNow() });
       nm.addEventListener("input", () => { draft.look.name = nm.value; yes.disabled = !nm.value.trim(); el.querySelector(".lh1").textContent = nm.value || host; });
-      low.append(h("div", { class: "confirm" }, draft.look.logo ? h("img", { src: draft.look.logo, alt: "" }) : h("span", { class: "bempty", text: draft.look.name.charAt(0) }), h("div", { class: "t" }, nm, h("span", { text: draft.look.site }))));
+      low.append(h("div", { class: "confirm" }, draft.look.logo ? (() => { const img = h("img", { alt: "" }); tryLogo(img, [draft.look.logo], () => img.replaceWith(h("span", { class: "bempty", text: draft.look.name.charAt(0) }))); return img; })() : h("span", { class: "bempty", text: draft.look.name.charAt(0) }), h("div", { class: "t" }, nm, h("span", { text: draft.look.site }))));
       if (!draft.look.logo) low.append(h("p", { class: "hint0", text: "No logo found on the site. Forms show the name until one is added in Settings, Brand." }));
       if (draft.err) low.append(h("div", { class: "err", text: draft.err }));
       low.append(h("div", { class: "acts" }, h("button", { class: "pill", text: "Back", disabled: !!draft.busy || null, onclick: () => { draft.step = 1; draft.err = ""; draft.el = null; dialog(); } }), yes));

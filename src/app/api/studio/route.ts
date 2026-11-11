@@ -11,7 +11,7 @@ import { persistStudio } from "@/lib/studio/persist";
 import { forgetPublic } from "@/lib/forms/server";
 import { turnstileSiteKey } from "@/lib/forms/server";
 import { BRAND_RULES, CHAT_RULES, STUDIO_MODEL, TRANSLATE_RULES } from "@/lib/studio/prompts";
-import { hostOf, readSite, readSource } from "@/lib/studio/site";
+import { hostLogo, hostOf, readSite, readSource } from "@/lib/studio/site";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 
@@ -122,7 +122,7 @@ export async function POST(request: Request) {
   if (b.mode === "site") {
     const r = await readSite(String(b.url ?? ""));
     if ("error" in r) return Response.json({ error: r.error, browser: true }, { status: 422 });
-    return Response.json({ url: r.url, site: r.site, name: r.name, logo: r.logo, logoUrl: r.logoUrl, logoSvg: r.logoSvg });
+    return Response.json({ url: r.url, site: r.site, name: r.name, logo: r.logo, logoUrl: r.logoUrl, logoSvg: r.logoSvg, preview: r.preview ?? null, shot: r.shot ?? null });
   }
 
   if (b.mode === "confirm" || b.mode === "scan") {
@@ -140,6 +140,10 @@ export async function POST(request: Request) {
       const logoSvg = typeof b.logoSvg === "string" && /^\s*<svg[\s>]/i.test(b.logoSvg) && b.logoSvg.length <= 60_000 ? b.logoSvg : null;
       const patch: Record<string, unknown> = { name, updated_at: new Date().toISOString() };
       if (logoUrl) patch.logo_url = logoUrl;
+      // A copy of the logo kept with Claritia, so forms and booking pages show it even when the site blocks others
+      // from loading its pictures. Without one, the site's own address stays.
+      const hosted = await hostLogo(db, ws, kitId, logoUrl, logoSvg).catch(() => null);
+      if (hosted) patch.logo_url = hosted;
       if (logoSvg) patch.logo_svg = logoSvg;
       const up = await db.from("brand_kits").update(patch).eq("id", kitId).eq("workspace_id", ws);
       if (up.error) {
