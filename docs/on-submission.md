@@ -51,9 +51,14 @@ open Availability › Team.
 Studio forms (`src/components/app/forms/studio/studio.ts`, the rows in `src/lib/studio/routes.ts`) keep the same rule:
 the form picks the meeting type, the meeting picks the person.
 
-- **The screen**: On submission is a sidebar beside the canvas, and the canvas shows the end page as it runs: the
-  thank-you, the redirect, or the booking page with the real calendar. **Edit the thank-you page** and **Edit the
-  booking page** open that page in Edit, where it's changed like any other page.
+- **The screen**: what happens after the send lives on the form's **Ending** page, the last tab in the page bar
+  under the form. **Ending type** (Message, Redirect, Book a meeting) and its settings sit in the left sidebar above
+  Add fields, as Fillout does; the canvas shows the ending page itself, edited like any other page (a Redirect shows
+  where people go). A **Team meeting**'s rules are edited in the center, beside the booking page they lead to.
+- **Pages** (`stepUi` in `src/components/app/forms/studio/studio.ts`): the page bar lists Welcome, each page and the
+  Ending as tabs. A page drags to a new place; its ⋯ renames it (`data-cl-page`, else "Page N"), duplicates, copies
+  (kept on this computer, pasted from Add page into this form or another), sets a timer, or deletes it. **Add page**
+  adds a page, a payment page (a page with the payment block) or the scheduling page (the Ending books a meeting).
 - **After they send it**: Show a thank-you message (the default, the thank-you every template comes with), Redirect
   to a page, or Book a meeting. The last step in the bar over the form follows it: Thank-you, Redirect (opens On
   submission) or Booking. The thank-you takes the whole form's place once sent, its heading included, on one-page and
@@ -62,12 +67,12 @@ the form picks the meeting type, the meeting picks the person.
 - **Calendar style**: paid plans book in the form's own style; Free gets the plain calendar (`cl-plain` in
   `CAL_CSS`, `src/lib/studio/runtime.ts`). It is the `booking_brand` feature in `src/lib/plans.ts`, the same one as
   branded booking pages. The public form read (`/api/forms/[id]`) sends `calBrand`, with the plan kept a minute.
-- **Individual or Routing** (`after.mode`, `isRouting` in `src/lib/studio/page.ts`). **Individual**: everyone books
+- **Individual or Team meeting** (`after.mode`, "one" or "routing", `isRouting` in `src/lib/studio/page.ts`). **Individual**: everyone books
   one meeting. When that meeting is Dynamic its rules show in one line, like "Locations is at least 50 → Enterprise,
-  otherwise anyone on the team" (`src/lib/meetings/dynamicWords.ts`), and **Edit meeting** opens it. **Routing**: the
-  rules below. A form saved before the switch is Routing when it has rules. Rules stay on the page under Individual,
+  otherwise anyone on the team" (`src/lib/meetings/dynamicWords.ts`), and **Edit meeting** opens it. **Team
+  meeting**: the rules below. A form saved before the switch is Routing when it has rules. Rules stay on the page under Individual,
   unused, so switching back keeps them.
-- **Routing** (`src/lib/studio/routes.ts`): named rules in run order, first match wins, then **Otherwise** (the form's
+- **Team meeting's rules** (`src/lib/studio/routes.ts`): named rules in run order, first match wins, then **Otherwise** (the form's
   meeting), fixed last. A rule is "When <question> <test> <value>", then more conditions joined by **+ and** or
   **+ or**; **Book** <meeting>; **With** "As the meeting says" (the meeting's own host or Dynamic rules), a team that
   takes turns, or one person. Rules move up and down and can be deleted. The first condition sits at the top of the

@@ -174,7 +174,17 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .addlist.grid button:hover { box-shadow: 0 0 0 1px var(--line-strong), 0 2px 6px rgb(0 0 0 / .06); background: var(--bg); }
 .addlist.grid button i { width: 26px; height: 26px; border-radius: 7px; box-shadow: none; }
 .addlist.grid button .nm { overflow-wrap: anywhere; }
-.stepdock { flex: none; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; min-height: 48px; padding: 6px 12px; border-top: 1px solid var(--line); background: var(--bg); }
+.stepdock { flex: none; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; min-height: 52px; padding: 6px 12px; border-top: 1px solid var(--line); background: var(--bg); }
+.stepdock .steps { padding: 0; gap: 2px; }
+.steps .pg { position: relative; display: inline-flex; align-items: center; border-radius: 8px; min-width: 0; }
+.steps .pg::after { content: ""; position: absolute; left: 8px; right: 8px; bottom: -7px; height: 2px; border-radius: 2px; background: transparent; }
+.steps .pg.on::after { background: var(--ink); }
+.steps .pg.drop { box-shadow: inset 2px 0 0 var(--signal); }
+.steps .pg[draggable="true"] { cursor: grab; }
+.steps .pg .sp .n { border: 0; background: transparent; width: 18px; height: 18px; color: var(--muted); }
+.steps .pg.on .sp .n { background: transparent; color: var(--ink); }
+.steps .pg .pm { width: 24px; height: 24px; margin-inline-start: -4px; }
+.steps .pg .ren { height: 28px; width: 120px; }
 .ptools { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; min-width: 0; }
 .ptools .pill { margin-inline-end: 6px; }
 .ptools .vsep { margin: 0 4px; }
@@ -217,7 +227,7 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .tree button.sel { background: var(--ink); color: var(--bg); }
 .tree .tg { font-family: var(--mono); font-size: 10.5px; opacity: .6; }
 .canvas { flex: 1; min-width: 0; overflow: auto; background: var(--paper); padding: 20px; display: flex; justify-content: center; position: relative; }
-.frame { position: relative; display: flex; flex-direction: column; width: 100%; max-width: 1100px; min-height: 100%; height: max-content; border-radius: 12px; box-shadow: 0 0 0 1px var(--line), 0 8px 28px -12px rgb(0 0 0 / .18); transition: max-width .32s var(--ease); background: var(--bg); }
+.frame { position: relative; display: flex; flex-direction: column; width: 100%; max-width: 1100px; align-self: center; min-height: 100%; height: max-content; border-radius: 12px; box-shadow: 0 0 0 1px var(--line), 0 8px 28px -12px rgb(0 0 0 / .18); transition: max-width .32s var(--ease); background: var(--bg); }
 .frame.tablet { max-width: 768px; }
 .frame.phone { max-width: 390px; }
 #host { flex: 1; display: flex; flex-direction: column; border-radius: 12px; overflow: hidden; }
@@ -297,11 +307,15 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .pill.on:hover:not(:disabled), .pill.primary:hover:not(:disabled) { color: var(--bg); border-color: var(--ink); opacity: .9; }
 .pill .logo { width: 16px; height: 16px; border-radius: 4px; flex: none; object-fit: contain; }
 .pill .logo.mark { border-radius: 0; }
-.after { flex: none; width: 380px; min-height: 0; overflow: auto; padding: 16px; border-left: 1px solid var(--line); background: var(--bg); }
-.after .inner { display: flex; flex-direction: column; gap: 12px; }
-.after h2 { margin: 0; font-size: 15px; font-weight: 600; color: var(--ink); }
-.canvas.as { flex-direction: column; align-items: center; justify-content: flex-start; gap: 12px; }
-.asbar { width: 100%; max-width: 1100px; display: flex; flex-direction: column; gap: 8px; }
+.stage { flex: 1; min-width: 0; max-width: 1100px; display: flex; flex-direction: column; gap: 12px; }
+.flow { flex: none; width: 360px; align-self: flex-start; display: flex; flex-direction: column; gap: 10px; margin-inline-end: 16px; }
+.endbox { flex: none; display: flex; flex-direction: column; gap: 10px; padding: 0 10px 12px; margin-bottom: 10px; border-bottom: 1px solid var(--line); }
+.endbox .card2 { padding: 12px; gap: 10px; }
+.endbox .lbl { color: var(--muted); font-size: 12px; }
+.endbox .seg { display: flex; flex-wrap: wrap; }
+.endbox .seg button { flex: 1 1 auto; }
+.redir { margin: auto; padding: 48px 24px; text-align: center; color: var(--body); font-size: 14px; overflow-wrap: anywhere; }
+.asbar { width: 100%; display: flex; flex-direction: column; gap: 8px; }
 .asbar .chips { align-items: center; }
 .asbar .w { color: var(--muted); font-size: 12.5px; margin-right: 2px; }
 .asbar p { margin: 0; font-size: 12.5px; color: var(--body); }
@@ -335,7 +349,7 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .ptabs { height: 44px; flex: none; display: flex; align-items: center; gap: 4px; padding: 0 10px; border-bottom: 1px solid var(--line); }
 .ptabs .pt { height: 30px; padding: 0 10px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; }
 .ptabs .pt[aria-selected="true"] { background: var(--paper-deep); color: var(--ink); }
-.ptabs .who2 { display: none; }
+.ptabs .who2 { font-size: 13px; font-weight: 600; color: var(--ink); padding: 0 4px; overflow-wrap: anywhere; }
 .pscroll { flex: 1; min-height: 0; overflow-y: auto; }
 .sec { padding: 12px 14px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; }
 .sec h4 { margin: 0; font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
@@ -358,6 +372,9 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .fold h4 { pointer-events: none; }
 .fold .ib { width: 22px; height: 22px; }
 .row3 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px; align-items: center; }
+.qs .row3 { grid-template-columns: 72px minmax(0, 1fr); }
+.qs .seg { display: flex; flex-wrap: wrap; justify-self: stretch; }
+.qs .seg button { flex: 1 1 auto; }
 .lbl2 { font-size: 12px; color: var(--body); }
 .slide { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 8px; align-items: center; }
 .slide input[type=range] { width: 100%; accent-color: var(--ink); }
@@ -508,7 +525,8 @@ input, textarea { user-select: text; -webkit-user-select: text; }
   .adds { width: auto; border-right: 0; border-bottom: 1px solid var(--line); max-height: 220px; }
   .canvas { min-height: 70vh; padding: 12px; }
   .panel { width: auto; border-left: 0; border-top: 1px solid var(--line); }
-  .after { width: auto; border-left: 0; border-top: 1px solid var(--line); }
+  .canvas { flex-direction: column; }
+  .flow { width: auto; align-self: stretch; margin: 0 0 12px; }
 }
 @media (prefers-reduced-motion: reduce) { .chat, .frame { transition: none; } .live .sk span { animation: none; } }
 `;
@@ -551,9 +569,8 @@ export const STUDIO_HTML = `
       <button class="ib foldbtn tipleft" id="chatFold"></button>
     </div>
     <div class="brandrow"><button class="brandbtn" id="brandBtn" aria-haspopup="menu" aria-label="Brand"></button><button class="profile" id="profileBtn" aria-haspopup="menu" aria-label="Industry, country and language" hidden></button><div class="bstatus" id="brandStatus" hidden></div></div>
-    <div class="sidemode"><div class="mseg" role="tablist" aria-label="Editor"><button role="tab" id="m-build" aria-selected="true">${SVG(P.cursor, 14)}Build</button><button role="tab" id="m-ai" aria-selected="false">${tiaSvg(16)}AI<span class="mdot" id="aiDot" hidden></span></button></div><div class="subt" id="subt" role="tablist" aria-label="Build"><button role="tab" id="s-add" aria-selected="true">Add fields</button><button role="tab" id="s-layers" aria-selected="false">Layers</button></div></div>
-    <aside class="adds" id="adds" aria-label="Add fields" hidden><div class="ptitle">Add</div><input class="in" id="addQ" placeholder="Search fields" aria-label="Search fields" autocomplete="off"><div class="addlist grid" id="addList"></div></aside>
-    <aside class="navi" id="navi" aria-label="Layers" hidden><div class="ptitle">Layers</div><div class="tree" id="tree"></div></aside>
+    <div class="sidemode"><div class="mseg" role="tablist" aria-label="Editor"><button role="tab" id="m-build" aria-selected="true">${SVG(P.cursor, 14)}Build</button><button role="tab" id="m-ai" aria-selected="false">${tiaSvg(16)}AI<span class="mdot" id="aiDot" hidden></span></button></div></div>
+    <aside class="adds" id="adds" aria-label="Add fields" hidden><div class="endbox" id="endBox" aria-label="Ending" hidden></div><div class="ptitle">Add</div><input class="in" id="addQ" placeholder="Search fields" aria-label="Search fields" autocomplete="off"><div class="addlist grid" id="addList"></div></aside>
     <div class="aibody" id="aiBody">
     <div class="msgs" id="msgs" aria-live="polite"></div>
     <div class="compose">
@@ -567,7 +584,6 @@ export const STUDIO_HTML = `
     <div class="bar">
       <button class="pill exitprev" id="exitPrev" hidden>${SVG(P.back, 14)}Back to editor</button>
       <div class="peekbar" id="peekBar" hidden><button class="pill" id="peekBack">${SVG(P.back, 14)}All templates</button><span class="peeknm" id="peekName"></span><button class="pill primary" id="peekUse">Use this template</button></div>
-      <div class="steps" id="stepBar" role="toolbar" aria-label="Pages" hidden></div>
       <span class="spacer"></span>
       <div class="grp" role="group" aria-label="Device">
         <button class="ib" id="d-desk" data-tip="Desktop" aria-label="Desktop" aria-pressed="true">${SVG(P.desk)}</button>
@@ -581,6 +597,8 @@ export const STUDIO_HTML = `
     <div class="work" id="work">
       <div class="mid" id="mid">
       <div class="canvas" id="canvas">
+        <div class="flow" id="flow" aria-label="Team meeting" hidden></div>
+        <div class="stage" id="stage">
         <div class="asbar" id="asBar" role="group" aria-label="Preview as" hidden></div>
         <div class="frame" id="frame">
           <div id="host"></div>
@@ -590,24 +608,19 @@ export const STUDIO_HTML = `
           <div class="dropl" id="dropl" hidden></div>
           <div id="fbar" hidden></div>
         </div>
+        </div>
       </div>
       <div class="code" id="codeView" hidden>
         <div class="seg" role="group" aria-label="File"><button id="c-html" aria-pressed="true">HTML</button><button id="c-css" aria-pressed="false">Form CSS</button><button id="c-brand" aria-pressed="false">Brand CSS</button></div>
         <textarea id="codeText" spellcheck="false" aria-label="Code"></textarea>
         <div><button class="pill primary" id="codeApply">Apply</button></div>
       </div>
-      <div class="stepdock" id="stepDock"><div class="ptools" id="pageTools" role="toolbar" aria-label="Page tools"></div><span class="spacer"></span><button class="ib tipup" id="undo" data-tip="Undo" aria-label="Undo" disabled>${SVG(P.undo)}</button><button class="ib tipup tipleft" id="redo" data-tip="Redo" aria-label="Redo" disabled>${SVG(P.redo)}</button></div>
+      <div class="stepdock" id="stepDock"><div class="ptools" id="pageTools" role="toolbar" aria-label="Page tools"></div><div class="steps" id="stepBar" role="toolbar" aria-label="Pages" hidden></div><span class="spacer"></span><button class="ib tipup" id="undo" data-tip="Undo" aria-label="Undo" disabled>${SVG(P.undo)}</button><button class="ib tipup tipleft" id="redo" data-tip="Redo" aria-label="Redo" disabled>${SVG(P.redo)}</button></div>
       </div>
       <aside class="panel" id="panel" aria-label="Element" hidden>
-        <div class="ptabs" role="tablist">
-          <button class="pt" role="tab" id="p-set" aria-selected="true">${SVG(P.set, 14)}Settings</button>
-          <button class="pt" role="tab" id="p-style" aria-selected="false">${SVG(P.brush, 14)}Style</button>
-          <button class="pt" role="tab" id="p-theme" aria-selected="false">${SVG(P.style, 14)}Theme</button>
-          <span class="who2" id="selName"></span>
-        </div>
+        <div class="ptabs"><span class="who2" id="selName"></span></div>
         <div class="pscroll" id="pscroll"></div>
       </aside>
-      <aside class="after" id="afterView" aria-label="On submission" hidden><div class="inner" id="afterInner"></div></aside>
     </div>
   </section>
 </div>
@@ -868,11 +881,16 @@ ${CAL_CSS}
       wrap.querySelectorAll("[data-cl-book]").forEach((x) => x.replaceChildren(h("div", { class: "cl-bookph", text: "Booking calendar" })));
       // All steps at once: a divider names each.
       if (S.view === "all") {
-        stepsIn(wrap).forEach((st, i) => st.before(h("div", { class: "cl-divider", text: `Page ${i + 1}: ${stepName(st, i)}` })));
-        wrap.querySelector("[data-cl-thanks]")?.before(h("div", { class: "cl-divider", text: "Thank-you" }));
+        stepsIn(wrap).forEach((st, i) => st.before(h("div", { class: "cl-divider", text: stepName(st, i) })));
+        wrap.querySelector("[data-cl-thanks]")?.before(h("div", { class: "cl-divider", text: "Ending" }));
       }
     }
     run(wrap);
+    // A Redirect ending has no page of its own: the Ending says where people go.
+    if (S.mode === "edit" && S.view === "thanks" && body().after?.kind === "page") {
+      const t = wrap.querySelector("[data-cl-thanks]");
+      if (t) t.replaceChildren(h("p", { class: "redir", text: `After the send, people go to ${body().after.url || "the page you set in Ending type"}` }));
+    }
     stepUi();
     asUi();
     requestAnimationFrame(overlay);
@@ -882,13 +900,12 @@ ${CAL_CSS}
   // gets, and says so when an earlier rule catches them first.
   function asUi() {
     const bar = $("asBar"), a = body().after;
-    const routes = S.mode === "after" && a?.kind === "meeting" && (!a.tool || a.tool === "claritia") && isRouting(a) ? (a.routes || []).map(cleanRoute).filter(Boolean) : [];
+    const routes = S.mode === "edit" && S.view === "thanks" && a?.kind === "meeting" && (!a.tool || a.tool === "claritia") && isRouting(a) ? (a.routes || []).map(cleanRoute).filter(Boolean) : [];
     bar.hidden = !routes.length;
-    $("canvas").classList.toggle("as", !!routes.length);
     if (!routes.length) return bar.replaceChildren();
     if (!(S.as >= -1 && S.as < routes.length)) S.as = 0;
     const qs = cleanPage(sourceHtml()).questions;
-    const pick = (i) => { S.as = i; openRule = i; draw(); renderAfter(); };
+    const pick = (i) => { S.as = i; openRule = i; draw(); endUi(); };
     const chip = (i, text) => h("button", { class: `pill${S.as === i ? " on" : ""}`, "aria-pressed": String(S.as === i), text, onclick: () => pick(i) });
     const lead = S.as >= 0 ? sampleFor(routes[S.as], qs) : { values: {}, past: {} };
     const hit = routeIndex(routes, lead.values, qs, lead.past);
@@ -1068,7 +1085,7 @@ ${CAL_CSS}
     const routes = isRouting(a) ? (a.routes || []).map(cleanRoute).filter(Boolean) : [];
     const qs0 = cleanPage(sourceHtml()).questions;
     // On submission: the lead picked in Preview as, run through every rule as a live lead would be.
-    const as = S.mode === "after" && routes.length ? (S.as >= 0 && routes[S.as] ? sampleFor(routes[S.as], qs0) : { values: {}, past: {} }) : null;
+    const as = S.mode === "edit" && S.view === "thanks" && routes.length ? (S.as >= 0 && routes[S.as] ? sampleFor(routes[S.as], qs0) : { values: {}, past: {} }) : null;
     const m = MEETINGS.find((x) => x.id === (as ? routeMeeting(routes, a.meeting, as.values, qs0, as.past) : routeMeeting(routes, a.meeting, v, qs0))) || MEETINGS[0];
     spot.hidden = false;
     if (!m) return spot.replaceChildren(h("p", { class: "text", text: "No meeting types yet." }));
@@ -1214,7 +1231,7 @@ ${CAL_CSS}
   // ── Steps (multi-page forms): pills to see one step at a time, the thank-you and all of them; tools to add,
   // copy, move and remove steps. Next and send buttons follow the order. ──────────────────────────────────────
   const stepsIn = (r) => [...r.querySelectorAll("[data-cl-step]")].filter((x) => !x.parentElement?.closest("[data-cl-thanks]"));
-  const stepName = (st, i) => (st.querySelector("h1,h2,h3,h4,legend,.heading,.title,label")?.textContent || "").replace(/\s+/g, " ").trim().slice(0, 28) || `Page ${i + 1}`;
+  const stepName = (st, i) => st.getAttribute("data-cl-page") || `Page ${i + 1}`;
   function ifWords(expr) {
     const qs = questions();
     const label = (n) => { const el = src.querySelector(`[name="${CSS.escape(n)}"]`); const lab = el?.id ? src.querySelector(`label[for="${CSS.escape(el.id)}"]`) : null; return (lab?.textContent || n.replace(/[_-]+/g, " ")).trim(); };
@@ -1245,49 +1262,123 @@ ${CAL_CSS}
     const cover = src.querySelector("[data-cl-cover]");
     if (editing && ((typeof S.view === "number" && S.view >= Math.max(1, steps.length)) || (S.view === "cover" && !cover))) S.view = 0;
     bar.innerHTML = "";
-    // Pages as steps: numbered circles joined by a line, the thank-you last with a tick; pages already passed in
-    // Preview show done. All is an icon beside them.
+    // Pages as tabs (Fillout's page bar): the welcome screen, each page, and the Ending last. While editing, a page
+    // drags to a new place, and its ⋯ renames, duplicates, copies or deletes it.
     const go = (v) => {
-      if (v === "after") return setMode("after");
-      if (S.mode === "after") { S.view = v; return setMode("edit"); }
-      if (editing) { S.view = v; S.sel = null; draw(); panel(); tree(); } else { if (v === "thanks") done = true; else if (v === "cover") { done = false; coverOn = true; } else { done = false; coverOn = false; stepAt = oneMap.length ? Math.max(0, oneMap.indexOf(v)) : v; } draw(); }
+      if (editing) { S.view = v; S.sel = null; draw(); panel(); tree(); endUi(); }
+      else { if (v === "thanks") done = true; else if (v === "cover") { done = false; coverOn = true; } else { done = false; coverOn = false; stepAt = oneMap.length ? Math.max(0, oneMap.indexOf(v)) : v; } draw(); }
     };
-    const conn = () => h("span", { class: "conn", "aria-hidden": "true" });
-    const pill = (n, text, on, fn, cls = "") => h("button", { class: `sp${cls ? ` ${cls}` : ""}`, "aria-pressed": String(on), onclick: fn }, h("span", { class: "n", ...(n === "tick" ? { html: SVG(P.check, 11) } : n === "bolt" ? { html: SVG(P.bolt, 11) } : n === "img" ? { html: SVG(P.image, 11) } : { text: n }) }), h("span", { text }));
-    const after = S.mode === "after";
-    const at = editing ? S.view : done ? "thanks" : oneMap.length ? (oneMap[stepAt] ?? 0) : stepAt;
-    const passed = (i) => !editing && (done || (typeof at === "number" && i < at));
-    if (cover) { bar.append(pill("img", "Welcome", !after && (editing ? S.view === "cover" : coverOn && !done), () => go("cover"), !editing && !after && (!coverOn || done) ? "done" : "")); bar.append(conn()); }
-    const onCov = !editing && !!cover && coverOn && !done;
-    if (steps.length) steps.forEach((st, i) => { if (i) bar.append(conn()); bar.append(pill(String(i + 1), stepName(st, i), !after && (editing ? S.view === i : !done && !onCov && at === i), () => go(i), passed(i) && !onCov ? "done" : "")); });
-    else bar.append(pill("1", "Form", !after && (editing ? S.view === 0 : !done && !onCov), () => go(0), !editing && !after && done ? "done" : ""));
-    // The end step follows On submission: a message, a redirect, or the booking under the message.
-    const endKind = body().after?.kind || "thanks";
-    if (thanks) { bar.append(conn()); bar.append(pill("tick", endKind === "page" ? "Redirect" : endKind === "meeting" ? "Booking" : "Thank-you", !after && (editing ? S.view === "thanks" : done), () => go(editing && endKind === "page" ? "after" : "thanks"))); }
-    // On submission is the last step: what happens once it's sent (the meeting, routing, the team's email).
-    if (S.mode !== "preview") { bar.append(conn()); bar.append(pill("bolt", "On submission", after, () => go("after"), "after")); }
+    const at = editing ? S.view : done ? "thanks" : coverOn && cover ? "cover" : oneMap.length ? (oneMap[stepAt] ?? 0) : stepAt;
+    const tab = (icon, text, v, menu, drag) => {
+      const on = at === v;
+      const wrap = h("div", { class: `pg${on ? " on" : ""}` });
+      if (renaming === v && editing) {
+        const i = h("input", { class: "in ren", value: text, "aria-label": "Page name" });
+        const done2 = (keep) => { if (renaming !== v) return; renaming = null; if (keep) renameStep(v, i.value); else stepUi(); };
+        i.addEventListener("keydown", (e) => { if (e.key === "Enter") done2(true); if (e.key === "Escape") done2(false); });
+        i.addEventListener("blur", () => done2(true));
+        wrap.append(i);
+        requestAnimationFrame(() => { i.focus(); i.select(); });
+        return wrap;
+      }
+      wrap.append(h("button", { class: "sp", "aria-pressed": String(on), onclick: () => go(v), ondblclick: () => { if (editing && typeof v === "number") { renaming = v; stepUi(); } } }, h("span", { class: "n", html: SVG(icon, 14) }), h("span", { text })));
+      if (editing && on && menu) wrap.append(h("button", { class: "ib pm", "aria-label": `${text} options`, "data-tip": "Options", "aria-haspopup": "menu", html: SVG(P.more, 14), onclick: (e) => openMenu(e.currentTarget, menu(), 200) }));
+      if (editing && drag !== undefined) {
+        wrap.setAttribute("draggable", "true");
+        wrap.addEventListener("dragstart", (e) => { dragPage = drag; e.dataTransfer.effectAllowed = "move"; try { e.dataTransfer.setData("text/plain", `page:${drag}`); } catch {} });
+        wrap.addEventListener("dragend", () => { dragPage = null; bar.querySelectorAll(".drop").forEach((x) => x.classList.remove("drop")); });
+        wrap.addEventListener("dragover", (e) => { if (dragPage === null || dragPage === drag) return; e.preventDefault(); wrap.classList.add("drop"); });
+        wrap.addEventListener("dragleave", () => wrap.classList.remove("drop"));
+        wrap.addEventListener("drop", (e) => { if (dragPage === null) return; e.preventDefault(); const from = dragPage; dragPage = null; moveStepTo(from, drag); });
+      }
+      return wrap;
+    };
+    const item = (text, fn, off) => h("button", { class: "mi small", role: "menuitem", text, disabled: off || null, onclick: () => { closeMenu(); fn(); } });
+    const pageMenu = (i) => () => [
+      item("Rename", () => { renaming = i; stepUi(); }),
+      item("Duplicate", () => dupStep(i)),
+      item("Copy", () => copyPage(i)),
+      item("Timer", () => requestAnimationFrame(() => { const b = bar.querySelector(".pg.on .pm"); if (b) timerMenu(b, i); })),
+      h("div", { class: "msep" }),
+      item("Delete", () => delStep(i), steps.length < 2),
+    ];
+    if (cover) bar.append(tab(P.image, "Welcome", "cover", editing ? () => [item("Delete", () => delCover())] : null));
+    if (steps.length) steps.forEach((st, i) => bar.append(tab(P.section, stepName(st, i), i, pageMenu(i), steps.length > 1 ? i : undefined)));
+    else bar.append(tab(P.section, "Page 1", 0, null));
+    if (thanks) bar.append(tab(P.check, "Ending", "thanks", null));
     if (editing && (steps.length > 1 || thanks)) bar.append(h("button", { class: "sp all", "aria-pressed": String(S.view === "all"), "aria-label": "All pages", "data-tip": "All pages", html: SVG(P.layers, 15), onclick: () => go("all") }));
-    pageTools(steps);
+    pageTools();
   }
-  /** The bar under the form: what to do with the page in view (Add page, move, copy, time, delete), then undo. */
-  function pageTools(steps) {
+  let dragPage = null, renaming = null;
+  /** Add page: a plain page, a payment page, the scheduling page (the Ending books a meeting), or a page copied before. */
+  function pageTools() {
     const box = $("pageTools");
     box.innerHTML = "";
     if (S.mode !== "edit") return;
-    box.append(h("button", { class: "pill", "data-add-page": "", "aria-label": "Add page", html: `${SVG(P.plus, 14)}Add page`, onclick: addPage }));
-    if (typeof S.view !== "number" || !steps.length) return;
-    const i = S.view;
-    const tool = (tip, ic, fn, off) => h("button", { class: "ib tipup", "data-tip": tip, "aria-label": tip, html: SVG(ic, 15), disabled: off || null, onclick: fn });
-    const t = timerTool(i);
-    t.classList.add("tipup");
-    box.append(
-      tool("Move earlier", '<path d="m15 18-6-6 6-6"/>', () => moveStep(i, -1), i === 0),
-      tool("Move later", '<path d="m9 18 6-6-6-6"/>', () => moveStep(i, 1), i === steps.length - 1),
-      tool("Duplicate the page", P.dup, () => dupStep(i)),
-      t,
-      tool("Delete the page", P.del, () => delStep(i), steps.length < 2),
-    );
+    const item = (ic, text, fn) => { const b = h("button", { class: "mi small", role: "menuitem", html: `${SVG(ic, 15)}<span class="nm"></span>`, onclick: () => { closeMenu(); fn(); } }); b.querySelector(".nm").textContent = text; return b; };
+    const b = h("button", { class: "pill", "data-add-page": "", "aria-label": "Add page", "aria-haspopup": "menu", html: `${SVG(P.plus, 14)}Add page` });
+    b.onclick = () => { const copied = store.get("clr-studio-page", ""); openMenu(b, [
+      item(P.section, "Page", addPage),
+      item(P.payment, "Payment page", addPaymentPage),
+      item(P.cal, "Scheduling page", addSchedulingPage),
+      ...(copied ? [h("div", { class: "msep" }), item(P.dup, "Paste the copied page", () => pastePage(copied))] : []),
+    ], 220); };
+    box.append(b);
   }
+  /** A page's name: the one given (data-cl-page), else Page N. */
+  function renameStep(i, name) {
+    const st = stepsIn(src)[i]; if (!st) return;
+    const v = String(name || "").replace(/\s+/g, " ").trim().slice(0, 40);
+    snap();
+    if (v && v !== `Page ${i + 1}`) st.setAttribute("data-cl-page", v); else st.removeAttribute("data-cl-page");
+    commit();
+  }
+  /** Copy: the page kept on this computer, to paste into this form or another one with Add page. */
+  function copyPage(i) {
+    const st = stepsIn(src)[i]; if (!st) return;
+    const c = st.cloneNode(true);
+    [c, ...c.querySelectorAll("[data-k]")].forEach((x) => x.removeAttribute("data-k"));
+    store.set("clr-studio-page", c.outerHTML);
+    toast("Page copied. Paste it from Add page.");
+    pageTools();
+  }
+  function pastePage(html) {
+    const steps = stepsIn(src);
+    if (!steps.length) { addPage(); return pastePage(html); }
+    const frag = clean(html);
+    const st = frag.querySelector("[data-cl-step]");
+    if (!st) return toast("The copied page can't be pasted");
+    snap();
+    const page = copyStep(st);
+    const taken = allNames();
+    page.querySelectorAll("[name]").forEach((x) => { const n = x.getAttribute("name"); if (taken.has(n)) { const m = uniqueName(n, taken); taken.add(m); page.querySelectorAll(`[name="${CSS.escape(n)}"]`).forEach((y) => y.setAttribute("name", m)); } });
+    const i = typeof S.view === "number" && S.view < steps.length ? S.view : steps.length - 1;
+    steps[i].after(page);
+    normalizeSteps(); ensureIds();
+    S.view = i + 1; commit();
+    toast("Page pasted");
+  }
+  /** Payment page: a new page with the payment block on it. */
+  function addPaymentPage() {
+    addPage();
+    if (typeof S.view !== "number") return;
+    const st = stepsIn(src)[S.view]; if (!st) return;
+    const head = st.querySelector("h1,h2,h3,.heading");
+    if (head) head.textContent = "Payment";
+    st.setAttribute("data-cl-page", "Payment");
+    addQuestion("payment");
+  }
+  /** Scheduling page: the Ending books a meeting, and it opens. */
+  function addSchedulingPage() {
+    if (!MEETINGS.length && !body().after?.tool) { toast("Add a meeting type first"); return api.openMeetings(); }
+    snap();
+    bookSpot();
+    body().after = { ...body().after, kind: "meeting", ...(body().after?.meeting ? {} : { meeting: MEETINGS[0]?.id || "" }) };
+    changed();
+    S.view = "thanks"; S.sel = null;
+    draw(); panel(); stepUi(); endUi(); runCheck();
+  }
+  function delCover() { const c = src.querySelector("[data-cl-cover]"); if (!c) return; snap(); c.remove(); S.view = 0; commit(); }
   // Next on every step but the last, the send button on the last, no Back on the first.
   function normalizeSteps() {
     const steps = stepsIn(src);
@@ -1344,28 +1435,28 @@ ${CAL_CSS}
     S.view = i + 1; commit();
   }
   /** A page's timer: it moves on by itself when the time is up. */
-  function timerTool(i) {
+  function timerMenu(anchor, i) {
     const st = stepsIn(src)[i];
     const secs = Number(st?.getAttribute("data-cl-timer")) || 0;
-    const b = h("button", { class: "ib", "data-tip": secs ? `Timer: ${secs >= 60 ? `${secs / 60} min` : `${secs} s`}` : "Add a timer", "aria-label": "Page timer", "aria-pressed": String(!!secs), html: SVG(P.time, 15) });
-    b.onclick = () => openMenu(b, [[0, "No timer"], [30, "30 seconds"], [60, "1 minute"], [120, "2 minutes"], [300, "5 minutes"], [600, "10 minutes"]].map(([n, t]) => h("button", { class: "mi small", role: "menuitemradio", "aria-checked": String(n === secs), text: t, onclick: () => { closeMenu(); snap(); n ? st.setAttribute("data-cl-timer", String(n)) : st.removeAttribute("data-cl-timer"); commit(); } })), 180);
-    return b;
+    openMenu(anchor, [[0, "No timer"], [30, "30 seconds"], [60, "1 minute"], [120, "2 minutes"], [300, "5 minutes"], [600, "10 minutes"]].map(([n, t]) => h("button", { class: "mi small", role: "menuitemradio", "aria-checked": String(n === secs), text: t, onclick: () => { closeMenu(); snap(); if (n) st.setAttribute("data-cl-timer", String(n)); else st.removeAttribute("data-cl-timer"); commit(); } })), 180);
+  }
+  /** Drag a page onto another: it takes that page's place. */
+  function moveStepTo(i, j) {
+    const steps = stepsIn(src), st = steps[i], other = steps[j];
+    if (!st || !other || i === j) return;
+    snap();
+    if (i < j) other.after(st); else other.before(st);
+    normalizeSteps();
+    S.view = j; commit();
   }
   function dupStep(i) { const st = stepsIn(src)[i]; if (!st) return; snap(); st.after(copyStep(st)); normalizeSteps(); ensureIds(); S.view = i + 1; commit(); }
   function moveStep(i, dir) { const steps = stepsIn(src), st = steps[i], other = steps[i + dir]; if (!st || !other) return; snap(); dir < 0 ? other.before(st) : other.after(st); normalizeSteps(); S.view = i + dir; commit(); }
   function delStep(i) { const steps = stepsIn(src); if (steps.length < 2) return; snap(); steps[i].remove(); normalizeSteps(); S.view = Math.max(0, i - 1); commit(); toast("Step deleted. Undo with Cmd+Z."); }
 
   // ── Layers ────────────────────────────────────────────────────────────────────────────────────────────
-  function tree() {
-    const t = $("tree");
-    // The layers list keeps its place too: picking a layer low in the list leaves it where it was.
-    const box = t.parentElement, keepT = t.scrollTop, keepB = box?.scrollTop ?? 0;
-    t.innerHTML = "";
-    queueMicrotask(() => { t.scrollTop = keepT; if (box) box.scrollTop = keepB; });
-    if (!S.nav) return;
-    const walk = (el, d) => { for (const c of el.children) { const k = c.getAttribute("data-k"); const label = c.id ? `#${c.id}` : leaf(c) ? c.textContent.trim().slice(0, 24) : c.classList[0] ? `.${c.classList[0]}` : ""; t.append(h("button", { class: k === S.sel ? "sel" : "", style: `padding-left:${6 + d * 12}px`, onclick: () => select(k) }, h("span", { class: "tg", text: nameOf(c) }), h("span", { text: label }))); if (d < 9) walk(c, d + 1); } };
-    walk(src, 0);
-  }
+  // No Layers: the form is edited on the canvas itself.
+  function tree() {}
+
 
   // ── Styles: one rule per class or element, in the form CSS's editor block ──────────────────────────────
   const EDIT = "/* editor */";
@@ -1394,145 +1485,40 @@ ${CAL_CSS}
   function panelDraw(p) {
     p.innerHTML = "";
     const el = S.sel ? byK(S.sel) : null;
-    $("selName").textContent = el ? nameOf(el) : "";
-    $("p-style").setAttribute("aria-selected", String(S.ptab === "style")); $("p-set").setAttribute("aria-selected", String(S.ptab === "settings")); $("p-theme").setAttribute("aria-selected", String(S.ptab === "theme"));
-    if (S.ptab === "theme") return themePanel(p);
-    if (!el && S.ptab === "settings") return formSettings(p);
-    if (!el) { p.append(h("div", { class: "sec" }, h("p", { class: "hint0", text: "Select a field on the form to style it." }))); return; }
-    if (S.ptab === "settings") return settings(p, el);
+    $("selName").textContent = el ? nameOf(el) : "Form";
+    if (!el) return formSettings(p);
+    settings(p, el);
+    quickStyle(p, el);
+  }
+  /**
+   * Style, kept to what people change: the text (size, weight, align, color), the fill, the corners and the width.
+   * A change reaches this one, or every one like it when there are several.
+   */
+  function quickStyle(p, el) {
     const cls = el.classList[0];
-    // What a style change reaches, in words: only this one, or every one like it on the form (by its class).
     const alike = cls ? src.querySelectorAll(`.${CSS.escape(cls)}`).length : 0;
-    p.append(h("div", { class: "sec" }, h("div", { class: "sel-head" }, h("span", { class: "lbl", text: "Apply to" }), h("span", { class: "spacer" }),
-      h("div", { class: "seg" }, h("button", { "aria-pressed": String(S.scope === "el" || !cls || alike <= 1), onclick: () => { S.scope = "el"; panel(); }, text: "Only this" }), cls && alike > 1 ? h("button", { "aria-pressed": String(S.scope === "class"), onclick: () => { S.scope = "class"; panel(); }, text: `All ${alike} ${plural(nameOf(el))}` }) : null)),
-      // States, like Framer's variants: the look on hover and while it's being typed in.
-      h("div", { class: "sel-head" }, h("span", { class: "lbl2", text: "State" }), h("span", { class: "spacer" }), h("div", { class: "seg" }, ...[["", "Default"], [":hover", "Hover"], [":focus-within", "Focus"]].map(([v, t]) => h("button", { "aria-pressed": String((S.state || "") === v), onclick: () => { S.state = v; panel(); }, text: t }))))));
-    // Layout
-    const disp = getP("display") || comp("display"), dir = getP("flex-direction") || comp("flex-direction");
-    const L = h("div", { class: "sec" }, h("h4", { text: "Layout" }));
-    const dIcons = h("div", { class: "icons", role: "group", "aria-label": "Display" });
-    for (const [v, ic, tip] of [["block", P.block, "Block"], ["row", P.row, "Row"], ["column", P.col, "Column"], ["grid", P.grid, "Grid"], ["none", P.none, "Hidden"]]) {
-      const on = v === "row" ? disp === "flex" && dir.startsWith("row") : v === "column" ? disp === "flex" && dir.startsWith("column") : disp === v;
-      dIcons.append(h("button", { class: "ib", "data-tip": tip, "aria-label": tip, "aria-pressed": String(on), html: SVG(ic, 15), onclick: () => (v === "row" || v === "column" ? setMany([["display", "flex"], ["flex-direction", v]]) : setP("display", v)) }));
-    }
-    L.append(dIcons);
-    if (disp === "flex" || disp === "grid") {
-      const j = h("div", { class: "icons", role: "group", "aria-label": "Spread" });
-      for (const [v, ic, tip] of [["flex-start", P.js, "Start"], ["center", P.jc, "Center"], ["flex-end", P.je, "End"], ["space-between", P.jb, "Spread out"]]) j.append(h("button", { class: "ib", "data-tip": tip, "aria-label": tip, "aria-pressed": String((getP("justify-content") || comp("justify-content")) === v), html: SVG(ic, 15), onclick: () => setP("justify-content", v) }));
-      L.append(j, h("div", { class: "g2" }, num("Gap", "gap", "G")));
-    }
-    p.append(positionSec(), sizeSec());
-    p.append(L);
-    // Spacing
-    const r = live(S.sel)?.getBoundingClientRect();
-    const bx = (prop, side) => { const i = h("input", { class: `bx ${side}`, "aria-label": prop.replace("-", " "), value: getP(prop).replace(/px$/, ""), placeholder: (comp(prop) || "").replace(/px$/, "") }); i.addEventListener("change", () => setP(prop, unit(i.value))); return i; };
-    const pad = h("div", { class: "boxp" }, h("span", { class: "bl", text: "Padding" }), bx("padding-top", "t"), bx("padding-right", "r"), bx("padding-bottom", "b"), bx("padding-left", "l"), h("span", { class: "boxc", text: r ? `${Math.round(r.width)} × ${Math.round(r.height)}` : "" }));
-    p.append(h("div", { class: "sec" }, h("h4", { text: "Spacing" }), h("div", { class: "boxm" }, h("span", { class: "bl", text: "Margin" }), bx("margin-top", "t"), bx("margin-right", "r"), bx("margin-bottom", "b"), bx("margin-left", "l"), pad)));
-    // Type
-    const T = h("div", { class: "sec" }, h("h4", { text: "Type" }), h("div", { class: "g3" }, num("Size", "font-size", "S"), num("Line height", "line-height", "L"), num("Letter spacing", "letter-spacing", "T")));
-    const wt = h("div", { class: "icons", role: "group", "aria-label": "Weight" });
-    for (const w of ["400", "500", "600", "700", "800"]) wt.append(h("button", { class: "ib", "aria-pressed": String((getP("font-weight") || comp("font-weight")) === w), "aria-label": `Weight ${w}`, style: `font-weight:${w};font-size:12px`, text: w, onclick: () => setP("font-weight", w) }));
+    if (!cls || alike <= 1) S.scope = "el";
+    S.state = "";
+    const sec = h("div", { class: "sec qs" }, h("h4", { text: "Style" }));
+    if (cls && alike > 1) sec.append(h("div", { class: "sel-head" }, h("span", { class: "lbl", text: "Apply to" }), h("span", { class: "spacer" }), h("div", { class: "seg" }, h("button", { "aria-pressed": String(S.scope === "el"), onclick: () => { S.scope = "el"; panel(); }, text: "Only this" }), h("button", { "aria-pressed": String(S.scope === "class"), onclick: () => { S.scope = "class"; panel(); }, text: `All ${alike} ${plural(nameOf(el))}` }))));
+    const wt = h("div", { class: "seg", role: "group", "aria-label": "Weight" });
+    const w0 = getP("font-weight") || comp("font-weight");
+    for (const [w, t] of [["400", "Regular"], ["500", "Medium"], ["600", "Bold"]]) wt.append(h("button", { "aria-pressed": String(w0 === w || (w === "600" && Number(w0) >= 600)), text: t, onclick: () => setP("font-weight", w) }));
     const al = h("div", { class: "icons", role: "group", "aria-label": "Align" });
-    for (const [v, ic, tip] of [["left", P.al, "Left"], ["center", P.ac, "Center"], ["right", P.ar, "Right"]]) al.append(h("button", { class: "ib", "data-tip": tip, "aria-label": tip, "aria-pressed": String((getP("text-align") || comp("text-align")).replace("start", "left") === v), html: SVG(ic, 15), onclick: () => setP("text-align", v) }));
-    const cs = h("div", { class: "icons", role: "group", "aria-label": "Case" });
-    for (const [v, ic, tip] of [["none", P.case0, "As typed"], ["uppercase", P.caseU, "Capitals"], ["lowercase", P.caseL, "Lower case"]]) cs.append(h("button", { class: "ib", "data-tip": tip, "aria-label": tip, "aria-pressed": String((getP("text-transform") || comp("text-transform")) === v), html: SVG(ic, 15), onclick: () => setP("text-transform", v) }));
-    const it = h("div", { class: "icons", role: "group", "aria-label": "Style" });
-    for (const [v, t, st] of [["normal", "Regular", ""], ["italic", "Italic", "font-style:italic"]]) it.append(h("button", { class: "ib", "aria-pressed": String((getP("font-style") || comp("font-style")) === v), text: t, style: `font-size:12px;${st}`, onclick: () => setP("font-style", v === "normal" ? "" : v) }));
-    const dec = h("div", { class: "icons", role: "group", "aria-label": "Decoration" });
-    for (const [v, t, st] of [["none", "None", ""], ["underline", "Underline", "text-decoration:underline"], ["line-through", "Strike", "text-decoration:line-through"]]) dec.append(h("button", { class: "ib", "aria-pressed": String((getP("text-decoration-line") || comp("text-decoration-line")) === v), text: t, style: `font-size:12px;${st}`, onclick: () => setP("text-decoration-line", v === "none" ? "" : v) }));
-    T.append(wt, h("div", { class: "g2" }, al, cs), it, dec, color("Text color", "color"));
-    p.append(T);
-    p.append(h("div", { class: "sec" }, h("h4", { text: "Fill" }), color("Background", "background-color")));
-    const bs = getP("border-style") || comp("border-style");
-    p.append(h("div", { class: "sec" }, h("h4", { text: "Border" }), h("div", { class: "g2" }, num("Border width", "border-width", "W"), num("Radius", "border-radius", "R")), h("div", { class: "row3" }, h("span", { class: "lbl2", text: "Style" }), pick({ solid: "Solid", dashed: "Dashed", dotted: "Dotted", none: "None" }[bs] || "Solid", [["solid", "Solid"], ["dashed", "Dashed"], ["dotted", "Dotted"], ["none", "None"]].map(([v, t]) => [t, () => setP("border-style", v), v === bs]))), color("Border color", "border-color")));
-    const fx = h("div", { class: "icons", role: "group", "aria-label": "Shadow" });
-    for (const [v, t] of [["none", "None"], ["0 1px 3px rgba(0,0,0,.12)", "Soft"], ["0 12px 32px -12px rgba(0,0,0,.35)", "Lift"]]) fx.append(h("button", { class: "ib", "aria-pressed": String(getP("box-shadow") === v), text: t, style: "font-size:12px", onclick: () => setP("box-shadow", v) }));
-    p.append(effectsSec(fx));
-    p.append(transformSec(), stylesSec(), transitionSec());
-  }
-  /** A section that opens and closes, open by itself when it holds a value. */
-  function fold(title, props, body) {
-    const has = props.some((x) => getP(x));
-    const open = has || S.open.has(title);
-    const sec = h("div", { class: "sec" });
-    const btn = h("button", { class: "fold", "aria-expanded": String(open), onclick: () => { open ? S.open.delete(title) : S.open.add(title); panel(); } }, h("h4", { text: title }), h("span", { class: "ib", html: SVG(open ? P.x : P.plus, 13), "aria-hidden": "true" }));
-    sec.append(btn);
-    if (open) sec.append(...body());
-    return sec;
-  }
-  /** Width and height as Framer sets them: a fixed size, part of the space (%), all of it, or as big as the content. */
-  function sizeSec() {
-    const el = live(S.sel);
-    const sizeRow = (label, prop, key) => {
-      const v = getP(prop);
-      const mode = !v || v === "auto" ? "auto" : v === "100%" && getP("align-self") === "stretch" ? "fill" : /%$/.test(v) ? "rel" : /content$/.test(v) ? "fit" : "fixed";
-      const MODES = [["auto", "Auto"], ["fixed", "Fixed"], ["rel", "Relative"], ["fill", "Fill"], ["fit", "Fit content"]];
-      const go = (m) => {
-        const r = el?.getBoundingClientRect();
-        const pr = el?.parentElement?.getBoundingClientRect();
-        const px = r ? Math.round(prop === "width" ? r.width : r.height) : 0;
-        const whole = pr ? (prop === "width" ? pr.width : pr.height) : 0;
-        if (m === "auto") setMany([[prop, ""], ["align-self", ""]]);
-        else if (m === "fixed") setMany([[prop, `${px || 100}px`], ["align-self", ""]]);
-        else if (m === "rel") setMany([[prop, `${whole ? Math.max(1, Math.min(100, Math.round((px / whole) * 100))) : 50}%`], ["align-self", ""]]);
-        else if (m === "fill") setMany([[prop, "100%"], ["align-self", "stretch"]]);
-        else setMany([[prop, "fit-content"], ["align-self", ""]]);
-      };
-      return h("div", { class: "row3" }, mode === "fill" || mode === "fit" || mode === "auto" ? h("span", { class: "lbl2", text: label }) : num(label, prop, key), pick(MODES.find(([m]) => m === mode)?.[1] || "Auto", MODES.map(([m, t]) => [t, () => go(m), m === mode])));
-    };
-    return h("div", { class: "sec" }, h("h4", { text: "Size" }), sizeRow("Width", "width", "W"), sizeRow("Height", "height", "H"), h("div", { class: "g2" }, num("Min width", "min-width", "Min W"), num("Max width", "max-width", "Max W")), h("div", { class: "g2" }, num("Min height", "min-height", "Min H"), num("Max height", "max-height", "Max H")));
-  }
-  /** Position: in the flow, nudged, pinned in its box, fixed on the screen, or sticky while it scrolls. */
-  function positionSec() {
-    const pos = getP("position") || "static";
-    const TYPES = [["static", "Default"], ["relative", "Relative"], ["absolute", "Absolute"], ["sticky", "Sticky"], ["fixed", "Fixed"]];
-    return fold("Position", ["position", "top", "left", "z-index"], () => [
-      h("div", { class: "row3" }, h("span", { class: "lbl2", text: "Type" }), pick(TYPES.find(([v]) => v === pos)?.[1] || "Default", TYPES.map(([v, t]) => [t, () => setP("position", v === "static" ? "" : v), v === pos]))),
-      ...(pos === "static" ? [] : [h("div", { class: "cross" }, h("span"), num("Top", "top", "T"), h("span"), num("Left", "left", "L"), h("span", { class: "c" }), num("Right", "right", "R"), h("span"), num("Bottom", "bottom", "B"), h("span"))]),
-      h("div", { class: "g2" }, num("Z index", "z-index", "Z")),
-    ]);
-  }
-  function effectsSec(fx) {
-    const sh = getP("box-shadow");
-    const m = /^(-?[\d.]+)px (-?[\d.]+)px ([\d.]+)px (-?[\d.]+)px (.+)$/.exec(sh);
-    const part = (i, label, key) => {
-      const inp = h("input", { "aria-label": label, value: m ? m[i] : "", placeholder: ["", "0", "4", "12", "0"][i] });
-      inp.addEventListener("change", () => { const v = [1, 2, 3, 4].map((k) => (k === i ? inp.value.trim() || "0" : m ? m[k] : ["", "0", "4", "12", "0"][k])); setP("box-shadow", `${v[0]}px ${v[1]}px ${v[2]}px ${v[3]}px ${m ? m[5] : "rgba(0,0,0,.18)"}`); });
-      return h("label", { class: "num" }, h("span", { class: "k", text: key }), inp);
-    };
-    const blurOf = (prop) => (/blur\(([\d.]+)px\)/.exec(getP(prop)) || [])[1] || "";
-    const blur = (label, prop, key) => { const i = h("input", { "aria-label": label, value: blurOf(prop), placeholder: "0" }); i.addEventListener("change", () => setP(prop, Number(i.value) > 0 ? `blur(${Number(i.value)}px)` : "")); return h("label", { class: "num" }, h("span", { class: "k", text: key }), i); };
-    return h("div", { class: "sec" }, h("h4", { text: "Effects" }), fx, h("div", { class: "g2" }, part(1, "Shadow X", "X"), part(2, "Shadow Y", "Y")), h("div", { class: "g2" }, part(3, "Shadow blur", "B"), part(4, "Shadow spread", "S")), h("div", { class: "g2" }, blur("Blur", "filter", "Blur"), blur("Background blur", "backdrop-filter", "BG")));
-  }
-  /** Transforms: turn, size and move it, without moving what's around it. */
-  function transformSec() {
-    const tr = (getP("translate") || "").split(/\s+/);
-    const tx = (i, label, key) => { const inp = h("input", { "aria-label": label, value: (tr[i] || "").replace(/px$/, ""), placeholder: "0" }); inp.addEventListener("change", () => { const v = [0, 1].map((k) => (k === i ? unit(inp.value || "0") : tr[k] || "0px")); setP("translate", v.every((x) => /^0(px)?$/.test(x)) ? "" : v.join(" ")); }); return h("label", { class: "num" }, h("span", { class: "k", text: key }), inp); };
-    const deg = h("input", { "aria-label": "Rotate", value: (getP("rotate") || "").replace(/deg$/, ""), placeholder: "0" });
-    deg.addEventListener("change", () => setP("rotate", Number(deg.value) ? `${Number(deg.value)}deg` : ""));
-    const sc = h("input", { "aria-label": "Scale", value: getP("scale"), placeholder: "1" });
-    sc.addEventListener("change", () => setP("scale", sc.value && Number(sc.value) !== 1 ? String(Number(sc.value)) : ""));
-    return fold("Transforms", ["rotate", "scale", "translate"], () => [h("div", { class: "g2" }, h("label", { class: "num" }, h("span", { class: "k", text: "R" }), deg), h("label", { class: "num" }, h("span", { class: "k", text: "S" }), sc)), h("div", { class: "g2" }, tx(0, "Move X", "X"), tx(1, "Move Y", "Y"))]);
-  }
-  /** Styles: how see-through it is, which sits on top, and the pointer over it. */
-  function stylesSec() {
-    const op = getP("opacity") || "1";
-    const r = h("input", { type: "range", min: "0", max: "1", step: "0.05", value: op, "aria-label": "Opacity" });
-    r.addEventListener("change", () => setP("opacity", Number(r.value) >= 1 ? "" : r.value));
-    const cur = getP("cursor") || "auto";
-    const CURSORS = [["auto", "Auto"], ["pointer", "Pointer"], ["text", "Text"], ["grab", "Grab"], ["help", "Help"], ["not-allowed", "Not allowed"]];
-    return h("div", { class: "sec" }, h("h4", { text: "Styles" }), h("div", { class: "slide" }, num("Opacity", "opacity", "O"), r), h("div", { class: "row3" }, h("span", { class: "lbl2", text: "Cursor" }), pick(CURSORS.find(([v]) => v === cur)?.[1] || "Auto", CURSORS.map(([v, t]) => [t, () => setP("cursor", v === "auto" ? "" : v), v === cur]))));
-  }
-  /** Transition: how changes (a hover, a focus) ease in. */
-  function transitionSec() {
-    const t = getP("transition");
-    const m = /^all (\d+)ms (.+)$/.exec(t);
-    const ms = m ? m[1] : "";
-    const EASE = [["cubic-bezier(.22,1,.36,1)", "Ease out"], ["ease-in-out", "Ease in and out"], ["linear", "Linear"], ["cubic-bezier(.34,1.56,.64,1)", "Spring"]];
-    const ez = m ? m[2] : EASE[0][0];
-    const d = h("input", { "aria-label": "Duration in ms", value: ms, placeholder: "200" });
-    d.addEventListener("change", () => setP("transition", Number(d.value) > 0 ? `all ${Math.round(Number(d.value))}ms ${ez}` : ""));
-    return fold("Transition", ["transition"], () => [h("div", { class: "row3" }, h("label", { class: "num" }, h("span", { class: "k", text: "ms" }), d), pick(EASE.find(([v]) => v === ez)?.[1] || "Ease out", EASE.map(([v, tt]) => [tt, () => setP("transition", `all ${ms || 200}ms ${v}`), v === ez])))]);
+    for (const [v, ic, tip] of [["left", P.al, "Left"], ["center", P.ac, "Center"], ["right", P.ar, "Right"]]) al.append(h("button", { class: "ib", "data-tip": tip, "aria-label": tip, "aria-pressed": String((getP("text-align") || comp("text-align")).replace("start", "left").replace("end", "right") === v), html: SVG(ic, 15), onclick: () => setP("text-align", v) }));
+    const width = getP("width");
+    const wMode = width === "100%" ? "fill" : !width || width === "auto" ? "auto" : "fixed";
+    const row = (label, ctl) => h("div", { class: "row3" }, h("span", { class: "lbl2", text: label }), ctl);
+    sec.append(
+      row("Text size", num("Text size", "font-size", "px")),
+      row("Weight", wt),
+      row("Align", al),
+      row("Text color", color("Text color", "color")),
+      row("Fill", color("Background", "background-color")),
+      row("Corners", num("Corners", "border-radius", "px")),
+      h("div", { class: "row3" }, h("span", { class: "lbl2", text: "Width" }), pick(wMode === "fill" ? "Fill" : wMode === "auto" ? "Auto" : width, [["Auto", () => setMany([["width", ""], ["align-self", ""]]), wMode === "auto"], ["Fill", () => setMany([["width", "100%"], ["align-self", "stretch"]]), wMode === "fill"]])),
+    );
+    p.append(sec);
   }
   function num(label, prop, key) {
     const raw = prop === "opacity" || prop === "line-height";
@@ -2333,61 +2319,7 @@ ${CAL_CSS}
     for (const th of THEMES) grid.append(h("button", { class: "th", "aria-pressed": String(body().style === th.id), "aria-label": `${th.name} style`, onclick: () => { after?.(); useStyle(th.id); } }, h("span", { class: "sw2", style: `background:${th.bg}` }, h("i", { style: `background:${th.card}` }, h("u", { style: `background:${th.accent}` }))), h("span", { class: "nm", text: th.name })));
     return grid;
   }
-  function themePanel(p) {
-    const F = h("div", { class: "sec" }, h("h4", { text: "Customize" }));
-    const accent = ruleGet(":root", "--brand-primary");
-    const sw = h("div", { class: "swatches", role: "group", "aria-label": "Main color" });
-    for (const [val, hex, nm] of [["", "conic-gradient(from 0deg,#e5e5e5,#bdbdbd)", "Theme default"], ...brandColors().slice(0, 4).map(([v, x, n]) => [v, x, n]), ["#0c8c5e", "#0c8c5e", "green"], ["#1e6bf0", "#1e6bf0", "blue"], ["#5429d6", "#5429d6", "violet"], ["#d9480f", "#d9480f", "orange"], ["#111111", "#111111", "black"]]) sw.append(h("button", { "aria-label": nm, title: nm, "aria-pressed": String(accent === val), style: `background:${hex}`, onclick: () => ruleSet(":root", [["--brand-primary", val], ["--brand-focus", val]]) }));
-    F.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Brand color" }), sw));
-    const font = (/^"([^"]+)"/.exec(ruleGet(":root", "--brand-font")) || [])[1] || "";
-    F.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Font" }), pick(FONTS.find(([v]) => v === font)?.[1] || font, FONTS.map(([v, t]) => [t, () => setFont(v), v === font]))));
-    const rad = ruleGet(":root", "--brand-radius");
-    const corners = [["", "Theme default"], ["4px", "None"], ["10px", "Small"], ["18px", "Large"]];
-    F.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Corner radius" }), pick(corners.find(([v]) => v === rad)?.[1] || "Theme default", corners.map(([v, t]) => [t, () => ruleSet(":root", [["--brand-radius", v], ["--brand-card-radius", v ? `${parseInt(v, 10) + 6}px` : ""], ...(ruleGet(":root", "--brand-btn-radius") === "999px" ? [] : [["--brand-btn-radius", v]])]), v === rad]))));
-    const pill = ruleGet(":root", "--brand-btn-radius") === "999px";
-    F.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Button style" }), pick(pill ? "Rounded" : "Solid", [["Solid", () => ruleSet(":root", [["--brand-btn-radius", rad]]), !pill], ["Rounded", () => ruleSet(":root", [["--brand-btn-radius", "999px"]]), pill]])));
-    // Fields: the theme's look, a soft fill, an outline, or a line underneath.
-    // A line any style shows: the text color, faded.
-    const LINE = "color-mix(in srgb, var(--brand-text) 24%, transparent)";
-    const fv = ruleGet(":root", "--brand-field"), fu = ruleGet(".field", "border-width");
-    const fieldNow = fu ? "line" : fv === "transparent" ? "outline" : fv ? "fill" : "";
-    const FIELDS = [
-      ["", "Theme default", [["--brand-field", ""], ["--brand-bw", ""]], []],
-      ["fill", "Filled", [["--brand-field", "color-mix(in srgb, var(--brand-primary) 7%, var(--brand-surface))"], ["--brand-bw", "0px"]], []],
-      ["outline", "Outlined", [["--brand-field", "transparent"], ["--brand-bw", "1px"]], [["border-color", LINE]]],
-      ["line", "Underlined", [["--brand-field", "transparent"], ["--brand-bw", "1px"]], [["border-color", LINE], ["border-width", "0 0 1px 0"], ["border-radius", "0"], ["padding-inline", "0"]]],
-    ];
-    const fieldLook = (root, field) => {
-      snap();
-      const r = rules();
-      const put = (sel, pairs) => { r[sel] = r[sel] || {}; for (const [k, v] of pairs) { if (v === "") delete r[sel][k]; else r[sel][k] = v; } if (!Object.keys(r[sel]).length) delete r[sel]; };
-      put(":root", root);
-      put(".field", [["border-color", ""], ["border-width", ""], ["border-radius", ""], ["padding-inline", ""], ...field]);
-      // Choices keep their box: outlined when the fields are outlined or underlined.
-      put(".choice", [["border-color", field.length ? LINE : ""]]);
-      writeRules(r); commit();
-    };
-    F.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Fields" }), pick(FIELDS.find(([v]) => v === fieldNow)?.[1] || "Theme default", FIELDS.map(([v, t, root, field]) => [t, () => fieldLook(root, field), v === fieldNow]))));
-    const bg = ruleGet(":root", "--brand-bg");
-    const bgs = [["", "Theme default"], ["#ffffff", "White"], ["color-mix(in srgb, var(--brand-primary) 6%, #ffffff)", "Tinted"]];
-    F.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Background" }), pick(bgs.find(([v]) => v === bg)?.[1] || "Custom", bgs.map(([v, t]) => [t, () => ruleSet(":root", [["--brand-bg", v]]), v === bg]))));
-    const wd = ruleGet(".page .form-card", "max-width");
-    const wds = [["", "Theme default"], ["520px", "Narrow"], ["760px", "Wide"]];
-    F.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Form width" }), pick(wds.find(([v]) => v === wd)?.[1] || wd, wds.map(([v, t]) => [t, () => ruleSet(".page .form-card", [["max-width", v]]), v === wd]))));
-    const steps = stepsIn(src);
-    if (steps.length > 1) {
-      const bar = src.querySelector("[data-cl-progress]");
-      const on = !!bar && !bar.hasAttribute("hidden");
-      F.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Progress bar" }), h("div", {}, h("button", { class: "sw", role: "switch", "aria-checked": String(on), "aria-label": "Progress bar", onclick: () => {
-        snap();
-        if (bar) on ? bar.setAttribute("hidden", "") : bar.removeAttribute("hidden");
-        else { const b = clean('<div class="bar" data-cl-progress><i></i></div>').firstElementChild; [b, ...b.querySelectorAll("*")].forEach((x) => x.setAttribute("data-k", String(++kSeq))); steps[0].before(b); }
-        commit();
-      } }))));
-    }
-    p.append(F);
-  }
-  /** The screen in view in Edit: the welcome screen, a page, the thank-you, or the whole form when it has no pages. */
+  /** Settings with nothing picked: the whole form's settings, starting with hidden values from the link. */
   function screenEl() {
     const v = S.view;
     if (v === "cover") return src.querySelector("[data-cl-cover]");
@@ -2661,7 +2593,7 @@ ${CAL_CSS}
     const f = names.length ? names.map((n) => `{${n}}`).join(" + ") : "0";
     scores.forEach((c) => c.getAttribute("data-cl-formula") !== f && c.setAttribute("data-cl-formula", f));
   }
-  function refresh() { if (S.mode === "edit") { panel(); tree(); } if (S.mode === "code") showCode(); if (S.mode === "after") renderAfter(); }
+  function refresh() { if (S.mode === "edit") { panel(); tree(); } if (S.mode === "code") showCode(); endUi(); }
   $("undo").onclick = undo; $("redo").onclick = redo;
 
   // ── Views and devices ─────────────────────────────────────────────────────────────────────────────────
@@ -2673,9 +2605,9 @@ ${CAL_CSS}
     S.mode = m;
     $("canvas").hidden = m === "code";
     // On submission shows the end page as it runs (the thank-you, the redirect or the booking page) beside its settings.
-    if (m === "after") { done = true; coverOn = false; }
+    if (m === "after") { S.view = "thanks"; m = "edit"; S.mode = "edit"; }
     $("codeView").hidden = m !== "code";
-    $("afterView").hidden = m !== "after";
+
     $("panel").hidden = m !== "edit";
     $("chat").classList.toggle("prev", m === "preview");
     $("exitPrev").hidden = m !== "preview" || !!PK;
@@ -2691,25 +2623,19 @@ ${CAL_CSS}
   $("exitPrev").onclick = () => setMode("edit");
   // The editor sidebar: Build (Add fields, Layers) or AI (the chat with Tia). The last choice is kept on this computer.
   S.side = store.get("clr-studio-side", "build") === "ai" ? "ai" : "build";
-  S.sub = store.get("clr-studio-sub", "add") === "layers" ? "layers" : "add";
+  S.sub = "add";
   function sideUi() {
     const build = S.side === "build";
     $("m-build").setAttribute("aria-selected", String(build)); $("m-ai").setAttribute("aria-selected", String(!build));
-    $("s-add").setAttribute("aria-selected", String(S.sub === "add")); $("s-layers").setAttribute("aria-selected", String(S.sub === "layers"));
-    $("subt").hidden = !build;
-    $("adds").hidden = !build || S.sub !== "add";
-    $("navi").hidden = !build || S.sub !== "layers";
+    $("adds").hidden = !build;
     $("aiBody").hidden = build;
     if (!build) $("aiDot").hidden = true;
-    S.nav = build && S.sub === "layers";
-    if (S.nav) tree();
-    if (build && S.sub === "add") addsUi();
+    S.nav = false;
+    if (build) { addsUi(); endUi(); }
   }
   function setSide(v, remember = true) { S.side = v; if (remember) store.set("clr-studio-side", v); sideUi(); setTimeout(overlay, 0); }
   $("m-build").onclick = () => setSide("build");
   $("m-ai").onclick = () => { setSide("ai"); $("input").focus(); };
-  $("s-add").onclick = () => { S.sub = "add"; store.set("clr-studio-sub", "add"); sideUi(); };
-  $("s-layers").onclick = () => { S.sub = "layers"; store.set("clr-studio-sub", "layers"); sideUi(); };
   function setDevice(d) { S.device = d; $("frame").className = `frame${d === "tab" ? " tablet" : d === "phone" ? " phone" : ""}`; for (const [id, v] of [["d-desk", "desk"], ["d-tab", "tab"], ["d-phone", "phone"]]) $(id).setAttribute("aria-pressed", String(d === v)); setTimeout(overlay, 340); }
   $("d-desk").onclick = () => setDevice("desk"); $("d-tab").onclick = () => setDevice("tab"); $("d-phone").onclick = () => setDevice("phone");
   // The bar's ⋯: Back to step 1, the live form, Layers (docs/form-ui-plan.md step 2).
@@ -2726,9 +2652,6 @@ ${CAL_CSS}
     ].filter(Boolean), 220);
   }
   $("moreBtn").onclick = () => (menuEl && menuFor === $("moreBtn") ? closeMenu() : moreMenu());
-  $("p-style").onclick = () => { S.ptab = "style"; panel(); };
-  $("p-set").onclick = () => { S.ptab = "settings"; panel(); };
-  $("p-theme").onclick = () => { S.ptab = "theme"; panel(); };
 
   function showCode() { for (const [id, f] of [["c-html", "html"], ["c-css", "css"], ["c-brand", "brand"]]) $(id).setAttribute("aria-pressed", String(S.file === f)); $("codeText").value = S.file === "html" ? sourceHtml() : S.file === "css" ? body().css : brandOf(cur)?.css || ""; }
   for (const [id, f] of [["c-html", "html"], ["c-css", "css"], ["c-brand", "brand"]]) $(id).onclick = () => { S.file = f; showCode(); };
@@ -2741,17 +2664,30 @@ ${CAL_CSS}
     commit(); toast("Applied");
   };
 
-  // On submission: a thank-you, a page or a meeting; Individual (one meeting) or Routing (rules, first match wins,
-  // Otherwise the meeting), who takes it, and what every send does. The canvas shows the end page beside it.
+  // The Ending (docs/on-submission.md): what happens after the send, set beside the ending page itself. Ending type
+  // and its settings sit in the left sidebar, like Add fields; a Team meeting's rules are edited in the center, beside
+  // the booking page they lead to.
   let openRule = 0;
+  const onEnding = () => S.mode === "edit" && S.view === "thanks" && !!cur && built();
+  function endUi() {
+    const box = $("endBox"), flow = $("flow");
+    const show = onEnding() && S.side === "build";
+    box.hidden = !show;
+    const a = cur ? body().after : null;
+    const team = onEnding() && a?.kind === "meeting" && (!a.tool || a.tool === "claritia") && isRouting(a) && MEETINGS.length > 0;
+    flow.hidden = !team;
+    if (!team) flow.replaceChildren();
+    if (!show && !team) return box.replaceChildren();
+    renderAfter();
+  }
   function renderAfter() {
-    const box = $("afterInner"); box.innerHTML = "";
+    const box = $("endBox"); box.innerHTML = "";
+    const flow = $("flow"); flow.innerHTML = "";
     const a = body().after;
-    const set = (p) => { snap(); if (p.kind === "meeting") bookSpot(); body().after = { ...a, ...p }; changed(); renderAfter(); stepUi(); runCheck(); draw(); };
-    box.append(h("h2", { text: "On submission" }));
-    const c1 = h("div", { class: "card2" }, pills([["thanks", "Show a thank-you message"], ["page", "Redirect to a page"], ["meeting", "Book a meeting"]], a.kind, (k) => set({ kind: k, ...(k === "meeting" && !a.meeting && MEETINGS[0] ? { meeting: MEETINGS[0].id } : {}) })));
+    const set = (p) => { snap(); if (p.kind === "meeting") bookSpot(); body().after = { ...a, ...p }; changed(); stepUi(); runCheck(); draw(); endUi(); };
+    const seg = (label, opts, val, fn) => h("div", { class: "seg", role: "group", "aria-label": label }, ...opts.map(([v, t]) => h("button", { "aria-pressed": String(v === val), text: t, onclick: () => fn(v) })));
+    const c1 = h("div", { class: "card2" }, h("span", { class: "lbl", text: "Ending type" }), seg("Ending type", [["thanks", "Message"], ["page", "Redirect"], ["meeting", "Book a meeting"]], a.kind, (k) => set({ kind: k, ...(k === "meeting" && !a.meeting && MEETINGS[0] ? { meeting: MEETINGS[0].id } : {}) })));
     if (a.kind === "page") { const i = h("input", { class: "in", placeholder: "https://yourcompany.com/thanks", value: a.url || "", "aria-label": "Page address", style: "height:34px" }); i.addEventListener("change", () => set({ url: i.value.trim() })); c1.append(i); }
-    if (a.kind !== "page") c1.append(h("div", {}, h("button", { class: "pill", text: a.kind === "meeting" ? "Edit the booking page" : "Edit the thank-you page", onclick: () => { S.view = "thanks"; setMode("edit"); } })));
     box.append(c1);
     if (a.kind === "meeting") meetingCards(box, a, set);
     box.append(alwaysCard(a, set));
@@ -2798,7 +2734,7 @@ ${CAL_CSS}
     if (!MEETINGS.length) { box.append(h("div", { class: "card2" }, h("h3", { text: "No meeting types yet" }), h("div", {}, h("button", { class: "pill", text: "Open Meetings", onclick: () => api.openMeetings() })))); return; }
     const mName = (id) => MEETINGS.find((m) => m.id === id)?.name || "Pick";
     const routing = isRouting(a);
-    const seg = h("div", { class: "seg", role: "group", "aria-label": "Who they book with" }, ...[["one", "Individual"], ["routing", "Routing"]].map(([v, t]) => h("button", { "aria-pressed": String((v === "routing") === routing), text: t, onclick: () => set({ mode: v }) })));
+    const seg = h("div", { class: "seg", role: "group", "aria-label": "Who they book with" }, ...[["one", "Individual"], ["routing", "Team meeting"]].map(([v, t]) => h("button", { "aria-pressed": String((v === "routing") === routing), text: t, onclick: () => set({ mode: v }) })));
     const cB = h("div", { class: "card2" }, seg);
     box.append(cB);
     if (!routing) {
@@ -2806,10 +2742,10 @@ ${CAL_CSS}
       cB.append(pills(MEETINGS.map((m) => [m.id, `${m.name}, ${m.length} min`]), a.meeting, (id) => set({ meeting: id })));
       const m = MEETINGS.find((x) => x.id === a.meeting);
       if (m) cB.append(h("div", { class: "who" }, h("p", { text: m.dynamic ? m.who || "Dynamic" : "" }), h("button", { class: "pill", text: "Edit meeting", onclick: () => api.openMeeting(m.id) })));
-    } else routingCards(box, a, set, mName);
+    } else routingCards($("flow"), a, set, mName);
     if (routing || MEETINGS.find((x) => x.id === a.meeting)?.dynamic) {
       const none = a.none === "later" ? "later" : "message";
-      box.append(h("div", { class: "card2" }, h("h3", { text: "If no one is free" }), h("div", { class: "seg", role: "group", "aria-label": "If no one is free" }, ...[["message", "Show the thank-you"], ["later", "Email times later"]].map(([v, t]) => h("button", { "aria-pressed": String(v === none), text: t, onclick: () => set({ none: v === "later" ? "later" : undefined }) })))));
+      box.append(h("div", { class: "card2" }, h("span", { class: "lbl", text: "If no one is free" }), h("div", { class: "seg", role: "group", "aria-label": "If no one is free" }, ...[["message", "Show the thank-you"], ["later", "Email times later"]].map(([v, t]) => h("button", { "aria-pressed": String(v === none), text: t, onclick: () => set({ none: v === "later" ? "later" : undefined }) })))));
     }
   }
 
@@ -2818,7 +2754,7 @@ ${CAL_CSS}
   function needFacts() {
     if (factsAsked || !api.routingFacts) return;
     factsAsked = true;
-    api.routingFacts().then((f) => { FACTS = f; if (alive && S.mode === "after") renderAfter(); }).catch(() => {});
+    api.routingFacts().then((f) => { FACTS = f; if (alive) endUi(); }).catch(() => {});
   }
 
   // Routing: Before any rule, the rules in run order (first match wins), Otherwise, and Add a rule.
@@ -2849,7 +2785,7 @@ ${CAL_CSS}
       const card = h("div", { class: `card2 rcard${open ? " on" : ""}` });
       const head = h("div", { class: "rhead" }, h("span", { class: "rnum", text: String(i + 1) }));
       if (open) { const n = h("input", { class: "in", value: r.name || "", placeholder: `Rule ${i + 1}`, "aria-label": "Rule name" }); n.addEventListener("change", () => upd({ name: n.value.trim().slice(0, 60) || undefined })); head.append(n); }
-      else head.append(h("button", { class: "rname", text: r.name || `Rule ${i + 1}`, onclick: () => { openRule = i; S.as = i; renderAfter(); draw(); } }));
+      else head.append(h("button", { class: "rname", text: r.name || `Rule ${i + 1}`, onclick: () => { openRule = i; S.as = i; endUi(); draw(); } }));
       head.append(
         h("button", { class: "ib", "aria-label": "Move up", "data-tip": "Move up", html: SVG(P.up, 14), disabled: i === 0 ? "" : null, onclick: () => move(-1) }),
         h("button", { class: "ib", "aria-label": "Move down", "data-tip": "Move down", html: SVG(P.down, 14), disabled: i === routes.length - 1 ? "" : null, onclick: () => move(1) }),
@@ -2857,7 +2793,7 @@ ${CAL_CSS}
       );
       card.append(head);
       if (!open) {
-        card.append(h("button", { class: "rsum", onclick: () => { openRule = i; S.as = i; renderAfter(); draw(); } }, h("span", { text: ruleWords(r, qOf, fieldLabel) }), h("b", { text: `${mName(r.meeting)}, ${withWords(r)}` })));
+        card.append(h("button", { class: "rsum", onclick: () => { openRule = i; S.as = i; endUi(); draw(); } }, h("span", { text: ruleWords(r, qOf, fieldLabel) }), h("b", { text: `${mName(r.meeting)}, ${withWords(r)}` })));
       } else {
         conds.forEach((c, j) => card.append(condRow(c, j ? (r.match === "any" ? "or" : "and") : "When", qs, qOf, fieldLabel, (p2) => setConds(conds.map((x, k) => (k === j ? { ...x, ...p2 } : x))), conds.length > 1 ? () => setConds(conds.filter((_, k) => k !== j)) : null)));
         const addC = (match) => { if (conds.length >= 10) return; const f = qs.find((x) => x.options.length) || qs[0]; const field = f ? f.name : PAST_ROUTES[0].field; const next = withConds(r, [...conds, { field, ...routeStart(field, f) }]); setRoutes(routes.map((x, j) => (j === i ? { ...next, ...(match === "any" ? { match: "any" } : { match: undefined }) } : x))); };
@@ -3748,7 +3684,7 @@ ${CAL_CSS}
       setSide("ai");
       send(fixes.length === 1 ? `Fix this: ${fixes[0]}` : `Fix these:\n${fixes.map((f) => `- ${f}`).join("\n")}`);
     },
-    openAfter() { setMode("after"); },
+    openAfter() { S.view = "thanks"; setMode("edit"); },
     preview() { if (PK) return; setMode(S.mode === "preview" ? "edit" : "preview"); },
     rename(name) {
       const n = String(name || "").trim().slice(0, 120);

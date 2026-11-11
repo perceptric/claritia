@@ -68,8 +68,10 @@ try {
   const form = p.locator("#studio").locator("#host");
   // The views: the editor (always), Preview from the page's header, and On submission as the last step.
   const toPreview = async () => { if (!(await $("#exitPrev").isVisible())) await p.locator("#hdrPreview").click(); };
-  const toEdit = async () => { if (await $("#exitPrev").isVisible()) await $("#exitPrev").click(); else if (await $("#afterView").isVisible()) await $("#stepBar .sp").first().click(); };
-  const toAfter = async () => { await toEdit(); await $("#stepBar .sp.after").click(); };
+  const toEdit = async () => { if (await $("#exitPrev").isVisible()) await $("#exitPrev").click(); };
+  // The Ending page holds what happens after the send: Ending type in the sidebar, Team meeting's rules in the center.
+  const toAfter = async () => { await toEdit(); await $("#m-build").click(); await $("#stepBar .sp").filter({ hasText: "Ending" }).click(); };
+  const addPageNow = async () => { await $("#pageTools [data-add-page]").click(); await $(".menu .mi").filter({ hasText: /^Page$/ }).click(); };
 
   // 0. While the form loads, the canvas is blank: the templates never flash before a form
   await p.waitForFunction(() => !!document.querySelector("#studio")?.shadowRoot?.getElementById("empty"));
@@ -213,27 +215,48 @@ try {
   check((await $("#aiBody").isVisible()) && (await $("#m-ai").getAttribute("aria-selected")) === "true", "a form Tia built stays on AI in the sidebar");
   await $("#m-build").click();
   check((await $("#adds").isVisible()) && !(await $("#aiBody").isVisible()), "Build shows Add fields; AI is one switch away");
-  // Steps: one at a time, the thank-you, or all with dividers
-  check((await $("#stepBar .sp").count()) === 5 && (await $("#stepBar .sp").nth(2).textContent()) === "Booking" && (await $("#stepBar .sp").nth(3).textContent()) === "On submission", "the steps list each page, the booking page, On submission last, and All");
-  check((await $("#stepBar .sp").nth(2).getAttribute("aria-pressed")) === "true", "Edit opens on the step the preview was showing (here the thank-you)");
+  // Pages as tabs: one at a time, the Ending, or all with dividers
+  const tabs = async () => (await $("#stepBar .pg").allTextContents()).map((x) => x.trim());
+  check(JSON.stringify(await tabs()) === JSON.stringify(["Page 1", "Page 2", "Ending"]) && (await $("#stepBar .sp.all").count()) === 1, "the page bar lists each page as a page, the Ending last, and All");
+  check((await $("#stepDock #stepBar").count()) === 1, "the page bar sits under the form");
+  check((await $("#stepBar .sp").nth(2).getAttribute("aria-pressed")) === "true", "Edit opens on the page the preview was showing (here the Ending)");
   await $("#stepBar .sp").nth(0).click();
-  check((await form.locator("#nm").isVisible()) && !(await form.locator('input[name="email"]').isVisible()) && !(await form.locator("#thanks").isVisible()), "Edit shows one step at a time");
+  check((await form.locator("#nm").isVisible()) && !(await form.locator('input[name="email"]').isVisible()) && !(await form.locator("#thanks").isVisible()), "Edit shows one page at a time");
   check(((await form.locator("#soft").getAttribute("data-cl-if")) ?? "").includes("Tender"), "a part shown only for some answers says so in words");
   await $("#stepBar .sp").nth(1).click();
-  check((await form.locator('input[name="email"]').isVisible()) && !(await form.locator("#nm").isVisible()), "picking step 2 shows step 2");
+  check((await form.locator('input[name="email"]').isVisible()) && !(await form.locator("#nm").isVisible()), "picking page 2 shows page 2");
   await $("#stepBar .sp").nth(2).click();
   await form.locator("#book .cl-cal").waitFor();
-  check(await form.locator("#thanks").isVisible(), "the booking page shows on its own, with the calendar in its booking spot");
-  await $("#stepBar .sp").nth(4).click();
-  check((await form.locator(".cl-divider").count()) === 3, "All shows every step with a divider");
+  check(await form.locator("#thanks").isVisible(), "the Ending shows on its own, with the calendar in its booking spot");
+  await $("#stepBar .sp.all").click();
+  check((await form.locator(".cl-divider").count()) === 3, "All shows every page with a divider");
   await $("#stepBar .sp").nth(0).click();
+  await addPageNow();
+  check((await $("#stepBar .pg").count()) === 4 && (await form.locator("section[data-cl-step]").nth(1).locator("[data-cl-next]").count()) === 1 && (await form.locator("section[data-cl-step]").nth(2).locator("[type=submit]").count()) === 1, "a new page goes in with Next, and the send button stays on the last page");
+  // Drag the new page past the last one: Next and send stay in order.
+  await $("#stepBar .pg").nth(1).dragTo($("#stepBar .pg").nth(2));
+  check((await form.locator("section[data-cl-step]").nth(2).locator("[type=submit]").count()) === 1 && (await form.locator("section[data-cl-step]").nth(1).locator("[type=submit]").count()) === 0 && (await form.locator("section[data-cl-step]").nth(1).locator('input[name="email"]').count()) === 1, "dragging a page moves it, keeping Next and send in order");
+  // The page's ⋯: rename, duplicate, copy and paste, delete.
+  await $("#stepBar .pg.on .pm").click();
+  await $(".menu .mi").filter({ hasText: "Rename" }).click();
+  await $("#stepBar input[aria-label='Page name']").fill("About you");
+  await $("#stepBar input[aria-label='Page name']").press("Enter");
+  check((await tabs()).includes("About you"), "a page can be renamed from its menu");
+  await $("#stepBar .pg.on .pm").click();
+  await $(".menu .mi").filter({ hasText: "Duplicate" }).click();
+  check((await $("#stepBar .pg").count()) === 5, "a page can be duplicated");
+  await $("#stepBar .pg.on .pm").click();
+  await $(".menu .mi").filter({ hasText: "Delete" }).click();
+  check((await $("#stepBar .pg").count()) === 4, "and deleted");
+  await $("#stepBar .pg.on .pm").click();
+  await $(".menu .mi").filter({ hasText: "Copy" }).click();
   await $("#pageTools [data-add-page]").click();
-  check((await $("#stepBar .sp").count()) === 6 && (await form.locator("section[data-cl-step]").nth(1).locator("[data-cl-next]").count()) === 1 && (await form.locator("section[data-cl-step]").nth(2).locator("[type=submit]").count()) === 1, "a new step goes in with Next, and the send button stays on the last step");
-  await $("#pageTools button[aria-label='Move later']").click();
-  check((await form.locator("section[data-cl-step]").nth(2).locator("[type=submit]").count()) === 1 && (await form.locator("section[data-cl-step]").nth(1).locator("[type=submit]").count()) === 0, "moving a step keeps Next and send in order");
-  await $("#undo").click();
-  await $("#undo").click();
-  check((await $("#stepBar .sp").count()) === 5, "undo takes the new step back out");
+  const addItems = (await $(".menu .mi").allTextContents()).map((x) => x.trim());
+  check(["Page", "Payment page", "Scheduling page", "Paste the copied page"].every((x) => addItems.includes(x)), "Add page offers a page, a payment page, the scheduling page and the copied page");
+  await $(".menu .mi").filter({ hasText: "Paste the copied page" }).click();
+  check((await $("#stepBar .pg").count()) === 5 && (await form.locator("input[name='email']").count()) === 1, "a copied page pastes back in, with its question names kept unique");
+  for (let i = 0; i < 6; i++) await $("#undo").click();
+  check((await $("#stepBar .pg").count()) === 3, "undo takes the new pages back out");
   await $("#stepBar .sp").nth(0).click();
   await form.locator("#title").click();
   check((await $("#seltag").textContent()) === "Heading" && (await $("#fbar").isVisible()), "picking shows its name and the floating bar");
@@ -286,7 +309,6 @@ try {
   check((await form.locator("input[name='mood'][type='radio']").count()) === 3, "undo brings the choice back");
   // Limits on an answer.
   await form.locator("#nm").click();
-  await $("#p-set").click();
   await $("#pscroll input[aria-label='Max characters']").fill("40");
   await $("#pscroll input[aria-label='Max characters']").press("Enter");
   await $("#pscroll input[aria-label='Max characters']").blur();
@@ -344,7 +366,7 @@ try {
   check(((await form.locator("#title").textContent()) ?? "").endsWith("{name}") && (await form.locator("#title").getAttribute("data-cl-pipe")) !== null, "an earlier answer goes into a text as {name}");
   // A jump: three pages, and Tender skips the second.
   await $("#stepBar .sp").nth(0).click();
-  await $("#pageTools [data-add-page]").click();
+  await addPageNow();
   await $("#stepBar .sp").nth(0).click();
   await form.locator("label:has(input[name='mood'])").first().click();
   await $("#pscroll button").filter({ hasText: "Add skip rule" }).click();
@@ -362,16 +384,9 @@ try {
   check(await form.locator('input[name="email"]').isVisible(), "Tender jumps past the page in between");
   await toEdit();
   // The Form tab: the look over the brand's, and a hidden field.
-  check(((await $("#panel .ptabs").textContent()) ?? "").replace(/\s+/g, "").startsWith("SettingsStyleTheme"), "the panel's tabs are Settings, Style, then Theme");
-  await $("#p-theme").click();
-  check((await $("#pscroll .themes .th").count()) === 0, "the styles moved to the look menu; the Theme tab keeps the changes on top");
-  if (shots) await p.screenshot({ path: `${shots}/2d-theme.png` });
-  await $("#pscroll button[aria-label='blue']").click();
-  await p.waitForFunction(() => Object.values((window as unknown as { saved: Record<string, { body?: { css: string } }> }).saved).some((c) => c.body?.css.includes("--brand-primary:#1e6bf0")));
-  check(true, "the Form tab's color goes into the form's own CSS");
+  check((await $("#panel [role='tab']").count()) === 0 && (await $("#p-theme").count()) === 0, "the panel is one panel: no Settings, Style or Theme tabs");
   // Nothing picked: Settings is the whole form's, with its hidden fields.
   await $("#canvas").click({ position: { x: 6, y: 6 } });
-  await $("#p-set").click();
   await $("#pscroll input[aria-label='Add a hidden field']").fill("ref");
   await $("#pscroll input[aria-label='Add a hidden field']").press("Enter");
   check((await form.locator("[data-cl-field='hidden'][data-cl-param='ref']").count()) === 1, "a hidden field from the link is added");
@@ -384,22 +399,18 @@ try {
   await p.waitForTimeout(1600);
   const backTo = [(await form.locator("section[data-cl-step]").count()) === 2, (await form.locator("#title").textContent()) === "How was today?", !(await builtHtml()).includes("--brand-primary:#1e6bf0"), !(await builtHtml()).includes('name="details"')];
   check(backTo.every(Boolean), `undo takes every builder change back out (${backTo.join(", ")})`);
-  await $("#p-style").click();
   const barBox = await $("section.stage > .bar").boundingBox();
   const panelBox = await $("#panel").boundingBox();
   check(!!barBox && !!panelBox && barBox.y + barBox.height <= panelBox.y, "the panel sits below the bar and never covers it");
   // Style like Framer: Width set to Fill takes the whole row; Hover is its own state; a box being typed in has one green ring.
   await form.locator("#title").click();
-  await $("#p-style").click();
-  const sizeSec = $("#pscroll .sec").filter({ has: p.locator("h4", { hasText: /^Size$/ }) });
-  await sizeSec.locator(".dd").first().click();
+  const sizeSec = $("#pscroll .sec").filter({ has: p.locator("h4", { hasText: /^Style$/ }) });
+  await sizeSec.locator(".row3 .dd").first().click();
   await $("#layer .menu .mi").filter({ hasText: "Fill" }).click();
   const fills = await p.evaluate(() => { const r = document.querySelector("#studio")!.shadowRoot!.getElementById("host")!.shadowRoot!; const t = r.querySelector("#title") as HTMLElement; const pe = t.parentElement!; const cs = getComputedStyle(pe); const inner = pe.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight); return [Math.round(t.getBoundingClientRect().width), Math.round(inner), getComputedStyle(t).width, (r.querySelector("style")?.textContent || "").match(/#title[^}]*}/)?.[0] ?? ""]; });
   check(Math.abs(Number(fills[0]) - Number(fills[1])) < 2, `Width set to Fill makes it as wide as its row (${fills.join(" / ")})`);
-  check((await $("#pscroll .sec").filter({ hasText: "Position" }).count()) === 1 && (await $("#pscroll .sec").filter({ hasText: "Transforms" }).count()) === 1 && (await $("#pscroll .sec").filter({ hasText: "Transition" }).count()) === 1, "the Style panel has Position, Transforms and Transition");
-  await $("#pscroll .seg button").filter({ hasText: "Hover" }).click();
-  check((await $("#pscroll .seg button[aria-pressed='true']").filter({ hasText: "Hover" }).count()) === 1, "Hover is its own state");
-  await $("#pscroll .seg button").filter({ hasText: "Default" }).click();
+  const panelText = (await $("#pscroll").textContent()) ?? "";
+  check((await $("#pscroll [aria-label='Text color']").count()) === 1 && (await $("#pscroll [aria-label='Background']").count()) === 1 && ["Width", "Bold", "Display condition"].every((x) => panelText.includes(x)) && !["Padding", "Margin", "Position", "Transforms", "Transition"].some((x) => panelText.includes(x)), "settings and style share one panel, with only the styles people change");
   await sizeSec.locator("input").first().focus().catch(() => undefined);
   await $("#pscroll .num input").first().focus();
   const ring = await $("#pscroll .num input").first().evaluate((e) => [getComputedStyle(e).outlineStyle, getComputedStyle(e.parentElement!).boxShadow]);
@@ -411,26 +422,22 @@ try {
   check((await $("#publish").count()) + (await $("#checkBtn").count()) + (await $("#shareBtn").count()) + (await $("#backBtn").count()) === 0, "Publish, the check, Share and Back live in the page's header, never in the Studio's bar");
   for (const id of ["d-desk", "d-tab", "d-phone"]) if (!(await $(`#${id}`).getAttribute("data-tip"))) check(false, `${id} has a tooltip`);
   check((await $("#t-edit").count()) + (await $("#t-preview").count()) + (await $("#t-after").count()) + (await $("#addBtn").count()) === 0, "no Preview, Edit and On submission tabs, and no Add button in the bar");
-  // The steps sit in the bar over the form; the page tools and undo sit under it.
+  // The pages, Add page and undo sit under the form.
   const canvasBox = await $("#canvas").boundingBox();
   const stepsBox = await $("#stepBar").boundingBox();
   const toolsBox = await $("#pageTools").boundingBox();
-  check(!!canvasBox && !!stepsBox && stepsBox.y + stepsBox.height <= canvasBox.y + 2, "the steps sit in the bar over the form");
+  check(!!canvasBox && !!stepsBox && stepsBox.y >= canvasBox.y + canvasBox.height - 2, "the pages sit under the form");
   check(!!canvasBox && !!toolsBox && toolsBox.y >= canvasBox.y + canvasBox.height - 2 && (await $("#stepDock #undo").count()) === 1, "the page tools and undo sit under the form");
-  check(await $("#stepBar .sp").first().evaluate((e) => parseFloat(getComputedStyle(e).fontSize) >= 13 && getComputedStyle(e).textOverflow !== "ellipsis"), "step names are 13 px and never cut short");
+  check(await $("#stepBar .sp").first().evaluate((e) => parseFloat(getComputedStyle(e).fontSize) >= 13 && getComputedStyle(e).textOverflow !== "ellipsis"), "page names are 13 px and never cut short");
   const controls = await p.evaluate(() => [...document.querySelector("#studio")!.shadowRoot!.querySelectorAll("section.stage > .bar > button, section.stage > .bar > a, section.stage > .bar > .grp > button")].filter((b) => !(b as HTMLElement).hidden).length);
   if (shots) await p.screenshot({ path: `${shots}/bars.png` });
   check(controls <= 11, `the bar holds at most 11 controls besides the steps (${controls})`);
   await $("#moreBtn").click();
   check((await $("#layer .menu").textContent())!.includes("Back to page 1"), "⋯ holds Back to page 1");
   await $("#moreBtn").click();
-  await $("#s-layers").click();
-  check(!(await $("#navi").isHidden()) && (await $("#adds").isHidden()), "Layers is a tab of Build in the sidebar");
-  await $("#s-add").click();
-  check((await $("#navi").isHidden()) && !(await $("#adds").isHidden()), "and Add fields is the other");
+  check((await $("#s-layers").count()) + (await $("#navi").count()) === 0 && !(await $("#adds").isHidden()), "Build is Add fields only: no Layers");
   await $("#stepBar .sp").nth(1).click();
   await form.locator("#photo").click();
-  await $("#p-set").click();
   check((await $("#pscroll").textContent())!.includes("File upload") && (await $("#pscroll").textContent())!.includes("File types"), "a block's settings show its kind, label and the files it takes");
   await $("#stepBar .sp").nth(0).click();
   await form.locator('label:has(input[value="tender"])').first().click();
@@ -441,79 +448,80 @@ try {
   // 7. On submission (the form's code is on Share › Embed HTML, scripts/formpage-check.ts)
   check((await $("#t-code").count()) === 0, "the Studio has no Code view: the code is on Share");
   await toAfter();
-  check((await $("#stepBar .sp.after").getAttribute("aria-pressed")) === "true", "On submission opens as the last step");
-  const after = (await $("#afterInner").textContent())!;
-  check(after.includes("Intro call") && after.includes("Product demo"), "On submission lists the workspace's meeting types");
+  check((await $("#stepBar .pg.on").textContent())!.trim() === "Ending" && !(await $("#endBox").isHidden()), "the Ending opens with its settings in the sidebar");
+  const after = (await $("#endBox").textContent())!;
+  check(after.includes("Ending type") && after.includes("Message") && after.includes("Redirect") && after.includes("Book a meeting") && after.includes("Team meeting"), "Ending type is Message, Redirect or Book a meeting, and a meeting is Individual or Team meeting");
+  check(!(await $("#flow").isHidden()) && (await $("#flow").textContent())!.includes("Otherwise"), "Team meeting's rules are edited in the center");
   // The picked pill keeps its words on hover (it used to turn ink on ink), and each scheduler shows its logo.
-  const picked = $("#afterInner .pill.on").first();
+  const picked = $("#endBox .pill.on").first();
   await picked.hover();
   const [fg, bg] = await picked.evaluate((e) => [getComputedStyle(e).color, getComputedStyle(e).backgroundColor]);
   check(fg !== bg, `a picked pill keeps its words on hover (${fg} on ${bg})`);
-  check((await $("#afterInner .pill .logo").count()) >= 5, "Book with shows each scheduler's logo");
+  check((await $("#endBox .pill .logo").count()) >= 5, "Book with shows each scheduler's logo");
   if (shots) await p.screenshot({ path: `${shots}/4-after.png` });
   // An outside scheduler: its link, checked, and opened in the form's booking spot
-  await $("#afterInner .pill").filter({ hasText: "Calendly" }).click();
-  await $("#afterInner input[aria-label='Scheduler link']").fill("https://evil.example/x");
-  await $("#afterInner input[aria-label='Scheduler link']").press("Enter");
-  await $("#afterInner .err").waitFor();
+  await $("#endBox .pill").filter({ hasText: "Calendly" }).click();
+  await $("#endBox input[aria-label='Scheduler link']").fill("https://evil.example/x");
+  await $("#endBox input[aria-label='Scheduler link']").press("Enter");
+  await $("#endBox .err").waitFor();
   check(true, "a scheduler link that isn't the scheduler's is caught");
-  await $("#afterInner input[aria-label='Scheduler link']").fill("https://calendly.com/finch/coach");
-  await $("#afterInner input[aria-label='Scheduler link']").press("Enter");
+  await $("#endBox input[aria-label='Scheduler link']").fill("https://calendly.com/finch/coach");
+  await $("#endBox input[aria-label='Scheduler link']").press("Enter");
   await toEdit();
   await toPreview();
-  await $("#stepBar .sp").filter({ hasText: "Booking" }).click();
+  await $("#stepBar .sp").filter({ hasText: "Ending" }).click();
   await form.locator("#book iframe").waitFor({ state: "attached" });
   check((await form.locator("#book iframe").getAttribute("src")) === "https://calendly.com/finch/coach", "Calendly opens in the form's booking spot");
   await toAfter();
-  await $("#afterInner .pill").filter({ hasText: "Claritia calendar" }).click();
+  await $("#endBox .pill").filter({ hasText: "Claritia calendar" }).click();
   // Routing: a rule saved before tests and names still reads, with Otherwise last; the canvas shows the booking page.
-  const rt = (await $("#afterInner").textContent())!;
-  check(rt.includes("Before any rule") && rt.includes("Otherwise") && rt.includes("Tender"), "back to Claritia's calendar: a rule saved before tests reads in Routing, with Otherwise");
-  check((await $("#canvas").isVisible()) && (await $("#asBar").isVisible()) && (await $("#asBar").textContent())!.includes("Preview as"), "On submission keeps the end page on the canvas, with Preview as");
+  const rt = (await $("#flow").textContent())!;
+  check(rt.includes("Before any rule") && rt.includes("Otherwise") && rt.includes("Tender"), "back to Claritia's calendar: a rule saved before tests reads in Team meeting, with Otherwise");
+  check((await $("#canvas").isVisible()) && (await $("#asBar").isVisible()) && (await $("#asBar").textContent())!.includes("Preview as") && (await form.locator("#thanks").isVisible()), "the rules sit beside the booking page, with Preview as");
   // Individual: one meeting; a Dynamic one says who books it in one line, with Edit meeting.
-  await $("#afterInner .seg button").filter({ hasText: "Individual" }).click();
-  await $("#afterInner .pill").filter({ hasText: "Product demo" }).click();
-  const who = (await $("#afterInner").textContent())!;
-  check(who.includes("Locations is at least 50 → Enterprise, otherwise anyone on the team") && !(await $("#asBar").isVisible()), "Individual: a Dynamic meeting shows who books it in one line, and no Preview as");
-  await $("#afterInner .pill").filter({ hasText: "Edit meeting" }).click();
+  await $("#endBox .seg button").filter({ hasText: "Individual" }).click();
+  await $("#endBox .pill").filter({ hasText: "Product demo" }).click();
+  const who = (await $("#endBox").textContent())!;
+  check(who.includes("Locations is at least 50 → Enterprise, otherwise anyone on the team") && !(await $("#asBar").isVisible()) && (await $("#flow").isHidden()), "Individual: a Dynamic meeting shows who books it in one line, and no rules or Preview as");
+  await $("#endBox .pill").filter({ hasText: "Edit meeting" }).click();
   check((await calls()).some((c) => c.mode === "openMeeting" && c.body === "22222222-2222-4222-8222-222222222222"), "Edit meeting opens that meeting type");
-  await $("#afterInner .seg button").filter({ hasText: "Routing" }).click();
-  check((await $("#afterInner").textContent())!.includes("Tender"), "Routing keeps its rules after Individual");
+  await $("#endBox .seg button").filter({ hasText: "Team meeting" }).click();
+  check((await $("#flow").textContent())!.includes("Tender"), "Team meeting keeps its rules after Individual");
   // A new rule: its name, a past fill, a second condition joined by or, any test that fits, then moved first.
-  await $("#afterInner .pill").filter({ hasText: "Add a rule" }).click();
-  const open = $("#afterInner .rcard.on").first();
+  await $("#flow .pill").filter({ hasText: "Add a rule" }).click();
+  const open = $("#flow .rcard.on").first();
   await open.locator("input[aria-label='Rule name']").fill("Returning");
   await open.locator("input[aria-label='Rule name']").press("Enter");
-  await $("#afterInner .rcard.on [aria-label='Question']").first().click();
+  await $("#flow .rcard.on [aria-label='Question']").first().click();
   await $(".menu .mi").filter({ hasText: "Has sent this form before" }).click();
-  const r1 = (await $("#afterInner .rcard.on .rule").first().textContent())!;
+  const r1 = (await $("#flow .rcard.on .rule").first().textContent())!;
   check(r1.includes("Has sent this form before") && r1.includes("Yes"), "a rule can test a past fill");
-  await $("#afterInner .rcard.on .pill").filter({ hasText: "+ or" }).click();
-  check((await $("#afterInner .rcard.on .rule").nth(1).textContent())!.startsWith("or"), "+ or adds a condition joined by or");
-  await $("#afterInner .rcard.on [aria-label='Test']").first().click();
+  await $("#flow .rcard.on .pill").filter({ hasText: "+ or" }).click();
+  check((await $("#flow .rcard.on .rule").nth(1).textContent())!.startsWith("or"), "+ or adds a condition joined by or");
+  await $("#flow .rcard.on [aria-label='Test']").first().click();
   await $(".menu .mi").filter({ hasText: "is not" }).click();
-  check((await $("#afterInner .rcard.on .rule").nth(1).textContent())!.includes("is not"), "a condition can use any test that fits its question");
-  await $("#afterInner .rcard.on [aria-label='Move up']").click();
-  check((await $("#afterInner .rcard").first().locator("input[aria-label='Rule name']").inputValue()) === "Returning" && (await $("#asBar .pill").first().textContent()) === "1. Returning", "a rule moves up, and Preview as follows the order");
+  check((await $("#flow .rcard.on .rule").nth(1).textContent())!.includes("is not"), "a condition can use any test that fits its question");
+  await $("#flow .rcard.on [aria-label='Move up']").click();
+  check((await $("#flow .rcard").first().locator("input[aria-label='Rule name']").inputValue()) === "Returning" && (await $("#asBar .pill").first().textContent()) === "1. Returning", "a rule moves up, and Preview as follows the order");
   await $("#asBar .pill").filter({ hasText: "Otherwise" }).click();
-  check((await $("#asBar .pill.on").textContent()) === "Otherwise" && ((await $("#afterInner .rcard.on").textContent()) ?? "").includes("Otherwise"), "Preview as picks Otherwise, and its card lights up");
+  check((await $("#asBar .pill.on").textContent()) === "Otherwise" && ((await $("#flow .rcard.on").textContent()) ?? "").includes("Otherwise"), "Preview as picks Otherwise, and its card lights up");
   // Two rules where the first catches every lead of the second: the second says it can never run.
-  await $("#afterInner .rcard").nth(1).locator(".rname").click();
-  await $("#afterInner .rcard.on [aria-label='Question']").first().click();
+  await $("#flow .rcard").nth(1).locator(".rname").click();
+  await $("#flow .rcard.on [aria-label='Question']").first().click();
   await $(".menu .mi").filter({ hasText: "Has sent this form before" }).click();
-  check(((await $("#afterInner .rcard").nth(1).textContent()) ?? "").includes("Can never run: rule 1"), "a rule an earlier one always catches says it can never run");
+  check(((await $("#flow .rcard").nth(1).textContent()) ?? "").includes("Can never run: rule 1"), "a rule an earlier one always catches says it can never run");
   if (shots) await p.screenshot({ path: `${shots}/4a-routing.png` });
   // Always do
-  await $("#afterInner .pill").filter({ hasText: "Email the team" }).click();
-  await $("#afterInner input[aria-label='Team emails']").fill("coach@finch.care");
-  await $("#afterInner input[aria-label='Team emails']").press("Enter");
-  await $("#afterInner .pill").filter({ hasText: "Post to Slack" }).click();
-  await $("#afterInner [aria-label='Send to']").click();
+  await $("#endBox .pill").filter({ hasText: "Email the team" }).click();
+  await $("#endBox input[aria-label='Team emails']").fill("coach@finch.care");
+  await $("#endBox input[aria-label='Team emails']").press("Enter");
+  await $("#endBox .pill").filter({ hasText: "Post to Slack" }).click();
+  await $("#endBox [aria-label='Send to']").click();
   await $(".menu .mi").filter({ hasText: "Webhook" }).click();
-  await $("#afterInner .pill").filter({ hasText: "hooks.acme.dev" }).waitFor();
+  await $("#endBox .pill").filter({ hasText: "hooks.acme.dev" }).waitFor();
   const cs = await calls();
   check(cs.some((c) => c.mode === "saveDraft") && cs.some((c) => c.mode === "addSend"), "Send to saves the form once, then adds the webhook");
-  await $("#afterInner [aria-label='New follow-up']").click();
+  await $("#endBox [aria-label='New follow-up']").click();
   await $(".menu .mi").filter({ hasText: "When they don't book" }).click();
   check((await calls()).some((c) => c.mode === "newFollowUp" && (c.body as { when: string }).when === "not_booked"), "New follow-up starts a workflow on this form");
   if (shots) await p.screenshot({ path: `${shots}/4b-after.png` });
@@ -679,12 +687,12 @@ try {
   await $("#pscroll input[aria-label='Video link']").blur();
   check((await form.locator(".cl-media").last().textContent())!.includes("youtu.be"), "its link is set in Settings");
   // Add page: a one-page form becomes two pages, the send button on the last
-  await $("#pageTools [data-add-page]").click();
-  check((await form.locator("[data-cl-step]").count()) === 2 && (await $("#stepBar .sp").filter({ hasText: "New page" }).count()) === 1, "Add page splits a one-page form into pages");
+  await addPageNow();
+  check((await form.locator("[data-cl-step]").count()) === 2 && (await $("#stepBar .pg").filter({ hasText: "Page 2" }).count()) === 1, "Add page splits a one-page form into pages");
   const pg1 = form.locator("[data-cl-step]").first(), pg2 = form.locator("[data-cl-step]").last();
   check((await pg1.locator("[data-cl-next]").count()) === 1 && (await pg1.locator("[type=submit]").count()) === 0 && (await pg1.locator("input[type='url']").count()) === 1, "the first page keeps the fields and gets Next");
   check((await pg2.locator("[type=submit]").count()) === 1, "the send button moves to the last page");
-  await $("#pageTools [data-add-page]").click();
+  await addPageNow();
   check((await form.locator("[data-cl-step]").count()) === 3, "Add page on a form with pages adds one more");
   if (shots) await p.screenshot({ path: `${shots}/9-pages.png` });
   await $("#chatPick").click();
@@ -731,7 +739,6 @@ try {
   // its words are kept, an upload goes in, and Preview starts on it until Start
   await toEdit();
   await $("#stepBar .sp").first().click();
-  await $("#p-set").click();
   await $("#pscroll button[aria-label='Welcome screen']").click();
   check((await form.locator("[data-cl-cover] [data-cl-start]").count()) === 1 && (await $("#stepBar .sp").first().textContent()) === "Welcome" && (await $("#stepBar .sp").first().getAttribute("aria-pressed")) === "true", "the Welcome screen switch adds a first screen with Start, shown in Edit");
   await $("#pscroll button").filter({ hasText: "Add photo" }).click();
@@ -761,7 +768,6 @@ try {
   await toEdit();
   // One question at a time: the switch, then Preview shows one question a screen and OK moves on
   await $("#stepBar .sp").nth(1).click();
-  await $("#p-set").click();
   await $("#pscroll button[aria-label='One question at a time']").click();
   check((await form.locator("form[data-cl-one]").count()) === 1, "the One question at a time switch turns it on");
   await toPreview();
@@ -772,7 +778,6 @@ try {
   if (shots) await p.screenshot({ path: `${shots}/9e-one.png` });
   await toEdit();
   await $("#stepBar .sp").nth(1).click();
-  await $("#p-set").click();
   await $("#pscroll button[aria-label='One question at a time']").click();
   check((await form.locator("form[data-cl-one]").count()) === 0, "and off again");
 
