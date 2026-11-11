@@ -80,6 +80,73 @@ export function cleanSvg(svg: string): string | null {
   return out.startsWith("<svg") && out.length < 60_000 ? withSvgNs(out) : null;
 }
 
+const VOID = /^(area|base|br|col|embed|hr|img|input|link|meta|source|track|wbr)$/i;
+
+/** What's inside the element whose open tag starts at `at`, to its own closing tag (nested ones counted). */
+export function innerOf(html: string, at: number): string {
+  const open = /<([a-zA-Z][\w:-]*)\b[^>]*>/y;
+  open.lastIndex = at;
+  const first = open.exec(html);
+  if (!first) return "";
+  const start = open.lastIndex;
+  const re = /<(\/?)([a-zA-Z][\w:-]*)\b[^>]*?(\/?)>/g;
+  re.lastIndex = start;
+  let depth = 1;
+  for (let m = re.exec(html); m; m = re.exec(html)) {
+    if (m[3] || (!m[1] && VOID.test(m[2]!))) continue;
+    depth += m[1] ? -1 : 1;
+    if (depth === 0) return html.slice(start, m.index);
+    if (m.index - start > 200_000) break;
+  }
+  return html.slice(start, start + 200_000);
+}
+
+/** A drawing's box: its viewBox, else its width and height. */
+function boxOf(svg: string): [number, number, number, number] | null {
+  const vb = /^<svg\b[^>]*\sviewbox="([^"]+)"/i.exec(svg)?.[1]?.trim().split(/[\s,]+/).map(Number);
+  if (vb?.length === 4 && vb.every(Number.isFinite) && vb[2]! > 0 && vb[3]! > 0) return vb as [number, number, number, number];
+  const w = Number(/^<svg\b[^>]*\swidth="([\d.]+)"/i.exec(svg)?.[1]), h = Number(/^<svg\b[^>]*\sheight="([\d.]+)"/i.exec(svg)?.[1]);
+  return w > 0 && h > 0 ? [0, 0, w, h] : null;
+}
+
+/**
+ * Several logo drawings (an icon and its wordmark) as one: side by side, each at its own size, centered on one line,
+ * with a gap of a third of the tallest. One drawing comes back as it is.
+ */
+export function joinSvgs(svgs: string[]): string | null {
+  if (svgs.length === 1) return svgs[0]!;
+  const parts = svgs.map((s) => ({ s, b: boxOf(s) })).filter((p): p is { s: string; b: [number, number, number, number] } => !!p.b);
+  if (!parts.length) return null;
+  if (parts.length === 1) return parts[0]!.s;
+  const H = Math.max(...parts.map((p) => p.b[3]));
+  const gap = Math.round(H / 3);
+  let x = 0;
+  const inner = parts.map((p) => {
+    const body = p.s.replace(/^<svg\b[^>]*>/i, "").replace(/<\/svg>\s*$/i, "");
+    const y = Math.round(((H - p.b[3]) / 2) * 100) / 100;
+    const out = `<svg x="${x}" y="${y}" width="${p.b[2]}" height="${p.b[3]}" viewBox="${p.b.join(" ")}">${body}</svg>`;
+    x += p.b[2] + gap;
+    return out;
+  });
+  const W = Math.round((x - gap) * 100) / 100;
+  return cleanSvg(`<svg viewBox="0 0 ${W} ${H}">${inner.join("")}</svg>`);
+}
+
+/**
+ * The logo among the drawings in its link or box: an icon followed by a wordmark is one logo, joined; otherwise the
+ * first wordmark (a wide drawing), else the first drawing. A second icon after a wordmark (Vercel's triangle, shown on
+ * small screens) is left out.
+ */
+export function pickLogo(ds: string[]): string | null {
+  const ratio = (d: string) => {
+    const b = boxOf(d);
+    return b ? b[2] / b[3] : 1;
+  };
+  const wide = (d: string) => ratio(d) >= 2.2;
+  if (ds.length >= 2 && !wide(ds[0]!) && wide(ds[1]!)) return joinSvgs([ds[0]!, ds[1]!]);
+  return ds.find(wide) ?? ds[0] ?? null;
+}
+
 /** Everything the pages and stylesheets say about the brand. The first page is the home page. */
 export function extractBrand(pages: Page[], sheets: Sheet[]): RawBrand {
   const home = pages[0]!;
@@ -230,29 +297,97 @@ export function extractBrand(pages: Page[], sheets: Sheet[]): RawBrand {
     for (const m of body.matchAll(/(linear|radial)-gradient\((?:[^()]|\([^()]*\))+\)/gi)) bump(gradients, resolve(m[0]));
   }
 
-  // The logo: an inline SVG or picture inside an element named or classed as the logo, near the top or named for the site.
+  // The logo, read from the top of the page (to the end of the header or menu) in full:
+  //   1. the first link home in it (href "/", "./" or the site itself): what nearly every site wraps its logo in;
+  //   2. else an element named or classed as the logo, never a wall of other companies' logos;
+  //   3. else a picture whose own name or alt names the site.
+  // A logo is often an icon and a wordmark drawn apart (momos.com: a 32×24 icon and a 96×16 word): both are kept and
+  // joined at the sizes the site draws them (pickLogo), never the icon alone.
   let svg: string | null = null;
   let logoSrc: string | null = null;
   const head = home.html.slice(0, Math.max(home.html.search(/<\/header>|<\/nav>/i), 0) + 20_000 || 60_000);
-  for (const m of head.matchAll(/<(?:a|div|span|figure)\b[^>]*(?:class|id|data-framer-name|aria-label|alt)="[^"]*logo[^"]*"[^>]*>([\s\S]{0,40000}?)<\/(?:a|div|span|figure)>/gi)) {
-    const inner = m[1]!;
-    let s = /<svg[\s\S]*?<\/svg>/i.exec(inner)?.[0];
-    // A sprite reference: draw the symbol it points to.
-    const ref = s ? /<use\b[^>]*href="#([^"]+)"/i.exec(s)?.[1] : undefined;
-    if (s && ref) {
-      const def = new RegExp(`<(symbol|svg|g)\\b[^>]*id="${ref.replace(/[^\w-]/g, "")}"[^>]*>([\\s\\S]*?)<\\/\\1>`, "i").exec(allHtml);
-      if (def) s = s.replace(/<use\b[^>]*\/?>(<\/use>)?/i, def[2]!);
+  // Drawings in the link or box, in order: inline ones, and ones a builder paints as a background (Framer).
+  const bgSvg = (style: string) => {
+    const u = /url\((['"]?)data:image\/svg\+xml(?:;charset=[\w-]+)?,([\s\S]*?)\1\)/i.exec(style.replace(/&quot;/g, '"').replace(/&#39;/g, "'"))?.[2];
+    if (!u) return "";
+    try {
+      return decodeURIComponent(u);
+    } catch {
+      return "";
     }
-    if (s) {
-      svg = cleanSvg(s);
-      if (svg) break;
+  };
+  const drawingsIn = (inner: string) =>
+    [...inner.matchAll(/<svg\b[\s\S]*?<\/svg>|\bstyle="[^"]*background-image:\s*url\([^"]*image\/svg\+xml[^"]*"/gi)]
+      .map((x) => {
+        let d = x[0].startsWith("<") ? x[0] : bgSvg(x[0]);
+        // A sprite reference: draw the symbol it points to.
+        const ref = /<use\b[^>]*href="#([^"]+)"/i.exec(d)?.[1];
+        if (ref) {
+          const def = new RegExp(`<(symbol|svg|g)(\\b[^>]*id="${ref.replace(/[^\w-]/g, "")}"[^>]*)>([\\s\\S]*?)<\\/\\1>`, "i").exec(allHtml);
+          if (def) {
+            d = d.replace(/<use\b[^>]*\/?>(<\/use>)?/i, def[3]!);
+            // The symbol's own frame, when the drawing that points at it has none.
+            const vb = /\bviewBox="([^"]+)"/i.exec(def[2]!)?.[1];
+            if (vb && !/^<svg\b[^>]*\bviewBox=/i.test(d)) d = d.replace(/^<svg\b/i, `<svg viewBox="${vb}"`);
+          }
+        }
+        return paintable(cleanSvg(d));
+      })
+      // A drawing with nothing to draw (a sprite that couldn't be found) isn't a logo.
+      .filter((d): d is string => !!d && /<(path|rect|circle|ellipse|polygon|polyline|line)\b/i.test(d));
+  // Colors a drawing takes from the page (fill="var(--logo-fill, black)") mean nothing on their own: they're read from
+  // the site's styles here. A logo drawn only in white (made for a dark header, like framer.com's) is shown in
+  // near-black, or it would vanish on a light form.
+  const paintable = (d: string | null): string | null => {
+    if (!d) return d;
+    let out = d.replace(/\b(fill|stroke|stop-color)="([^"]*var\([^"]*)"/gi, (_m, k: string, v: string) => {
+      const r = resolve(v).trim();
+      return `${k}="${/var\(/.test(r) || !r ? "#111111" : r.replace(/"/g, "'")}"`;
+    });
+    const paints = [...out.matchAll(/\b(?:fill|stroke|stop-color)="([^"]*)"/gi)].map((m) => m[1]!.trim().toLowerCase()).filter((v) => v && v !== "none" && v !== "transparent");
+    const white = (v: string) => /^(#fff|#ffffff|white|rgba?\(\s*255\s*,\s*255\s*,\s*255\s*(,\s*[\d.]+\s*)?\))$/.test(v);
+    const unfilled = /<(path|rect|circle|ellipse|polygon|polyline)\b(?![^>]*\bfill=)/i.test(out) && !/^<svg\b[^>]*\bfill=/i.test(out);
+    if (paints.length && paints.every(white) && !unfilled) out = out.replace(/\b(fill|stroke|stop-color)="([^"]*)"/gi, (m, k: string, v: string) => (white(v.trim().toLowerCase()) ? `${k}="#111111"` : m));
+    return out;
+  };
+  const origin = new URL(base).origin;
+  const isHome = (href: string) => {
+    try {
+      const u = new URL(href.replace(/&amp;/g, "&"), base);
+      return u.origin === origin && /^\/(index\.html?|home|[a-z]{2}(-[a-z]{2})?)?\/?$/i.test(u.pathname);
+    } catch {
+      return false;
     }
-    // A picture counts only when it's named for the site: menus show other companies' logos too.
+  };
+  const take = (inner: string, trusted: boolean): boolean => {
+    const ds = drawingsIn(inner);
+    if (ds.length) svg = pickLogo(ds);
+    if (svg) return true;
     const img = /<img\b[^>]*>/i.exec(inner)?.[0];
-    if (img && !logoSrc && new RegExp(name0, "i").test(`${attr(img, "alt") ?? ""} ${(attr(img, "src") ?? "").split("/").pop()}`)) logoSrc = abs(attr(img, "src"), base);
+    // A picture in the home link is the site's; elsewhere it must be named for the site (menus show other logos).
+    const own = img ? `${attr(img, "alt") ?? ""} ${(attr(img, "src") ?? "").split(/[?#]/)[0]!.split("/").pop() ?? ""}` : "";
+    if (img && (trusted || new RegExp(name0, "i").test(own))) logoSrc = abs(attr(img, "src"), base);
+    return !!logoSrc;
+  };
+  for (const m of head.matchAll(/<a\b[^>]*>/gi)) {
+    const href = attr(m[0], "href");
+    // "#main" (skip to content) points at this page too, but isn't the logo.
+    if (!href || href.startsWith("#") || !isHome(href)) continue;
+    if (take(innerOf(head, m.index!), true)) break;
   }
+  if (!svg && !logoSrc)
+    for (const m of head.matchAll(/<(a|div|span|figure|picture)\b([^>]*)>/gi)) {
+      // Its names: class, id, Framer's layer name, its label and title, each word checked.
+      const named = [...m[2]!.matchAll(/\b(?:class|id|data-framer-name|aria-label|title)="([^"]*)"/gi)].map((x) => x[1]).join(" ");
+      if (!/(^|[\s_-])(logo|site-?logo|brand-?logo|nav-?brand|navbar-?brand|custom-logo)([\s_-]|$)/i.test(named)) continue;
+      // Other companies' logos (a customer wall) are named for them or as a group: "Sweetgreen logo", "logo-carousel".
+      if (/\blogos\b|logo-?(carousel|wall|grid|cloud|strip|marquee|section)|customer|client|partner|trusted|seeklogo|press/i.test(named)) continue;
+      if (take(innerOf(head, m.index!), false)) break;
+    }
   if (!svg && !logoSrc) {
-    const named = [...home.html.matchAll(/<img\b[^>]*>/gi)].map((m) => m[0]).find((t) => new RegExp(`(alt|src)="[^"]*${name0}[^"]*logo|logo[^"]*${name0}|alt="${name0}"`, "i").test(t));
+    // Its alt or its file's own name (not the site's image host: calendlycms.com/microsoftLogo.svg is Microsoft's).
+    const own = (t: string) => `${attr(t, "alt") ?? ""} ${(attr(t, "src") ?? "").split(/[?#]/)[0]!.split("/").pop() ?? ""}`;
+    const named = [...home.html.matchAll(/<img\b[^>]*>/gi)].map((m) => m[0]).find((t) => new RegExp(`${name0}[^ ]*logo|logo[^ ]*${name0}|^${name0}( |$)`, "i").test(own(t)));
     if (named) logoSrc = abs(attr(named, "src"), base);
   }
   const link = (rel: RegExp) => {
