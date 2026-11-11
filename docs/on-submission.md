@@ -51,20 +51,24 @@ open Availability › Team.
 Studio forms (`src/components/app/forms/studio/studio.ts`, the rows in `src/lib/studio/routes.ts`) keep the same rule:
 the form picks the meeting type, the meeting picks the person.
 
-- **The screen**: what happens after the send lives on the form's **Ending** page, the last tab in the page bar
-  under the form. **Ending type** (Message, Redirect, Book a meeting) and its settings sit in the left sidebar above
-  Add fields, as Fillout does; the canvas shows the ending page itself, edited like any other page (a Redirect shows
-  where people go). A **Team meeting**'s rules are edited in the center, beside the booking page they lead to.
-- **Pages** (`stepUi` in `src/components/app/forms/studio/studio.ts`): the page bar lists Welcome, each page and the
-  Ending as tabs. A page drags to a new place; its ⋯ renames it (`data-cl-page`, else "Page N"), duplicates, copies
+- **The screen** (rebuilt after Youform): the left sidebar lists the pages and the Ending (**+** adds one); over the
+  form sit **Add field** (the fields list, opened on demand), **Design** and **Logic**; under it the **Ask Tia** box,
+  which opens Tia's chat over the sidebar while the form stays in view. The right panel shows what's picked: a field,
+  the Ending's settings (Ending type, Book with, Individual or Team meeting, If no one is free, Notification), Design,
+  or the form's own settings. **Logic** swaps the form for its flow: each page with its skips and display condition,
+  the Ending, and a Team meeting's rules after it; the step picked is edited on the right (skips by answer, or the
+  team's rules).
+- **Pages** (`stepUi` in `src/components/app/forms/studio/studio.ts`): the sidebar lists Welcome, each page and the
+  Ending. A page drags to a new place; its ⋯ renames it (`data-cl-page`, else "Page N"), duplicates, copies
   (kept on this computer, pasted from Add page into this form or another), sets a timer, or deletes it. **Add page**
   adds a page, a payment page (a page with the payment block) or the scheduling page (the Ending books a meeting).
 - **Confetti**: a switch on the Ending (Message and Book a meeting) puts `data-cl-confetti` on the thank-you; the form
   script (`confetti` in `src/lib/studio/runtime.ts`) drops confetti over the form once when it shows, and none for
   people who ask for less motion. Pages slide in as people move through them, and back slides the other way.
-- **Design** (nothing picked on the form): the theme, changed from a gallery of every style and the workspace's
-  brands, then **Basic** (brand color, background, font, progress bar) or **Advanced** (corners, buttons, fields,
-  form width), all written into the form's own CSS over the theme.
+- **Design** (the Design button): the brand, the theme (changed from a gallery of every style and the workspace's
+  brands), then **Basic** (background, questions, answers, buttons and button text colors, alignment, font, font size,
+  logo, round corners, progress bar) or **Advanced** (Form, Typography, Inputs, Choices, Buttons, each opening on its
+  own, and Reset), then the photo and one question at a time. All of it goes into the form's own CSS over the theme.
 - **After they send it**: Show a thank-you message (the default, the thank-you every template comes with), Redirect
   to a page, or Book a meeting. The last step in the bar over the form follows it: Thank-you, Redirect (opens On
   submission) or Booking. The thank-you takes the whole form's place once sent, its heading included, on one-page and
