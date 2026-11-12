@@ -1,6 +1,6 @@
 # Email Studio: Brew-style email inside Claritia
 
-Status: Part 1 built (12 November 2026, migration 149). The rest is plan unless it says "exists".
+Status: Parts 1 and 3 built (12 November 2026, migrations 149 and 150). The rest is plan unless it says "exists" or "built".
 
 ## The idea
 
@@ -171,6 +171,18 @@ The heart of it: one chat per email, like Form Studio's one chat per form (`docs
 
 **Tests**: scripted-model tests for every new tool, including a refused op that the model fixes; a form link and a
 meeting link that point at a deleted form or meeting are caught by the check before send.
+
+**Built (Part 3, migration 150):** New email on Campaigns makes a draft (`emails` with `doc`, a draft may have no
+subject; `email_draft_save`, `email_draft_delete`) and opens it at `/emails/campaigns/<id>` in the email builder, on the
+AI tab when it's new, with the subject typed in the top bar. Changes save 800 ms after the last one and on leaving; the
+name follows the subject until it has its own. Tia's versions are kept under `em:<id>`; Send a test, the Desktop,
+Phone and Dark previews and the design check are the builder's. New tool **link_to**: a Button or Meeting link block
+points at one of the workspace's live forms or active meeting types by id, with the address from the server's list
+(never from the model). Drafts open from Campaigns and delete with a confirm; a draft that sent anything stays.
+Tests: `tests/email-chat.test.ts` (link_to), `tests/pg/campaignDrafts.pg.ts`.
+Not yet: `write_subjects`, `use_part`, the Form block with the person's email filled in, the Event block's seats, the
+`AiTag` on unapproved AI emails, and a three-pane studio shell shared with Form Studio; the builder's AI tab stands in
+for the chat column.
 
 **Running cost**: a new email is about 12,000 tokens in and 2,500 out across a few tool rounds, about $0.07; an edit
 is about $0.02 (check, Sonnet 5.5, with prompt caching). At 8 new emails and 25 edits a team each month, about $1.10

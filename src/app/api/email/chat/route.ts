@@ -1,4 +1,7 @@
 import { cachedStep, hashKey } from "@/lib/ai/cache";
+import { appBase } from "@/lib/billing";
+import { bookingUrl } from "@/lib/meetings/links";
+import { viaLink } from "@/lib/share/channels";
 import { isMember } from "@/lib/contacts/server";
 import { EMAIL_CHAT_MODEL, EMAIL_CHAT_SYSTEM, EMAIL_CHAT_TOOLS, runEmailChat, type EmailChatCtx, type EmailChatResult } from "@/lib/design/email/chat";
 import { readEmailDoc } from "@/lib/design/email/doc";
@@ -16,7 +19,7 @@ import { serviceClient } from "@/lib/serviceClient";
 // from (for an A/B send).
 
 const bad = (error: string, status = 400) => Response.json({ error }, { status });
-const REF = /^(wf:[0-9a-f-]{36}:[A-Za-z0-9_-]{1,40}|tpl:[0-9a-f-]{36})$/;
+const REF = /^(wf:[0-9a-f-]{36}:[A-Za-z0-9_-]{1,40}|tpl:[0-9a-f-]{36}|em:[0-9a-f-]{36})$/;
 
 export async function POST(request: Request) {
   const auth = await requireUser(request);
@@ -49,6 +52,19 @@ export async function POST(request: Request) {
     db.from("brand_kits").select(cols).eq("workspace_id", ws).order("created_at").limit(1).maybeSingle(),
   ]);
   const kit = named.data ?? first.data;
+  // The forms and meetings a button can lead to (link_to), with their public addresses. Read together; a failed read
+  // leaves the list empty, and the tool then says there's nothing to link to.
+  const base = appBase();
+  const [forms, types, slug] = await Promise.all([
+    db.from("forms").select("id, name").eq("workspace_id", ws).eq("status", "live").order("updated_at", { ascending: false }).limit(40),
+    db.from("meeting_types").select("id, name, slug").eq("workspace_id", ws).eq("active", true).order("created_at").limit(40),
+    db.from("workspaces").select("booking_slug").eq("id", ws).maybeSingle(),
+  ]);
+  const wsSlug = (slug.data as { booking_slug?: string | null } | null)?.booking_slug ?? null;
+  const links = {
+    forms: ((forms.data ?? []) as { id: string; name: string }[]).map((f) => ({ id: f.id, name: f.name, url: viaLink(`${base}/f/${f.id}`, "email") })),
+    meetings: wsSlug ? ((types.data ?? []) as { id: string; name: string; slug: string }[]).map((t) => ({ id: t.id, name: t.name, url: bookingUrl(base, { workspace: wsSlug, type: t.slug }) })) : [],
+  };
   const tokens = cleanTokens(kit?.tokens ?? {}).tokens;
   const system = readSystem(kit?.design ?? {}, tokens);
   const history = (Array.isArray(b.history) ? b.history : [])
@@ -62,6 +78,7 @@ export async function POST(request: Request) {
     brand: kit ? { name: kit.name as string, brief: (kit.brief as string | null) || ((kit.notes as string[] | null) ?? []).join("\n") } : null,
     history,
     confirmed: b.confirmed === true,
+    links,
     ...(image ? { image } : {}),
   };
   const rpc = (fn: string, args: Record<string, unknown>) => db.rpc(fn, args);
