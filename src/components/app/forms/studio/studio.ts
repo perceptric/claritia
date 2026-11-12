@@ -1670,7 +1670,8 @@ ${CAL_CSS}
     if (!cls || alike <= 1) S.scope = "el";
     S.state = "";
     const sec = h("div", { class: "sec qs" }, h("h4", { text: "Style" }));
-    if (cls && alike > 1) sec.append(h("div", { class: "sel-head" }, h("span", { class: "lbl", text: "Apply to" }), h("span", { class: "spacer" }), h("div", { class: "seg" }, h("button", { "aria-pressed": String(S.scope === "el"), onclick: () => { S.scope = "el"; panel(); }, text: "Only this" }), h("button", { "aria-pressed": String(S.scope === "class"), onclick: () => { S.scope = "class"; panel(); }, text: `All ${alike} ${plural(nameOf(el))}` }))));
+    // On: the change styles every part like this one (all 6 choices); off: only the one clicked.
+    if (cls && alike > 1) { const all = `Style all ${alike} ${plural(nameOf(el))}`; sec.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: all }), h("div", {}, h("button", { class: "sw", role: "switch", "aria-checked": String(S.scope === "class"), "aria-label": all, onclick: () => { S.scope = S.scope === "class" ? "el" : "class"; panel(); } })))); }
     const w0 = getP("font-weight") || comp("font-weight");
     const wt = choice("Weight", [["400", "Regular"], ["500", "Medium"], ["600", "Bold"]], Number(w0) >= 600 ? "600" : w0 === "500" ? "500" : "400", (w) => setP("font-weight", w));
     const al = h("div", { class: "icons", role: "group", "aria-label": "Align" });

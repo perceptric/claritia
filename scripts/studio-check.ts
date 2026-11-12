@@ -473,6 +473,17 @@ try {
   check(ring[0] === "none" && ring[1].includes("rgb"), `a box being typed in has one ring, no second outline (${ring.join(" / ")})`);
   const spill = await $("#pscroll").evaluate((box) => { const b = box.getBoundingClientRect(); return [...box.querySelectorAll("input, button, .num")].filter((x) => { const r = x.getBoundingClientRect(); return r.width && r.right > b.right + 1; }).length; });
   check(spill === 0, `nothing in the Style panel runs past its edge (${spill})`);
+  // A part with others like it: one switch says whether a change styles all of them or only this one.
+  await form.locator("label", { has: p.locator("b", { hasText: /^Sunny$/ }) }).first().click({ position: { x: 4, y: 4 } });
+  if (!(await $("#pscroll button.sw[aria-label^='Style all ']").count())) await form.locator("label", { has: p.locator("b", { hasText: /^Sunny$/ }) }).first().click({ position: { x: 4, y: 4 } });
+  const allSw = $("#pscroll button.sw[aria-label^='Style all ']");
+  await allSw.waitFor({ timeout: 4000 }).catch(() => null);
+  const swLabel = (await allSw.count()) ? await allSw.getAttribute("aria-label") : "";
+  const swBefore = (await allSw.count()) ? await allSw.getAttribute("aria-checked") : "";
+  if (await allSw.count()) await allSw.click();
+  const swAfter = (await allSw.count()) ? await allSw.getAttribute("aria-checked") : "";
+  check(/^Style all \d+ /.test(swLabel ?? "") && !!swBefore && swBefore !== swAfter, `a part like others shows one switch to style all of them or only this one (${swLabel}: ${swBefore} then ${swAfter})`);
+  if (await allSw.count()) await allSw.click();
   if (shots) await p.screenshot({ path: `${shots}/style.png` });
   await $("#undo").click();
   check((await $("#publish").count()) + (await $("#checkBtn").count()) + (await $("#shareBtn").count()) + (await $("#backBtn").count()) === 0, "Publish, the check, Share and Back live in the page's header, never in the Studio's bar");
