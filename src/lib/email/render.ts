@@ -79,6 +79,12 @@ export function renderMessage(m: Claimed, o: { base: string; secret?: string }):
     headers.push({ name: "List-Unsubscribe", value: `<${unsub}>` }, { name: "List-Unsubscribe-Post", value: "List-Unsubscribe=One-Click" });
   }
 
+  // Opens (152): a 1-pixel image at the very end of a marketing email, signed like the links. Tests have none.
+  if (m.marketing && m.kind !== "test") {
+    const pixel = `<img src="${o.base}/o/${makeToken({ kind: "open", message: m.id, link: 0 }, o.secret)}" width="1" height="1" alt="" style="display:block;width:1px;height:1px;border:0;margin:0;padding:0;overflow:hidden">`;
+    html = /<\/body>/i.test(html) ? html.replace(/<\/body>(?![\s\S]*<\/body>)/i, `${pixel}</body>`) : `${html}${pixel}`;
+  }
+
   return {
     from: fromHeader(m.from_name, m.from_email),
     to: m.to,
