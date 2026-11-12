@@ -5,7 +5,7 @@ import type { Session } from "@supabase/supabase-js";
 import dynamic from "next/dynamic";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabase, type SupaConfig } from "@/lib/supa";
-import { NAV, resolveRoute, routingPage, schedulingPage } from "@/lib/nav";
+import { emailsPage, NAV, resolveRoute, routingPage, schedulingPage } from "@/lib/nav";
 import { LogOut, Moon, Sun } from "../Icons";
 import { Logo } from "../Logo";
 import { AuthScreen, isAuthPath, takeNext } from "./AuthScreen";
@@ -28,6 +28,7 @@ const LOADERS = {
   routing: () => import("./routing/RoutingView").then((m) => m.RoutingView),
   scheduling: () => import("./scheduling/SchedulingView").then((m) => m.SchedulingView),
   workflows: () => import("./workflows/WorkflowsView").then((m) => m.WorkflowsView),
+  emails: () => import("./emails/EmailsView").then((m) => m.EmailsView),
   forms: () => import("./forms/FormsView").then((m) => m.FormsView),
   settings: () => import("./views/SettingsView").then((m) => m.SettingsView),
 } satisfies Partial<Record<Route, () => Promise<React.ComponentType<ViewProps>>>>;
@@ -39,6 +40,7 @@ const VIEWS: Record<ViewRoute, React.ComponentType<ViewProps>> = {
   routing: dynamic(LOADERS.routing, { ssr: false, loading }),
   scheduling: dynamic(LOADERS.scheduling, { ssr: false, loading }),
   workflows: dynamic(LOADERS.workflows, { ssr: false, loading }),
+  emails: dynamic(LOADERS.emails, { ssr: false, loading }),
   forms: dynamic(LOADERS.forms, { ssr: false, loading }),
   settings: dynamic(LOADERS.settings, { ssr: false, loading }),
 };
@@ -75,6 +77,7 @@ const readLoc = (): Loc => {
   // Pages inside a route (src/lib/nav.ts).
   if (r.route === "routing") return { route: r.route, id: routingPage(r.id).id };
   if (r.route === "scheduling") return { route: r.route, id: schedulingPage(r.id).id };
+  if (r.route === "emails") return { route: r.route, id: emailsPage(r.id).id };
   return { route: r.route, id: WITH_ID.has(r.route) && uuid(a) ? a : "" };
 };
 
@@ -274,6 +277,7 @@ export function ClientApp({ config }: { config: SupaConfig }) {
     { group: "Meetings", label: "Meeting type", run: () => navigate("scheduling", "types/new") },
     { group: "Meetings", label: "Single-use link", run: () => navigate("scheduling", "links", "create=single_use") },
     { group: "Meetings", label: "Poll", run: () => navigate("scheduling", "links", "create=poll") },
+    { group: "Emails", label: "Email template", run: () => navigate("emails", "templates", "create=1") },
     { group: "Workflows", label: "Workflow", run: () => navigate("workflows", "new") },
   ];
 
