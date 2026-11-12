@@ -5,9 +5,10 @@
 
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
-export type LinkToken = { kind: "click" | "unsub"; message: string; link: number };
+export type LinkToken = { kind: "click" | "unsub" | "open"; message: string; link: number };
 
-const KINDS = ["click", "unsub"] as const;
+// Appended only: a token carries its kind's place in this list, so the places never change.
+const KINDS = ["click", "unsub", "open"] as const;
 
 function linkKey(secret = process.env.SECRETS_KEY): Buffer {
   const s = secret?.trim();

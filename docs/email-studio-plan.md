@@ -1,6 +1,6 @@
 # Email Studio: Brew-style email inside Claritia
 
-Status: Parts 1, 3, 4 (lists) and 5 (sending) built (12 November 2026, migrations 149 to 151). The rest is plan unless it says "exists" or "built".
+Status: Parts 1, 3, 4 (lists), 5 (sending) and 7 (results) built (12 November 2026, migrations 149 to 152). The rest is plan unless it says "exists" or "built".
 
 ## The idea
 
@@ -341,6 +341,15 @@ each month: Beta $20, Growth $200 (check).
 
 **Data**: `email_events.kind` gains `opened`; `meetings.from_message` and `submissions.from_message` (uuid, null when
 not from an email); a daily rollup table `email_stats` so result pages stay fast.
+
+**Built (Part 7, migration 152):** a 1-pixel image at the end of every marketing email (not tests) at `/o/<token>`,
+signed like click links (kind `open`, added at the end of the token kinds so old tokens read the same), calls
+`email_open`: the message's first open and one `opened` event, never before it's sent. Meetings booked and forms
+filled count toward an email when the same person made them within 7 days after first clicking it (`email_led_to`);
+nothing in booking or forms changed, and spam fills don't count. Campaigns shows Opened, Clicked, Meetings and Forms;
+any campaign that went opens its results page (`email_campaign_results`): the counts, who booked a meeting and who
+filled a form (with the meeting type or form), and people per link with mail filters left out. The daily rollup table
+is not built; results are counted when read. Tests: `tests/email.test.ts` (the pixel), `tests/pg/emailResults.pg.ts`.
 
 **Tests**: an open pixel fetched ten times counts once; a forged pixel or link token is refused; a booking from an
 email link counts toward that email and no other.

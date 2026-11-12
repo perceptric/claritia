@@ -15,6 +15,7 @@ import { Select } from "../Select";
 import { Sheet } from "../Sheet";
 import { EmailBuilder } from "../email/EmailBuilder";
 import { SendPanel } from "./SendPanel";
+import { StatCards } from "../StatCards";
 import { ToolIntro } from "../ToolIntro";
 import { BrandSettings } from "../views/BrandSettings";
 import { EmailTemplatesView } from "../workflows/EmailTemplatesView";
@@ -47,7 +48,7 @@ const pct = (part: number, whole: number) => (whole ? `${Math.round((part / whol
 
 // Campaigns ---------------------------------------------------------------------------------------------------------
 
-type Campaign = { id: string; name: string; subject: string; status: string; updated_at: string; first_sent: string | null; recipients: number; sent: number; delivered: number; clicked: number; unsubscribed: number; bounced: number; complained: number; send_at: string | null; waiting: number };
+type Campaign = { id: string; name: string; subject: string; status: string; updated_at: string; first_sent: string | null; recipients: number; sent: number; delivered: number; clicked: number; unsubscribed: number; bounced: number; complained: number; send_at: string | null; waiting: number; opened: number; meetings: number; forms: number };
 const CAMPAIGN_TONE: Record<string, Tone> = { sent: "green", sending: "amber", scheduled: "sky", paused: "amber", draft: "gray" };
 const CAMPAIGN_LABEL: Record<string, string> = { sent: "Sent", sending: "Sending", scheduled: "Scheduled", paused: "Paused", draft: "Draft" };
 const whenWords = (iso: string) => new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -119,16 +120,17 @@ function Campaigns({ sb, ws, navigate }: ViewProps) {
     <Page title="Campaigns" actions={add}>
       <ErrorNote message={error} />
       <div className="overflow-x-auto rounded-lg bg-card shadow-rest">
-        <table className="w-full min-w-[820px] border-collapse [&_tbody_tr:last-child_td]:border-b-0">
+        <table className="w-full min-w-[900px] border-collapse [&_tbody_tr:last-child_td]:border-b-0">
           <thead>
             <tr>
               <Th className="pl-5">Email</Th>
               <Th>Status</Th>
               <Th>Sent</Th>
-              <Th>Delivered</Th>
+              <Th>Opened</Th>
               <Th>Clicked</Th>
+              <Th>Meetings</Th>
+              <Th>Forms</Th>
               <Th>Unsubscribed</Th>
-              <Th>Bounced</Th>
               <Th className="w-40">
                 <span className="sr-only">Actions</span>
               </Th>
@@ -136,24 +138,20 @@ function Campaigns({ sb, ws, navigate }: ViewProps) {
           </thead>
           <tbody>
             {list.data.map((c) => (
-              <tr key={c.id} className={c.status === "draft" ? "cursor-pointer hover:[&>td]:bg-hover" : ""} onClick={c.status === "draft" ? () => navigate("emails", `campaigns/${c.id}`) : undefined}>
+              <tr key={c.id} className="cursor-pointer hover:[&>td]:bg-hover" onClick={() => navigate("emails", `campaigns/${c.id}`)}>
                 <Td className="pl-5">
                   <span className="flex min-w-0 flex-col py-1">
-                    {c.status === "draft" ? (
-                      <a
-                        href={`/emails/campaigns/${c.id}`}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          navigate("emails", `campaigns/${c.id}`);
-                        }}
-                        className="font-medium break-words text-ink"
-                      >
-                        {c.name}
-                      </a>
-                    ) : (
-                      <span className="font-medium break-words text-ink">{c.name}</span>
-                    )}
+                    <a
+                      href={`/emails/campaigns/${c.id}`}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        navigate("emails", `campaigns/${c.id}`);
+                      }}
+                      className="font-medium break-words text-ink"
+                    >
+                      {c.name}
+                    </a>
                     {c.subject ? <span className="text-[12px] break-words text-muted">{c.subject}</span> : null}
                   </span>
                 </Td>
@@ -166,10 +164,11 @@ function Campaigns({ sb, ws, navigate }: ViewProps) {
                   </span>
                 </Td>
                 <Td className="tabular-nums">{c.sent ? n(c.sent) : "—"}</Td>
-                <Td className="tabular-nums">{c.sent ? `${n(c.delivered)} ${pct(c.delivered, c.sent) ? `(${pct(c.delivered, c.sent)})` : ""}` : "—"}</Td>
-                <Td className="tabular-nums">{c.sent ? `${n(c.clicked)} (${pct(c.clicked, c.delivered || c.sent)})` : "—"}</Td>
+                <Td className="tabular-nums">{c.sent ? pct(c.opened, c.delivered || c.sent) : "—"}</Td>
+                <Td className="tabular-nums">{c.sent ? pct(c.clicked, c.delivered || c.sent) : "—"}</Td>
+                <Td className={`tabular-nums ${c.meetings ? "font-medium text-signal-text" : ""}`}>{c.sent ? n(c.meetings) : "—"}</Td>
+                <Td className="tabular-nums">{c.sent ? n(c.forms) : "—"}</Td>
                 <Td className="tabular-nums">{c.sent ? n(c.unsubscribed) : "—"}</Td>
-                <Td className="tabular-nums">{c.sent ? n(c.bounced + c.complained) : "—"}</Td>
                 <Td className="pr-3">
                   {c.status === "draft" ? (
                     <span onClick={(e) => e.stopPropagation()}>
@@ -210,10 +209,11 @@ function CampaignStudio(props: ViewProps & { emailId: string }) {
   if (row.error) return <ErrorNote message={row.error} />;
   if (!row.loaded) return <Loading />;
   const d = row.data;
-  if (!d || d.status !== "draft")
+  if (d && d.status !== "draft") return <Results {...props} />;
+  if (!d)
     return (
       <Page title="Campaigns" back={{ label: "Campaigns", onClick: () => navigate("emails") }}>
-        <ErrorNote message={d ? "This email was sent, so it can't change." : "This email is gone."} />
+        <ErrorNote message="This email is gone." />
       </Page>
     );
   return <DraftEditor {...props} draft={d} />;
@@ -307,6 +307,99 @@ function DraftEditor({ sb, session, ws, navigate, emailId, draft }: ViewProps & 
         />
       ) : null}
     </>
+  );
+}
+
+// Results (Part 7): the counts, who booked or filled a form after clicking, and people per link.
+
+type ResultPerson = { contact: string; name: string; email: string; what: string; at: string };
+type ResultData = { counts: Campaign | null; booked: ResultPerson[]; filled: ResultPerson[]; links: { url: string; people: number }[] } | null;
+
+function Results({ sb, ws, navigate, emailId }: ViewProps & { emailId: string }) {
+  const r = useQuery(`email_results:${emailId}`, async () => must(await sb.rpc("email_campaign_results", { p_ws: ws.id, p_email: emailId })) as ResultData, { staleMs: 30_000 });
+  const back = { label: "Campaigns", onClick: () => navigate("emails") };
+  if (r.error) return <ErrorNote message={r.error} />;
+  if (!r.loaded) return <Loading />;
+  const d = r.data;
+  const c = d?.counts;
+  if (!d || !c)
+    return (
+      <Page title="Campaigns" back={back}>
+        <ErrorNote message="This email is gone." />
+      </Page>
+    );
+  const base = c.delivered || c.sent;
+  const top = Math.max(1, ...d.links.map((l) => l.people));
+  const people = (title: string, list: ResultPerson[]) => (
+    <div className="flex min-w-0 flex-1 basis-[320px] flex-col rounded-lg bg-card shadow-rest">
+      <div className="flex items-center gap-2 border-b border-line px-4 py-3">
+        <span className="text-[14px] font-medium text-ink">{title}</span>
+        <span className="text-[12.5px] text-muted tabular-nums">{n(list.length)}</span>
+      </div>
+      {list.length ? (
+        list.map((p, i) => (
+          <div key={`${p.contact}-${i}`} className="flex items-start gap-3 border-b border-line px-4 py-2.5 last:border-b-0">
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span className="text-[13.5px] break-words text-ink">{p.name || p.email}</span>
+              <span className="text-[12px] break-words text-muted">{p.what}</span>
+            </span>
+            <span className="shrink-0 text-[12px] text-muted">{timeAgo(p.at)}</span>
+          </div>
+        ))
+      ) : (
+        <p className="px-4 py-4 text-[13px] text-muted">None yet</p>
+      )}
+    </div>
+  );
+  return (
+    <Page
+      title={c.name}
+      back={back}
+      badge={
+        <Badge tone={CAMPAIGN_TONE[c.status] ?? "gray"} dot>
+          {CAMPAIGN_LABEL[c.status] ?? c.status}
+        </Badge>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        <StatCards
+          cards={[
+            { label: "Delivered", value: c.delivered, note: `of ${n(c.sent)} sent` },
+            { label: "Opened", value: c.opened, note: pct(c.opened, base) },
+            { label: "Clicked", value: c.clicked, note: pct(c.clicked, base) },
+            { label: "Meetings booked", value: c.meetings, tone: c.meetings ? "sage" : undefined },
+            { label: "Forms filled", value: c.forms },
+            { label: "Unsubscribed", value: c.unsubscribed, note: pct(c.unsubscribed, base) },
+            { label: "Bounced or marked as spam", value: c.bounced + c.complained },
+            ...(c.waiting ? [{ label: "Still to send", value: c.waiting }] : []),
+          ]}
+        />
+        <div className="flex flex-wrap gap-4">
+          {people("Booked a meeting", d.booked)}
+          {people("Filled a form", d.filled)}
+        </div>
+        {d.links.length ? (
+          <div className="rounded-lg bg-card px-4 py-3 shadow-rest">
+            <span className="text-[14px] font-medium text-ink">Clicks by link</span>
+            <div className="mt-3 flex flex-col gap-3">
+              {d.links.map((l, i) => (
+                <div key={i} className="flex flex-col gap-1.5">
+                  <div className="flex items-start justify-between gap-3 text-[13px]">
+                    <span className="min-w-0 truncate text-text" title={l.url}>
+                      {l.url.replace(/^https?:\/\//, "")}
+                    </span>
+                    <span className="shrink-0 text-muted tabular-nums">{n(l.people)}</span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-signal-pale">
+                    <div className="h-1.5 rounded-full bg-signal" style={{ width: `${Math.round((l.people / top) * 100)}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </Page>
   );
 }
 

@@ -188,7 +188,7 @@ test("a marketing email gets tracked links, the footer and one-click unsubscribe
   assert.deepEqual(readToken(click, SECRET), { kind: "click", message: claimed().id, link: 0 });
   assert.ok(!out.html.includes("https://acme.com/x"));
   assert.match(out.html, /<body><div style="display:none[^>]*>Peek &lt;in&gt;<\/div>/);
-  assert.match(out.html, /Acme · 1 Main St, Springfield<br><a href="https:\/\/app\.test\/u\/[^"]+"[^>]*>Unsubscribe<\/a><\/div><\/body>/);
+  assert.match(out.html, /Acme · 1 Main St, Springfield<br><a href="https:\/\/app\.test\/u\/[^"]+"[^>]*>Unsubscribe<\/a><\/div>(<img [^>]+>)?<\/body>/);
   assert.match(out.text, /--\nAcme · 1 Main St, Springfield\nUnsubscribe: https:\/\/app\.test\/u\//);
   assert.deepEqual(out.tags, { message: claimed().id, email: "e1" });
 });
@@ -389,4 +389,20 @@ test("the SMTP relay: a sent message returns the relay's id; dots are doubled; n
   assert.equal(await outcome({ afterData: "550" }), "failed");
   assert.equal(await outcome({ auth: "535" }), "failed");
   assert.equal(outcomeOf(await send(1).then(() => null, (e) => e)), "retry", "no connection, nothing sent");
+});
+
+test("opens: one signed pixel at the very end of a marketing email, none in tests or non-marketing mail, and links keep their places", () => {
+  const out = renderMessage(claimed(), { base: "https://app.test", secret: SECRET });
+  const pixels = [...out.html.matchAll(/<img src="https:\/\/app\.test\/o\/([^"]+)"/g)];
+  assert.equal(pixels.length, 1);
+  assert.deepEqual(readToken(pixels[0]![1]!, SECRET), { kind: "open", message: claimed().id, link: 0 });
+  assert.ok(/<img [^>]*width="1"[^>]*><\/body><\/html>$/.test(out.html), "last thing in the body");
+  // The pixel is never a tracked link: the clicks still map to the stored links in order.
+  const clicks = [...out.html.matchAll(/href="https:\/\/app\.test\/c\/([^"]+)"/g)].map((m) => readToken(m[1]!, SECRET));
+  assert.deepEqual(clicks.map((t) => [t?.kind, t?.link]), [["click", 0]]);
+  // Click and unsubscribe tokens made before opens existed still read the same.
+  assert.equal(readToken(makeToken({ kind: "unsub", message: claimed().id, link: 0 }, SECRET), SECRET)?.kind, "unsub");
+  for (const o of [{ kind: "test" as const }, { marketing: false }]) assert.ok(!renderMessage(claimed(o), { base: "https://app.test", secret: SECRET }).html.includes("/o/"), JSON.stringify(o));
+  // No body tag: the pixel goes at the end.
+  assert.ok(renderMessage(claimed({ html: `<p>Hi</p>` }), { base: "https://app.test", secret: SECRET }).html.includes('height="1"'));
 });
