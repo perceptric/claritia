@@ -272,6 +272,24 @@ export async function team(rpc: Rpc, c: Caller, o: { team?: unknown; name: unkno
   }
 }
 
+/**
+ * Delete a team (148): refused while a routing policy, meeting type or form still sends to it, with their names, so
+ * nothing routes or books to a team that's gone. The starting team stays.
+ */
+export async function deleteTeam(rpc: Rpc, c: Caller, o: { team: unknown; revision?: unknown }): Promise<{ deleted: boolean; used_by?: { kind: "policy" | "meeting" | "form"; name: string }[] }> {
+  ownerOnly(c, "team");
+  const teamId = id(o.team, "team");
+  try {
+    return await call(rpc, "routing_team_delete", { p_ws: c.ws, p_team: teamId, p_revision: typeof o.revision === "number" ? o.revision : null });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "";
+    if (/draft_conflict/.test(msg)) throw new Refusal(409, "draft_conflict", "Someone else changed this team. Open it again.");
+    if (/not_found/.test(msg)) throw new Refusal(404, "not_found", "That team is already gone.");
+    if (/starting team/.test(msg)) throw new Refusal(400, "invalid_configuration", "Whole team can't be deleted.");
+    throw e;
+  }
+}
+
 // The tester (Section 16) ---------------------------------------------------------------------------------------------
 
 export type TestOverrides = { contactOwner?: string | null; companyOwner?: string | null; spam?: boolean; unavailable?: boolean; noSlots?: boolean };

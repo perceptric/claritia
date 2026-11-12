@@ -198,9 +198,12 @@ and polls, Settings):
   on read and in migration 114, and a team someone renamed keeps its name. `tests/teamWords.test.ts` fails if "rep"
   or "reps" comes back.
 - **Availability › Team.** One table of everyone: teams (chips, with + Team), calendar (Connect, Reconnect or Ask),
-  hours, today against their cap, and away. The team pills above filter it: members first with who's next in line,
-  then everyone not in the team with Add; how the team shares leads (Take turns, Some get more, Fewest meetings first);
-  and the meetings and forms that send to it. Turning Away on asks until when (pause or out-of-office dates, in the
+  hours, today against their cap, and away. The team dropdown above filters it (Everyone, then each team with its
+  distribution and member count): members first with who's next in line, then everyone not in the team with Add; how
+  the team shares leads; and the meetings and forms that send to it. Delete (the bin beside the dropdown) asks first and
+  is refused, with names, while a routing policy (draft or live), a meeting type or a form still sends to the team, so
+  nothing books or routes to a team that's gone; Whole team stays (`supabase/migrations/148_team_delete.sql`,
+  `tests/pg/teamDelete.pg.ts`). Turning Away on asks until when (pause or out-of-office dates, in the
   app's own month picker). A new team name too close to one that exists is refused (`src/lib/routing/teamNames.ts`).
   Saving a team keeps its method and every member's weight; before, adding a member reset both
   (`tests/teamSave.test.ts`, with a flaky read).
