@@ -1,6 +1,6 @@
 # Email Studio: Brew-style email inside Claritia
 
-Status: Parts 1, 3, 4 (lists), 5 (sending), 6 (automations from a sentence), 7 (results) and 8 (templates) built, and Part 2's voice (12 November 2026, migrations 149 to 153). The rest is plan unless it says "exists" or "built".
+Status: Parts 1, 3, 4 (lists), 5 (sending), 6 (automations from a sentence), 7 (results), 8 (templates) and 9 (MCP) built, and Part 2's voice (12 November 2026, migrations 149 to 154). The rest is plan unless it says "exists" or "built".
 
 ## The idea
 
@@ -420,6 +420,16 @@ through Claritia's MCP, the same way forms do today.
 needs a person to confirm in the app when the audience is over 500 people.
 
 **Running cost**: the same model costs as Part 3 per email made; nothing else.
+
+**Built (Part 9, migration 154):** seven tools on the MCP server (`src/lib/emails/mcp.ts`, registered in
+`src/lib/mcpTools.ts`): `list_emails`, `list_audiences`, `create_email` (blank or one of the 100 templates, then Tia
+writes it in the brand through the step cache, same as the studio's chat), `change_email` (drafts only), `send_test`
+(to the key's maker, through the real test path), `schedule_campaign` and `email_results`. The studio's chat and the
+send route share their parts with the tools (`src/lib/emails/server.ts`). `schedule_campaign` needs a key made by a
+workspace owner, sends as that person, and refuses an audience of more than 500 ready people with the studio link to
+confirm it there (`src/lib/emails/guard.ts`). Agents count the audience with `email_audience_counts` (154), the same
+count the app's preview shows, and the send goes through `email_campaign_send` and every check a send from the app
+passes. Tests: `tests/emailsMcp.test.ts`, `tests/emailsGuard.test.ts` and `tests/pg/campaignSend.pg.ts`.
 
 ## Part 10. Deliverability and safety
 

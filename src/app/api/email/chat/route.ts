@@ -1,14 +1,10 @@
 import { cachedStep, hashKey } from "@/lib/ai/cache";
-import { appBase } from "@/lib/billing";
-import { bookingUrl } from "@/lib/meetings/links";
-import { viaLink } from "@/lib/share/channels";
 import { isMember } from "@/lib/contacts/server";
 import { EMAIL_CHAT_MODEL, EMAIL_CHAT_SYSTEM, EMAIL_CHAT_TOOLS, runEmailChat, type EmailChatCtx, type EmailChatResult } from "@/lib/design/email/chat";
 import { readEmailDoc } from "@/lib/design/email/doc";
-import { readSystem } from "@/lib/design/model";
 import { MAX_ASSET_BYTES, sniffImage } from "@/lib/design/assets";
-import { cleanTokens } from "@/lib/forms/brand";
 import { claudeChat } from "@/lib/forms/claude";
+import { emailChatParts } from "@/lib/emails/server";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 
@@ -45,40 +41,18 @@ export async function POST(request: Request) {
     image = { type: kind.type, data: Buffer.from(raw).toString("base64") };
   } else if ((b.doc as { sections?: unknown } | undefined)?.sections === undefined) return bad("Send the email.");
   const doc = readEmailDoc(b.doc, { allowHtml: true });
-  // The kit the email names, else the workspace's first: only those two rows, read together (not every kit).
-  const cols = "id, name, tokens, notes, brief, design";
-  const [named, first] = await Promise.all([
-    doc.kitId ? db.from("brand_kits").select(cols).eq("workspace_id", ws).eq("id", doc.kitId).maybeSingle() : Promise.resolve({ data: null }),
-    db.from("brand_kits").select(cols).eq("workspace_id", ws).order("created_at").limit(1).maybeSingle(),
-  ]);
-  const kit = named.data ?? first.data;
-  // The forms and meetings a button can lead to (link_to), with their public addresses. Read together; a failed read
-  // leaves the list empty, and the tool then says there's nothing to link to.
-  const base = appBase();
-  const [forms, types, slug] = await Promise.all([
-    db.from("forms").select("id, name").eq("workspace_id", ws).eq("status", "live").order("updated_at", { ascending: false }).limit(40),
-    db.from("meeting_types").select("id, name, slug").eq("workspace_id", ws).eq("active", true).order("created_at").limit(40),
-    db.from("workspaces").select("booking_slug").eq("id", ws).maybeSingle(),
-  ]);
-  const wsSlug = (slug.data as { booking_slug?: string | null } | null)?.booking_slug ?? null;
-  const links = {
-    forms: ((forms.data ?? []) as { id: string; name: string }[]).map((f) => ({ id: f.id, name: f.name, url: viaLink(`${base}/f/${f.id}`, "email") })),
-    meetings: wsSlug ? ((types.data ?? []) as { id: string; name: string; slug: string }[]).map((t) => ({ id: t.id, name: t.name, url: bookingUrl(base, { workspace: wsSlug, type: t.slug }) })) : [],
-  };
-  const tokens = cleanTokens(kit?.tokens ?? {}).tokens;
-  const system = readSystem(kit?.design ?? {}, tokens);
+  // The brand kit, its styles and the forms and meetings a button can lead to (src/lib/emails/server.ts).
+  const parts = await emailChatParts(db, ws, doc);
+  const system = parts.system;
   const history = (Array.isArray(b.history) ? b.history : [])
     .filter((h): h is { role: "user" | "assistant"; text: string } => !!h && (h.role === "user" || h.role === "assistant") && typeof h.text === "string")
     .slice(-10);
   const ctx: EmailChatCtx = {
     doc,
-    system,
-    tokens,
+    ...parts,
     subject: typeof b.subject === "string" ? b.subject.slice(0, 200) : "",
-    brand: kit ? { name: kit.name as string, brief: (kit.brief as string | null) || ((kit.notes as string[] | null) ?? []).join("\n") } : null,
     history,
     confirmed: b.confirmed === true,
-    links,
     ...(image ? { image } : {}),
   };
   const rpc = (fn: string, args: Record<string, unknown>) => db.rpc(fn, args);

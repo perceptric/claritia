@@ -6,6 +6,7 @@ import { resultsText } from "./mcpText.ts";
 import { loadOutcomes } from "./runOutcomes.ts";
 import { formTools } from "./forms/mcp.ts";
 import { routerTools } from "./router/mcp.ts";
+import { emailTools } from "./emails/mcp.ts";
 import { APP_URL } from "./site.ts";
 import { fromYaml, TestFileError, toYaml, type BlockRef, type Step } from "./testfile.ts";
 
@@ -220,6 +221,7 @@ export const mcp = mcpServer<Ctx>({
     "Claritia runs end-to-end tests written in plain English, in a cloud browser. list_projects first. To check a change: " +
     "verify_change on the environment or preview address where it's live, then fix app bugs it reports. Write or edit tests with save_test (YAML). " +
     "Lead forms: list_forms, create_form, set_form_page, then publish_form; get_answers reads what came in. " +
-    "Lead routing: get_router, route_explain, route_test; route_suggest saves a draft a person publishes.",
-  tools: [...tools, ...formTools, ...routerTools],
+    "Lead routing: get_router, route_explain, route_test; route_suggest saves a draft a person publishes. " +
+    "Emails: list_audiences, create_email (Tia writes it in the brand), change_email, send_test, schedule_campaign, then email_results.",
+  tools: [...tools, ...formTools, ...routerTools, ...emailTools],
 });
