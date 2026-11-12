@@ -1,6 +1,6 @@
 # Email Studio: Brew-style email inside Claritia
 
-Status: Parts 1, 3, 4 (lists), 5 (sending), 6 (automations from a sentence), 7 (results), 8 (templates) and 9 (MCP) built, and Part 2's voice (12 November 2026, migrations 149 to 154). The rest is plan unless it says "exists" or "built".
+Status: Parts 1, 3, 4 (lists), 5 (sending), 6 (automations from a sentence), 7 (results), 8 (templates), 9 (MCP) and 10 (deliverability) built, and Part 2's voice (12 November 2026, migrations 149 to 155). The rest is plan unless it says "exists" or "built".
 
 ## The idea
 
@@ -443,6 +443,24 @@ passes. Tests: `tests/emailsMcp.test.ts`, `tests/emailsGuard.test.ts` and `tests
 - **Content check before send**: missing alt text, image-only emails, very large emails (Gmail clips at 102 KB),
   broken links and missing fallbacks.
 - **Suppressions** shared across campaigns and automations.
+
+**Built (Part 10, migration 155):**
+- **Warm-up**: `domain_warm_cap` gives a domain 500 a day from when it was verified, doubling each week, with no cap
+  from week 8. `send_claim` holds campaign messages over the day's room and tries them again an hour later (never
+  skipped). Meeting, workflow and other emails are never held, go before campaign messages, and count toward the day.
+  Claims for one workspace take turns (an advisory lock), so claims at once can't go over. The Send panel and
+  `schedule_campaign` show the days a big first campaign takes (`src/lib/emails/warm.ts`, the same rule).
+- **Send check** (`src/lib/emails/sendCheck.ts`): a placeholder left in ("[date]") or a button or link with no working
+  address stops the send, in the panel and on the server; an email that is mostly pictures, images without alt text
+  and merge tags without a fallback are listed to look at. Size and the footer were already checked when built.
+- **Imports**: addresses are cleaned the way forms clean them, throwaway domains are left out, and shared inboxes
+  (info@, sales@) are kept with their class and tagged "Shared inbox" in Audiences. Without consent, only an owner
+  adds people at once; anyone else's import waits in `contact_imports` for an owner to add or discard it.
+- Already in place: one-click unsubscribe headers, DMARC before a domain counts as verified, the complaint and bounce
+  pauses (144), and suppressions shared by campaigns and automations.
+- Tests: `tests/pg/warmup.pg.ts` (five claims at once, meeting emails first, the weeks), `tests/sendCheck.test.ts`,
+  `tests/warm.test.ts`, `tests/emailsPeople.test.ts`, `tests/pg/campaignSend.pg.ts`.
+- Running cost: nothing new; it runs in the database and the app.
 
 **Sending cost** (both providers; Claritia already limits each plan per month):
 

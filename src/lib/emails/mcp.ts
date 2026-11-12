@@ -8,6 +8,7 @@ import { ToolError, type Tool } from "../mcpProtocol.ts";
 import { rpcOr } from "../rpcCompat.ts";
 import { APP_URL } from "../site.ts";
 import { campaignGuard, sendAtOf } from "./guard.ts";
+import { warmDays } from "./warm.ts";
 import { buildForSend, emailChatParts, emailChatTurn } from "./server.ts";
 
 // Emails on the MCP server (docs/email-studio-plan.md Part 9), so ChatGPT, Claude and other agents can write a
@@ -172,7 +173,7 @@ export const emailTools: Tool<ApiCaller>[] = [
       if (stop) throw new ToolError(stop === "confirm" ? `This goes to ${ready.toLocaleString("en-US")} people, so a person confirms it in the app: ${studio(d.id)}` : stop);
       const why = readyProblem(await sendReady(ctx.sb, ctx.workspaceId));
       if (why) throw new ToolError(why);
-      const built = await buildForSend(ctx.sb, ctx.workspaceId, readEmailDoc(d.doc ?? {}, { allowHtml: true }));
+      const built = await buildForSend(ctx.sb, ctx.workspaceId, readEmailDoc(d.doc ?? {}, { allowHtml: true }), { subject: d.subject });
       if ("error" in built) throw new ToolError(built.error);
       const { data, error } = await ctx.sb.rpc("email_campaign_send", {
         p_ws: ctx.workspaceId,
@@ -182,7 +183,10 @@ export const emailTools: Tool<ApiCaller>[] = [
       });
       if (error) throw new ToolError(error.message.replace(/^.*?: /, ""));
       const r = data as { queued: number; status: string };
-      return { text: `${d.name}: ${r.status === "scheduled" ? `scheduled for ${when.at}` : "sending now"} to ${r.queued.toLocaleString("en-US")} people (${ready.toLocaleString("en-US")} ready; the rest are held back by consent or unsubscribes when it goes).\n${APP_URL}/emails`, data: r };
+      const warmInfo = (counts as { warm?: { domain: string; since: string; left_today: number } | null } | null)?.warm ?? null;
+      const warm = warmDays(ready, warmInfo, when.at ? Date.parse(when.at) : Date.now());
+      const spread = warm.days > 1 && warmInfo ? ` It goes out over ${warm.days} days, until ${warm.last.toISOString().slice(0, 10)}, while ${warmInfo.domain} warms up.` : "";
+      return { text: `${d.name}: ${r.status === "scheduled" ? `scheduled for ${when.at}` : "sending now"} to ${r.queued.toLocaleString("en-US")} people (${ready.toLocaleString("en-US")} ready; the rest are held back by consent or unsubscribes when it goes).${spread}\n${APP_URL}/emails`, data: r };
     },
   },
   {

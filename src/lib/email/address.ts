@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { domainToASCII } from "node:url";
 import FREE from "free-email-domains";
+import { ROLE_NAMES } from "../emails/role.ts";
 
 export type EmailClass = "work" | "free" | "role" | "own" | "partner";
 export type Cleaned = { kind: "email"; raw: string; clean: string; hash: Buffer; class: EmailClass | null; domain: string | null };
@@ -18,9 +19,7 @@ const DISPOSABLE = new Set(
     .map((l) => l.trim().toLowerCase())
     .filter((l) => l && !l.startsWith("#")),
 );
-const ROLE = new Set(
-  "sales info hello contact team support admin billing marketing office hr jobs careers press noreply no-reply accounts finance".split(" "),
-);
+const ROLE = ROLE_NAMES;
 
 // Provider rules: remove +tag everywhere but Yahoo, remove dots for Gmail, map alias domains.
 const DOMAIN_MAP: Record<string, string> = { "googlemail.com": "gmail.com", "me.com": "icloud.com", "mac.com": "icloud.com", "protonmail.com": "proton.me" };

@@ -2,11 +2,15 @@
 
 // Send a campaign (docs/email-studio-plan.md Part 5), from the Email Studio: who gets it (everyone, lists), the topic
 // they can leave, and when (now or a day and time). The count under it is who it will reach now, by the same rules
-// every message passes when it goes (email_audience_preview, 151); the rest are left out with the reason. Send runs
-// through /api/emails/send, which freezes the audience and queues it in one step.
+// every message passes when it goes (email_audience_preview, 151); the rest are left out with the reason. While the
+// From domain warms up (155), a big first campaign shows the days it takes. The send check (Part 10) lists what stops
+// the send and what to look at. Send runs through /api/emails/send, which freezes the audience and queues it in one step.
 
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import type { EmailDoc } from "@/lib/design/email/doc";
+import { sendCheck } from "@/lib/emails/sendCheck";
+import { warmDays } from "@/lib/emails/warm";
 import { X } from "../../Icons";
 import { DatePick, isoDay } from "../DatePick";
 import { useNow } from "../meetings/parts";
@@ -15,13 +19,16 @@ import { Button, ErrorNote, errorText, IconButton, must, postJson, useQuery } fr
 
 type List = { id: string; name: string; members: number };
 type Topic = { id: string; name: string };
-type Preview = { total: number; ready: number; suppressed: number; no_consent: number; not_subscribed: number; room: number | null };
+type Preview = { total: number; ready: number; suppressed: number; no_consent: number; not_subscribed: number; room: number | null; warm?: { domain: string; since: string; left_today: number } | null };
 
 const TIMES = Array.from({ length: 96 }, (_, i) => `${String(Math.floor(i / 4)).padStart(2, "0")}:${String((i % 4) * 15).padStart(2, "0")}`);
 const timeWords = (t: string) => new Date(`2000-01-01T${t}:00`).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 const n = (x: number) => x.toLocaleString("en-US");
 
-export function SendPanel({ sb, session, ws, emailId, subject, onClose, onSent }: { sb: SupabaseClient; session: Session; ws: string; emailId: string; subject: string; onClose: () => void; onSent: (status: string) => void }) {
+const dayWords = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
+export function SendPanel({ sb, session, ws, emailId, subject, doc, onClose, onSent }: { sb: SupabaseClient; session: Session; ws: string; emailId: string; subject: string; doc: EmailDoc; onClose: () => void; onSent: (status: string) => void }) {
+  const check = useMemo(() => sendCheck(doc, subject), [doc, subject]);
   const lists = useQuery(`lists:${ws}`, async () => (must(await sb.rpc("lists_overview", { p_ws: ws })) ?? []) as List[]);
   const topics = useQuery(`topics:${ws}`, async () => (must(await sb.from("topics").select("id, name").eq("workspace_id", ws).order("name")) ?? []) as Topic[]);
   const [who, setWho] = useState<string>("everyone");
@@ -39,6 +46,7 @@ export function SendPanel({ sb, session, ws, emailId, subject, onClose, onSent }
   const now = useNow();
   const past = !!sendAt && sendAt.getTime() < now + 60_000;
   const over = !!p && p.room !== null && p.ready > p.room;
+  const warm = p ? warmDays(p.ready, p.warm, sendAt?.getTime() ?? now) : null;
   const send = async () => {
     setBusy(true);
     setError("");
@@ -110,16 +118,31 @@ export function SendPanel({ sb, session, ws, emailId, subject, onClose, onSent }
                 </span>
                 {left.length ? <span className="text-[12.5px] text-muted">Left out: {left.join(", ")}</span> : null}
                 {over ? <span className="text-[12.5px] text-muted">{n(p.ready - (p.room ?? 0))} wait until next month</span> : null}
+                {warm && warm.days > 1 && p.warm ? (
+                  <span className="text-[12.5px] break-words text-muted">
+                    Goes out over {warm.days} days, until {dayWords(warm.last)}, while {p.warm.domain} warms up
+                  </span>
+                ) : null}
               </>
             )}
           </div>
-          <ErrorNote message={error || (!subject.trim() ? "Add a subject first." : past ? "Pick a time in the future." : "")} />
+          {check.warns.length ? (
+            <ul aria-label="To look at" className="flex flex-col gap-1.5">
+              {check.warns.map((w) => (
+                <li key={w} className="flex items-start gap-2 text-[12.5px] break-words text-muted">
+                  <span aria-hidden="true" className="mt-[7px] size-1.5 shrink-0 rounded-full bg-warning" />
+                  <span className="min-w-0">{w}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <ErrorNote message={error || (!subject.trim() ? "Add a subject first." : (check.stops[0] ?? (past ? "Pick a time in the future." : "")))} />
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2 border-t border-line px-5 py-3.5">
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={() => void send()} disabled={busy || !p || !p.ready || past || !subject.trim()}>
+          <Button onClick={() => void send()} disabled={busy || !p || !p.ready || past || !subject.trim() || check.stops.length > 0}>
             {busy ? "Sending…" : when === "later" ? "Schedule" : "Send now"}
           </Button>
         </div>
