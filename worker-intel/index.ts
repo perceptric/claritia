@@ -28,6 +28,7 @@ import { inviteSend } from "./jobs/team.ts";
 import { ctxFor } from "./jobs/ctx.ts";
 import { sourceHook } from "./jobs/sources.ts";
 import { recheckDomains } from "./jobs/linkDomains.ts";
+import { domainMoves } from "./jobs/domainMoves.ts";
 import { pgRpc } from "./rpc.ts";
 
 const log = (msg: string, extra: Record<string, unknown> = {}) => console.log(JSON.stringify({ at: new Date().toISOString(), msg, ...extra }));
@@ -154,6 +155,12 @@ const recover = every("job recovery", 30_000, async () => {
   if (Number(data)) log("jobs recovered", { jobs: Number(data) });
 });
 
+// Sending domains moving to SES: the move started, then the owners' email and reminders (EMAIL_SES_MOVE=1).
+const moves = every("domain moves", 60 * 60_000, async () => {
+  const r = await domainMoves(rpc, { on: process.env.EMAIL_SES_MOVE?.trim() === "1" && !!ses, sender, base: linkBase() });
+  if (r.started || r.sent || r.skipped) log("domain moves", r);
+});
+
 // Custom link domains: their DNS checked again every 30 minutes, so one pointed elsewhere stops serving.
 const domains = every("link domains", 30 * 60_000, async () => {
   const n = await recheckDomains(pool);
@@ -165,6 +172,7 @@ const shutdown = async (sig: string) => {
   stop.abort();
   clearInterval(recover);
   clearInterval(domains);
+  clearInterval(moves);
   await Promise.race([Promise.all(running), new Promise((r) => setTimeout(r, 25_000))]);
   await pool.end().catch(() => {});
   process.exit(0);

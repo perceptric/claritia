@@ -117,7 +117,13 @@ Back out: empty the variable.
   Removing a domain deletes its identity.
 - Tests: `tests/pg/sesDomains.pg.ts` (5), `tests/ses.test.ts` (15).
 
-The owner email with the new records and the 7- and 14-day reminders are still to come.
+- **Nobody has to find the button** (`supabase/migrations/146_domain_move_emails.sql`,
+  `worker-intel/jobs/domainMoves.ts`): once an hour while `EMAIL_SES_MOVE=1`, the worker starts the move for every
+  verified Resend domain, emails each workspace owner the records once they're ready (`src/lib/email/moveEmail.ts`),
+  and sends reminders at 7 and 14 days with only the records still missing, never both at once. A step is claimed
+  before it goes, so two workers never send it twice, and given back only when nothing went out. A domain on SES gets
+  nothing more; one still on Resend after the reminders keeps working. Tests: `tests/pg/domainMoves.pg.ts` (5),
+  `tests/moveEmail.test.ts` (3).
 
 ### Step 5. Meeting invites over SES SMTP (small)
 
