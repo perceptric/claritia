@@ -17,8 +17,8 @@ const B = "22222222-2222-4222-8222-222222222222";
 const C = "33333333-3333-4333-8333-333333333333";
 
 test("scheduling words: a type's summary and a week of hours as Calendly says them", () => {
-  assert.equal(typeSummary({ kind: "one", hosts: [{ user_id: A }], settings: { ...DEFAULT_SETTINGS } }), "30 min, Google Meet, One person");
-  assert.equal(typeSummary({ kind: "round_robin", hosts: [{ user_id: A }, { user_id: B }, { user_id: C }], settings: { ...DEFAULT_SETTINGS, lengths: [30, 60], location: { kind: "zoom" } } }), "30 min to 1 h, Zoom, Take turns, 3 hosts");
+  assert.equal(typeSummary({ kind: "one", hosts: [{ user_id: A }], settings: { ...DEFAULT_SETTINGS } }), "30 min, Google Meet, One-on-one");
+  assert.equal(typeSummary({ kind: "round_robin", hosts: [{ user_id: A }, { user_id: B }, { user_id: C }], settings: { ...DEFAULT_SETTINGS, lengths: [30, 60], location: { kind: "zoom" } } }), "30 min to 1 h, Zoom, Round robin, 3 hosts");
   const week = { mon: [["09:00", "17:00"]], tue: [["09:00", "17:00"]], wed: [["09:00", "17:00"]], thu: [["09:00", "17:00"]], fri: [["09:00", "17:00"]], sat: [], sun: [] } as never;
   assert.equal(weeklyWords({ weekly: week }), "Weekdays, 09:00 to 17:00");
   const split = { mon: [["09:00", "12:00"], ["13:00", "17:00"]], tue: [["09:00", "12:00"], ["13:00", "17:00"]], wed: [["09:00", "12:00"], ["13:00", "17:00"]], thu: [["09:00", "12:00"], ["13:00", "17:00"]], fri: [["10:00", "14:00"]], sat: [], sun: [] } as never;
@@ -53,7 +53,7 @@ test("the meeting type panel's one-line summaries stay short and plain", () => {
   assert.equal(hostMode("collective"), "everyone");
   assert.equal(teamOf({ team: "q_all" }), "q_all");
   assert.equal(teamOf({}), null);
-  assert.equal(METHOD_WORDS.load, "Fewest meetings first");
+  assert.equal(METHOD_WORDS.load, "Load balanced");
   for (const s of [limitsWords({ bufferBefore: 15, bufferAfter: 15, notice: 10080 }), lengthWords([15, 30, 45, 60, 90, 120])]) assert.ok(s.length <= 48, s);
 });
 

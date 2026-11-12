@@ -589,7 +589,29 @@ try {
   // Routing: a rule saved before tests and names still reads, with Otherwise last; the canvas shows the booking page.
   await $("#pscroll .pill").filter({ hasText: "Edit rules in Logic" }).click();
   const rt = (await $("#flow").textContent())!;
-  check(rt.includes("Before any rule") && rt.includes("Otherwise") && rt.includes("Tender"), "back to Claritia's calendar: a rule saved before tests reads in Team meeting, with Otherwise");
+  check(!rt.includes("Before any rule") && !rt.includes("Spam check") && rt.includes("Otherwise") && rt.includes("Tender"), "back to Claritia's calendar: a rule saved before tests reads in Team meeting, with Otherwise and no Before any rule");
+  // A team in the rule, in place: its distribution and members, saved to the team itself.
+  const openRule = $("#flow .rcard.on");
+  await openRule.locator("button[aria-label='With']").click();
+  check((await $("#layer .menu .mi").filter({ hasText: "Enterprise (Round robin)" }).count()) === 1 && (await $("#layer .menu .mi").filter({ hasText: "Meeting hosts" }).count()) === 1, "With lists the team by name and distribution, in scheduling terms");
+  await $("#layer .menu .mi").filter({ hasText: "Enterprise (Round robin)" }).click();
+  const tbox = $("#flow .rcard.on .tbox");
+  await tbox.waitFor({ timeout: 4000 }).catch(() => null);
+  check((await tbox.locator(".tmem").count()) === 2 && ((await tbox.textContent()) ?? "").includes("Ana Diaz") && ((await tbox.textContent()) ?? "").includes("Round robin"), "the picked team shows its members and its distribution");
+  await tbox.locator("button[aria-label='Distribution']").click();
+  await $("#layer .menu .mi").filter({ hasText: "Weighted round robin" }).click();
+  await $("#flow .rcard.on .tbox .tw").first().waitFor({ timeout: 4000 }).catch(() => null);
+  const saved1 = (await calls()).filter((c) => c.mode === "saveTeam").pop()?.body as { method: string; id: string } | undefined;
+  check(saved1?.method === "weighted" && saved1.id === "q-ent" && (await $("#flow .rcard.on .tbox .tw").count()) === 2, "switching to Weighted round robin saves the team and shows a weight for each member");
+  await $("#flow .rcard.on .tbox button[aria-label='Add member']").click();
+  await $("#layer .menu .mi").filter({ hasText: "Cy Park" }).click();
+  await p.waitForFunction(() => (document.querySelector("#studio")?.shadowRoot?.querySelectorAll("#flow .rcard.on .tbox .tmem").length ?? 0) === 3, null, { timeout: 4000 }).catch(() => null);
+  check((await $("#flow .rcard.on .tbox .tmem").count()) === 3, "Add member adds them to the team");
+  if (shots) await p.screenshot({ path: `${shots}/4g-team.png` });
+  // Every part of the When row on one line: their middles line up.
+  const mids = await openRule.locator(".rule").first().evaluate((r) => [...r.children].map((c) => { const b = c.getBoundingClientRect(); return b.top + b.height / 2; }));
+  const ruleWide = mids.length > 1 && Math.max(...mids) - Math.min(...mids) < 6;
+  check(ruleWide, "a rule's When row fits on one line in the wider panel");
   await $("#logicBtn").click();
   check((await $("#canvas").isVisible()) && (await $("#asBar").isVisible()) && (await $("#asBar").textContent())!.includes("Preview as") && (await form.locator("#thanks").isVisible()), "the rules sit beside the booking page, with Preview as");
   // Individual: one meeting; a Dynamic one says who books it in one line, with Edit meeting.

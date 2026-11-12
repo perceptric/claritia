@@ -93,9 +93,9 @@ const PLACES: { kind: Location["kind"]; label: string }[] = [
 export function whoWords(t: Pick<Draft, "kind" | "hosts" | "settings">, queues: Queue[]): string {
   const team = teamOf(t.settings);
   if (team) return queues.find((q) => q.id === team)?.name ?? "Routing team";
-  if (t.kind === "one") return "One person";
+  if (t.kind === "one") return "One-on-one";
   if (t.kind === "group") return "Group event";
-  if (t.kind === "collective") return `Everyone, ${t.hosts.length} hosts`;
+  if (t.kind === "collective") return `Collective, ${t.hosts.length} hosts`;
   return `${KIND_WORDS[t.kind]}, ${t.hosts.length} ${t.hosts.length === 1 ? "host" : "hosts"}`;
 }
 
@@ -230,7 +230,7 @@ export function TypePanel({
   const destValue = (d: Dest) => `${d.kind === "user" ? "u" : "t"}:${d.id}`;
   const destFrom = (v: string): Dest => (v.startsWith("t:") ? { kind: "team", id: v.slice(2) } : { kind: "user", id: v.slice(2) });
   const destOptions = [
-    ...facts.teams.filter((t) => t.keys.length).map((t) => ({ value: `t:${t.keys[0]}`, label: t.name, hint: "Take turns", group: "Teams" })),
+    ...facts.teams.filter((t) => t.keys.length).map((t) => ({ value: `t:${t.keys[0]}`, label: t.name, hint: { rr: "Round robin", weighted: "Weighted round robin", load: "Load balanced" }[t.method as "rr"] ?? "Round robin", group: "Teams" })),
     ...draft.hosts.map((h) => ({ value: `u:${h.user_id}`, label: nameOf(h.user_id), group: Members })),
   ];
   const firstField = usable(facts.fields).find((f) => f.key === "lead.country") ?? usable(facts.fields)[0];

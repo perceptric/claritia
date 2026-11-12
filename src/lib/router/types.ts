@@ -44,9 +44,9 @@ export type Rule = { id: string; name: string; match: "all" | "any"; conds: Cond
 export type Method = "rr" | "weighted" | "load";
 
 export const METHODS: { value: Method; label: string }[] = [
-  { value: "rr", label: "Take turns" },
-  { value: "weighted", label: "Some get more" },
-  { value: "load", label: "Fewest meetings first" },
+  { value: "rr", label: "Round robin" },
+  { value: "weighted", label: "Weighted round robin" },
+  { value: "load", label: "Load balanced" },
 ];
 
 export type Member = { user: string; weight: number };

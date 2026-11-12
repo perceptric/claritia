@@ -398,13 +398,19 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .who { display: flex; align-items: center; gap: 10px; }
 .who p { flex: 1; min-width: 0; margin: 0; font-size: 12.5px; font-weight: 400; line-height: 1.5; color: var(--body); }
 .arow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.tbox { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 10px; background: var(--paper-deep); }
+.tmems { display: flex; flex-direction: column; gap: 4px; }
+.tmem { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 32px; }
+.tav { width: 24px; height: 24px; border-radius: 999px; background: var(--bg); box-shadow: 0 0 0 1px var(--line); display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; flex: none; }
+.tname { flex: 1; min-width: 0; font-size: 13px; overflow-wrap: anywhere; }
+.tmem .tw { width: 56px; height: 28px; flex: none; }
 .arow .w { color: var(--muted); font-size: 12px; min-width: 64px; }
 .arow .in.wide { flex: 1; min-width: 180px; height: 30px; }
 .arow .pill > span:first-child { display: inline-flex; }
 .ib.sm { width: 18px; height: 18px; margin-right: -6px; }
 
 /* Element panel */
-.panel { flex: none; width: 320px; border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; background: var(--bg); }
+.panel { flex: none; width: 380px; border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; background: var(--bg); }
 .ptabs { height: 44px; flex: none; display: flex; align-items: center; gap: 4px; padding: 0 10px; border-bottom: 1px solid var(--line); }
 .ptabs .pt { height: 30px; padding: 0 10px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; }
 .ptabs .pt[aria-selected="true"] { background: var(--paper-deep); color: var(--ink); }
@@ -637,6 +643,9 @@ const P = {
   check: '<path d="m5 12 5 5 9-10"/>', more: '<circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>', stop: "", clip: '<path d="m21 11-8.6 8.6a5 5 0 0 1-7-7l8.6-8.6a3.3 3.3 0 0 1 4.7 4.7l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l7.9-7.9"/>', globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
 };
 
+/** How a team distributes meetings, in the words schedulers use (src/lib/router/types.ts METHODS). */
+const METHOD_LABEL = { rr: "Round robin", weighted: "Weighted round robin", load: "Load balanced" };
+
 export const STUDIO_HTML = `
 <div class="app" id="app">
   <section class="chat" id="chat" aria-label="Chat with Tia">
@@ -710,6 +719,9 @@ export type StudioMeeting = { id: string; name: string; length: number; slug?: s
 export type StudioChat = { id: string; name: string; state: "new" | "draft" | "live" | "changed"; brandId: string; formId: string; updatedAt?: string; brandCss?: string; body?: { html: string; css: string; after: unknown; turns: unknown[]; log: unknown[] } };
 export type StudioSend = { id: string; kind: string; name: string; domain: string | null };
 
+/** A routing team as a Team meeting rule shows it: its members in round-robin order and how it distributes meetings. */
+export type StudioTeam = { key: string; name: string; id?: string; method?: string; revision?: number; members?: { user: string; weight: number }[] };
+
 export type StudioApi = {
   brands(): Promise<StudioBrand[]>;
   meetings(): Promise<StudioMeeting[]>;
@@ -718,7 +730,9 @@ export type StudioApi = {
   /** Routing's teams (a team key each) and people, for who takes a rule's meeting. */
   /** The workspace's booking pages ("https://tryclaritia.com/book/acme"), for the meeting's own page in the Ending. */
   bookBase?(): Promise<string>;
-  routingFacts?(): Promise<{ teams: { key: string; name: string }[]; people: { id: string; name: string }[] }>;
+  routingFacts?(): Promise<{ teams: StudioTeam[]; people: { id: string; name: string }[] }>;
+  /** Saves a team's distribution and members (Routing › Teams' own save). */
+  saveTeam?(t: { id: string; name: string; method: string; revision: number; members: { user: string; weight: number }[] }): Promise<void>;
   /** preview: the home page with its scripts out, for a frame that runs nothing; shot: its share picture. */
   /** The page an address shows, for the Ending's Redirect on the canvas. */
   page?(url: string): Promise<{ url: string; preview: string | null; shot: string | null }>;
@@ -3209,13 +3223,12 @@ ${CAL_CSS}
     const routes = (a.routes || []).map((r) => cleanRoute(r) || r);
     const setRoutes = (list) => set({ routes: list, mode: "routing" });
 
-    const bf = { spam: a.before?.spam !== false, keep: a.before?.keep !== false };
-    const tog = (k, text) => h("button", { class: `pill${bf[k] ? " on" : ""}`, "aria-pressed": String(bf[k]), text, onclick: () => set({ before: { ...bf, [k]: !bf[k] } }) });
-    box.append(h("div", { class: "card2" }, h("h3", { text: "Before any rule" }), h("div", { class: "chips" }, tog("spam", "Spam check"), tog("keep", "Keep existing owners"))));
-
-    const teamName = (id) => FACTS?.teams?.find((t) => t.key === id)?.name || "A team";
+    // Spam is screened and existing owners keep their leads before any rule, as Routing always does (a.before).
+    const teamOf = (id) => FACTS?.teams?.find((t) => t.key === id);
+    const teamName = (id) => teamOf(id)?.name || "A team";
     const personName = (id) => FACTS?.people?.find((p) => p.id === id)?.name || "A teammate";
-    const withWords = (r) => (r.with ? (r.with.kind === "team" ? `${teamName(r.with.id)} takes turns` : personName(r.with.id)) : "As the meeting says");
+    const teamWords = (t) => `${t?.name || "A team"} (${METHOD_LABEL[t?.method] || "Round robin"})`;
+    const withWords = (r) => (r.with ? (r.with.kind === "team" ? teamWords(teamOf(r.with.id)) : personName(r.with.id)) : "Meeting hosts");
     const never = routes.every((r) => r && r.field) ? neverRuns(routes, qs) : routes.map(() => -1);
     if (openRule >= routes.length) openRule = routes.length - 1;
 
@@ -3242,8 +3255,9 @@ ${CAL_CSS}
         const addC = (match) => { if (conds.length >= 10) return; const f = qs.find((x) => x.options.length) || qs[0]; const field = f ? f.name : PAST_ROUTES[0].field; const next = withConds(r, [...conds, { field, ...routeStart(field, f) }]); setRoutes(routes.map((x, j) => (j === i ? { ...next, ...(match === "any" ? { match: "any" } : { match: undefined }) } : x))); };
         card.append(h("div", { class: "chips" }, h("button", { class: "pill", text: "+ and", onclick: () => addC("all") }), h("button", { class: "pill", text: "+ or", onclick: () => addC("any") })));
         card.append(h("div", { class: "rule" }, h("span", { class: "w", text: "Book" }), menuPill(mName(r.meeting), MEETINGS.map((m) => [`${m.name}, ${m.length} min`, () => upd({ meeting: m.id }), m.id === r.meeting]), "Meeting")));
-        const withItems = [["As the meeting says", () => upd({ with: undefined }), !r.with], ...((FACTS?.teams || []).length ? ["sep"] : []), ...(FACTS?.teams || []).map((t) => [`${t.name} takes turns`, () => upd({ with: { kind: "team", id: t.key } }), r.with?.kind === "team" && r.with.id === t.key]), ...((FACTS?.people || []).length ? ["sep"] : []), ...(FACTS?.people || []).map((p) => [p.name, () => upd({ with: { kind: "user", id: p.id } }), r.with?.kind === "user" && r.with.id === p.id])];
+        const withItems = [["Meeting hosts", () => upd({ with: undefined }), !r.with], ...((FACTS?.teams || []).length ? ["sep"] : []), ...(FACTS?.teams || []).map((t) => [teamWords(t), () => upd({ with: { kind: "team", id: t.key } }), r.with?.kind === "team" && r.with.id === t.key]), ...((FACTS?.people || []).length ? ["sep"] : []), ...(FACTS?.people || []).map((p) => [p.name, () => upd({ with: { kind: "user", id: p.id } }), r.with?.kind === "user" && r.with.id === p.id])];
         card.append(h("div", { class: "rule" }, h("span", { class: "w", text: "With" }), menuPill(withWords(r), withItems, "With")));
+        if (r.with?.kind === "team") { const tb = teamBox(r.with.id); if (tb) card.append(tb); }
       }
       if (never[i] >= 0) card.append(h("p", { class: "rwarn", text: `Can never run: rule ${never[i] + 1} catches every lead it would.` }));
       box.append(card);
@@ -3251,6 +3265,47 @@ ${CAL_CSS}
 
     box.append(h("div", { class: `card2 rcard${S.as === -1 ? " on" : ""}` }, h("div", { class: "rhead" }, h("span", { class: "rname", text: routes.length ? "Otherwise" : "Everyone" })), h("div", { class: "rule" }, h("span", { class: "w", text: "Book" }), menuPill(mName(a.meeting), MEETINGS.map((m) => [`${m.name}, ${m.length} min`, () => set({ meeting: m.id }), m.id === a.meeting]), "Otherwise"))));
     if (routes.length < 30) box.append(h("div", {}, h("button", { class: "pill", html: `${SVG(P.plus, 14)}Add a rule`, onclick: () => { const f = qs.find((x) => x.options.length) || qs[0]; const field = f ? f.name : PAST_ROUTES[0].field; openRule = routes.length; S.as = routes.length; setRoutes([...routes, { field, ...routeStart(field, f), meeting: MEETINGS.find((m) => m.id !== a.meeting)?.id || MEETINGS[0].id }]); } })));
+  }
+
+  /**
+   * The picked team, in place: how it distributes meetings (Round robin, Weighted round robin, Load balanced) and its
+   * members in round-robin order, each with a weight under Weighted round robin. Changes save to the team itself (the
+   * same team as Routing › Teams and Meetings), so every form and meeting using it follows.
+   */
+  function teamBox(key) {
+    const t = FACTS?.teams?.find((x) => x.key === key);
+    if (!t || !t.id || !Array.isArray(t.members)) return null;
+    const pname = (id) => FACTS?.people?.find((p) => p.id === id)?.name || "Former teammate";
+    const method = t.method || "rr";
+    const save = async (p) => {
+      if (!api.saveTeam) return;
+      try {
+        await api.saveTeam({ id: t.id, name: t.name, revision: t.revision ?? 0, method: p.method ?? method, members: p.members ?? t.members });
+        toast("Team saved");
+      } catch (e) {
+        toast(e?.message || "Couldn't save the team. Try again.");
+      }
+      // Read the team again (its new revision, or what someone else saved meanwhile).
+      try { FACTS = await api.routingFacts(); } catch {}
+      if (alive) endUi();
+    };
+    const box = h("div", { class: "tbox" });
+    box.append(h("div", { class: "rule" }, h("span", { class: "w", text: "Distribution" }), menuPill(METHOD_LABEL[method] || "Round robin", Object.entries(METHOD_LABEL).map(([v, label]) => [label, () => void save({ method: v }), v === method]), "Distribution")));
+    const list = h("div", { class: "tmems" });
+    t.members.forEach((m, i) => {
+      const row = h("div", { class: "tmem" }, h("span", { class: "tav", text: (pname(m.user)[0] || "?").toUpperCase(), "aria-hidden": "true" }), h("span", { class: "tname", text: pname(m.user) }));
+      if (method === "weighted") {
+        const w = h("input", { class: "in tw", type: "number", min: "1", max: "10", value: String(m.weight || 1), "aria-label": `Weight for ${pname(m.user)}` });
+        w.addEventListener("change", () => { const v = Math.max(1, Math.min(10, Math.round(Number(w.value) || 1))); void save({ members: t.members.map((x, j) => (j === i ? { ...x, weight: v } : x)) }); });
+        row.append(w);
+      }
+      row.append(h("button", { class: "ib sm", "aria-label": `Remove ${pname(m.user)}`, "data-tip": "Remove", html: SVG(P.x, 12), disabled: t.members.length < 2 ? "" : null, onclick: () => void save({ members: t.members.filter((_, j) => j !== i) }) }));
+      list.append(row);
+    });
+    box.append(list);
+    const addable = (FACTS?.people || []).filter((p) => !t.members.some((m) => m.user === p.id));
+    if (addable.length) box.append(h("div", {}, menuPill("Add member", addable.map((p) => [p.name, () => void save({ members: [...t.members, { user: p.id, weight: 1 }] })]), "Add member")));
+    return box;
   }
 
   /** One condition: the question or past fill, its test and its value, with a lead word (When, and, or). */

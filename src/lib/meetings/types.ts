@@ -29,11 +29,11 @@ export type Span = { start: number; end: number };
 export type Kind = "one" | "round_robin" | "collective" | "owner_first" | "double" | "group";
 
 export const KINDS: { value: Kind; label: string }[] = [
-  { value: "one", label: "One person" },
+  { value: "one", label: "One-on-one" },
   { value: "round_robin", label: "Round robin" },
-  { value: "collective", label: "Everyone" },
-  { value: "owner_first", label: "Owner first" },
-  { value: "double", label: "Two teams" },
+  { value: "collective", label: "Collective" },
+  { value: "owner_first", label: "Account owner first" },
+  { value: "double", label: "Paired round robin" },
   { value: "group", label: "Group" },
 ];
 

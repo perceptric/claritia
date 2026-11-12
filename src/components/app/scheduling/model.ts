@@ -6,11 +6,11 @@ import { DAYS, type Availability, type Day, type Kind, type Location, type Meeti
 
 /** The kinds in plain words (Calendly's One-on-One, Round Robin, Collective, Group, plus ours). */
 export const KIND_WORDS: Record<Kind, string> = {
-  one: "One person",
-  round_robin: "Take turns",
-  collective: "Everyone attends",
-  owner_first: "Lead's owner first",
-  double: "Two teams",
+  one: "One-on-one",
+  round_robin: "Round robin",
+  collective: "Collective",
+  owner_first: "Account owner first",
+  double: "Paired round robin",
   group: "Group event",
 };
 
@@ -38,7 +38,7 @@ export const LOCATION_WORDS: Record<Location["kind"], string> = {
 
 const minutes = (n: number) => (n >= 60 && n % 60 === 0 ? `${n / 60} h` : n > 60 ? `${Math.floor(n / 60)} h ${n % 60} min` : `${n} min`);
 
-/** "30 min · Google Meet · Take turns · 3 hosts". */
+/** "30 min, Google Meet, Round robin, 3 hosts". */
 /** A type's length, place and who takes it, as short parts (the list shows each as a pill). */
 export function typeParts(t: Pick<MeetingType, "kind" | "hosts" | "settings">): string[] {
   const lengths = [...t.settings.lengths].sort((a, b) => a - b);
@@ -158,7 +158,7 @@ export const PLACE_WORDS: Record<Location["kind"], string> = {
 };
 
 /** How a Routing team shares leads. */
-export const METHOD_WORDS: Record<"rr" | "weighted" | "load", string> = { rr: "Take turns", weighted: "Some get more", load: "Fewest meetings first" };
+export const METHOD_WORDS: Record<"rr" | "weighted" | "load", string> = { rr: "Round robin", weighted: "Weighted round robin", load: "Load balanced" };
 
 /** "30 min", "30, 45 min", or "30 min, 1 h" once an hour is in it. */
 export function lengthWords(lengths: number[]): string {

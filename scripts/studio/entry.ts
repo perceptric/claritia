@@ -8,6 +8,8 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const calls: { mode: string; body: unknown }[] = [];
 const w = window as unknown as { calls: typeof calls; saved: Record<string, StudioChat>; studioState: StudioState | null };
 w.calls = calls;
+const people = [{ id: "u-ana", name: "Ana Diaz" }, { id: "u-bo", name: "Bo Chen" }, { id: "u-cy", name: "Cy Park" }];
+const team = { key: "t-ent", name: "Enterprise", id: "q-ent", method: "rr", revision: 1, members: [{ user: "u-ana", weight: 1 }, { user: "u-bo", weight: 1 }] };
 w.saved = {};
 let tiaCalls = 0;
 const sends: { id: string; kind: string; name: string; domain: string | null }[] = [];
@@ -76,6 +78,12 @@ const api: StudioApi = {
     return { url, preview: `<html><body><h1>Welcome aboard</h1><p>${"Thanks for joining. ".repeat(8)}</p></body></html>`, shot: null };
   },
   confirmClear: async () => true,
+  // One routing team (Enterprise, round robin, two members) and the people who can join it; saves change it in place.
+  routingFacts: async () => ({ teams: [{ ...team, members: team.members.map((m) => ({ ...m })) }], people }),
+  saveTeam: async (t) => {
+    calls.push({ mode: "saveTeam", body: t });
+    Object.assign(team, { method: t.method, members: t.members.map((m) => ({ ...m })), revision: team.revision + 1 });
+  },
   times: async (typeId) => {
     calls.push({ mode: "times", body: typeId });
     const d = new Date();
