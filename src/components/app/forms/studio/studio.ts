@@ -480,6 +480,11 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .mi:hover, .mi[aria-checked="true"] { background: var(--hover); }
 .mi .nm { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .mi.small { height: 36px; padding: 0 12px; font-size: 13px; }
+.dd .ddl { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.dd .logo, .mi .logo, .dd .ddl > svg, .mi > svg:first-child { width: 16px; height: 16px; border-radius: 4px; flex: none; object-fit: contain; }
+.dd .logo.mark, .mi .logo.mark { border-radius: 0; }
+.mi .mst { margin-inline-start: auto; padding-inline-start: 8px; font-size: 12px; color: var(--muted); }
+.nset { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
 .mi svg { flex: none; color: var(--muted); }
 .mi.danger, .mi.danger svg { color: var(--rose); }
 .mi:disabled { opacity: .45; }
@@ -1718,6 +1723,22 @@ ${CAL_CSS}
   const choice = (label, opts, now, fn) => {
     if (opts.length <= 2 && opts.every(([, t]) => t.length <= 12)) return h("div", { class: "seg", role: "group", "aria-label": label }, ...opts.map(([v, t]) => h("button", { "aria-pressed": String(v === now), text: t, onclick: () => fn(v) })));
     return pick(opts.find(([v]) => v === now)?.[1] || opts[0][1], opts.map(([v, t]) => [t, () => fn(v), v === now]), label);
+  };
+  /** A dropdown whose options carry a logo or icon (html), shown in the button too; `st` is a short state on the right. */
+  const logoPick = (label, opts, now, fn) => {
+    const o = opts.find((x) => x.v === now) || opts[0];
+    const b = h("button", { class: "dd", "aria-label": label, "aria-haspopup": "menu" }, h("span", { class: "ddl", html: `${o.icon}<span></span>` }), h("span", { html: SVG(P.chev, 12) }));
+    b.firstChild.lastChild.textContent = o.t;
+    b.onclick = () => {
+      const m = openMenu(b, opts.map((x) => {
+        const it = h("button", { class: "mi small", role: "menuitemradio", "aria-checked": String(x.v === now), html: `${x.icon.replace(' loading="lazy"', "")}<span></span>${x.st ? '<span class="mst"></span>' : ""}`, onclick: () => { closeMenu(); fn(x.v); } });
+        it.children[it.children.length - (x.st ? 2 : 1)].textContent = x.t;
+        if (x.st) it.lastChild.textContent = x.st;
+        return it;
+      }), Math.max(220, Math.round(b.getBoundingClientRect().width)));
+      return m;
+    };
+    return b;
   };
   function blockSettings(p, bl) {
     const type = bl.getAttribute("data-cl-field"), name = bl.getAttribute("data-cl-name") || "";
@@ -3135,10 +3156,10 @@ ${CAL_CSS}
     const tool = a.tool || "claritia";
     // Each scheduler shows its logo beside its name; Claritia its own mark, Other link a link icon.
     const logo = (x) => (x === "claritia" ? markSvg(16, 'class="logo mark"') : logoImg(x.domain));
-    const toolPill = ([v, label, x]) => h("button", { class: `pill${v === tool ? " on" : ""}`, html: `${logo(x)}<span></span>`, onclick: () => set({ tool: v === "claritia" ? "" : v }) });
-    const cS = h("div", { class: "sec" }, h("h4", { text: "Book with" }), h("div", { class: "chips" }, ...[["claritia", "Claritia calendar", "claritia"], ...SCHEDULERS.map((x) => [x.value, x.label, x])].map((t) => { const b = toolPill(t); b.lastChild.textContent = t[1]; return b; })));
+    const tools = [{ v: "claritia", t: "Claritia calendar", icon: logo("claritia") }, ...SCHEDULERS.map((x) => ({ v: x.value, t: x.label, icon: logo(x) }))];
+    const cS = h("div", { class: "sec" }, h("h4", { text: "Book with" }), logoPick("Book with", tools, tool, (v) => set({ tool: v === "claritia" ? "" : v })));
     if (tool !== "claritia") {
-      const i = h("input", { class: "in", placeholder: SCHEDULERS.find((x) => x.value === tool)?.domain ? `https://${SCHEDULERS.find((x) => x.value === tool).domain}/your-team/demo` : "https://", value: a.link || "", "aria-label": "Scheduler link", style: "height:34px" });
+      const i = h("input", { class: "in", placeholder: SCHEDULERS.find((x) => x.value === tool)?.domain ? `https://${SCHEDULERS.find((x) => x.value === tool).domain}/your-team/demo` : "https://", value: a.link || "", "aria-label": "Scheduler link", style: "height:34px;margin-top:8px" });
       i.addEventListener("change", () => set({ link: i.value.trim() }));
       cS.append(i);
       const problem = a.link ? linkProblem(tool, a.link) : null;
@@ -3285,23 +3306,42 @@ ${CAL_CSS}
   function alwaysCard(a, set) {
     const al = a.always || {};
     const setA = (p) => set({ always: { email: !!al.email, to: al.to || [], slack: !!al.slack, ...p } });
-    const card = h("div", { class: "sec" }, h("h4", { text: "Notification" }));
-    const eRow = h("div", { class: "arow" }, h("button", { class: `pill${al.email ? " on" : ""}`, "aria-pressed": String(!!al.email), text: "Email the team", onclick: () => setA({ email: !al.email }) }));
-    if (al.email) { const i = h("input", { class: "in txt wide", placeholder: "name@company.com, name@company.com", value: (al.to || []).join(", "), "aria-label": "Team emails" }); i.addEventListener("change", () => setA({ to: i.value.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean) })); eRow.append(i); }
-    card.append(eRow, h("div", { class: "arow" }, h("button", { class: `pill${al.slack ? " on" : ""}`, "aria-pressed": String(!!al.slack), html: `${logoImg("slack.com")}<span>Post to Slack</span>`, onclick: () => setA({ slack: !al.slack }) })));
     if (!extra.busy && ((cur?.formId || "") !== extra.form || !extra.sends)) void loadExtra(true);
-    // Send to: CRMs and webhooks.
-    const sRow = h("div", { class: "arow" }, h("span", { class: "w", text: "Send to" }));
-    for (const d of extra.sends || []) sRow.append(h("span", { class: "pill" }, h("span", { html: logoImg(d.domain) }), h("span", { text: d.name }), h("button", { class: "ib sm", "aria-label": `Stop sending to ${d.name}`, html: SVG(P.x, 12), onclick: async () => { if (await api.removeSend(d)) void loadExtra(true); } })));
-    const addSend = async (to) => { const id = await ensureForm(); if (!id) return; try { if (await api.addSend(id, to)) void loadExtra(true); } catch (e) { toast(e?.message || "Couldn't add it. Try again."); } };
-    const have = new Set((extra.sends || []).map((d) => d.name));
-    sRow.append(menuPill("Add", [...(extra.tools || []).filter((t) => !have.has(t.name)).map((t) => [t.name, () => addSend(t)]), ...((extra.tools || []).length ? ["sep"] : []), ["Webhook", () => addSend("webhook")]], "Send to"));
-    // Follow-ups: workflows that start on this form.
-    const fRow = h("div", { class: "arow" }, h("span", { class: "w", text: "Follow-up" }));
-    for (const f of extra.flows || []) fRow.append(h("button", { class: "pill", text: f.name, onclick: () => api.openWorkflow(f.id) }));
-    const follow = async (when) => { const id = await ensureForm(); if (id) { save(true); api.newFollowUp(id, when); } };
-    fRow.append(menuPill("New follow-up", [["When they send it", () => follow("sent")], ...(a.kind === "meeting" ? [["When they don't book", () => follow("not_booked")]] : [])], "New follow-up"));
-    card.append(sRow, fRow);
+    // One dropdown picks which notification to set; its settings sit under it.
+    const sends = extra.sends || [], flows = extra.flows || [];
+    const count = (n) => (n ? String(n) : "");
+    const kinds = [
+      { v: "email", t: "Email the team", icon: SVG('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>', 16), st: al.email ? "On" : "" },
+      { v: "slack", t: "Post to Slack", icon: logoImg("slack.com"), st: al.slack ? "On" : "" },
+      { v: "send", t: "Send to a tool", icon: SVG('<path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4"/>', 16), st: count(sends.length) },
+      { v: "follow", t: "Follow-up", icon: SVG('<circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M6 8.5v3a3 3 0 0 0 3 3h6.5"/><path d="M13 12l2.5 2.5L13 17"/>', 16), st: count(flows.length) },
+    ];
+    const now = kinds.some((k) => k.v === S.notif) ? S.notif : "email";
+    const card = h("div", { class: "sec" }, h("h4", { text: "Notification" }), logoPick("Notification", kinds, now, (v) => { S.notif = v; endUi(); }));
+    const body0 = h("div", { class: "nset" });
+    const sw = (label, on, flip) => h("div", { class: "row2" }, h("span", { class: "lbl", text: label }), h("div", {}, h("button", { class: "sw", role: "switch", "aria-checked": String(on), "aria-label": label, onclick: flip })));
+    if (now === "email") {
+      body0.append(sw("On", !!al.email, () => setA({ email: !al.email })));
+      if (al.email) { const i = h("input", { class: "in", placeholder: "name@company.com, name@company.com", value: (al.to || []).join(", "), "aria-label": "Team emails", style: "height:34px" }); i.addEventListener("change", () => setA({ to: i.value.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean) })); body0.append(i); }
+    } else if (now === "slack") {
+      body0.append(sw("On", !!al.slack, () => setA({ slack: !al.slack })));
+    } else if (now === "send") {
+      // Send to: CRMs and webhooks.
+      const list = h("div", { class: "arow" });
+      for (const d of sends) list.append(h("span", { class: "pill" }, h("span", { html: logoImg(d.domain) }), h("span", { text: d.name }), h("button", { class: "ib sm", "aria-label": `Stop sending to ${d.name}`, html: SVG(P.x, 12), onclick: async () => { if (await api.removeSend(d)) void loadExtra(true); } })));
+      const addSend = async (to) => { const id = await ensureForm(); if (!id) return; try { if (await api.addSend(id, to)) void loadExtra(true); } catch (e) { toast(e?.message || "Couldn't add it. Try again."); } };
+      const have = new Set(sends.map((d) => d.name));
+      list.append(menuPill("Add", [...(extra.tools || []).filter((t) => !have.has(t.name)).map((t) => [t.name, () => addSend(t)]), ...((extra.tools || []).length ? ["sep"] : []), ["Webhook", () => addSend("webhook")]], "Send to"));
+      body0.append(list);
+    } else {
+      // Follow-ups: workflows that start on this form.
+      const list = h("div", { class: "arow" });
+      for (const f of flows) list.append(h("button", { class: "pill", text: f.name, onclick: () => api.openWorkflow(f.id) }));
+      const follow = async (when) => { const id = await ensureForm(); if (id) { save(true); api.newFollowUp(id, when); } };
+      list.append(menuPill("New follow-up", [["When they send it", () => follow("sent")], ...(a.kind === "meeting" ? [["When they don't book", () => follow("not_booked")]] : [])], "New follow-up"));
+      body0.append(list);
+    }
+    card.append(body0);
     return card;
   }
 

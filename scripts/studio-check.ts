@@ -542,23 +542,26 @@ try {
   if (shots) await p.screenshot({ path: `${shots}/4c-redirect.png` });
   await $("#pscroll button[aria-label='Ending type']").click();
   await $("#layer .menu .mi").filter({ hasText: "Book a meeting" }).click();
-  // The picked pill keeps its words on hover (it used to turn ink on ink), and each scheduler shows its logo.
-  const picked = $("#pscroll .pill.on").first();
-  await picked.hover();
-  const [fg, bg] = await picked.evaluate((e) => [getComputedStyle(e).color, getComputedStyle(e).backgroundColor]);
-  check(fg !== bg, `a picked pill keeps its words on hover (${fg} on ${bg})`);
-  check((await $("#pscroll .pill .logo").count()) >= 5, "Book with shows each scheduler's logo");
+  // Book with is one dropdown, each scheduler with its logo, the picked one's in the button.
+  const bookWith = $("#pscroll button[aria-label='Book with']");
+  check(((await bookWith.textContent()) ?? "").includes("Claritia calendar") && (await bookWith.locator(".logo").count()) === 1, "Book with is a dropdown showing the picked scheduler with its logo");
+  await bookWith.click();
+  await p.waitForFunction(() => [...(document.querySelector("#studio")?.shadowRoot ?? document).querySelectorAll("#layer .menu .mi img")].every((i) => (i as HTMLImageElement).complete), null, { timeout: 4000 }).catch(() => null);
+  if (shots) await p.screenshot({ path: `${shots}/4e-bookwith.png` });
+  check((await $("#layer .menu .mi .logo").count()) >= 5 && (await $("#layer .menu .mi").count()) === 6 && (await $("#layer .menu .mi").filter({ hasText: "Other link" }).locator("svg").count()) === 1, "its menu lists every scheduler with its logo, Other link with a link icon");
+  await p.keyboard.press("Escape");
   if (shots) await p.screenshot({ path: `${shots}/4-after.png` });
+  const bookTool = async (name: string) => { await $("#pscroll button[aria-label='Book with']").click(); await $("#layer .menu .mi").filter({ hasText: name }).click(); };
   // An outside scheduler: its link, checked, and opened in the form's booking spot
-  await $("#pscroll .pill").filter({ hasText: "Calendly" }).click();
+  await bookTool("Calendly");
   // No link yet: a sample of the scheduler's page fills the Ending.
   await form.locator(".cl-ss").waitFor({ timeout: 5000 }).catch(() => null);
   const ss = form.locator(".cl-ss");
   check((await ss.count()) === 1 && (await ss.locator(".cl-ss-tool").innerText()).includes("Calendly") && (await ss.locator(".cl-ss-grid span.on").count()) > 0 && (await ss.locator(".cl-ss-times span").count()) === 6, "with no link yet, the Ending shows a sample of Calendly's booking page");
   if (shots) await p.screenshot({ path: `${shots}/4d-scheduler-sample.png` });
-  await $("#pscroll .pill").filter({ hasText: "Cal.com" }).click();
+  await bookTool("Cal.com");
   await form.locator(".cl-ss .cl-ss-tool").filter({ hasText: "Cal.com" }).waitFor({ timeout: 5000 }).then(() => check(true, "another scheduler, its own sample"), () => check(false, "another scheduler, its own sample"));
-  await $("#pscroll .pill").filter({ hasText: "Calendly" }).click();
+  await bookTool("Calendly");
   await $("#pscroll input[aria-label='Scheduler link']").fill("https://evil.example/x");
   await $("#pscroll input[aria-label='Scheduler link']").press("Enter");
   await $("#pscroll .err").waitFor();
@@ -571,7 +574,7 @@ try {
   await form.locator("#book iframe").waitFor({ state: "attached" });
   check((await form.locator("#book iframe").getAttribute("src")) === "https://calendly.com/finch/coach", "Calendly opens in the form's booking spot");
   await toAfter();
-  await $("#pscroll .pill").filter({ hasText: "Claritia calendar" }).click();
+  await bookTool("Claritia calendar");
   // Routing: a rule saved before tests and names still reads, with Otherwise last; the canvas shows the booking page.
   await $("#pscroll .pill").filter({ hasText: "Edit rules in Logic" }).click();
   const rt = (await $("#flow").textContent())!;
@@ -617,15 +620,26 @@ try {
   if (shots) await p.screenshot({ path: `${shots}/4a-routing.png` });
   await $("#logicBtn").click();
   // Always do
-  await $("#pscroll .pill").filter({ hasText: "Email the team" }).click();
+  // Notification is one dropdown; the picked one's settings sit under it.
+  const notif = async (name: string) => { await $("#pscroll button[aria-label='Notification']").click(); await $("#layer .menu .mi").filter({ hasText: name }).click(); };
+  check(((await $("#pscroll button[aria-label='Notification']").textContent()) ?? "").includes("Email the team"), "Notification opens on Email the team");
+  await $("#pscroll button[aria-label='On']").click();
   await $("#pscroll input[aria-label='Team emails']").fill("coach@finch.care");
   await $("#pscroll input[aria-label='Team emails']").press("Enter");
-  await $("#pscroll .pill").filter({ hasText: "Post to Slack" }).click();
+  await notif("Post to Slack");
+  check((await $("#pscroll input[aria-label='Team emails']").count()) === 0, "picking another notification shows its own settings only");
+  await $("#pscroll button[aria-label='On']").click();
+  await $("#pscroll button[aria-label='Notification']").click();
+  if (shots) await p.screenshot({ path: `${shots}/4f-notification.png` });
+  const onStates = await $("#layer .menu .mi .mst").allTextContents();
+  check(onStates.filter((t) => t === "On").length === 2, `the menu says which notifications are on (${onStates.join(", ")})`);
+  await $("#layer .menu .mi").filter({ hasText: "Send to a tool" }).click();
   await $("#pscroll [aria-label='Send to']").click();
   await $(".menu .mi").filter({ hasText: "Webhook" }).click();
   await $("#pscroll .pill").filter({ hasText: "hooks.acme.dev" }).waitFor();
   const cs = await calls();
   check(cs.some((c) => c.mode === "saveDraft") && cs.some((c) => c.mode === "addSend"), "Send to saves the form once, then adds the webhook");
+  await notif("Follow-up");
   await $("#pscroll [aria-label='New follow-up']").click();
   await $(".menu .mi").filter({ hasText: "When they don't book" }).click();
   check((await calls()).some((c) => c.mode === "newFollowUp" && (c.body as { when: string }).when === "not_booked"), "New follow-up starts a workflow on this form");
