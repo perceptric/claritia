@@ -71,6 +71,9 @@ test("the preview's ready count is what goes; the audience freezes; a repeat and
   const s = await setup();
   const preview = (await one<{ p: Record<string, number> }>(`select set_config('request.jwt.claim.sub', $3, true), email_audience_preview($1, $2, false, null) p`, [s.ws, [s.list], s.user])).p;
   assert.deepEqual([preview.total, preview.ready, preview.suppressed, preview.no_consent], [6, 3, 1, 2]);
+  // The agents' count (no signed-in person) is the same as the app's.
+  const agent = (await one<{ p: Record<string, number> }>(`select email_audience_counts($1, $2, false, null) p`, [s.ws, [s.list]])).p;
+  assert.deepEqual(agent, preview);
   const [a, b] = await Promise.all([doSend(s, { lists: [s.list] }), doSend(s, { lists: [s.list] })]);
   assert.deepEqual([a.queued, b.queued].sort(), [6, 6]);
   assert.deepEqual([a.already, b.already].sort(), [false, true], "two at once: one queues, the other sees it");

@@ -20,12 +20,12 @@ export async function sendReady(db: Db, ws: string): Promise<Ready> {
   return r.data ?? { from_email: null, paused: false, verified: false };
 }
 
+/** Why it can't send, in words; null when it can. */
+export const readyProblem = (s: Ready): string | null =>
+  !s.from_email ? "Add a From address first." : s.paused ? "Sending is paused." : !s.verified ? `${s.from_email.split("@")[1]} isn't a verified sending domain yet.` : null;
+
 /** Why it can't send, as the answer to give; null when it can. */
-export const notReady = (s: Ready): Response | null =>
-  !s.from_email
-    ? Response.json({ error: "Add a From address first." }, { status: 409 })
-    : s.paused
-      ? Response.json({ error: "Sending is paused." }, { status: 409 })
-      : !s.verified
-        ? Response.json({ error: `${s.from_email.split("@")[1]} isn't a verified sending domain yet.` }, { status: 409 })
-        : null;
+export const notReady = (s: Ready): Response | null => {
+  const why = readyProblem(s);
+  return why ? Response.json({ error: why }, { status: 409 }) : null;
+};

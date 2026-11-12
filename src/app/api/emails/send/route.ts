@@ -1,7 +1,6 @@
 import { readEmailDoc } from "@/lib/design/email/doc";
-import { compileWithKit, loadKits } from "@/lib/design/email/server";
+import { buildForSend } from "@/lib/emails/server";
 import { notReady, sendReady } from "@/lib/email/ready";
-import { extractLinks } from "@/lib/email/track";
 import { requireUser, roleIn } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 
@@ -36,20 +35,13 @@ export async function POST(request: Request) {
   const no = notReady(ready);
   if (no) return no;
   const doc = readEmailDoc(row.data.doc ?? {}, { allowHtml: true });
-  const kits = await loadKits(db, ws, [doc.kitId]);
-  let built;
-  try {
-    built = compileWithKit(doc, kits, "draft");
-  } catch {
-    return bad("This email couldn't be built.");
-  }
-  const blocked = built.notes.find((n) => n.level === "block");
-  if (blocked) return bad(blocked.text);
+  const built = await buildForSend(db, ws, doc);
+  if ("error" in built) return bad(built.error);
   const { data, error } = await db.rpc("email_campaign_send", {
     p_ws: ws,
     p_user: auth.user.id,
     p_email: id,
-    p_values: { subject: row.data.subject, preheader: doc.settings.preheader, html: built.html, text: built.text, links: extractLinks(built.html), lists, everyone, topic_id: topic, send_at: at },
+    p_values: { subject: row.data.subject, preheader: built.preheader, html: built.html, text: built.text, links: built.links, lists, everyone, topic_id: topic, send_at: at },
   });
   if (error) {
     const known = /Add a subject|The email is empty|Pick who gets it|Pick a time|Topic not found|List not found|Nobody is in that audience/.exec(error.message);
