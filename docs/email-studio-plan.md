@@ -1,6 +1,6 @@
 # Email Studio: Brew-style email inside Claritia
 
-Status: plan, 12 November 2026. Nothing here is built yet unless it says "exists".
+Status: Part 1 built (12 November 2026, migration 149). The rest is plan unless it says "exists".
 
 ## The idea
 
@@ -76,7 +76,19 @@ back in the sidebar.
 - Settings › Sending stays where it is (domains, from name, address, quiet hours). The Brand tab links to it.
 - The command bar (`CommandBar.tsx`) gets "New email", "New campaign" and "Find a contact".
 
-**Data**: none new.
+**Data**: no new tables. Reads in `supabase/migrations/149_emails_section.sql` (`email_campaigns`, `email_automations`,
+`audience_people`, `audience_count`), each running as the caller so the tables' member rules apply.
+
+**Built (Part 1, migration 149):** `src/components/app/emails/EmailsView.tsx`.
+- Campaigns: one-off emails with sent, delivered, clicked, unsubscribed and bounced; an empty workspace sees the first
+  screen with "Set up sending". "New email" arrives with the studio (Part 3).
+- Automations: workflows with email steps, their trigger, email count and state; a row opens it in Workflows, "New
+  automation" opens the workflow templates.
+- Audiences: everyone with an email, newest first, with search and Show more (up to 200); email status is a
+  suppression first (bounced, marked as spam, unsubscribed), then the latest consent, else "No consent".
+- Templates: the saved email templates (`EmailTemplatesView`), with Create in the command bar's Create menu.
+- Brand: the brand kits (`BrandSettings`) with a link to Settings › Sending.
+- Tests: `tests/nav.test.ts` (the sidebar, tabs and old addresses), `tests/pg/emailsSection.pg.ts` (the reads).
 
 **Running cost**: $0 at Beta and Growth.
 

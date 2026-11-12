@@ -1,10 +1,10 @@
-// The sidebar: Forms, Meetings and Workflows, with no group titles, and Settings at the very bottom. Each item is one
+// The sidebar: Forms, Meetings, Emails and Workflows, with no group titles, and Settings at the very bottom. Each item is one
 // route; pages inside a route are tabs under its title, each with its own address. The app opens on Forms. Old addresses keep working: they forward to
 // their new page, and the removed CRM, Enrichment, Scoring and Visitors open Forms.
 
 export type Route = "meetings" | "workflows" | "routing" | "forms" | "scheduling" | "emails" | "settings";
 
-/** "main": the three sections, at the top. "settings": Settings, at the bottom of the sidebar. */
+/** "main": the four sections, at the top. "settings": Settings, at the bottom of the sidebar. */
 export type GroupKey = "main" | "settings";
 export const GROUPS: { key: GroupKey }[] = [{ key: "main" }, { key: "settings" }];
 
@@ -22,12 +22,14 @@ const item = (group: GroupKey, route: Route, label: string): NavItem => ({ key: 
 
 /**
  * Forms (each form picks the meeting), Meetings (a Dynamic meeting picks the person; Availability holds hours, teams
- * and who's away; docs/on-submission.md) and Workflows (folders of workflows, reminders included; docs/workflows.md).
+ * and who's away; docs/on-submission.md), Emails (campaigns, automations, audiences, templates and brand;
+ * docs/email-studio-plan.md) and Workflows (folders of workflows, reminders included; docs/workflows.md).
  * Routing has no item of its own: its old addresses open where its parts went (resolveRoute).
  */
 export const NAV: NavItem[] = [
   item("main", "forms", "Forms"),
   item("main", "scheduling", "Meetings"),
+  item("main", "emails", "Emails"),
   item("main", "workflows", "Workflows"),
   item("settings", "settings", "Settings"),
 ];
@@ -36,8 +38,8 @@ const ROUTES = new Set<string>([...NAV.map((n) => n.route), "meetings", "routing
 
 export const defaultRoute: Route = "forms";
 
-/** The sidebar item an address belongs to: each route has one. A new workflow is made under Emails; one meeting's page under Meetings. */
-export const activeItem = (route: Route): NavItem | null => NAV.find((n) => n.route === (route === "emails" ? "workflows" : route === "meetings" || route === "routing" ? "scheduling" : route)) ?? null;
+/** The sidebar item an address belongs to: each route has one. One meeting's page lights Meetings. */
+export const activeItem = (route: Route): NavItem | null => NAV.find((n) => n.route === (route === "meetings" || route === "routing" ? "scheduling" : route)) ?? null;
 
 /**
  * Routing's amber dot: the default policy has something to fix (a rep who gets leads has no calendar, or a rule's
@@ -114,6 +116,27 @@ export const SCHEDULING_TABS: (Tab<SchedulingPageKey> & { icon: SchedulingTabIco
   { value: "settings", label: "Settings", icon: "gear" },
 ];
 
+export type EmailsPageKey = "campaigns" | "automations" | "audiences" | "templates" | "brand";
+/** Emails' tabs (docs/email-studio-plan.md Part 1). Campaigns is the route's first page (""). */
+export const EMAILS_TABS: Tab<EmailsPageKey>[] = [
+  { value: "campaigns", label: "Campaigns" },
+  { value: "automations", label: "Automations" },
+  { value: "audiences", label: "Audiences" },
+  { value: "templates", label: "Templates" },
+  { value: "brand", label: "Brand" },
+];
+
+/**
+ * Emails' page from its address: "" or "campaigns" is Campaigns, the rest by name. The old tabs forward: Journeys to
+ * Automations, Library to Templates. Anything else opens Campaigns.
+ */
+export function emailsPage(id: string): { page: EmailsPageKey; id: string } {
+  const [raw = ""] = id.split("/");
+  const a = ({ journeys: "automations", library: "templates" } as Record<string, string>)[raw] ?? raw;
+  if (a === "automations" || a === "audiences" || a === "templates" || a === "brand") return { page: a, id: a };
+  return { page: "campaigns", id: "" };
+}
+
 /** Meetings › Settings: the things set once, listed on the left. */
 /** Meetings › Settings. Reminders moved to Workflows (docs/workflows.md); their old addresses open there. */
 export type CalendarSettingsKey = "payments" | "webhooks";
@@ -155,10 +178,10 @@ export const availabilityPage = (sub: string): AvailabilityTab => (sub === "cale
 
 /** Old first parts of an address and where they open now: the route, and the page inside it. */
 const MOVED: Record<string, { route: Route; id?: string; keepId?: boolean }> = {
-  journeys: { route: "workflows" },
-  nurture: { route: "workflows" },
-  templates: { route: "workflows" },
-  analytics: { route: "workflows" },
+  journeys: { route: "emails", id: "automations" },
+  nurture: { route: "emails", id: "automations" },
+  templates: { route: "emails", id: "templates" },
+  analytics: { route: "emails" },
 };
 
 
@@ -168,7 +191,7 @@ const REPORTS: Record<string, { route: Route; id: string }> = {
   reps: { route: "forms", id: "" },
   speed: { route: "scheduling", id: "upcoming" },
   forms: { route: "forms", id: "" },
-  email: { route: "workflows", id: "" },
+  email: { route: "emails", id: "" },
 };
 
 /** Settings and Scheduling pages that moved. */
@@ -202,10 +225,11 @@ export function resolveRoute(first: string, id: string): { route: Route; id: str
   // Meeting reminders are a workflow now.
   if (first === "scheduling" && (a === "reminders" || (a === "settings" && rest[0] === "reminders"))) return { route: "workflows", id: "" };
   if (first === "reports") return REPORTS[a] ?? REPORTS[""]!;
-  // Emails became Workflows: folders of workflows, one open beside them (/workflows/<id>); /workflows/new picks a
-  // template. Emails' old addresses open there.
+  // Workflows: folders of workflows, one open beside them (/workflows/<id>); /workflows/new picks a template.
   if (first === "workflows") return { route: "workflows", id: a === "new" || UUID.test(a) ? a : "" };
-  if (first === "emails") return { route: "workflows", id: a === "journeys" && UUID.test(rest[0] ?? "") ? rest[0]! : "" };
+  // Emails is its own section again; one old journey's address opens that workflow.
+  if (first === "emails" && a === "journeys" && UUID.test(rest[0] ?? "")) return { route: "workflows", id: rest[0]! };
+  if (first === "emails") return { route: "emails", id: emailsPage(id).id };
   if (ROUTES.has(first)) return { route: first as Route, id };
   const m = MOVED[first];
   if (!m) return { route: defaultRoute, id: "" };
