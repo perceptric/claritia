@@ -18,8 +18,8 @@ const api: StudioApi = {
     return [];
   },
   meetings: async () => [
-    { id: "11111111-1111-4111-8111-111111111111", name: "Intro call", length: 15 },
-    { id: "22222222-2222-4222-8222-222222222222", name: "Product demo", length: 30, dynamic: true, who: "Locations is at least 50 → Enterprise, otherwise anyone on the team" },
+    { id: "11111111-1111-4111-8111-111111111111", name: "Intro call", length: 15, slug: "intro" },
+    { id: "22222222-2222-4222-8222-222222222222", name: "Product demo", length: 30, slug: "demo", dynamic: true, who: "Locations is at least 50 → Enterprise, otherwise anyone on the team" },
   ],
   readSite: async (host) => {
     calls.push({ mode: "site", body: host });
@@ -69,6 +69,13 @@ const api: StudioApi = {
     calls.push({ mode: "deleteChat", body: id });
     delete w.saved[id];
   },
+  // The meeting's own booking page, once the check turns it on (window.bookPages).
+  bookBase: async () => ((window as unknown as { bookPages?: boolean }).bookPages ? `${location.origin}/book-test` : ""),
+  page: async (url) => {
+    calls.push({ mode: "page", body: url });
+    return { url, preview: `<html><body><h1>Welcome aboard</h1><p>${"Thanks for joining. ".repeat(8)}</p></body></html>`, shot: null };
+  },
+  confirmClear: async () => true,
   times: async (typeId) => {
     calls.push({ mode: "times", body: typeId });
     const d = new Date();

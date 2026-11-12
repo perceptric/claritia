@@ -28,6 +28,7 @@ export async function TypeView({ t, o, rpc }: { t: Target; o: Opts; rpc: Rpc }) 
         turnstileKey={turnstileFor(t.turnstile)}
         logo={s.logo}
         embed={o.embed}
+        preview={o.preview}
         prefill={o.prefill}
         link={o.link}
         questions={questions}

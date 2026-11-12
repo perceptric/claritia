@@ -11,7 +11,7 @@ import { persistStudio } from "@/lib/studio/persist";
 import { forgetPublic } from "@/lib/forms/server";
 import { turnstileSiteKey } from "@/lib/forms/server";
 import { BRAND_RULES, CHAT_RULES, STUDIO_MODEL, TRANSLATE_RULES } from "@/lib/studio/prompts";
-import { hostLogo, hostOf, readSite, readSource } from "@/lib/studio/site";
+import { hostLogo, hostOf, readPage, readSite, readSource } from "@/lib/studio/site";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 
@@ -123,6 +123,13 @@ export async function POST(request: Request) {
     const r = await readSite(String(b.url ?? ""));
     if ("error" in r) return Response.json({ error: r.error, browser: true }, { status: 422 });
     return Response.json({ url: r.url, site: r.site, name: r.name, logo: r.logo, logoUrl: r.logoUrl, logoSvg: r.logoSvg, preview: r.preview ?? null, shot: r.shot ?? null });
+  }
+
+  // The page the Ending's Redirect lands on, drawn on the canvas (docs/ending-plan.md Part 3).
+  if (b.mode === "page") {
+    const r = await readPage(String(b.url ?? ""));
+    if ("error" in r) return Response.json({ error: r.error }, { status: 422 });
+    return Response.json(r);
   }
 
   if (b.mode === "confirm" || b.mode === "scan") {

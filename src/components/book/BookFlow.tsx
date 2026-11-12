@@ -24,6 +24,8 @@ export function BookFlow(p: {
   turnstileKey?: string | null;
   logo?: string | null;
   embed?: boolean;
+  /** Form Studio's preview of a form's Ending: Book shows the confirmation and books nothing. */
+  preview?: boolean;
   prefill?: { name?: string; email?: string };
   /** From a booking link: the host to prefer and the signed ref of the form fill it came from. */
   link?: { host?: string; ref?: string };
@@ -52,9 +54,10 @@ export function BookFlow(p: {
   const book = useCallback(
     async (req: BookRequest) => {
       guest.current = req.email;
+      if (p.preview) return { ok: true, start: req.start, end: req.start + req.length * 60_000, manage: "", hosts: [], confirmation: { kind: "message", text: "Preview only: nothing was booked." } } as BookReply;
       return readReply(await fetch(endpoint, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...req, host, ref, ...(route ? { route } : {}) }) }));
     },
-    [endpoint, host, ref, route],
+    [endpoint, host, ref, route, p.preview],
   );
   return (
     <Calendar

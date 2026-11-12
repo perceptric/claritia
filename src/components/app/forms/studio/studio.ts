@@ -641,7 +641,7 @@ export const STUDIO_HTML = `
     </div>
     <div class="pagesec" id="pageSec"><div class="phead"><span>Pages</span><div class="ptools" id="pageTools" role="toolbar" aria-label="Add page"></div></div><div class="steps" id="stepBar" role="list" aria-label="Pages" hidden></div></div>
     <div class="aibody" id="aiBody">
-    <div class="aihead">${tiaSvg(18)}<b>Tia</b><span class="spacer"></span><button class="ib" id="aiClose" data-tip="Close" aria-label="Close Tia">${SVG(P.x, 14)}</button></div>
+    <div class="aihead">${tiaSvg(18)}<b>Tia</b><span class="spacer"></span><button class="ib" id="aiClear" data-tip="Clear chat" aria-label="Clear chat">${SVG(P.del, 14)}</button><button class="ib" id="aiClose" data-tip="Close" aria-label="Close Tia">${SVG(P.x, 14)}</button></div>
     <div id="brandHome"><div class="brandrow" id="brandRow"><button class="brandbtn" id="brandBtn" aria-haspopup="menu" aria-label="Brand"></button><button class="profile" id="profileBtn" aria-haspopup="menu" aria-label="Industry, country and language" hidden></button><div class="bstatus" id="brandStatus" hidden></div></div></div>
     <div class="msgs" id="msgs" aria-live="polite"></div>
     <div class="compose">
@@ -701,7 +701,7 @@ export const STUDIO_HTML = `
 <div id="layer"></div>`;
 
 export type StudioBrand = { id: string; name: string; site: string; logo: string | null; logos?: string[]; css: string; profile?: { industry: string; language: string; country: string; languages: string[] } | null };
-export type StudioMeeting = { id: string; name: string; length: number; dynamic?: boolean; who?: string };
+export type StudioMeeting = { id: string; name: string; length: number; slug?: string; dynamic?: boolean; who?: string };
 export type StudioChat = { id: string; name: string; state: "new" | "draft" | "live" | "changed"; brandId: string; formId: string; updatedAt?: string; brandCss?: string; body?: { html: string; css: string; after: unknown; turns: unknown[]; log: unknown[] } };
 export type StudioSend = { id: string; kind: string; name: string; domain: string | null };
 
@@ -711,8 +711,12 @@ export type StudioApi = {
   /** Whether the booking calendar wears the form's style (paid plans) or the plain calendar (Free). */
   calendarBrand?(): Promise<boolean>;
   /** Routing's teams (a team key each) and people, for who takes a rule's meeting. */
+  /** The workspace's booking pages ("https://tryclaritia.com/book/acme"), for the meeting's own page in the Ending. */
+  bookBase?(): Promise<string>;
   routingFacts?(): Promise<{ teams: { key: string; name: string }[]; people: { id: string; name: string }[] }>;
   /** preview: the home page with its scripts out, for a frame that runs nothing; shot: its share picture. */
+  /** The page an address shows, for the Ending's Redirect on the canvas. */
+  page?(url: string): Promise<{ url: string; preview: string | null; shot: string | null }>;
   readSite(host: string): Promise<{ url: string; site: string; name: string; logo: string | null; logoUrl: string | null; logoSvg: string | null; preview?: string | null; shot?: string | null }>;
   scan(host: string): Promise<{ kitId: string }>;
   kit(id: string): Promise<{ name: string; logo: string | null; logoUrl: string | null; logoSvg: string | null; scanStatus: string | null } | null>;
@@ -748,6 +752,8 @@ export type StudioApi = {
   tools(): Promise<StudioSend[]>;
   addSend(formId: string, to: StudioSend | "webhook"): Promise<boolean>;
   removeSend(d: StudioSend): Promise<boolean>;
+  /** Asks before Tia's chat on this form is cleared. */
+  confirmClear?(): Promise<boolean>;
   /** Workflows that start on this form. */
   followUps(formId: string): Promise<{ id: string; name: string; status: string }[]>;
   newFollowUp(formId: string, when: "sent" | "not_booked"): void;
@@ -915,7 +921,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
   // ── Drawing ───────────────────────────────────────────────────────────────────────────────────────────
   const host = $("host");
   const root = host.attachShadow({ mode: "open" });
-  const BASE = `${ACCESS_CSS}${PICK_CSS}${MEDIA_CSS}${ONE_CSS}.cl-edit [data-cl-step],.cl-edit [data-cl-thanks]{animation:none!important}.cl-edit select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 6l4 4 4-4' fill='none' stroke='gray' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")!important;background-repeat:no-repeat!important;background-position:right 14px center!important;background-size:14px 14px!important;padding-inline-end:38px!important;cursor:pointer}.cl-drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:96px;border-style:dashed!important;text-align:center;opacity:.85}.cl-bookph{border:1px dashed rgba(127,127,127,.6);border-radius:10px;padding:18px;text-align:center;font:500 12px system-ui,sans-serif;opacity:.7}.cl-divider{font:600 11px/1 system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#7a7a7a;border-top:1px dashed rgba(127,127,127,.55);padding:10px 0 0;margin:20px 0 10px}.cl-edit [data-cl-if]{outline:1px dashed rgba(109,40,217,.55);outline-offset:3px}.cl-edit [data-cl-if]::before{content:attr(data-cl-if);display:block;width:max-content;max-width:100%;font:500 11px/1.7 system-ui,sans-serif;color:#6d28d9;background:rgba(109,40,217,.08);border-radius:4px;padding:0 6px;margin-bottom:6px;white-space:normal}.cl-block{display:flex;flex-direction:column;gap:8px}.cl-two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.cl-addr{display:flex;flex-direction:column;gap:8px}.cl-rate{display:flex;flex-wrap:wrap;gap:6px;font-size:26px;line-height:1;opacity:.6}.cl-ends{display:flex;justify-content:space-between;gap:12px;font-size:12px;opacity:.6}.cl-num{font-size:14px;border:1px solid currentColor;border-radius:8px;padding:8px 12px}.cl-sign{min-height:110px}.cl-calc{display:block;font-variant-numeric:tabular-nums}.cl-pay{display:flex;justify-content:space-between;gap:12px;align-items:baseline}.cl-pay b,.cl-res b{font-size:1.4em;font-variant-numeric:tabular-nums}.cl-res{display:flex;flex-direction:column;gap:4px}.cl-grid{width:100%;border-collapse:collapse}.cl-grid th,.cl-grid td{padding:6px;text-align:center}.cl-grid th:first-child,.cl-grid td:first-child{text-align:start}.cl-rank{margin:0;padding-inline-start:20px;display:flex;flex-direction:column;gap:6px}.cl-hid{font:500 11px/1.8 system-ui,sans-serif;opacity:.6;border:1px dashed currentColor;border-radius:6px;padding:0 8px;width:max-content}
+  const BASE = `${ACCESS_CSS}${PICK_CSS}${MEDIA_CSS}${ONE_CSS}.cl-edit [data-cl-step],.cl-edit [data-cl-thanks]{animation:none!important}.cl-edit select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 6l4 4 4-4' fill='none' stroke='gray' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")!important;background-repeat:no-repeat!important;background-position:right 14px center!important;background-size:14px 14px!important;padding-inline-end:38px!important;cursor:pointer}.cl-bookframe{display:block;width:100%;height:640px;border:0;background:transparent;color-scheme:normal}.cl-rdr{display:flex;flex-direction:column;min-height:560px;background:#fff;color:#171717;font:14px system-ui,sans-serif}.cl-rdr-bar{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid rgba(0,0,0,.08);background:#fafafa}.cl-rdr-url{flex:1;min-width:0;overflow-wrap:anywhere;color:#525252;font-size:13px}.cl-rdr-bar a{color:#086444;font-weight:500;text-decoration:none}.cl-rdr-win{position:relative;overflow:hidden;flex:1;min-height:360px}.cl-rdr-win iframe{position:absolute;top:0;left:0;border:0;transform-origin:0 0;background:#fff}.cl-rdr-shot{display:block;width:100%;height:auto}.cl-rdr-msg{margin:auto;padding:48px 24px;text-align:center;color:#525252}.cl-drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:96px;border-style:dashed!important;text-align:center;opacity:.85}.cl-bookph{border:1px dashed rgba(127,127,127,.6);border-radius:10px;padding:18px;text-align:center;font:500 12px system-ui,sans-serif;opacity:.7}.cl-divider{font:600 11px/1 system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#7a7a7a;border-top:1px dashed rgba(127,127,127,.55);padding:10px 0 0;margin:20px 0 10px}.cl-edit [data-cl-if]{outline:1px dashed rgba(109,40,217,.55);outline-offset:3px}.cl-edit [data-cl-if]::before{content:attr(data-cl-if);display:block;width:max-content;max-width:100%;font:500 11px/1.7 system-ui,sans-serif;color:#6d28d9;background:rgba(109,40,217,.08);border-radius:4px;padding:0 6px;margin-bottom:6px;white-space:normal}.cl-block{display:flex;flex-direction:column;gap:8px}.cl-two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.cl-addr{display:flex;flex-direction:column;gap:8px}.cl-rate{display:flex;flex-wrap:wrap;gap:6px;font-size:26px;line-height:1;opacity:.6}.cl-ends{display:flex;justify-content:space-between;gap:12px;font-size:12px;opacity:.6}.cl-num{font-size:14px;border:1px solid currentColor;border-radius:8px;padding:8px 12px}.cl-sign{min-height:110px}.cl-calc{display:block;font-variant-numeric:tabular-nums}.cl-pay{display:flex;justify-content:space-between;gap:12px;align-items:baseline}.cl-pay b,.cl-res b{font-size:1.4em;font-variant-numeric:tabular-nums}.cl-res{display:flex;flex-direction:column;gap:4px}.cl-grid{width:100%;border-collapse:collapse}.cl-grid th,.cl-grid td{padding:6px;text-align:center}.cl-grid th:first-child,.cl-grid td:first-child{text-align:start}.cl-rank{margin:0;padding-inline-start:20px;display:flex;flex-direction:column;gap:6px}.cl-hid{font:500 11px/1.8 system-ui,sans-serif;opacity:.6;border:1px dashed currentColor;border-radius:6px;padding:0 8px;width:max-content}
 .cl-consent{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.4;opacity:.85}.cl-consent input{margin:2px 0 0}
 .cl-pick{display:flex;justify-content:space-between;align-items:center;gap:8px;opacity:.75}.cl-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}.cl-card{display:flex;flex-direction:column;gap:6px;padding:8px;height:auto}.cl-card img,.cl-ph{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px;background:rgba(127,127,127,.15);display:block}.cl-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.cl-row>input{flex:1 1 120px;min-width:0}.cl-btn2{display:inline-flex;width:max-content;font:500 12px/1 system-ui,sans-serif;border:1px solid currentColor;border-radius:999px;padding:7px 12px;opacity:.7}.cl-qty{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 12px;align-items:center}.cl-step{display:inline-flex;gap:12px;align-items:center;border:1px solid rgba(127,127,127,.5);border-radius:999px;padding:4px 12px}.cl-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.cl-chip{display:inline-flex;align-items:center;padding:6px 12px;height:auto;width:auto;border-radius:999px;border:1px solid rgba(127,127,127,.5);font-size:13px}.cl-map{height:160px;position:relative;background:repeating-linear-gradient(45deg,rgba(127,127,127,.08) 0 12px,rgba(127,127,127,.14) 12px 24px)}.cl-pin{position:absolute;left:50%;top:50%;width:16px;height:16px;margin:-16px 0 0 -8px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:#d93025}.cl-crop{width:160px;aspect-ratio:1;height:auto}.cl-media{border:1px dashed rgba(127,127,127,.6);border-radius:10px;padding:22px;text-align:center;font:500 12px system-ui,sans-serif;opacity:.7;overflow-wrap:anywhere}.cl-edit [data-cl-review]:empty::before{content:"Answer review: the answers show here before sending";display:block;font:500 12px system-ui,sans-serif;opacity:.6;border:1px dashed rgba(127,127,127,.6);border-radius:8px;padding:14px}.cl-edit .cl-section{outline:1px dashed rgba(127,127,127,.45);outline-offset:6px;border-radius:4px}
 :host{all:initial;display:flex;flex-direction:column;flex:1 0 auto}*,*::before,*::after{box-sizing:border-box}[hidden]{display:none!important}.cl-root{flex:1 0 auto;min-height:560px;display:flex;flex-direction:column}.cl-root>*{flex:1 0 auto}
@@ -961,10 +967,7 @@ ${CAL_CSS}
     }
     run(wrap);
     // A Redirect ending has no page of its own: the Ending says where people go.
-    if (S.mode === "edit" && S.view === "thanks" && body().after?.kind === "page") {
-      const t = wrap.querySelector("[data-cl-thanks]");
-      if (t) t.replaceChildren(h("p", { class: "redir", text: body().after.url ? `People go to ${body().after.url}` : "Add the page's address in Ending type" }));
-    }
+    if (S.mode === "edit" && S.view === "thanks" && body().after?.kind === "page") wrap.replaceChildren(redirectBox());
     stepUi();
     asUi();
     requestAnimationFrame(overlay);
@@ -1138,6 +1141,8 @@ ${CAL_CSS}
   // After the send in the preview: the page, or a sample of the booking calendar for the meeting the answers pick.
   // Real open times per meeting type, read once a minute at most.
   const timesCache = new Map();
+  let bookBaseCache = null;
+  const bookBaseP = () => (bookBaseCache ||= api.bookBase ? api.bookBase().then((b) => { if (!b) bookBaseCache = null; return b; }, () => { bookBaseCache = null; return ""; }) : Promise.resolve(""));
   const timesFor = (id) => { const hit = timesCache.get(id); if (hit && Date.now() - hit.at < 60_000) return hit.p; const p = api.times(id).catch(() => null); timesCache.set(id, { at: Date.now(), p }); return p; };
   function booking(w, v) {
     const a0 = body().after;
@@ -1163,6 +1168,21 @@ ${CAL_CSS}
     const m = MEETINGS.find((x) => x.id === (as ? routeMeeting(routes, a.meeting, as.values, qs0, as.past) : routeMeeting(routes, a.meeting, v, qs0))) || MEETINGS[0];
     spot.hidden = false;
     if (!m) return spot.replaceChildren(h("p", { class: "text", text: "No meeting types yet." }));
+    // The meeting's own booking page, as Meetings sets it (its words, lengths, questions, place, host and look), in
+    // preview: everything works but Book. A Team meeting's rule that names a person books with them.
+    const hit = routes.length ? routeIndex(routes, as ? as.values : v, qs0, as ? as.past : {}) : -1;
+    const withUser = hit >= 0 && routes[hit].with?.kind === "user" ? routes[hit].with.id : "";
+    const base = m.slug ? await bookBaseP() : "";
+    if (!spot.isConnected) return;
+    if (base) {
+      const url = `${base}/${m.slug}?embed=1&preview=1${withUser ? `&host=${encodeURIComponent(withUser)}` : ""}`;
+      const f = h("iframe", { class: "cl-bookframe", src: url, title: `${m.name}: booking page`, loading: "lazy", allow: "payment" });
+      let origin = "";
+      try { origin = new URL(base).origin; } catch {}
+      const onMsg = (e) => { if (!f.isConnected) return removeEventListener("message", onMsg); if (e.source !== f.contentWindow || e.origin !== origin) return; const d = e.data; if (d?.claritia === true && d.type === "book:height" && typeof d.height === "number") f.style.height = `${Math.max(320, Math.min(2400, Math.round(d.height)))}px`; };
+      addEventListener("message", onMsg);
+      return spot.replaceChildren(f);
+    }
     spot.replaceChildren(h("p", { class: "text", text: "\u2026" }));
     const t = await timesFor(m.id);
     if (!spot.isConnected) return;
@@ -1191,8 +1211,41 @@ ${CAL_CSS}
   // After the send to a page: the preview says where it goes.
   function sampleCalendar(w) {
     const a = body().after;
-    const spot = w.querySelector("[data-cl-book]") || w.querySelector("[data-cl-thanks]");
-    if (a.kind === "page" && spot) spot.append(h("p", { class: "text", text: `Then the visitor opens ${a.url || "your page"}` }));
+    if (a.kind === "page") w.replaceChildren(redirectBox());
+  }
+  // Redirect: the page people land on, fetched by the server without its scripts and drawn in a frame that runs
+  // nothing, at the device's width (docs/ending-plan.md Part 3). Kept per address while the Studio is open.
+  const pageLooks = new Map();
+  function redirectBox() {
+    const url = body().after?.url || "";
+    const box = h("div", { class: "cl-rdr" });
+    if (!/^https?:\/\/\S+\.\S+/.test(url)) { box.append(h("p", { class: "cl-rdr-msg", text: "Add the page's address in Ending type" })); return box; }
+    const bar = h("div", { class: "cl-rdr-bar" }, h("span", { class: "cl-rdr-url", text: url }), h("a", { href: url, target: "_blank", rel: "noopener noreferrer", text: "Open" }));
+    const win = h("div", { class: "cl-rdr-win" });
+    box.append(bar, win);
+    const show = (look) => {
+      if (!box.isConnected && win.childNodes.length) return;
+      win.replaceChildren();
+      if (look?.preview) {
+        const w0 = S.device === "phone" ? 390 : S.device === "tab" ? 768 : 1280;
+        const f = h("iframe", { sandbox: "", referrerpolicy: "no-referrer", title: `The page at ${url}`, tabindex: "-1" });
+        f.style.width = `${w0}px`; f.style.height = `${Math.round(w0 * 0.66)}px`;
+        f.srcdoc = look.preview;
+        win.append(f);
+        const fit = () => { if (!win.clientWidth) return; const k = win.clientWidth / w0; f.style.transform = `scale(${k})`; win.style.height = `${Math.round(w0 * 0.66 * k)}px`; };
+        new ResizeObserver(fit).observe(win);
+        requestAnimationFrame(fit);
+      } else if (look?.shot) win.append(h("img", { class: "cl-rdr-shot", src: look.shot, alt: "" }));
+      else win.append(h("p", { class: "cl-rdr-msg", text: look ? "This page can't be shown here" : "…" }));
+    };
+    const hit = pageLooks.get(url);
+    if (hit) { hit.then(show); return box; }
+    show(null);
+    if (!api.page) { show({}); return box; }
+    const p = api.page(url).catch(() => ({ preview: null, shot: null }));
+    pageLooks.set(url, p);
+    p.then(show);
+    return box;
   }
 
 
@@ -2868,6 +2921,13 @@ ${CAL_CSS}
   }
   function setSide(v) { S.side = v; sideUi(); setTimeout(overlay, 0); }
   $("aiClose").onclick = () => setSide("build");
+  // Clear chat: Tia's messages and memory on this form go; the form stays as it is.
+  $("aiClear").onclick = async () => {
+    if (!cur || S.busy || (!cur.body.log.length && !cur.body.turns.length)) return;
+    if (api.confirmClear && !(await api.confirmClear())) return;
+    cur.body.log = []; cur.body.turns = [];
+    save(true); renderLog(); toast("Chat cleared");
+  };
   // Add field: the fields list opens over the form, and closes once one is added or dragged out.
   function addsOpen(on) {
     $("adds").hidden = !on;
@@ -3872,6 +3932,8 @@ ${CAL_CSS}
       if (r.cut) reply.err = "The answer was cut short. Ask for a smaller change.";
       c.body.turns.push({ role: "user", content: files.length ? `${text} [attached ${files.map((f) => f.name).join(", ")}]` : text }, { role: "assistant", content: `<say>${reply.text}</say>${reply.ask ? `<ask>${JSON.stringify(reply.ask)}</ask>` : ""}${reply.did ? `<did>${reply.did}</did>` : ""}` });
       c.body.turns = c.body.turns.slice(-20);
+      // The chat on screen keeps its last 100 messages; Tia reads the last 20 and the form as it is now.
+      if (c.body.log.length > 100) c.body.log = c.body.log.slice(-100);
     } catch (e) {
       if (e?.text) finish(c, e.text, reply, wasBuilt);
       reply.err = e?.name === "AbortError" ? "" : e?.message || "Tia didn't finish. Try again.";
