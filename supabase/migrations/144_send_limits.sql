@@ -1,4 +1,4 @@
--- Sending as a product (docs/email-platform-plan.md phase 2, docs/ses-plan.md): a monthly limit on workflow and
+-- Sending as a product (docs/pricing.md, docs/ses-plan.md): a monthly limit on workflow and
 -- campaign emails for each plan, a counter, and a guard for hard bounces next to the one for complaints (039).
 --   plan_sends         emails a month by plan: Free 1,000, Starter 10,000, Pro 50,000, Business 200,000.
 --   plan_usage.sends   counted once per message, when it turns 'sent' (a retried send_done changes nothing).
