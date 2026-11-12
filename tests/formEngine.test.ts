@@ -42,6 +42,12 @@ test("formulas: numbers, order of operations, functions and fields", () => {
   assert.equal(run("if({a} > 100 and {b} == 1, 1, 0)", { a: 200, b: 1 }), 1);
   assert.equal(run("abs(-5)"), 5);
   assert.equal(run("ifempty({a}, 0) + 1", { a: null }), 1);
+  // A loan payment: $25,000 at 7% for 60 months is $495.03 a month.
+  assert.equal(run("round({p} * ({r} / 1200) / (1 - pow(1 + {r} / 1200, -{n})), 2)", { p: 25000, r: 7, n: 60 }), 495.03);
+  assert.equal(run("pow(2, 10)"), 1024);
+  assert.equal(run("pow({a}, 2)", { a: null }), null);
+  assert.equal(run("pow(2, 5000)"), null, "too big is empty");
+  assert.ok("error" in parseFormula("pow(2)"));
   assert.deepEqual("refs" in parseFormula("{qty} * {price} + {qty}") ? parseFormula("{qty} * {price} + {qty}") : null, { ast: ["+", ["*", "qty", "price"], "qty"], refs: ["qty", "price"] });
 });
 

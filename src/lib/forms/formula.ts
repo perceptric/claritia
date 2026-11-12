@@ -1,12 +1,12 @@
 // Calculated fields (docs/forms-plan.md 2.3): a small formula language read by our own parser, never eval. Numbers,
-// + - * /, comparisons, and, or, min, max, sum, round, ceil, floor, abs, if, ifempty, other fields as {id} and the
+// + - * /, comparisons, and, or, min, max, sum, round, ceil, floor, abs, pow, if, ifempty, other fields as {id} and the
 // owner's settings as {@name} (docs/interactive-forms-plan.md 3.2). An empty field is
 // null, and null carries through: 5 + {empty} is empty, so is anything divided by zero. Runs in the browser (the
 // form script, so it stays small) and on the server, which works every calc out again from the answers.
 
 export type Ast = number | string | [string, ...Ast[]];
 
-const FNS = ["min", "max", "sum", "round", "ceil", "floor", "abs", "if", "ifempty"];
+const FNS = ["min", "max", "sum", "round", "ceil", "floor", "abs", "pow", "if", "ifempty"];
 const ID = /^[a-z0-9]{1,24}$/;
 /** A setting's name in a formula: {@rate}. */
 export const CONST_ID = /^[a-z0-9_]{1,24}$/;
@@ -58,8 +58,8 @@ export function parseFormula(src: string): { ast: Ast; refs: string[] } | { erro
       take(")");
       const name = t.toLowerCase();
       const n = args.length;
-      if ((name === "if" && n !== 3) || (name === "ifempty" && n !== 2) || ((name === "abs" || name === "ceil" || name === "floor") && n !== 1) || (name === "round" && (n < 1 || n > 2)) || n < 1)
-        fail(`${name} takes ${name === "if" ? "3 parts" : name === "ifempty" ? "2 parts" : name === "abs" || name === "ceil" || name === "floor" ? "1 part" : name === "round" ? "1 or 2 parts" : "at least 1 part"}.`);
+      if ((name === "if" && n !== 3) || ((name === "ifempty" || name === "pow") && n !== 2) || ((name === "abs" || name === "ceil" || name === "floor") && n !== 1) || (name === "round" && (n < 1 || n > 2)) || n < 1)
+        fail(`${name} takes ${name === "if" ? "3 parts" : name === "ifempty" || name === "pow" ? "2 parts" : name === "abs" || name === "ceil" || name === "floor" ? "1 part" : name === "round" ? "1 or 2 parts" : "at least 1 part"}.`);
       out = [name, ...args];
     } else out = fail(`"${t}" isn't part of a formula.`);
     depth--;
@@ -108,6 +108,9 @@ export function evalFormula(ast: Ast, get: (id: string) => number | null): numbe
         return Math.ceil(x!);
       case "floor":
         return Math.floor(x!);
+      // A loan's payment needs (1 + rate) to the power of its months; out-of-range results are empty, like / 0.
+      case "pow":
+        return Math.abs(y!) > 1000 ? null : Math.pow(x!, y!);
       case "round": {
         const p = 10 ** Math.max(0, Math.min(6, Math.round(y ?? 0)));
         return Math.round(x! * p) / p;
