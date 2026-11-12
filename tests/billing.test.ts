@@ -40,6 +40,8 @@ test("the plan list matches docs/pricing.md", () => {
     ["pro", 39, 31, 5000, 2000, 6],
     ["business", 79, 63, null, 5000, 6],
   ]);
+  // Workflow emails a month, the same as plan_sends in 144_send_limits.sql.
+  assert.deepEqual(PLANS.map((p) => [p.id, p.sends]), [["free", 1000], ["starter", 10000], ["pro", 50000], ["business", 200000]]);
   // Yearly is 20% off, rounded to whole dollars.
   for (const p of PLANS) assert.ok(Math.abs(p.yearly - p.monthly * 0.8) < 1, p.id);
   assert.equal(planById("team").id, "pro", "the old Team plan is Pro");

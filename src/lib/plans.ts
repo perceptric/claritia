@@ -1,5 +1,5 @@
 // The plans, in one place (docs/pricing.md): Stripe checkout, Settings › Billing, pricing.md and the database limits
-// (plan_caps in supabase/migrations/120_plans.sql) all follow this list. Change both together. The website
+// (plan_caps in supabase/migrations/120_plans.sql, plan_sends in 144_send_limits.sql) all follow this list. Change both together. The website
 // (claritia-site, tools/pricing.py) shows the same numbers.
 
 export type PlanId = "free" | "starter" | "pro" | "business";
@@ -15,6 +15,8 @@ export type Plan = {
   /** Null means no limit. */
   submissions: number | null;
   aiCredits: number;
+  /** Workflow and campaign emails a month (plan_sends in 144_send_limits.sql). Past it they wait, never dropped. */
+  sends: number;
   /** Calendar accounts each seat can connect. */
   calendars: number | null;
   /** Active meeting types in the workspace. */
@@ -24,10 +26,10 @@ export type Plan = {
 };
 
 export const PLANS: Plan[] = [
-  { id: "free", name: "Free", monthly: 0, yearly: 0, submissions: 250, aiCredits: 100, calendars: 1, meetingTypes: 1, testing: { projects: 1, minutes: 300, credits: 200 } },
-  { id: "starter", name: "Starter", monthly: 15, yearly: 12, submissions: 2000, aiCredits: 500, calendars: 6, meetingTypes: null, testing: { projects: 3, minutes: 2000, credits: 2000 } },
-  { id: "pro", name: "Pro", monthly: 39, yearly: 31, submissions: 5000, aiCredits: 2000, calendars: 6, meetingTypes: null, testing: { projects: null, minutes: 10000, credits: 10000 } },
-  { id: "business", name: "Business", monthly: 79, yearly: 63, submissions: null, aiCredits: 5000, calendars: 6, meetingTypes: null, testing: { projects: null, minutes: null, credits: null } },
+  { id: "free", name: "Free", monthly: 0, yearly: 0, submissions: 250, aiCredits: 100, sends: 1000, calendars: 1, meetingTypes: 1, testing: { projects: 1, minutes: 300, credits: 200 } },
+  { id: "starter", name: "Starter", monthly: 15, yearly: 12, submissions: 2000, aiCredits: 500, sends: 10000, calendars: 6, meetingTypes: null, testing: { projects: 3, minutes: 2000, credits: 2000 } },
+  { id: "pro", name: "Pro", monthly: 39, yearly: 31, submissions: 5000, aiCredits: 2000, sends: 50000, calendars: 6, meetingTypes: null, testing: { projects: null, minutes: 10000, credits: 10000 } },
+  { id: "business", name: "Business", monthly: 79, yearly: 63, submissions: null, aiCredits: 5000, sends: 200000, calendars: 6, meetingTypes: null, testing: { projects: null, minutes: null, credits: null } },
 ];
 
 export const PAID: PlanId[] = ["starter", "pro", "business"];

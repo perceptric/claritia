@@ -60,6 +60,7 @@ price per seat, so the website reads like Calendly and Cal.com.
 | Submissions/month | 250 | 2,000 | 5,000 | Unlimited |
 | Additional form submissions | — | $5 per 1,000 | $5 per 1,000 | — |
 | AI credits/month | 100 | 500 | 2,000 | 5,000 |
+| Workflow emails/month | 1,000 | 10,000 | 50,000 | 200,000 |
 | Calendars per seat | 1 | 6 | 6 | 6 |
 | Meeting types | 1 | Unlimited | Unlimited | Unlimited |
 | Claritia branding | Badge | Small badge | Removed | Removed |
@@ -77,6 +78,11 @@ or owner-first meeting is a host on that meeting type, and every host is a seat.
   turns. Paid plans will pay $5 per 1,000 extra (counted now, not billed yet). A lead is never dropped. Counts reset on
   the 1st of each month for every plan.
 - **Past the AI credit cap** Tia stops until the month resets. Forms, booking and workflows keep running.
+- **Workflow emails** count each workflow or campaign email once, when it's sent. Past the month's emails they wait in
+  line, never skipped or dropped, and go when the month turns or the team upgrades. Meeting emails, alerts and form
+  auto-replies don't count. Sending pauses on its own when spam complaints reach 0.2% or hard bounces 5% of the
+  week's sends (with enough sent to judge), and Settings › Sending shows why, with Resume
+  (`supabase/migrations/144_send_limits.sql`).
 - **Reminders** never go out for a canceled or moved meeting.
 
 ## Part 4. Every feature
