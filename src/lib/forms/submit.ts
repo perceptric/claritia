@@ -22,6 +22,8 @@ import { studioBody } from "../studio/liveForm.ts";
 import { isChannel } from "../share/channels.ts";
 import { readPersonal } from "../share/personal.ts";
 import { offerForFill, type Booking } from "./booking.ts";
+import { bookPageOn, bookPageUrl } from "./bookPage.ts";
+import { APP_URL } from "../site.ts";
 import { bookingUrl, claritiaPlan, emailsTimesLater, outside, routedBooks, showsMeeting, type RoutedAs } from "./schedule.ts";
 import { regionOf } from "../contacts/region.ts";
 import { queueTrack, serverTracked, trackInfoFor } from "../track/server.ts";
@@ -525,7 +527,10 @@ export async function acceptFill(
       if (!booking && plan.rep && emailsTimesLater(sch, routing?.live) && !o.test)
         await enqueueJob(rpc, { workspaceId: f.workspace_id, kind: "meeting_book_later", key: `book_later:${sid}`, payload: { submission: sid, type: plan.type, owner: plan.rep, only: true }, delayS: LATER_S, maxAttempts: 3 }).catch(() => undefined);
     }
-    return { status: 200, body: { id: sid, schedule: null, ...(booking ? { booking } : {}), ...shown } };
+    // The meeting's own booking page in the form, where it's on (docs/ending-plan.md Part 4); the form falls back to
+    // its own calendar with the same token when the page doesn't load.
+    const page = booking && bookPageOn(f.workspace_id) ? { bookPage: bookPageUrl(APP_URL, booking.token) } : {};
+    return { status: 200, body: { id: sid, schedule: null, ...(booking ? { booking, ...page } : {}), ...shown } };
   }
   if (sch && lead && !spam && shows() && routedBooks(sch, routed)) {
     let base = sch.url;

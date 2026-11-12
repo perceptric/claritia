@@ -681,6 +681,10 @@ export class ClaritiaForm extends Base {
   private seed = (Math.random() * 2 ** 31) | 0;
   // Claritia calendar after the send: the times, the booked meeting, the day picked, the visitor's zone, a line to say.
   private bk: Booking | null = null;
+  /** The meeting's own booking page for this fill (/book/f/<token>), its frame, and whether it failed to load. */
+  private bkPage = "";
+  private bkFrame: HTMLElement | null = null;
+  private bkFall = false;
   /** The server saved the details and is still finishing (Routing hasn't committed an owner yet): its words. */
   private waiting = "";
   private bkDone: Booked | null = null;
@@ -1116,7 +1120,8 @@ export class ClaritiaForm extends Base {
       wear(".in", () => "field");
       wear(".bt", () => "btn");
       wear(".pl", (x) => (x.getAttribute("aria-pressed") === "true" ? "btn" : "btn-secondary"));
-      spot.replaceChildren(end);
+      // The booking page's frame stays where it is: moving it would load it again.
+      if (end.parentNode !== spot) spot.replaceChildren(end);
     }
   }
 
@@ -2208,6 +2213,7 @@ export class ClaritiaForm extends Base {
     // Claritia calendar: the times in place of the form. In the builder, sample times and no network.
     if (this.quiet && form.after.schedule?.tool === "claritia" && !this.bk) this.bk = { token: "", slots: sampleSlots(Date.now()), lengths: [30], length: 30 };
     if (this.bkDone) return this.booked();
+    if (this.bk && this.bkPage && !this.bkFall) return this.bookFrame();
     if (this.bk) return this.calendar(form, this.bk);
     if (this.waiting) return el("div", { class: "f dn", role: "status", "aria-live": "polite" }, el("p", { class: "i", text: this.waiting }));
     // A meeting to book: the scheduler opens in the form, with the lead filled in. In the builder, its link stands in.
@@ -2248,6 +2254,38 @@ export class ClaritiaForm extends Base {
   }
 
   // Booking ------------------------------------------------------------------------------------------------
+
+  /**
+   * The meeting's own booking page in a frame that grows with it (docs/ending-plan.md Part 4). It books with the same
+   * token as the form's calendar; when the page says nothing within 10 seconds, the form's own calendar shows.
+   */
+  private bookFrame(): HTMLElement {
+    if (this.bkFrame) return this.bkFrame;
+    const src = this.bkPage;
+    const f = el("iframe", { src: `${src}?embed=1`, title: "Book a meeting", style: "display:block;width:100%;height:640px;border:0" }) as HTMLIFrameElement;
+    let heard = false;
+    const on = (e: MessageEvent) => {
+      const d = e.data;
+      if (e.source !== f.contentWindow || e.origin !== new URL(src).origin || d?.claritia !== true) return;
+      if (d.type === "book:height" && typeof d.height === "number") {
+        heard = true;
+        f.style.height = `${Math.max(320, Math.min(2400, Math.round(d.height)))}px`;
+      }
+      if (d.type === "book:booked" && typeof d.start === "number") {
+        this.emit("booked", { start: d.start, end: d.end });
+        this.trk("booked", this.sid);
+      }
+    };
+    addEventListener("message", on);
+    setTimeout(() => {
+      if (heard) return;
+      removeEventListener("message", on);
+      this.bkFall = true;
+      this.bkFrame = null;
+      this.render();
+    }, 10_000);
+    return (this.bkFrame = el("div", { class: "f dn" }, f));
+  }
 
   /** The host's photo and name, when known. */
   private hostRow(h?: Booking["host"]) {
@@ -2626,7 +2664,7 @@ export class ClaritiaForm extends Base {
       writeQueue([...readQueue().filter((x) => x.key !== this.key), { url, body, key: this.key, at: Date.now(), tries: 1 }]);
       setTimeout(() => void flushQueue(), 15_000);
     } else {
-      type Answer = { id?: string; schedule?: { tool: string; url: string } | null; booking?: Booking; pending?: boolean; message?: string; result?: ClaritiaForm["result"]; pay?: { url?: string; error?: string }; copy?: string };
+      type Answer = { id?: string; schedule?: { tool: string; url: string } | null; booking?: Booking; bookPage?: string; pending?: boolean; message?: string; result?: ClaritiaForm["result"]; pay?: { url?: string; error?: string }; copy?: string };
       let j = (await res.json().catch(() => ({}))) as Answer;
       // Saved, still finishing: say so, and send the same request again (the same key, so the same submission and
       // routing request) until the server has the answer, for about 12 seconds.
@@ -2650,6 +2688,7 @@ export class ClaritiaForm extends Base {
       if (j.pay && typeof j.pay === "object") this.pay = { ...(typeof j.pay.url === "string" ? { url: j.pay.url } : {}), ...(typeof j.pay.error === "string" ? { error: j.pay.error.slice(0, 200) } : {}) };
       if (typeof j.copy === "string" && /^\/api\/forms\/[0-9a-f-]{36}\/copy\/[0-9a-f-]{36}\?k=[\w-]{16,64}$/.test(j.copy)) this.copy = j.copy;
       if (j.booking?.token && Array.isArray(j.booking.slots)) this.bk = j.booking;
+      if (this.bk && typeof j.bookPage === "string" && /^https:\/\/[^/?#]+\/book\/f\/[\w.~%-]+$/.test(j.bookPage)) this.bkPage = j.bookPage;
       this.dispatchEvent(new CustomEvent("claritia:submitted", { bubbles: true, composed: true, detail: { formId: d.id, submissionId: j.id ?? null } }));
       this.trk("submit", j.id);
       this.tellPage();

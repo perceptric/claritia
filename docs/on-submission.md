@@ -78,7 +78,9 @@ the form picks the meeting type, the meeting picks the person.
   `/api/studio`, `readPage` in `src/lib/studio/site.ts`: no private addresses, 8 seconds, 2 MB, kept 10 minutes) in a
   frame that runs nothing, at the width of the picked device, or its share picture. Book a meeting embeds the
   meeting's own booking page (`/book/<workspace>/<slug>?embed=1&preview=1`, the host the Team rule names in `host=`),
-  so what Meetings has shows the same; `preview=1` stops Book from making a booking.
+  so what Meetings has shows the same; `preview=1` stops Book from making a booking. On the live form, where
+  `FORM_BOOK_PAGE` is on, the lead books on that same page (`/book/f/<token>`, the form's booking token), and the form's
+  own calendar takes over if the page doesn't load.
 - **Tia chat**: Clear chat (the bin in Tia's header) empties the form's chat and leaves the form as it is. A chat keeps
   its last 100 messages.
 - **Calendar style**: paid plans book in the form's own style; Free gets the plain calendar (`cl-plain` in
