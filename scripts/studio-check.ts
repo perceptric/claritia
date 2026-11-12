@@ -432,11 +432,14 @@ try {
   const adv = (await design.textContent())!;
   check(["Form", "Typography", "Inputs", "Choices", "Buttons", "Reset advanced settings"].every((x) => adv.includes(x)) && !adv.includes("Answers"), "Advanced holds Form, Typography, Inputs, Choices and Buttons");
   await design.locator(".ahead").filter({ hasText: "Buttons" }).click();
-  await design.locator(".seg button").filter({ hasText: "Pill" }).click();
+  await design.locator("button[aria-label='Button shape']").click();
+  await $("#layer .menu .mi").filter({ hasText: "Pill" }).click();
   await p.waitForFunction(() => Object.values((window as unknown as { saved: Record<string, { body?: { css: string } }> }).saved).some((c) => c.body?.css.includes("--brand-btn-radius:999px")));
   await design.locator(".pill").filter({ hasText: "Reset advanced settings" }).click();
   await p.waitForFunction(() => !Object.values((window as unknown as { saved: Record<string, { body?: { css: string } }> }).saved).some((c) => c.body?.css.includes("--brand-btn-radius:999px")));
   check(true, "an Advanced change goes into the form's CSS, and Reset takes it out");
+  const wrapped = await $("#pscroll").evaluate((box) => [...box.querySelectorAll(".seg")].filter((g) => { const b = [...g.querySelectorAll("button")]; return b.length > 1 && new Set(b.map((x) => Math.round(x.getBoundingClientRect().top))).size > 1; }).length);
+  check(wrapped === 0, `no switch in the panel wraps onto two lines (${wrapped})`);
   await design.locator(".seg button").filter({ hasText: "Basic" }).click();
   await design.locator("button[aria-label='Buttons']").click();
   await $("#layer .menu button[aria-label='blue']").click();
@@ -457,7 +460,7 @@ try {
   // Style like Framer: Width set to Fill takes the whole row; Hover is its own state; a box being typed in has one green ring.
   await form.locator("#title").click();
   const sizeSec = $("#pscroll .sec").filter({ has: p.locator("h4", { hasText: /^Style$/ }) });
-  await sizeSec.locator(".row3 .dd").first().click();
+  await sizeSec.locator("button[aria-label='Width']").click();
   await $("#layer .menu .mi").filter({ hasText: "Fill" }).click();
   const fills = await p.evaluate(() => { const r = document.querySelector("#studio")!.shadowRoot!.getElementById("host")!.shadowRoot!; const t = r.querySelector("#title") as HTMLElement; const pe = t.parentElement!; const cs = getComputedStyle(pe); const inner = pe.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight); return [Math.round(t.getBoundingClientRect().width), Math.round(inner), getComputedStyle(t).width, (r.querySelector("style")?.textContent || "").match(/#title[^}]*}/)?.[0] ?? ""]; });
   check(Math.abs(Number(fills[0]) - Number(fills[1])) < 2, `Width set to Fill makes it as wide as its row (${fills.join(" / ")})`);
@@ -501,7 +504,10 @@ try {
   await toAfter();
   check((await $("#stepBar .pg.on.end").count()) === 1 && (await $("#selName").textContent()) === "Ending", "the Ending opens with its settings in the right panel");
   const after = (await $("#pscroll").textContent())!;
-  check(after.includes("Ending type") && after.includes("Message") && after.includes("Redirect") && after.includes("Book a meeting") && after.includes("Team meeting"), "Ending type is Message, Redirect or Book a meeting, and a meeting is Individual or Team meeting");
+  await $("#pscroll button[aria-label='Ending type']").click();
+  const kinds = (await $("#layer .menu").textContent())!;
+  await p.keyboard.press("Escape");
+  check(after.includes("Ending type") && ["Message", "Redirect", "Book a meeting"].every((x) => kinds.includes(x)) && after.includes("Team meeting"), "Ending type is Message, Redirect or Book a meeting, and a meeting is Individual or Team meeting");
   // Team meeting: the rules are edited in Logic, beside the form's flow.
   await $("#pscroll .pill").filter({ hasText: "Edit rules in Logic" }).click();
   check((await $("#logicView").isVisible()) && (await $("#canvas").isHidden()) && (await $("#flow").isVisible()) && (await $("#flow").textContent())!.includes("Otherwise"), "Edit rules in Logic opens the flow with the team's rules");
@@ -762,6 +768,9 @@ try {
   await addField();
   await $("#addList [data-add='video']").click();
   check((await form.locator(".cl-media").last().textContent())!.includes("Video"), "a video shows where it plays");
+  // A long form scrolls to its very end at 100%: the frame keeps its full height.
+  const scrolled = await $("#canvas").evaluate((c) => { c.scrollTop = c.scrollHeight; const f = c.querySelector("#frame")!.getBoundingClientRect(); return [c.scrollHeight > c.clientHeight + 40, Math.round(f.bottom - c.getBoundingClientRect().bottom)]; });
+  check(scrolled[0] === true && (scrolled[1] as number) <= 24, `a long form scrolls to its end (${scrolled.join(", ")})`);
   await $("#pscroll input[aria-label='Video link']").fill("https://youtu.be/dQw4w9WgXcQ");
   await $("#pscroll input[aria-label='Video link']").press("Enter");
   await $("#pscroll input[aria-label='Video link']").blur();
@@ -827,7 +836,8 @@ try {
   await $("#pscroll .phgrid button[aria-label='Team photo']").click();
   await form.locator(".page[data-cl-lay='left'] > .cl-fig img").waitFor();
   check((await form.locator("[data-cl-cover]").getAttribute("data-cl-sizes")) === "640,1280,1920", "a photo from the library goes beside the welcome screen, with its widths");
-  await $("#pscroll .seg button").filter({ hasText: "Behind" }).click();
+  await $("#pscroll button[aria-label='Place']").click();
+  await $("#layer .menu .mi").filter({ hasText: "Behind" }).click();
   check((await form.locator(".page").getAttribute("data-cl-lay")) === "behind", "Place: Behind puts the photo behind the words");
   await $("#pscroll button[aria-label='Top left']").click();
   await $("#pscroll input[aria-label='Words for screen readers']").fill("Our team at work");
