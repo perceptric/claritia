@@ -9,7 +9,6 @@
 import type { Rpc } from "../jobs.ts";
 import { bookForClaim, fillCtx, timesForClaim, type Claim } from "./booking.ts";
 import { checkGuest, type BookReply, type Confirmation, type GuestSlot } from "../meetings/guest.ts";
-import { bookingBase } from "../meetings/handles.ts";
 import type { MeetingType } from "../meetings/types.ts";
 
 /**
@@ -23,8 +22,8 @@ export function bookPageOn(ws: string, env = process.env.FORM_BOOK_PAGE): boolea
   return v.split(",").map((x) => x.trim()).includes(ws.toLowerCase());
 }
 
-/** The page's address on the booking site (tryclaritia.com, never the app's address). */
-export const bookPageUrl = (base: string, token: string) => `${bookingBase(base)}/book/f/${encodeURIComponent(token)}`;
+/** The page's address on the app (tryclaritia.com/book sends people there anyway, so the frame skips that hop). */
+export const bookPageUrl = (base: string, token: string) => `${base.replace(/\/+$/, "")}/book/f/${encodeURIComponent(token)}`;
 
 /** The type as the page shows it: with Routing's rep, that rep alone. */
 export function pageType(t: MeetingType, c: Claim): MeetingType {

@@ -58,6 +58,9 @@ try {
   p.on("pageerror", (e) => errors.push(e.message));
   const framed: string[] = [];
   await p.route("https://book.test/**", (x) => (framed.push(x.request().url()), x.fulfill({ status: 200, contentType: "text/html", body: BOOK })));
+  // The booking site sends /book to the app (tryclaritia.com → app.tryclaritia.com): the frame then talks from there.
+  await p.route("https://hop.test/**", (x) => x.fulfill({ status: 200, contentType: "text/html", body: `<script>location.replace(${JSON.stringify(x.request().url().replace("https://hop.test", "https://app.hop.test"))})</script>` }));
+  await p.route("https://app.hop.test/**", (x) => (framed.push(x.request().url()), x.fulfill({ status: 200, contentType: "text/html", body: BOOK })));
   const send = async (bookPage: string) => {
     page = bookPage;
     framed.length = 0;
@@ -86,6 +89,11 @@ try {
   check(ev.length === 1 && ev[0]!.start === slots[1], "a booking in the page fires claritia:booked once, with its start");
   await p.waitForTimeout(10_500);
   check((await f.locator("[data-cl-book] iframe").count()) === 1 && framed.length === 1, "a page that answered stays, loaded once");
+
+  // 1b. A page that moves to the app's address still grows the frame.
+  f = await send("https://hop.test/book/f/good");
+  await f.locator("[data-cl-book] iframe").waitFor();
+  await p.waitForFunction(() => document.querySelector("claritia-form")?.shadowRoot?.querySelector<HTMLIFrameElement>("[data-cl-book] iframe")?.style.height === "900px" || document.querySelector<HTMLIFrameElement>("claritia-form [data-cl-book] iframe")?.style.height === "900px", null, { timeout: 5000 }).then(() => check(true, "a page on the app's address grows the frame too"), () => check(false, "a page on the app's address grows the frame too"));
 
   // 2. A page that never answers: the form's own calendar, with the same times.
   f = await send("https://book.test/book/f/silent");

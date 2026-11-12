@@ -120,7 +120,7 @@ test("the send answers the booking page's address where it's on, and the same ad
     const pages = new Set([...all, again].map((r) => r.bookPage));
     assert.equal(pages.size, 1, "one address for the fill, however often the send is retried");
     assert.equal(again.bookPage, bookPageUrl("https://app.tryclaritia.com", again.booking!.token));
-    assert.match(again.bookPage!, /^https:\/\/tryclaritia\.com\/book\/f\/[\w.~-]+$/);
+    assert.match(again.bookPage!, /^https:\/\/app\.tryclaritia\.com\/book\/f\/[\w.~-]+$/);
     // Off for this workspace: the form's own calendar only.
     const g = await liveForm(other.ws, other.users[0]!, { meetingTypeId: otherType });
     const off = await fill(g, { em: "bo@acme.com" });

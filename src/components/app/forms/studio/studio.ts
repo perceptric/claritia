@@ -1179,7 +1179,7 @@ ${CAL_CSS}
       const f = h("iframe", { class: "cl-bookframe", src: url, title: `${m.name}: booking page`, loading: "lazy", allow: "payment" });
       let origin = "";
       try { origin = new URL(base).origin; } catch {}
-      const onMsg = (e) => { if (!f.isConnected) return removeEventListener("message", onMsg); if (e.source !== f.contentWindow || e.origin !== origin) return; const d = e.data; if (d?.claritia === true && d.type === "book:height" && typeof d.height === "number") f.style.height = `${Math.max(320, Math.min(2400, Math.round(d.height)))}px`; };
+      const onMsg = (e) => { if (!f.isConnected) return removeEventListener("message", onMsg); if (e.source !== f.contentWindow || (e.origin !== origin && e.origin !== origin.replace("://", "://app."))) return; const d = e.data; if (d?.claritia === true && d.type === "book:height" && typeof d.height === "number") f.style.height = `${Math.max(320, Math.min(2400, Math.round(d.height)))}px`; };
       addEventListener("message", onMsg);
       return spot.replaceChildren(f);
     }
