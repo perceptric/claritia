@@ -551,6 +551,14 @@ try {
   if (shots) await p.screenshot({ path: `${shots}/4-after.png` });
   // An outside scheduler: its link, checked, and opened in the form's booking spot
   await $("#pscroll .pill").filter({ hasText: "Calendly" }).click();
+  // No link yet: a sample of the scheduler's page fills the Ending.
+  await form.locator(".cl-ss").waitFor({ timeout: 5000 }).catch(() => null);
+  const ss = form.locator(".cl-ss");
+  check((await ss.count()) === 1 && (await ss.locator(".cl-ss-tool").innerText()).includes("Calendly") && (await ss.locator(".cl-ss-grid span.on").count()) > 0 && (await ss.locator(".cl-ss-times span").count()) === 6, "with no link yet, the Ending shows a sample of Calendly's booking page");
+  if (shots) await p.screenshot({ path: `${shots}/4d-scheduler-sample.png` });
+  await $("#pscroll .pill").filter({ hasText: "Cal.com" }).click();
+  await form.locator(".cl-ss .cl-ss-tool").filter({ hasText: "Cal.com" }).waitFor({ timeout: 5000 }).then(() => check(true, "another scheduler, its own sample"), () => check(false, "another scheduler, its own sample"));
+  await $("#pscroll .pill").filter({ hasText: "Calendly" }).click();
   await $("#pscroll input[aria-label='Scheduler link']").fill("https://evil.example/x");
   await $("#pscroll input[aria-label='Scheduler link']").press("Enter");
   await $("#pscroll .err").waitFor();
