@@ -334,13 +334,13 @@ function TeamCard({
       })}
       <div className="border-t border-line px-4 py-2.5">
         <div className="font-medium text-ink">Shares leads</div>
-        <div className="text-[12px] text-muted">{METHOD_WORDS[t.method as keyof typeof METHOD_WORDS] ?? "Take turns"}</div>
+        <div className="text-[12px] text-muted">{METHOD_WORDS[t.method as keyof typeof METHOD_WORDS] ?? "Round robin"}</div>
       </div>
     </section>
   );
 }
 
-export const METHOD_WORDS = { rr: "Take turns", weighted: "Some get more", load: "Fewest meetings first" } as const;
+export const METHOD_WORDS = { rr: "Round robin", weighted: "Weighted round robin", load: "Load balanced" } as const;
 
 /**
  * Create team (Section 12): a name and its members, in the order picked; the order is the round robin's. A name too

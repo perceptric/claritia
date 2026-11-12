@@ -112,10 +112,14 @@ export function Studio({ sb, session, ws, navigate, formId = "", chatId = "", fr
         const r = await meetingsApi<{ workspaceSlug: string }>(sessionRef.current, ws.id, "profile", {});
         return r.workspaceSlug ? `${location.origin}/book/${r.workspaceSlug}` : "";
       },
+      // A team's members and distribution, edited from a Team meeting rule (the same save as Routing › Teams).
+      saveTeam: async (t: { id: string; name: string; method: string; revision: number; members: { user: string; weight: number }[] }) => {
+        await rt(sessionRef.current, ws.id, "rt_team", { team: t.id, name: t.name, method: t.method, members: t.members, revision: t.revision });
+      },
       routingFacts: async () => {
         const screen = await rt<Screen>(sessionRef.current, ws.id, "rt_screen");
         return {
-          teams: screen.teams.filter((t) => t.keys[0]).map((t) => ({ key: t.keys[0]!, name: t.name })),
+          teams: screen.teams.filter((t) => t.keys[0]).map((t) => ({ key: t.keys[0]!, name: t.name, id: t.id, method: t.method, revision: t.revision, members: t.members.map((m) => ({ user: m.user, weight: m.weight })) })),
           people: screen.people.map((p) => ({ id: p.id, name: p.name })),
         };
       },

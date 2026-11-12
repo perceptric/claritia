@@ -64,7 +64,7 @@ export function Flow(p: FlowProps) {
       ? `Send to ${names.get(fb.id) ?? "Former teammate"}`
       : !fbQueue
         ? "No one yet"
-        : `${{ rr: "Take turns", weighted: "Some get more", load: "Fewest meetings first" }[fbQueue.method]}: ${fbList}`;
+        : `${{ rr: "Round robin", weighted: "Weighted round robin", load: "Load balanced" }[fbQueue.method]}: ${fbList}`;
 
   return (
     <div className="relative min-h-full">
