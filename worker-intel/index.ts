@@ -56,8 +56,9 @@ const handlers = {
   deliver: deliver(pool, rpc),
   deliver_held: deliverHeld(pool, rpc),
   send: send(rpc, { sender, base: linkBase() }),
-  domain_check: domainCheck(rpc, resend),
-  domain_remove: domainRemove(pool, resend),
+  // EMAIL_SES_MOVE=1: new sending domains are made on SES, and Settings › Sending offers the move (docs/ses-plan.md).
+  domain_check: domainCheck(rpc, resend, undefined, { ses, sesNew: process.env.EMAIL_SES_MOVE?.trim() === "1" }),
+  domain_remove: domainRemove(pool, resend, { ses }),
   meeting_notify: meetingNotify(rpc, meetings),
   meeting_remind: meetingRemind(rpc, meetings),
   meeting_after: meetingAfter(rpc, meetings),

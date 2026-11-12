@@ -26,6 +26,8 @@ export type Claimed = {
   address: string | null;
   topic: string | null;
   mail_from: string | null;
+  /** Which provider sends this domain's mail now (145_ses_domains.sql); Resend when the database doesn't say. */
+  provider?: "resend" | "ses";
   per_second: number;
   /** Tries so far, this one included (067_resend.sql). */
   attempts?: number;
@@ -86,5 +88,6 @@ export function renderMessage(m: Claimed, o: { base: string; secret?: string }):
     text,
     headers,
     tags: { message: m.id, email: m.email_id },
+    ...(m.provider === "ses" ? { via: "ses" as const } : {}),
   };
 }

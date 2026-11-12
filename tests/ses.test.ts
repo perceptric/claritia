@@ -4,7 +4,9 @@
 import assert from "node:assert/strict";
 import { generateKeyPairSync, sign } from "node:crypto";
 import { test } from "node:test";
+import { checkSesRecords, ownDomain, type Resolver } from "../src/lib/email/domains.ts";
 import { domainOf, outcomeOf, SendError, type Outgoing, type Sender } from "../src/lib/email/provider.ts";
+import { renderMessage } from "../src/lib/email/render.ts";
 import type { Claimed } from "../src/lib/email/render.ts";
 import type { Resend } from "../src/lib/email/resend.ts";
 import { routedBatcher, routedMailer, routedSender, sesDomains, systemSend, type RawMail } from "../src/lib/email/senders.ts";
@@ -249,4 +251,45 @@ test("the app's own emails (alerts, form codes) go through SES for its domains, 
   assert.equal(await systemSend(m("alerts@acme.com"), { env: {}, fetchFn, ses: null }), "RESEND_API_KEY isn't set on the server.");
   const failing = { send: async () => Promise.reject(new SendError("SES 400 MessageRejected: no", {})) } as unknown as Ses;
   assert.match((await systemSend(m("a@tryclaritia.com"), { env, fetchFn, ses: failing })) ?? "", /MessageRejected/);
+});
+
+test("a domain moved to SES says so on its messages, and they go through SES whatever the domain list says", async () => {
+  const { calls, resend, ses } = fakes();
+  const s = routedSender({ resend, ses, onSes: sesDomains({}) })!;
+  const moved = { ...msg("n@acme.com", "m@x.co"), via: "ses" as const };
+  assert.equal(await s.send(moved, "k1"), "ses-m@x.co");
+  assert.equal(s.keyed!(moved), false);
+  assert.equal(s.batchable!(moved), false);
+  // SES keys gone: a moved domain falls back to Resend, where it's still verified.
+  const back = routedSender({ resend, ses: null, onSes: sesDomains({}) })!;
+  assert.equal(await back.send(moved, "k2"), "re-m@x.co");
+  assert.deepEqual(calls, ["ses:m@x.co", "resend:m@x.co:k2"]);
+  // The claim's provider becomes the message's via.
+  const base = { id: "0192f3a1-0000-7000-8000-000000000001", to: "a@x.co", contact_id: null, email_id: "e", kind: "broadcast", marketing: false, subject: "S", preheader: null, html: "<p>x</p>", text: "x", links: [], from_name: "Acme", from_email: "n@acme.com", reply_to: null, address: null, topic: null, mail_from: null, per_second: 14 } as unknown as Claimed;
+  assert.equal(renderMessage({ ...base, provider: "ses" } as Claimed, { base: "https://app.test", secret: "s".repeat(40) }).via, "ses");
+  assert.equal(renderMessage({ ...base, provider: "resend" } as Claimed, { base: "https://app.test", secret: "s".repeat(40) }).via, undefined);
+});
+
+test("Claritia's own domains can't be added for sending; SES records check against SES and DNS", async () => {
+  const env = { CLARITIA_OWN_DOMAINS: "tryclaritia.com,perceptric.com", EMAIL_SES_DOMAINS: "acme-own.io" } as NodeJS.ProcessEnv;
+  assert.equal(ownDomain("tryclaritia.com", env), true);
+  assert.equal(ownDomain("mail.TryClaritia.com", env), true);
+  assert.equal(ownDomain("x.acme-own.io", env), true);
+  assert.equal(ownDomain("nottryclaritia.com", env), false);
+  assert.equal(ownDomain("acme.com", env), false);
+  assert.equal(ownDomain("tryclaritia.com", {}), true, "the default list");
+  const nx = () => Promise.reject(Object.assign(new Error("nx"), { code: "ENOTFOUND" }));
+  const r: Resolver = {
+    cname: async (n) => (n.startsWith("ta.") ? ["wrong.example.com"] : nx()),
+    mx: async () => [{ exchange: "mx.other.com", priority: 10 }],
+    txt: async (n) => (n.startsWith("_dmarc.") ? [["v=DMARC1; p=none"]] : [["v=spf1 include:other.com ~all"]]),
+  };
+  const pending = { dkimStatus: "PENDING", dkimTokens: ["ta", "tb", "tc"], mailFrom: "bounce.acme.com", mailFromStatus: "PENDING", verified: false };
+  const out = await checkSesRecords("acme.com", "bounce.acme.com", pending, "us-east-2", r);
+  assert.deepEqual(Object.fromEntries(out.records.map((x) => [x.key, x.status])), { dkim1: "wrong", dkim2: "waiting", dkim3: "waiting", mx: "wrong", spf: "wrong", dmarc: "verified" });
+  assert.equal(out.records.find((x) => x.key === "mx")!.value, "10 feedback-smtp.us-east-2.amazonses.com");
+  assert.equal(out.status, "pending");
+  const ok = await checkSesRecords("acme.com", "bounce.acme.com", { ...pending, dkimStatus: "SUCCESS", mailFromStatus: "SUCCESS", verified: true }, "us-east-2", { ...r, txt: async (n) => (n.startsWith("_dmarc.") ? [["v=DMARC1; p=none"]] : [["v=spf1 include:amazonses.com ~all"]]) });
+  assert.equal(ok.status, "verified");
+  assert.equal((await checkSesRecords("acme.com", "bounce.acme.com", { ...pending, dkimStatus: "FAILED" }, "us-east-2", r)).status, "failed");
 });
