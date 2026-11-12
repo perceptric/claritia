@@ -148,3 +148,29 @@ fly secrets unset --app claritia-web SES_SNS_TOPIC_ARN
 | Claude tokens | $0 | $0 |
 | Servers: sends run on `claritia-intel` and the web app as they are | $0 | $0 |
 | **Total added** | **about $897** | **about $2,470** |
+
+## Amazon SES (docs/ses-plan.md)
+
+SES runs next to Resend. `EMAIL_SES_DOMAINS` names the From domains that go through SES (`tryclaritia.com`, a list
+with commas, or `all`); a subdomain follows its parent. Empty, everything stays on Resend.
+
+On the VPS (Hostinger › Docker Manager › claritia › Environment), set by the owner, never pasted in chat:
+
+| Variable | Value |
+|---|---|
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | The `claritia-ses` IAM user's key (policy in docs/ses-plan.md section 7) |
+| `SES_REGION` | `us-east-2` |
+| `SES_CONFIGURATION_SET` | `claritia` |
+| `SES_SNS_TOPIC_ARN` | The ARN of `claritia-ses-events` |
+| `SES_MAX_RATE` | Optional: the send rate to start from before SES says (default 1 a second) |
+| `EMAIL_SES_DOMAINS` | Empty at first, then `tryclaritia.com`, later `all` |
+
+AWS console, once:
+
+1. SNS › Topics › Create `claritia-ses-events` (Standard). Delivery policy: retry for 24 hours.
+2. SES › Configuration sets › Create `claritia`. Event destination: Amazon SNS, topic `claritia-ses-events`, events
+   Bounce, Complaint, Delivery, Reject, Delivery delay, Rendering failure. Engagement tracking off.
+3. SNS › the topic › Create subscription: HTTPS, `https://app.tryclaritia.com/api/email/ses`. The app confirms it
+   by itself once `SES_SNS_TOPIC_ARN` is set; the subscription shows Confirmed.
+4. SES › Suppression list: account-level, bounces and complaints. Auto Validation off.
+5. CloudWatch alarms on `Reputation.BounceRate` (0.04) and `Reputation.ComplaintRate` (0.0008).

@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { emailMessage, slackMessage, type AlertFailure, type AlertHeal } from "./alerts.ts";
 import { unseal } from "./seal.ts";
+import { systemSend } from "./email/senders.ts";
 
 type Event = { id: string; project_id: string; kind: "failure" | "heal"; run_id: string | null; heal_id: string | null; attempts: number };
 type Settings = { project_id: string; slack_sealed: string | null; emails: string[] };
@@ -25,20 +26,11 @@ export async function deliver(to: Channels, m: Message, fetchFn: typeof fetch = 
     else delivered++;
   }
   if (to.emails.length) {
-    const key = process.env.RESEND_API_KEY?.trim();
-    if (!key) errors.push("Email: RESEND_API_KEY isn't set on the server.");
-    else {
-      const mail = emailMessage(m.project, m.failures, m.heals);
-      const res = await fetchFn("https://api.resend.com/emails", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ from: alertsFrom(), to: to.emails, subject: mail.subject, html: mail.html, text: mail.text }),
-        signal: AbortSignal.timeout(10_000),
-      }).catch((e: Error) => e);
-      if (res instanceof Error) errors.push(`Email: ${res.message}`);
-      else if (!res.ok) errors.push(`Email answered ${res.status}: ${(await res.text().catch(() => "")).slice(0, 200)}`);
-      else delivered++;
-    }
+    // Through SES when the alerts' domain is on it (EMAIL_SES_DOMAINS), else Resend (src/lib/email/senders.ts).
+    const mail = emailMessage(m.project, m.failures, m.heals);
+    const err = await systemSend({ from: alertsFrom(), to: to.emails, subject: mail.subject, html: mail.html, text: mail.text }, { fetchFn });
+    if (err) errors.push(err.startsWith("answered") ? `Email ${err}` : `Email: ${err}`);
+    else delivered++;
   }
   return { delivered, errors };
 }

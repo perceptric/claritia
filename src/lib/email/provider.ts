@@ -44,3 +44,21 @@ export function fromHeader(name: string | null | undefined, email: string): stri
   if (/^[\x20-\x7e]*$/.test(n)) return `"${n.replace(/(["\\])/g, "\\$1")}" <${email}>`;
   return `=?UTF-8?B?${Buffer.from(n, "utf8").toString("base64")}?= <${email}>`;
 }
+
+/**
+ * What the send job needs from a provider (src/lib/email/senders.ts routes between Resend and SES). `keyed`: a repeat of
+ * the same key can't make a second email (Resend: yes; SES: no). `batchable`: this one may share a batch call.
+ */
+export type Sender = {
+  send(m: Outgoing, key: string): Promise<string>;
+  batch?(items: { out: Outgoing; key: string }[]): Promise<string[]>;
+  keyed?(m: Outgoing): boolean;
+  batchable?(m: Outgoing): boolean;
+};
+
+/** The domain of an address or a From header ("Name <a@b.co>"), lowercased, or "". */
+export function domainOf(from: string): string {
+  const addr = /<([^>]+)>\s*$/.exec(from)?.[1] ?? from;
+  const at = addr.lastIndexOf("@");
+  return at < 0 ? "" : addr.slice(at + 1).trim().toLowerCase();
+}

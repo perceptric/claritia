@@ -13,7 +13,7 @@ import { hostname } from "node:os";
 import pg from "pg";
 import { startLoops, Wake } from "../src/lib/jobs.ts";
 import { linkBase } from "../src/lib/email/render.ts";
-import { resendFromEnv } from "../src/lib/email/resend.ts";
+import { routedMailer, sendersFromEnv } from "../src/lib/email/senders.ts";
 import { domainCheck, domainRemove, send } from "./jobs/email.ts";
 import { calendarRefresh, calendarWatch, meetingSync } from "./jobs/calendars.ts";
 import { calendarReconnect, formNotBooked, mailerFromEnv, meetingAfter, meetingBookLater, meetingNotify, meetingRemind, systemFrom } from "./jobs/meetings.ts";
@@ -45,16 +45,17 @@ const loops = Math.max(1, Number(process.env.CONCURRENCY || 4));
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: loops * 2 + 2, statement_timeout: 30_000, connectionTimeoutMillis: 10_000, idleTimeoutMillis: 60_000 });
 pool.on("error", (e) => log("pool error", { error: e.message }));
 const rpc = pgRpc(pool);
-const resend = resendFromEnv();
-// Meeting emails: raw sends over Resend's SMTP (the invite is a MIME part), from MEETINGS_FROM when a workspace has no
-// verified domain.
-const meetings = { mailer: mailerFromEnv(), base: linkBase(), from: systemFrom() };
+// Resend for most mail, Amazon SES for the From domains in EMAIL_SES_DOMAINS (docs/ses-plan.md).
+const { resend, ses, onSes, sender, batcher } = sendersFromEnv();
+// Meeting emails: raw sends over Resend's SMTP (the invite is a MIME part), or SES's raw send for the domains on SES,
+// from MEETINGS_FROM when a workspace has no verified domain.
+const meetings = { mailer: routedMailer({ smtp: mailerFromEnv(), ses, onSes }), base: linkBase(), from: systemFrom() };
 const handlers = {
   workflow_run: workflowRun(rpc, { secret: process.env.SECRETS_KEY, base: linkBase() }),
   source_hook: sourceHook(pool, rpc),
   deliver: deliver(pool, rpc),
   deliver_held: deliverHeld(pool, rpc),
-  send: send(rpc, { sender: resend, base: linkBase() }),
+  send: send(rpc, { sender, base: linkBase() }),
   domain_check: domainCheck(rpc, resend),
   domain_remove: domainRemove(pool, resend),
   meeting_notify: meetingNotify(rpc, meetings),
@@ -62,12 +63,12 @@ const handlers = {
   meeting_after: meetingAfter(rpc, meetings),
   meeting_book_later: meetingBookLater(rpc, meetings),
   form_not_booked: formNotBooked(rpc),
-  form_notify: formNotify(rpc, { mailer: meetings.mailer, base: meetings.base, from: meetings.from, batcher: resend }),
+  form_notify: formNotify(rpc, { mailer: meetings.mailer, base: meetings.base, from: meetings.from, batcher }),
   form_resume: formResume(rpc, { mailer: meetings.mailer, base: meetings.base, from: meetings.from }),
   route: routeJob(rpc),
   meeting_team_run: meetingTeamRun(rpc),
   routing_abandon: routingAbandon(rpc),
-  router_alert: routerAlert(rpc, { mailer: meetings.mailer, base: meetings.base, from: meetings.from, batcher: resend }),
+  router_alert: routerAlert(rpc, { mailer: meetings.mailer, base: meetings.base, from: meetings.from, batcher }),
   router_sla: routerSla(rpc, { mailer: meetings.mailer, base: meetings.base, from: meetings.from }),
   calendar_refresh: calendarRefresh(rpc),
   calendar_watch: calendarWatch(rpc),
@@ -85,7 +86,7 @@ const kindMax = { deliver_held: 1 };
 const reserved = Math.max(0, Math.min(Number(process.env.URGENT_LOOPS ?? 2), loops - 1));
 
 health({ ok: true, worker, kinds: Object.keys(handlers), loops, reserved });
-log("intel started", { worker, loops, reserved, secrets: !!process.env.SECRETS_KEY, resend: !!resend });
+log("intel started", { worker, loops, reserved, secrets: !!process.env.SECRETS_KEY, resend: !!resend, ses: !!ses });
 
 // enqueue_job NOTIFYs claritia_jobs when a job is ready now; idle loops wake at once. Without it (a pooler that drops
 // LISTEN, or while reconnecting) they look every second.

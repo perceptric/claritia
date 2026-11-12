@@ -1,6 +1,7 @@
 // Sending on claritia-intel (docs/enrich-workflows-reports.md Part 0, supabase/migrations/039_email.sql, 067_resend.sql).
 //   send: one workspace at a time. Each second it claims up to the workspace's rate and hands them to Resend in one
-//         batch call (one by one when there's one, or when Resend refuses the batch for a bad address), then records
+//         batch call (one by one when there's one, or when Resend refuses the batch for a bad address), or to Amazon
+//         SES one by one for the domains on SES (src/lib/email/senders.ts, docs/ses-plan.md), then records
 //         each answer. Runs about 50 seconds, then queues the next round if more wait. A rate limit ends the round
 //         and the rest go back in line without using a try.
 //   domain_check: makes the Resend domain if needed, asks Resend to verify, then checks every DNS record.
@@ -8,7 +9,7 @@
 
 import type pg from "pg";
 import { checkRecords, systemResolver, type DomainRow, type Resolver } from "../../src/lib/email/domains.ts";
-import { outcomeOf, SendError, type Outcome, type Outgoing } from "../../src/lib/email/provider.ts";
+import { outcomeOf, SendError, type Outcome, type Outgoing, type Sender } from "../../src/lib/email/provider.ts";
 import { renderMessage, type Claimed } from "../../src/lib/email/render.ts";
 import type { Resend, ResendDomain } from "../../src/lib/email/resend.ts";
 import { JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
@@ -23,8 +24,7 @@ async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Pro
   return data as T;
 }
 
-/** The part of Resend sending uses; tests pass a fake. */
-export type Sender = Pick<Resend, "send" | "batch">;
+export type { Sender };
 export type SendOpts = { sender: Sender | null; base: string; secret?: string; roundMs?: number; sleep?: (ms: number) => Promise<void>; fetcher?: typeof fetch; system?: string };
 
 type Result = { id: string; outcome: Outcome | "wait"; providerId: string | null; error: string | null; delayS?: number };
@@ -76,30 +76,37 @@ export async function mailboxRound(rpc: Rpc, ws: string, batch: Claimed[], rende
  */
 export async function sendRound(sender: Sender, batch: Claimed[], render: (m: Claimed) => Outgoing): Promise<Result[]> {
   const one = async (m: Claimed): Promise<Result> => {
+    let out: Outgoing | null = null;
     try {
-      return { id: m.id, outcome: "ok", providerId: await sender.send(render(m), `msg:${m.id}`), error: null };
+      out = render(m);
+      return { id: m.id, outcome: "ok", providerId: await sender.send(out, `msg:${m.id}`), error: null };
     } catch (e) {
       const se = e instanceof SendError ? e : null;
       let outcome = outcomeOf(e);
-      // The same key makes a repeat harmless, unless Resend said the key was used for other content (409).
-      if (outcome === "unknown" && se?.status !== 409) outcome = "retry";
+      // The same key makes a repeat harmless, unless Resend said the key was used for other content (409). SES keeps
+      // no keys (keyed is false), so an unclear answer there stays unknown and is never sent again.
+      if (outcome === "unknown" && se?.status !== 409 && out && (sender.keyed?.(out) ?? true)) outcome = "retry";
       return { id: m.id, outcome, providerId: null, error: (e as Error).message, delayS: se?.retryAfterS };
     }
   };
-  const fresh = batch.filter((m) => (m.attempts ?? 1) <= 1);
+  const fresh0 = batch.filter((m) => (m.attempts ?? 1) <= 1);
   const again = batch.filter((m) => (m.attempts ?? 1) > 1);
-  const alone = Promise.all(again.map(one));
-  if (fresh.length <= 1) return [...(await Promise.all(fresh.map(one))), ...(await alone)];
-  let out: Outgoing[];
+  let outs: Outgoing[];
   try {
-    out = fresh.map(render);
+    outs = fresh0.map(render);
   } catch {
     // One message that won't render shouldn't hold the rest: send them one by one.
-    return [...(await Promise.all(fresh.map(one))), ...(await alone)];
+    return Promise.all(batch.map(one));
   }
+  // Only first tries that may share a batch call do (Resend); the rest (SES, or no batch call) go one by one.
+  const can = (i: number) => !!sender.batch && (sender.batchable?.(outs[i]) ?? true);
+  const fresh = fresh0.filter((_, i) => can(i));
+  const out = outs.filter((_, i) => can(i));
+  const alone = Promise.all([...again, ...fresh0.filter((_, i) => !can(i))].map(one));
+  if (fresh.length <= 1) return [...(await Promise.all(fresh.map(one))), ...(await alone)];
   let results: Result[];
   try {
-    const ids = await sender.batch(fresh.map((m, i) => ({ out: out[i], key: `msg:${m.id}` })));
+    const ids = await sender.batch!(fresh.map((m, i) => ({ out: out[i], key: `msg:${m.id}` })));
     results = fresh.map((m, i) => ({ id: m.id, outcome: "ok", providerId: ids[i], error: null }));
   } catch (e) {
     const se = e instanceof SendError ? e : null;
