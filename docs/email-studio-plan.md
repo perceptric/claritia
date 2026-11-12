@@ -1,6 +1,6 @@
 # Email Studio: Brew-style email inside Claritia
 
-Status: Parts 1 and 3 built (12 November 2026, migrations 149 and 150). The rest is plan unless it says "exists" or "built".
+Status: Parts 1, 3, 4 (lists) and 5 (sending) built (12 November 2026, migrations 149 to 151). The rest is plan unless it says "exists" or "built".
 
 ## The idea
 
@@ -226,6 +226,14 @@ a team: Beta $55, Growth $550 (check).
 **Tests**: a segment refresh that runs twice at once makes one membership change each; a contact who unsubscribes
 mid-send gets nothing after the unsubscribe lands; an import that fails halfway leaves no half-added list.
 
+**Built (Part 4, lists; migration 151):** `lists` and `list_members`, with the CRM's old static lists brought over.
+Audiences has a Show dropdown (Everyone, then each list with its count), New list, Rename and Delete (the people stay),
+check boxes with a bulk bar (Add to a list, Remove from list), and Import on a list: pasted people, one a line, through
+`/api/emails/import` (`contacts_upsert`), with "They agreed to get email from us" giving opt-in consent. Without it,
+consent isn't touched: someone who agreed stays agreed, and a new person has no basis, so marketing email skips them.
+Tests: `tests/emailsPeople.test.ts`, the import case in `tests/pg/campaignSend.pg.ts`. Segments from words, topics in
+the unsubscribe page and the segment refresh job are not built yet.
+
 **Running cost**: segment-from-words is one small model call (Haiku 5.5, about 3,000 tokens) per segment, a fraction
 of a cent (check). The hourly refresh is a database query inside the VPS. Beta and Growth: under $1 (check).
 
@@ -263,6 +271,19 @@ variants, the share, the wait and the winner), `email_messages.send_at`, `email_
 **Tests**: a scheduled send that the worker picks up twice sends once; Pause during a round leaves no message both
 paused and sent; an A/B winner picked twice picks once; a send at the plan's limit holds the rest until the month turns
 or the plan changes (exists, extended to campaigns).
+
+**Built (Part 5, migration 151):** Send in the Email Studio's top bar opens the send panel: who gets it (Everyone or a
+list), the topic, and Now or Later (a day and a time). The count is who it reaches now, by the rules each message
+passes when it goes (`email_audience_preview` mirrors `email_guard`: suppressions, consent, outside-US basis, topic),
+with who's left out and why, and how many wait for next month's room. `/api/emails/send` makes the HTML from the
+draft's blocks, checks sending is ready, and calls `email_campaign_send`, which in one transaction makes the draft the
+email that goes, freezes the audience into messages at the send time and queues the send job; a repeat or a double
+click answers what the first queued. Campaigns shows Scheduled (with the time), Sending and Paused (with how many are
+left), Pause and Resume (waiting messages move to `send_after = infinity` and back), and Cancel while nothing has gone
+(back to a draft). A/B tests and send-time picking are not built yet. Tests: `tests/pg/campaignSend.pg.ts` through
+the real send worker: the preview's count is exactly who gets it, two sends at once queue once, joining a list after
+the send adds nobody, an unsubscribe after the send stops that message, nothing goes before its time, Pause holds and
+Resume sends, Cancel only before anything went, and refused sends leave the draft as it was.
 
 **Running cost**: sending costs are in Part 10. The worker and queue are inside the VPS: $0.
 
