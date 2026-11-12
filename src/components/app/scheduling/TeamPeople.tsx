@@ -1,15 +1,16 @@
 "use client";
 
 // Meetings › Availability › Team: everyone in one table (their teams, calendar, hours, today's count against their
-// cap, away), with the teams as pills above it. A pill filters the table to that team: its members first, then
-// everyone not in it with Add, plus how the team shares leads and which meetings and forms send to it. Away asks
-// until when. Teams are Routing's (routing_teams); a person's status and cap are the same in every team.
+// cap, away), with a team dropdown above it. Picking a team filters the table to it: its members first, then
+// everyone not in it with Add, plus how the team shares leads, which meetings and forms send to it, and Delete (refused
+// while anything still sends to it, 148). Away asks until when. Teams are Routing's (routing_teams); a person's status
+// and cap are the same in every team.
 
 import { useMemo, useState } from "react";
 import type { Availability } from "@/lib/meetings/types";
 import { teamMeetings, teamName } from "@/lib/routing/teamNames";
 import { rotation } from "@/lib/router/engine";
-import { Pencil, Plus, X } from "../../Icons";
+import { Pencil, Plus, Trash, X } from "../../Icons";
 import { BrandLogo } from "../BrandLogo";
 import { askConfirm } from "../Dialogs";
 import { Choice } from "../inbound/parts";
@@ -97,6 +98,24 @@ export function TeamPeople(props: ViewProps & { onFix: () => void }) {
     } catch (e) {
       fail(e);
       return false;
+    }
+  };
+  /** Delete the open team; while something still sends to it, say what, so it can be moved first. */
+  const deleteTeam = async (t: Team) => {
+    if (!(await askConfirm(`Delete ${teamName(t)}?`, { ok: "Delete" }))) return;
+    setError("");
+    try {
+      const r = await rt<{ deleted: boolean; used_by?: { kind: string; name: string }[] }>(session, ws.id, "rt_team_delete", { team: t.id, revision: t.revision });
+      if (!r.deleted) {
+        const names = [...new Set((r.used_by ?? []).map((x) => x.name))];
+        setError(`${teamName(t)} is still used by ${names.join(", ")}. Move ${names.length === 1 ? "it" : "them"} to another team, then delete.`);
+        return;
+      }
+      setSel("all");
+      refresh();
+      toast({ text: `Deleted ${teamName(t)}` });
+    } catch (e) {
+      fail(e);
     }
   };
   const nameOf = (u: string) => people.data?.byId.get(u)?.name ?? rtPeople.get(u)?.name ?? "them";
@@ -284,21 +303,19 @@ export function TeamPeople(props: ViewProps & { onFix: () => void }) {
   return (
     <section className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
-        <div role="tablist" aria-label="Teams" className="flex flex-wrap gap-2">
-          {[{ id: "all", name: "Everyone", n: everyone.length }, ...d.teams.map((t) => ({ id: t.id, name: teamName(t), n: t.members.length }))].map((o) => (
-            <button
-              key={o.id}
-              type="button"
-              role="tab"
-              aria-selected={o.id === sel}
-              onClick={() => setSel(o.id)}
-              className={`press inline-flex h-8 items-center gap-1.5 rounded-full px-3.5 text-[12.5px] font-medium transition-colors duration-[120ms] ${o.id === sel ? "bg-ink text-paper" : "border border-line-strong bg-card text-ink hover:bg-hover"}`}
-            >
-              {o.name}
-              <span className={`tabular-nums ${o.id === sel ? "opacity-70" : "text-faint"}`}>{o.n}</span>
-            </button>
-          ))}
-        </div>
+        <Select<string>
+          ariaLabel="Team"
+          value={team ? team.id : "all"}
+          options={[{ value: "all", label: "Everyone", hint: `${everyone.length} ${everyone.length === 1 ? "person" : "people"}` }, ...d.teams.map((t) => ({ value: t.id, label: teamName(t), hint: `${METHOD_WORDS[(t.method in METHOD_WORDS ? t.method : "rr") as Method]}, ${t.members.length} ${t.members.length === 1 ? "member" : "members"}`, group: "Teams" }))]}
+          onChange={setSel}
+          menuWidth={260}
+          className="h-8 min-w-[200px] max-w-full rounded-full bg-card px-3.5 text-[12.5px] font-medium text-ink shadow-chip hover:bg-hover"
+        />
+        {team && owner && !team.keys.includes("q_everyone") ? (
+          <IconButton label={`Delete ${teamName(team)}`} onClick={() => void deleteTeam(team)}>
+            <Trash size={14} />
+          </IconButton>
+        ) : null}
         <span className="flex-1" />
         {owner ? (
           <Button size="sm" onClick={() => setCreating(true)}>
