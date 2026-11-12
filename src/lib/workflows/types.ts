@@ -5,15 +5,17 @@
 import type { Cond } from "../router/types.ts";
 import type { EmailDoc } from "../design/email/doc.ts";
 
-/** What starts a workflow: a form, a meeting, a form with no booking after it, routing, or a click on its email. */
-export type TriggerKind = "form" | "meeting" | "not_booked" | "routed" | "clicked";
+/** What starts a workflow: a form, a meeting, a form with no booking after it, routing, a click on its email, or joining a list. */
+export type TriggerKind = "form" | "meeting" | "not_booked" | "routed" | "clicked" | "list";
 
 export type Trigger =
   | { kind: "form"; forms: string[] }
   | { kind: "meeting"; events: ("booked" | "canceled" | "held" | "no_show")[]; types: string[] }
   | { kind: "not_booked"; forms: string[] }
   | { kind: "routed"; result: "routed" | "unassigned" | "any" }
-  | { kind: "clicked"; emails: string[] };
+  | { kind: "clicked"; emails: string[] }
+  /** Someone joins one of these lists, or any list when empty (153). */
+  | { kind: "list"; lists: string[] };
 
 /**
  * One email in a workflow: the step form's words (src/lib/nurture/email.ts), approved before it can go. With `doc`
@@ -74,6 +76,7 @@ export const TRIGGERS: { kind: TriggerKind; label: string }[] = [
   { kind: "not_booked", label: "No booking after form" },
   { kind: "routed", label: "Lead routed" },
   { kind: "clicked", label: "Email clicked" },
+  { kind: "list", label: "Joined a list" },
 ];
 
 export const LIMITS = { steps: 50, depth: 3, workflows: 100, runsPerContact: 20 };

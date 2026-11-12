@@ -16,6 +16,7 @@ import { Sheet } from "../Sheet";
 import { EmailBuilder } from "../email/EmailBuilder";
 import { SendPanel } from "./SendPanel";
 import { StatCards } from "../StatCards";
+import { AiMark } from "../Ai";
 import { ToolIntro } from "../ToolIntro";
 import { BrandSettings } from "../views/BrandSettings";
 import { EmailTemplatesView } from "../workflows/EmailTemplatesView";
@@ -406,27 +407,30 @@ function Results({ sb, ws, navigate, emailId }: ViewProps & { emailId: string })
 // Automations -------------------------------------------------------------------------------------------------------
 
 type Automation = { id: string; name: string; status: string; trigger_kind: string | null; emails: number; updated_at: string };
-const TRIGGER_WORDS: Record<string, string> = { form: "Form submitted", meeting: "Meeting event", not_booked: "No booking after form", routed: "Lead routed", clicked: "Email clicked" };
+const TRIGGER_WORDS: Record<string, string> = { form: "Form submitted", meeting: "Meeting event", not_booked: "No booking after form", routed: "Lead routed", clicked: "Email clicked", list: "Joined a list" };
 const WF_TONE: Record<string, Tone> = { live: "green", paused: "amber", draft: "gray" };
 const WF_LABEL: Record<string, string> = { live: "Live", paused: "Paused", draft: "Draft" };
 
-function Automations({ sb, ws, navigate }: ViewProps) {
+function Automations({ sb, session, ws, navigate }: ViewProps) {
   const list = useQuery(`email_automations:${ws.id}`, async () => (must(await sb.rpc("email_automations", { p_ws: ws.id })) ?? []) as Automation[]);
   const add = (
-    <Button onClick={() => navigate("workflows", "new")}>
-      <Plus size={14} /> New automation
+    <Button variant="ghost" onClick={() => navigate("workflows", "new")}>
+      <Plus size={14} /> Start from a template
     </Button>
   );
+  const ask = <Describe sb={sb} session={session} ws={ws.id} navigate={navigate} />;
   if (list.error) return <ErrorNote message={list.error} />;
   if (!list.data) return <Loading />;
   if (!list.data.length)
     return (
       <Page title="Automations">
-        <ToolIntro sketch="plane" title={"Emails that send themselves\nwhen someone fills a form or books"} lead="An automation is a workflow with emails in it. It shows here and in Workflows." action={add} />
+        <ToolIntro sketch="plane" title={"Emails that send themselves\nwhen someone fills a form or books"} lead="Say what should happen. Tia builds it as a draft workflow, and nothing sends until you approve each email." action={add} />
+        <div className="mx-auto -mt-6 w-full max-w-xl">{ask}</div>
       </Page>
     );
   return (
     <Page title="Automations" actions={add}>
+      <div className="mb-4">{ask}</div>
       <div className="overflow-x-auto rounded-lg bg-card shadow-rest">
         <table className="w-full min-w-[640px] border-collapse [&_tbody_tr:last-child_td]:border-b-0">
           <thead>
@@ -468,6 +472,51 @@ function Automations({ sb, ws, navigate }: ViewProps) {
         </table>
       </div>
     </Page>
+  );
+}
+
+/** Describe an automation: Tia builds a draft workflow from the words, which opens in Workflows. */
+function Describe({ sb, session, ws, navigate }: Pick<ViewProps, "sb" | "session" | "navigate"> & { ws: string }) {
+  const [words, setWords] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const build = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const r = await postJson<{ name: string; body: unknown }>(session, "/api/emails/automation", { workspaceId: ws, words });
+      const saved = must(await sb.rpc("workflow_save", { p_ws: ws, p_id: null, p_name: r.name, p_draft: r.body, p_revision: null })) as { id: string };
+      invalidate(`email_automations:${ws}`);
+      navigate("workflows", saved.id);
+    } catch (e) {
+      setError(errorText(e));
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="flex flex-col gap-2 rounded-lg bg-card p-3 shadow-rest">
+      <label htmlFor="describe-automation" className="flex items-center gap-1.5 text-[13px] font-medium text-ink">
+        <AiMark size={13} />
+        Describe an automation
+      </label>
+      <textarea
+        id="describe-automation"
+        value={words}
+        onChange={(e) => setWords(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && words.trim().length >= 8 && !busy) void build();
+        }}
+        rows={3}
+        placeholder="When someone signs up for the workshop, send what to bring two days before. Stop if they book a private class."
+        className="w-full resize-none rounded-md bg-card px-3 py-2 text-[13.5px] text-ink shadow-input outline-none focus:shadow-focus"
+      />
+      <ErrorNote message={error} />
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button onClick={() => void build()} disabled={busy || words.trim().length < 8}>
+          {busy ? "Building…" : "Build it"}
+        </Button>
+      </div>
+    </div>
   );
 }
 
@@ -755,7 +804,62 @@ function Brand(props: ViewProps) {
         </Button>
       }
     >
-      <BrandSettings sb={props.sb} session={props.session} ws={props.ws} />
+      <div className="flex flex-col gap-4">
+        <Voice {...props} />
+        <BrandSettings sb={props.sb} session={props.session} ws={props.ws} />
+      </div>
     </Page>
+  );
+}
+
+/** The brand's voice: the brief Tia writes every email and automation from, changed by hand. Saves on leaving the box. */
+function Voice({ sb, ws }: ViewProps) {
+  const kit = useQuery(`brand_voice:${ws.id}`, async () => (must(await sb.from("brand_kits").select("id, name, brief").eq("workspace_id", ws.id).order("created_at").limit(1).maybeSingle()) ?? null) as { id: string; name: string; brief: string | null } | null);
+  const [text, setText] = useState<string | null>(null);
+  const [state, setState] = useState<"" | "saving" | "saved">("");
+  const [error, setError] = useState("");
+  const k = kit.data;
+  if (kit.error) return <ErrorNote message={kit.error} />;
+  if (!k) return null;
+  const value = text ?? k.brief ?? "";
+  const save = async () => {
+    if (text === null || text === (k.brief ?? "")) return;
+    setState("saving");
+    setError("");
+    const { error: e } = await sb.rpc("brand_brief_save", { p_ws: ws.id, p_kit: k.id, p_brief: text });
+    if (e) {
+      setError(e.message);
+      setState("");
+      return;
+    }
+    kit.set((x) => (x ? { ...x, brief: text.trim() || null } : x));
+    setText(null);
+    setState("saved");
+  };
+  return (
+    <div className="flex flex-col gap-2 rounded-lg bg-card p-4 shadow-rest">
+      <div className="flex flex-wrap items-center gap-2">
+        <label htmlFor="brand-voice" className="flex items-center gap-1.5 text-[14px] font-medium text-ink">
+          <AiMark size={13} />
+          Voice
+        </label>
+        <span className="text-[12.5px] text-muted">{k.name}</span>
+        <span className="flex-1" />
+        {state ? <span className="text-[12px] text-muted">{state === "saving" ? "Saving…" : "Saved"}</span> : null}
+      </div>
+      <textarea
+        id="brand-voice"
+        value={value}
+        onChange={(e) => {
+          setText(e.target.value.slice(0, 2000));
+          setState("");
+        }}
+        onBlur={() => void save()}
+        rows={4}
+        placeholder="Warm and calm. Short sentences. Speaks to one person by first name. No hype words."
+        className="w-full resize-y rounded-md bg-card px-3 py-2 text-[13.5px] leading-relaxed text-ink shadow-input outline-none focus:shadow-focus"
+      />
+      <ErrorNote message={error} />
+    </div>
   );
 }

@@ -152,6 +152,8 @@ function cleanTrigger(t: Record<string, unknown>): Body["trigger"] | null {
       return { kind: "routed", result: t.result === "unassigned" ? "unassigned" : t.result === "routed" ? "routed" : "any" };
     case "clicked":
       return { kind: "clicked", emails: ids(t.emails) };
+    case "list":
+      return { kind: "list", lists: ids(t.lists).slice(0, 20) };
     default:
       return null;
   }

@@ -1,6 +1,6 @@
 # Email Studio: Brew-style email inside Claritia
 
-Status: Parts 1, 3, 4 (lists), 5 (sending) and 7 (results) built (12 November 2026, migrations 149 to 152). The rest is plan unless it says "exists" or "built".
+Status: Parts 1, 3, 4 (lists), 5 (sending), 6 (automations from a sentence) and 7 (results) built, and Part 2's voice (12 November 2026, migrations 149 to 153). The rest is plan unless it says "exists" or "built".
 
 ## The idea
 
@@ -122,6 +122,11 @@ back in the sidebar.
 
 **Data**: `brand_kits.voice` (text, up to 2,000 characters) and `brand_kits.email_parts` (jsonb: header, footer,
 signature component ids).
+
+**Built (Part 2, voice; migration 153):** Emails › Brand opens with **Voice**: the brand kit's written brief, which
+every AI email (the studio's chat) and every automation from a sentence writes from, now changed by hand there
+(`brand_brief_save`, any member, up to 2,000 characters, saved on leaving the box). Learning the voice from past
+emails and the shared header, footer and signature are not built yet.
 
 **Running cost**: one voice read per team, about 15,000 tokens in and 1,000 out on Sonnet 5.5, about $0.06 (check).
 About 10% of teams are new each month: Beta $0.30, Growth $3 (check).
@@ -316,6 +321,17 @@ it).
 
 **Tests**: a contact who joins a segment twice in one refresh enters once (entry mode "once" exists); a goal reached
 during a wait stops the next email; an automation turned off mid-run sends nothing more.
+
+**Built (Part 6, migration 153):** Automations opens with **Describe an automation**: the words go to
+`/api/emails/automation`, which gives Tia the workspace's forms, meeting types and lists by id (forms' and meetings'
+public addresses from the server) and the brand's voice, through the step cache (`automation_build`, 2 credits). Tia
+answers with one tool call (`make_automation`, `src/lib/workflows/fromWords.ts`): a trigger, a column of emails and
+delays, and whether it stops on a booking. The answer is checked (`cleanBody`): unknown ids drop out, a button goes
+only to a listed form or meeting or to an address the person typed, every email starts unapproved and marked as AI's,
+a trailing delay goes. The person's own client saves it as a draft workflow and it opens in Workflows. New trigger
+**Joined a list** (`{ kind: "list", lists }`): a trigger on `list_members` leaves a `list.joined` contact event
+however someone joins, and `workflow_scan` starts the workflow once per join. Branches, date triggers and the "Filled
+a form" goal are not built yet. Tests: `tests/automationFromWords.test.ts`, `tests/pg/listTrigger.pg.ts`.
 
 **Running cost**: building an automation is one planning call plus the emails' writes, about $0.20 (check). At 2 a team
 each month: Beta $20, Growth $200 (check).

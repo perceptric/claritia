@@ -66,6 +66,8 @@ function blankTrigger(kind: TriggerKind): Trigger {
       return { kind, events: ["booked"], types: [] };
     case "routed":
       return { kind, result: "routed" };
+    case "list":
+      return { kind, lists: [] };
     default:
       return { kind: "clicked", emails: [] };
   }
@@ -105,6 +107,18 @@ export function TriggerPanel({ body, names, onChange, readOnly }: { body: Body; 
             <Pills options={names.types.map((x) => ({ value: x.id, label: x.name }))} value={t.types} onChange={(types) => set({ types })} disabled={readOnly} />
           </Row>
         </>
+      ) : null}
+      {t.kind === "list" ? (
+        <Row name="List">
+          <Select
+            value={t.lists[0] ?? ""}
+            options={[{ value: "", label: "Any list" }, ...(names.lists ?? []).map((l) => ({ value: l.id, label: l.name }))]}
+            onChange={(id) => set({ lists: id ? [id] : [] })}
+            ariaLabel="List"
+            className="h-9 w-full"
+            disabled={readOnly}
+          />
+        </Row>
       ) : null}
       {t.kind === "routed" ? (
         <Row name="Result">

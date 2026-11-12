@@ -100,6 +100,7 @@ const CREDIT_COST: Record<string, number> = {
   studio_chat: 1,
   studio_translate: 1,
   email_chat: 1,
+  automation_build: 2,
   router_chat: 1,
 };
 export const creditCost = (kind: string): number => CREDIT_COST[kind] ?? 0;
