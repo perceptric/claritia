@@ -127,11 +127,12 @@ export const EMAILS_TABS: Tab<EmailsPageKey>[] = [
 ];
 
 /**
- * Emails' page from its address: "" or "campaigns" is Campaigns, the rest by name. The old tabs forward: Journeys to
- * Automations, Library to Templates. Anything else opens Campaigns.
+ * Emails' page from its address: "" or "campaigns" is Campaigns, "campaigns/<id>" one email in the studio, the rest by
+ * name. The old tabs forward: Journeys to Automations, Library to Templates. Anything else opens Campaigns.
  */
-export function emailsPage(id: string): { page: EmailsPageKey; id: string } {
-  const [raw = ""] = id.split("/");
+export function emailsPage(id: string): { page: EmailsPageKey; id: string; open?: string } {
+  const [raw = "", b = ""] = id.split("/");
+  if (raw === "campaigns" && UUID.test(b)) return { page: "campaigns", id: `campaigns/${b}`, open: b };
   const a = ({ journeys: "automations", library: "templates" } as Record<string, string>)[raw] ?? raw;
   if (a === "automations" || a === "audiences" || a === "templates" || a === "brand") return { page: a, id: a };
   return { page: "campaigns", id: "" };

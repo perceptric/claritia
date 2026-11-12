@@ -112,3 +112,36 @@ test("a screenshot goes to the model with the email, as an image", async () => {
   assert.equal(first[0]!.source?.media_type, "image/png");
   assert.equal(first[1]!.type, "text");
 });
+
+test("link_to points a button at a form or a meeting by id; the address comes from the server's list, never the model", async () => {
+  const links = {
+    forms: [{ id: "f-ws", name: "Workshop sign-up", url: "https://app.test/f/f-ws?via=email" }],
+    meetings: [{ id: "m-intro", name: "Intro call", url: "https://test/book/juniper/intro-call" }],
+  };
+  const { model, seen } = scripted([
+    msg([
+      { name: "add_block", input: { type: "button", content: { label: "", url: "https://evil.example/f" }, after_block_id: "h1" } },
+      { name: "link_to", input: { block_id: "h1", kind: "form", id: "f-ws" } },
+      { name: "link_to", input: { block_id: "nope", kind: "form", id: "f-ws" } },
+    ]),
+    msg([]),
+  ]);
+  const first = await runEmailChat(model, "Add a sign-up button", { ...ctx(), links });
+  const sent = results(seen[1]!);
+  assert.match(sent, /Only a Button or Meeting link block/, "a heading can't be a link");
+  assert.match(sent, /No block nope/);
+  const button = first.doc.sections[0]!.columns[0]!.blocks[1]!;
+  assert.equal(button.type, "button");
+  // Now link it: the address and an empty label come from the list.
+  const { model: m2, seen: s2 } = scripted([msg([{ name: "link_to", input: { block_id: button.id, kind: "meeting", id: "m-gone" } }, { name: "link_to", input: { block_id: button.id, kind: "form", id: "f-ws" } }]), msg([], "Linked it.")]);
+  const r = await runEmailChat(m2, "Link it to the sign-up form", { ...ctx(), doc: first.doc, links });
+  const linked = r.doc.sections[0]!.columns[0]!.blocks[1] as { url: string; label: string };
+  assert.deepEqual([linked.url, linked.label], ["https://app.test/f/f-ws?via=email", "Workshop sign-up"]);
+  assert.ok(r.lines.includes("Linked the button to Workshop sign-up"));
+  assert.match(results(s2[1]!), /No meeting m-gone/, "an id not on the list is refused");
+  // The lists show in what the model reads; no list, no targets.
+  assert.match(JSON.stringify(seen[0]), /Forms \(for link_to\):\\nf-ws: Workshop sign-up/);
+  const { model: m3, seen: s3 } = scripted([msg([{ name: "link_to", input: { block_id: button.id, kind: "form", id: "f-ws" } }]), msg([])]);
+  await runEmailChat(m3, "Link it", { ...ctx(), doc: first.doc });
+  assert.match(results(s3[1]!), /No form f-ws/);
+});

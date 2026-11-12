@@ -69,6 +69,9 @@ export function EmailBuilder({
   onChange,
   versionRef,
   onClose,
+  startOn = "settings",
+  title = "Email builder",
+  onSubject,
 }: {
   session: Session;
   sb: SupabaseClient;
@@ -80,6 +83,12 @@ export function EmailBuilder({
   /** Where the AI's versions of this email are kept ("wf:<workflow>:<step>" or "tpl:<template>"). */
   versionRef?: string;
   onClose: () => void;
+  /** The inspector tab it opens on: a new campaign opens on AI, so the first thing is telling Tia what it's about. */
+  startOn?: "settings" | "style" | "ai";
+  /** The dialog's name for screen readers. */
+  title?: string;
+  /** Given, the subject is typed in the top bar (a campaign); without it, the caller holds it (a workflow step). */
+  onSubject?: (subject: string) => void;
 }) {
   const [kits, setKits] = useState<Kit[]>([]);
   const [error, setError] = useState("");
@@ -154,7 +163,7 @@ export function EmailBuilder({
 
   const assetCtx = useMemo(() => ({ session, sb, workspaceId }), [session, sb, workspaceId]);
   const [rail, setRail] = useState<Rail>("add");
-  const [side, setSide] = useState<"settings" | "style" | "ai">("settings");
+  const [side, setSide] = useState<"settings" | "style" | "ai">(startOn);
   const [device, setDevice] = useState<EmailBp>("base");
   const [dark, setDark] = useState(false);
   const [client, setClient] = useState<Client | "">("");
@@ -277,12 +286,22 @@ export function EmailBuilder({
   const notes = checks.filter((n) => n.level === "block");
 
   return createPortal(
-    <div role="dialog" aria-modal="true" aria-label="Email builder" className="anim-fade fixed inset-0 z-[85] flex flex-col bg-paper">
+    <div role="dialog" aria-modal="true" aria-label={title} className="anim-fade fixed inset-0 z-[85] flex flex-col bg-paper">
       <div className="flex h-12 shrink-0 items-center gap-2 border-b border-line bg-card px-3">
         <IconButton label="Close" onClick={onClose}>
           <X size={15} />
         </IconButton>
-        <span className="min-w-0 truncate text-[13px] font-semibold tracking-[-0.01em] text-ink">{subject || "Email"}</span>
+        {onSubject ? (
+          <input
+            value={subject}
+            onChange={(e) => onSubject(e.target.value.slice(0, 200))}
+            placeholder="Subject"
+            aria-label="Subject"
+            className="h-8 w-full max-w-md min-w-0 rounded-md bg-card px-2.5 text-[13px] font-medium text-ink shadow-input outline-none focus:shadow-focus"
+          />
+        ) : (
+          <span className="min-w-0 truncate text-[13px] font-semibold tracking-[-0.01em] text-ink">{subject || "Email"}</span>
+        )}
         <span className="hidden pl-1 text-[12px] text-muted sm:inline">{draft.saving ? "Saving…" : `${Math.round(compiled.size / 1024)} KB`}</span>
         <span className="flex-1" />
         <IconButton label="Undo" onClick={undo} disabled={!past.length}>

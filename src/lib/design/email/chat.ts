@@ -33,7 +33,13 @@ export type EmailChatCtx = {
   confirmed?: boolean;
   /** A screenshot of an email to build (Part 7.5): base64, checked by its bytes before it gets here. */
   image?: { type: "image/png" | "image/jpeg" | "image/gif" | "image/webp"; data: string };
+  /**
+   * The workspace's live forms and bookable meetings, each with its public address, so a button can lead to one
+   * (docs/email-studio-plan.md Part 3). The model names them by id; the address comes from here, never from the model.
+   */
+  links?: { forms: LinkTarget[]; meetings: LinkTarget[] };
 };
+export type LinkTarget = { id: string; name: string; url: string };
 export type EmailChatResult = { doc: EmailDoc; system: DesignSystem; subject: string; lines: string[]; reply: string; ask?: { question: string; choices: string[] } };
 export type Model = (params: { system: Anthropic.Beta.BetaTextBlockParam[]; tools: Anthropic.Beta.BetaTool[]; messages: Anthropic.Beta.BetaMessageParam[] }) => Promise<Anthropic.Beta.BetaMessage>;
 
@@ -71,6 +77,11 @@ export const EMAIL_CHAT_TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "add_class", description: "Put a class on an element by name (made if new), so its looks can be shared.", input_schema: { type: "object", properties: { element_id: { type: "string" }, name: { type: "string" } }, required: ["element_id", "name"] } },
   { name: "use_component", description: "Put in one of the brand's components as a new section at an index.", input_schema: { type: "object", properties: { component_id: { type: "string" }, section_index: { type: "integer", minimum: 0 } }, required: ["component_id"] } },
   { name: "use_template", description: "Start over from a template. Replacing an email with content needs the person's yes (call ask first).", input_schema: { type: "object", properties: { template: { type: "string", enum: EMAIL_TEMPLATES.map((t) => t.key) } }, required: ["template"] } },
+  {
+    name: "link_to",
+    description: "Point a Button or Meeting link block at one of the workspace's forms or meetings, by its id from the lists. Use it for every form or booking link; never type those addresses.",
+    input_schema: { type: "object", properties: { block_id: { type: "string" }, kind: { type: "string", enum: ["form", "meeting"] }, id: { type: "string" } }, required: ["block_id", "kind", "id"] },
+  },
   { name: "set_subject", description: "Set the subject line and the preview text.", input_schema: { type: "object", properties: { subject: { type: "string" }, preheader: { type: "string" } } } },
   { name: "ask", description: "Ask the person one question with 2 to 4 choices, then stop.", input_schema: { type: "object", properties: { question: { type: "string" }, choices: { type: "array", items: { type: "string" }, minItems: 2, maxItems: 4 } }, required: ["question", "choices"] } },
 ];
@@ -80,6 +91,7 @@ export const EMAIL_CHAT_SYSTEM = `You make and change marketing emails in Clarit
 How emails work here:
 - An email is sections (rows) of columns of blocks. Each block, section and column has an id.
 - Looks come from the brand's design system: variables (colors, fonts, sizes) and classes. Use variables ($id) and existing classes first. Use a raw color only when the person asks for that exact color, and pass raw: true.
+- To send people to one of the workspace's forms or to book a meeting, add a Button (or Meeting link) block and call link_to with the form's or meeting's id. Never write those addresses yourself.
 - Every marketing email needs the Footer block. Merge tags look like {{first_name|there}} and always need a fallback after the bar.
 - Write plainly and briefly. Never invent facts, prices, numbers, quotes or customer names; leave a clear placeholder like "Your price" instead, and say so.
 - With a screenshot: rebuild its layout and words with blocks in the brand's variables. Don't copy its colors unless the person asks; leave pictures as Image blocks without a picture, and say so.
@@ -98,6 +110,8 @@ export function emailContext(ctx: EmailChatCtx, doc: EmailDoc, subject: string):
     `Variables:\n${vars.join("\n")}`,
     classes.length ? `Email classes: ${classes.join(", ")}` : "",
     comps.length ? `Components:\n${comps.join("\n")}` : "",
+    ctx.links?.forms.length ? `Forms (for link_to):\n${ctx.links.forms.map((f) => `${f.id}: ${f.name}`).join("\n")}` : "",
+    ctx.links?.meetings.length ? `Meetings (for link_to):\n${ctx.links.meetings.map((m) => `${m.id}: ${m.name}`).join("\n")}` : "",
     `The email now:\n${JSON.stringify(doc)}`,
   ]
     .filter(Boolean)
@@ -208,6 +222,19 @@ function applyTool(name: string, input: Record<string, unknown>, doc: EmailDoc, 
       const hasContent = doc.sections.some((s) => s.columns.some((c) => c.blocks.some((b) => b.type !== "footer" && b.type !== "logo")));
       if (hasContent && !ctx.confirmed) return { error: "Replacing the email needs the person's yes. Call ask first." };
       return { doc: { ...t.make(), ...(doc.kitId ? { kitId: doc.kitId } : {}) }, system, line: `Started from the ${t.name} template` };
+    }
+    case "link_to": {
+      const id = str(input.block_id) ?? "";
+      const f = findEl(doc, id);
+      if (!f?.block) return { error: `No block ${id}.` };
+      if (f.block.type !== "button" && f.block.type !== "meeting") return { error: "Only a Button or Meeting link block can link to a form or meeting." };
+      const kind = input.kind === "meeting" ? "meeting" : input.kind === "form" ? "form" : null;
+      if (!kind) return { error: "kind is form or meeting." };
+      const list = kind === "form" ? ctx.links?.forms : ctx.links?.meetings;
+      const target = list?.find((t) => t.id === input.id);
+      if (!target) return { error: `No ${kind} ${str(input.id) ?? ""}. Pick one from the list.` };
+      const label = f.block.label.trim() ? {} : { label: kind === "form" ? target.name : "Book a time" };
+      return { doc: updateBlock(doc, id, { url: target.url, ...label } as Partial<Block>), system, line: `Linked the button to ${target.name}` };
     }
     case "set_subject": {
       const subject = str(input.subject)?.trim().slice(0, 200);
