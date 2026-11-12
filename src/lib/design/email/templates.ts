@@ -1,5 +1,5 @@
-// Email templates (docs/email-plan.md Part 3.2, docs/design-system.md Part 7.6): 21 starting points in the seven
-// library folders, built from blocks with one design language. They set no colors of their own: every color is a
+// Email templates (docs/email-plan.md Part 3.2, docs/design-system.md Part 7.6): the first 21 starting points in the
+// library folders, built from blocks with one design language (library.ts adds the rest, to about 100). They set no colors of their own: every color is a
 // brand variable ($text, $muted, $accent, $border, $button-bg, $button-text), so each template shows in the
 // workspace's brand and changes with it. The layout is the template's own: a type scale, spacing, hairlines, cards
 // and, where it helps, one brand-colored band. Words are short and plain, with merge tags that always have a fallback.
@@ -16,9 +16,9 @@
 import type { EmailStyles } from "../model.ts";
 import { newEmailId, readEmailDoc, type Block, type EmailDoc, type Section } from "./doc.ts";
 
-export type TemplateFolder = "Newsletters" | "Product updates" | "Events and webinars" | "Welcome and onboarding" | "Nurture and win-back" | "Sales follow-up" | "Meetings and forms";
-export const TEMPLATE_FOLDERS: TemplateFolder[] = ["Newsletters", "Product updates", "Events and webinars", "Welcome and onboarding", "Nurture and win-back", "Sales follow-up", "Meetings and forms"];
-export type EmailTemplate = { key: string; name: string; group: TemplateFolder; make: () => EmailDoc };
+export type TemplateFolder = "Newsletters" | "Product updates" | "Events and webinars" | "Welcome and onboarding" | "Nurture and win-back" | "Sales follow-up" | "Meetings and forms" | "Announcements" | "Holidays and seasons";
+export const TEMPLATE_FOLDERS: TemplateFolder[] = ["Newsletters", "Product updates", "Events and webinars", "Welcome and onboarding", "Nurture and win-back", "Sales follow-up", "Meetings and forms", "Announcements", "Holidays and seasons"];
+export type EmailTemplate = { key: string; name: string; group: TemplateFolder; make: () => EmailDoc; /** One line on what it's for (the gallery and the website). */ blurb?: string };
 
 // Styles are collected while a template is made, keyed by element id, then go into the document.
 type Decls = Record<string, string>;
@@ -136,7 +136,8 @@ function email(label: string, preheader: string, body: () => Section[]): () => E
 
 // The templates -------------------------------------------------------------------------------------------------------
 
-export const EMAIL_TEMPLATES: EmailTemplate[] = [
+/** The first 21; the rest of the library builds on the same blocks (library.ts, where EMAIL_TEMPLATES lives). */
+export const BASE_TEMPLATES: EmailTemplate[] = [
   // Newsletters
   {
     key: "newsletter",
@@ -363,4 +364,5 @@ export const EMAIL_TEMPLATES: EmailTemplate[] = [
   },
 ];
 
-export const emailTemplate = (key: string) => EMAIL_TEMPLATES.find((t) => t.key === key);
+/** The blocks and sections, for the rest of the library (library.ts). */
+export const kit = { h, t, btn, list, quote, event, card, meeting, sign, spacer, sec, cols, email, HI, NAME };

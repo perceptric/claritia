@@ -1,6 +1,6 @@
 # Email Studio: Brew-style email inside Claritia
 
-Status: Parts 1, 3, 4 (lists), 5 (sending), 6 (automations from a sentence) and 7 (results) built, and Part 2's voice (12 November 2026, migrations 149 to 153). The rest is plan unless it says "exists" or "built".
+Status: Parts 1, 3, 4 (lists), 5 (sending), 6 (automations from a sentence), 7 (results) and 8 (templates) built, and Part 2's voice (12 November 2026, migrations 149 to 153). The rest is plan unless it says "exists" or "built".
 
 ## The idea
 
@@ -396,6 +396,17 @@ disk, about $10 a month (check).
 - Forms' wired templates (they come with a meeting and a follow-up) take their follow-up from this library.
 
 **Data**: templates are code; `email_templates.folder` for the team's own.
+
+**Built (Part 8):** 100 templates in nine folders (Newsletters, Product updates, Events and webinars, Welcome and
+onboarding, Nurture and win-back, Sales follow-up, Meetings and forms, Announcements, Holidays and seasons): the first
+21 in `templates.ts` and 79 more in `library.ts` on the same blocks, every color a brand variable, every one with a
+one-line blurb, placeholders in brackets and merge tags with fallbacks. Emails › Templates shows them by folder in the
+workspace's brand (`TemplateGallery.tsx`); Use template makes a campaign draft from it and opens the studio. Tia's
+`use_template` tool knows all 100. On the website, `/email-templates` and a page per template (claritia-site,
+`tools/email_templates.py` from `scripts/export-email-templates.ts`), each with the email itself in a frame and Use
+this template, which opens the app at `/emails/templates?use=<template>`. Form templates pointing to their follow-up
+email ("Pairs with") is not built yet. Tests: `tests/email-design.test.ts` (100, nine folders, the design check,
+no raw colors, blurbs, fallbacks, footers).
 
 **Running cost**: $0 (data and static pages).
 

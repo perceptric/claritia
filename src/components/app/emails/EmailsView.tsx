@@ -19,7 +19,7 @@ import { StatCards } from "../StatCards";
 import { AiMark } from "../Ai";
 import { ToolIntro } from "../ToolIntro";
 import { BrandSettings } from "../views/BrandSettings";
-import { EmailTemplatesView } from "../workflows/EmailTemplatesView";
+import { TemplateGallery } from "./TemplateGallery";
 import { Badge, Button, ErrorNote, errorText, IconButton, invalidate, Loading, must, Page, postJson, Section, Td, Th, timeAgo, useQuery, type Tone, type ViewProps } from "../ui";
 
 export function EmailsView(props: ViewProps) {
@@ -32,7 +32,7 @@ export function EmailsView(props: ViewProps) {
       ) : p.page === "audiences" ? (
         <Audiences {...props} />
       ) : p.page === "templates" ? (
-        <EmailTemplatesView {...props} />
+        <TemplateGallery {...props} />
       ) : p.page === "brand" ? (
         <Brand {...props} />
       ) : p.open ? (
