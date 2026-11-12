@@ -17,7 +17,7 @@ import { BLOCK_TYPES, isEmailPart, type BlockType, type EmailPartKey } from "./p
 import { newBlock, PROP_KEYS, readBlock, readEmailDoc, type Block, type EmailDoc } from "./doc.ts";
 import { addEmailClass, setEmailProp } from "./edit.ts";
 import { addBlock, findEl, moveBlock, removeEl, setColumns, setSettings, updateBlock } from "./ops.ts";
-import { EMAIL_TEMPLATES } from "./templates.ts";
+import { EMAIL_TEMPLATES } from "./library.ts";
 
 export const EMAIL_CHAT_MODEL = "claude-sonnet-5-5";
 const MAX_ROUNDS = 8;
