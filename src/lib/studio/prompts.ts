@@ -49,7 +49,7 @@ THE FORM'S HTML
   data-cl-show-if="name == 'value'" shows an element only when the condition holds. Ops: == != > < in filled empty, joined with and / or. Example: data-cl-show-if="size in ('51-200','200+') and role != 'student'". On a step, a hidden step is skipped.
   data-cl-progress on any element: the form sets the CSS variable --cl-progress (0 to 1) on it.
   data-cl-error-for="name": where that question's error shows.
-  <section data-cl-thanks hidden>: what shows after sending.
+  <section data-cl-thanks hidden class="thanks"><span class="thanks-mark" aria-hidden="true"></span><h2 class="heading">…</h2><p class="text">…</p></section>: what shows after sending, centred with a round check in the brand's color.
 - Save contact answers with data-cl-save="email" (or first_name, last_name, phone, company). Add data-cl-check="work_email" to an email input that should refuse free addresses (gmail.com and the rest).
 - Prices, payments, scores and structured questions are Claritia blocks too, each with a unique data-cl-name:
   A calculation: <div data-cl-field="calc" data-cl-name="total" data-cl-label="Estimated total" data-cl-formula="{guests} * 38 + {extras}" data-cl-format="money" data-cl-currency="USD" id="total"></div>. Formulas read other questions by name in braces, with + - * / ( ), numbers and min, max, round, if, ifempty. A pick-one or pick-many counts its choices' points: give each radio, check box or option data-cl-score="12". A lone check box counts 1 when ticked, so multiply it: {wine} * 300. data-cl-hide works it out without showing it (a deposit or a score behind the scenes). A calc's name can be used in data-cl-show-if (total > 1000, score >= 13), so a quiz shows its outcome in the thanks section by score.

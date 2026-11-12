@@ -114,6 +114,34 @@ export function previewHtml(html: string, url: string): string | null {
   return out.length > MAX_PREVIEW ? null : out;
 }
 
+/** A page people land on after the send (the Ending's Redirect), for the editor's canvas. Kept 10 minutes per address. */
+export type PageLook = { url: string; preview: string | null; shot: string | null };
+const pageCache = new Map<string, { at: number; look: PageLook | { error: string } }>();
+export async function readPage(raw: string, now = Date.now()): Promise<PageLook | { error: string }> {
+  let url: URL;
+  try {
+    url = new URL(raw.trim());
+  } catch {
+    return { error: "That isn't a full address." };
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") return { error: "That isn't a web address." };
+  const key = url.href;
+  const hit = pageCache.get(key);
+  if (hit && now - hit.at < 10 * 60_000) return hit.look;
+  const page = await fetchText(key, "text/html", 2_000_000, 8000);
+  const look: PageLook | { error: string } = page && /<html|<body|<head/i.test(page.text)
+    ? (() => {
+        const og = /<meta[^>]+property=["']og:image["'][^>]*content=["']([^"']+)["']/i.exec(page.text)?.[1] ?? /<meta[^>]+content=["']([^"']+)["'][^>]*property=["']og:image["']/i.exec(page.text)?.[1] ?? null;
+        let shot: string | null = null;
+        try { shot = og ? new URL(og, page.url).href : null; } catch { shot = null; }
+        return { url: page.url, preview: previewHtml(page.text, page.url), shot: shot && /^https:\/\//.test(shot) ? shot : null };
+      })()
+    : { error: "Couldn't open that page." };
+  if (pageCache.size > 200) pageCache.delete(pageCache.keys().next().value!);
+  pageCache.set(key, { at: now, look });
+  return look;
+}
+
 /** The quick look: the site's name and real logo (its inline SVG, its logo picture, else its touch icon). */
 export async function readSite(raw: string): Promise<SiteLook | { error: string }> {
   const host = hostOf(raw);

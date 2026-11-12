@@ -73,7 +73,14 @@ the form picks the meeting type, the meeting picks the person.
   to a page, or Book a meeting. The last step in the bar over the form follows it: Thank-you, Redirect (opens On
   submission) or Booking. The thank-you takes the whole form's place once sent, its heading included, on one-page and
   multi-page forms. Book a meeting puts the calendar under the thank-you's message (`data-cl-book`), so the message
-  stays editable, and Edit shows the calendar there.
+  stays editable. Every template's thank-you is centred with a round check mark in the brand color (`formToPage`).
+- **The Ending on the canvas** (docs/ending-plan.md): Redirect draws the real page, fetched on the server (`page` on
+  `/api/studio`, `readPage` in `src/lib/studio/site.ts`: no private addresses, 8 seconds, 2 MB, kept 10 minutes) in a
+  frame that runs nothing, at the width of the picked device, or its share picture. Book a meeting embeds the
+  meeting's own booking page (`/book/<workspace>/<slug>?embed=1&preview=1`, the host the Team rule names in `host=`),
+  so what Meetings has shows the same; `preview=1` stops Book from making a booking.
+- **Tia chat**: Clear chat (the bin in Tia's header) empties the form's chat and leaves the form as it is. A chat keeps
+  its last 100 messages.
 - **Calendar style**: paid plans book in the form's own style; Free gets the plain calendar (`cl-plain` in
   `CAL_CSS`, `src/lib/studio/runtime.ts`). It is the `booking_brand` feature in `src/lib/plans.ts`, the same one as
   branded booking pages. The public form read (`/api/forms/[id]`) sends `calBrand`, with the plan kept a minute.

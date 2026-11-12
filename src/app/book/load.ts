@@ -42,7 +42,8 @@ export async function options(searchParams: Search) {
   const email = one(sp.email)?.slice(0, 320);
   const host = one(sp.host)?.slice(0, 64);
   const ref = one(sp.ref)?.slice(0, 120);
-  return { embed: one(sp.embed) === "1", form: one(sp.form) ?? null, prefill: name || email ? { name, email } : undefined, paid: one(sp.paid) === "1", link: host || ref ? { host, ref } : undefined };
+  // preview=1: Form Studio shows the page in a form's Ending; everything works but Book, which books nothing.
+  return { embed: one(sp.embed) === "1", preview: one(sp.preview) === "1", form: one(sp.form) ?? null, prefill: name || email ? { name, email } : undefined, paid: one(sp.paid) === "1", link: host || ref ? { host, ref } : undefined };
 }
 
 export const turnstileFor = (on: boolean) => (on ? turnstileSiteKey() || null : null);

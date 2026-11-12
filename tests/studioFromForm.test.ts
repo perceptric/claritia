@@ -178,3 +178,20 @@ test("the MCP server's starting points turn into pages too", async () => {
     for (const f of asked(before)) assert.ok(fieldsOf(after).some((g) => g.id === f.id && (isContent(f.type) || g.key === f.key)), `${f.label} is on the page and saves where it did`);
   }
 });
+
+test("every template's thank-you is centred with a round check, its heading and words, and a booking under them", () => {
+  for (const t of TEMPLATES) {
+    const c = formToPage(templateForm(t));
+    const m = /<section data-cl-thanks hidden id="thanks" class="thanks"[^>]*><span class="thanks-mark" aria-hidden="true"><\/span><h2 class="heading">([^<]+)<\/h2>/.exec(c.html);
+    assert.ok(m, `${t.id}: the thank-you has the check and a heading`);
+    assert.ok(!/\.$/.test(m![1]!.trim()), `${t.id}: the heading has no full stop`);
+    // The words survive the page's cleaning, so the live form shows them too.
+    const page = pageForm({ html: c.html, css: c.css, brand: "", after: c.after, title: c.title }).form.page as { html: string };
+    assert.match(page.html, /class="thanks-mark"/, `${t.id}: the check survives the cleaning`);
+  }
+  // A form that books puts the booking spot after the words.
+  const f = templateForm(TEMPLATES[0]!);
+  const booked = formToPage({ ...f, after: { ...f.after, schedule: { tool: "claritia", url: "", perOwner: false, meetingTypeId: "11111111-1111-4111-8111-111111111111" } } } as Form).html;
+  assert.match(booked, /<h2 class="heading">[^<]+<\/h2>(<p class="text">[^<]*<\/p>)*<div data-cl-book id="book"><\/div><\/section>/);
+  assert.match(formToPage(templateForm(TEMPLATES[0]!)).css, /\.thanks\{align-items:center;text-align:center;justify-content:center;min-height:320px/);
+});

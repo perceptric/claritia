@@ -44,6 +44,7 @@ const server = createServer((req, res) => {
   if (req.url === `/api/forms/${LIVE_ID}/submit`) return void body().then((b) => (sends.push(JSON.parse(b)), json({ id: "s1", booking: { token: "t", slots: sampleSlots(Date.now()), lengths: [30], length: 30 } })));
   if (req.url?.startsWith(`/api/forms/${LIVE_ID}/seen`)) return json({});
   if (req.url === `/api/forms/${LIVE_ID}/upload`) return void body().then(() => json({ token: "up_11111111-1111-4111-8111-111111111111:day.png" }));
+  if (req.url?.startsWith("/book-test/")) return void res.writeHead(200, { "content-type": "text/html" }).end(`<!doctype html><html><body><h1 id="bp">Booking page ${req.url.split("?")[0]}</h1><script>parent.postMessage({ claritia: true, type: "book:height", height: 777 }, "*")</script></body></html>`);
   if (req.url?.startsWith("/app.css")) return void res.writeHead(200, { "content-type": "text/css" }).end(css);
   if (req.url?.startsWith("/app.js")) return void res.writeHead(200, { "content-type": "text/javascript" }).end(js);
   res.writeHead(200, { "content-type": "text/html" }).end(page);
@@ -522,6 +523,25 @@ try {
   check((await form.locator("[data-cl-thanks][data-cl-confetti]").count()) === 1 && (await form.locator(".cl-conf i").count()) > 20, "Confetti turns on for the thank-you, and shows once on the canvas");
   await $("#pscroll button[aria-label='Show confetti']").click();
   check((await form.locator("[data-cl-thanks][data-cl-confetti]").count()) === 0, "and off again");
+  // The meeting's own booking page, embedded in the Ending in preview (docs/ending-plan.md Part 4).
+  await p.evaluate(() => { (window as unknown as { bookPages: boolean }).bookPages = true; });
+  await $("#stepBar .pg.end .sp").click();
+  const bookFrame = form.locator("#book iframe.cl-bookframe");
+  await bookFrame.waitFor({ state: "attached" });
+  const bookSrc = (await bookFrame.getAttribute("src"))!;
+  check(/\/book-test\/(intro|demo)\?embed=1&preview=1/.test(bookSrc), `the Ending embeds the meeting's own booking page, in preview (${bookSrc})`);
+  await p.waitForFunction(() => { const f = document.querySelector("#studio")!.shadowRoot!.getElementById("host")!.shadowRoot!.querySelector("iframe.cl-bookframe") as HTMLIFrameElement | null; return f?.style.height === "777px"; }, null, { timeout: 5000 }).catch(() => undefined);
+  check((await bookFrame.evaluate((f) => (f as HTMLIFrameElement).style.height)) === "777px", "the booking page's frame grows to the page's height");
+  // Redirect: the page people land on, drawn on the canvas.
+  await $("#pscroll button[aria-label='Ending type']").click();
+  await $("#layer .menu .mi").filter({ hasText: "Redirect" }).click();
+  await $("#pscroll input[aria-label='Page address']").fill("https://acme.dev/welcome");
+  await $("#pscroll input[aria-label='Page address']").press("Enter");
+  await form.locator(".cl-rdr iframe").waitFor({ state: "attached" });
+  check((await form.locator(".cl-rdr-url").textContent()) === "https://acme.dev/welcome" && (await calls()).some((c) => c.mode === "page" && c.body === "https://acme.dev/welcome"), "Redirect draws the page people land on, with its address");
+  if (shots) await p.screenshot({ path: `${shots}/4c-redirect.png` });
+  await $("#pscroll button[aria-label='Ending type']").click();
+  await $("#layer .menu .mi").filter({ hasText: "Book a meeting" }).click();
   // The picked pill keeps its words on hover (it used to turn ink on ink), and each scheduler shows its logo.
   const picked = $("#pscroll .pill.on").first();
   await picked.hover();
@@ -877,6 +897,13 @@ try {
   await $("#pscroll button[aria-label='One question at a time']").click();
   check((await form.locator("form[data-cl-one]").count()) === 0, "and off again");
 
+  // Clear chat: Tia's messages on this form go; the form stays.
+  await openTia();
+  const before = (await $("#msgs").textContent()) ?? "";
+  await $("#aiClear").click();
+  await p.waitForTimeout(200);
+  const afterClear = (await $("#msgs").textContent()) ?? "";
+  check(before.length > afterClear.length && (await form.locator("[data-cl-thanks]").count()) === 1, "Clear chat empties Tia's chat and keeps the form");
   // 10. Delete a brand from the menu
   await $("#brandBtn").click();
   await $("#layer button[aria-label='Delete Finch']").click();

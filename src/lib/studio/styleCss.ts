@@ -39,6 +39,7 @@ export function styleCss(th: Theme): string {
     `h1.heading{font-size:${plain ? "clamp(34px,7cqi,46px);line-height:1.02" : "28px"}}h2.heading{font-size:20px}`,
     `[data-cl-step]>h2.heading{font-family:var(--brand-font);font-size:11.5px;font-weight:600;font-style:normal;letter-spacing:.08em;text-transform:uppercase;color:var(--brand-muted)}`,
     `[data-cl-thanks] h2.heading{font-size:26px;line-height:1.15}`,
+    `.thanks .text{max-width:460px}`,
     `.text{color:var(--brand-muted);font-size:15px;line-height:1.55;margin:0}.page .help{font-size:13px;opacity:1}`,
     `.label{display:block;font-size:14px;font-weight:500;color:var(--brand-text);padding:0}`,
     `.q:has(>.field[required])>.label::after,.q:has([required])>legend.label::after{content:" *";color:var(--brand-faint)}`,

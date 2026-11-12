@@ -22,6 +22,8 @@ import { whoBooks } from "@/lib/meetings/dynamicWords";
 import { brandPlan } from "@/lib/meetings/brandPage";
 import { entryOf } from "@/lib/sources/catalog";
 import { moveForm } from "../folders";
+import { meetingsApi } from "../../meetings/parts";
+import { bookingOrigin } from "@/lib/meetings/handles";
 
 type Line = { t?: string; done?: string; cut?: boolean; css?: string; say?: string; profile?: unknown; error?: string; working?: number; beat?: number };
 
@@ -106,6 +108,11 @@ export function Studio({ sb, session, ws, navigate, formId = "", chatId = "", fr
         const r = await sb.from("workspace_billing").select("plan").eq("workspace_id", ws.id).maybeSingle();
         return r.error ? true : brandPlan((r.data as { plan?: string } | null)?.plan ?? "free");
       },
+      // The workspace's booking pages, for the meeting's own page in a form's Ending (docs/ending-plan.md Part 4).
+      bookBase: async () => {
+        const r = await meetingsApi<{ workspaceSlug: string }>(sessionRef.current, ws.id, "profile", {});
+        return r.workspaceSlug ? `${bookingOrigin(location)}/book/${r.workspaceSlug}` : "";
+      },
       routingFacts: async () => {
         const screen = await rt<Screen>(sessionRef.current, ws.id, "rt_screen");
         return {
@@ -122,6 +129,7 @@ export function Studio({ sb, session, ws, navigate, formId = "", chatId = "", fr
           id: t.id,
           name: t.name,
           length: t.settings?.lengths?.[0] ?? 30,
+          slug: t.slug,
           ...(dyn(t) ? { dynamic: true, who: screen ? whoBooks(t as Parameters<typeof whoBooks>[0], { fields: screen.fields, teams: screen.teams, people: screen.people }) : "" } : {}),
         }));
       },
@@ -194,6 +202,12 @@ export function Studio({ sb, session, ws, navigate, formId = "", chatId = "", fr
         const res = await post({ mode: "site", url: host });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw Object.assign(new Error(data.error ?? `Couldn't open ${host}.`), { browser: !!data.browser });
+        return data;
+      },
+      page: async (url) => {
+        const res = await post({ mode: "page", url });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error ?? "Couldn't open that page.");
         return data;
       },
       scan: (host) => postJson<{ kitId: string }>(sessionRef.current, "/api/studio", { workspaceId: ws.id, mode: "scan", url: host }),
@@ -278,6 +292,7 @@ export function Studio({ sb, session, ws, navigate, formId = "", chatId = "", fr
         await postJson(sessionRef.current, "/api/forms/destination", { workspaceId: ws.id, formId: id, kind: "source", sourceId: to.id, name: to.name });
         return true;
       },
+      confirmClear: () => askConfirm("Clear this chat?", { body: "The form stays as it is.", ok: "Clear", danger: true }),
       removeSend: async (d) => {
         if (!(await askConfirm(`Stop sending to ${d.name}?`, { body: "Sends already made stay there.", ok: "Remove", danger: true }))) return false;
         must(await sb.rpc("form_destination_delete", { p_id: d.id }));

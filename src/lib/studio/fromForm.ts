@@ -264,7 +264,12 @@ function pageCss(form: Form): string {
 .nav [data-cl-back]{margin-inline-end:auto}
 .bar{height:4px;border-radius:2px;background:var(--brand-line,rgba(127,127,127,.25));overflow:hidden}
 .bar i{display:block;height:100%;width:calc(var(--cl-progress,0) * 100%);background:var(--brand-primary,currentColor);transition:width .3s}
-[data-cl-thanks]{display:flex;flex-direction:column;gap:12px}`;
+[data-cl-thanks]{display:flex;flex-direction:column;gap:12px}
+.thanks{align-items:center;text-align:center;justify-content:center;min-height:320px;gap:14px}
+.thanks-mark{width:56px;height:56px;border-radius:999px;background:var(--brand-primary,#111);color:var(--brand-on-primary,#fff);display:flex;align-items:center;justify-content:center;flex:none}
+.thanks-mark::after{content:"";width:20px;height:10px;border-left:3px solid currentColor;border-bottom:3px solid currentColor;transform:translateY(-3px) rotate(-45deg)}
+.thanks:has([data-cl-book]){justify-content:flex-start;min-height:0}
+.thanks [data-cl-book]{align-self:stretch;text-align:start}`;
 }
 
 /** The page for a form: one card, its pages as steps with Back and Next, and the thanks. */
@@ -329,7 +334,8 @@ export function formToPage(form: Form): Converted {
   const thanksText = end?.kind === "message" ? (end.text ?? "").split("\n").filter((x) => x.trim()).map((x) => `<p class="text">${esc(x)}</p>`).join("") : "";
   const sch = form.after?.schedule;
   const books = !!sch && ((sch.tool === "claritia" && !!sch.meetingTypeId) || (sch.tool !== "claritia" && !!sch.url));
-  const thanks = `<section data-cl-thanks hidden id="thanks"${end?.kind === "message" ? photoAttrs(end.photo) : ""}><h2 class="heading">${esc(end?.kind === "message" ? end.title : "Thanks, we got it.")}</h2>${thanksText}${books ? `<div data-cl-book id="book"></div>` : ""}</section>`;
+  // The thank-you: centred, a round check in the brand's color, the heading and its words; a booking goes under them.
+  const thanks = `<section data-cl-thanks hidden id="thanks" class="thanks"${end?.kind === "message" ? photoAttrs(end.photo) : ""}><span class="thanks-mark" aria-hidden="true"></span><h2 class="heading">${esc(end?.kind === "message" ? end.title : "Thanks, we got it")}</h2>${thanksText}${books ? `<div data-cl-book id="book"></div>` : ""}</section>`;
   const intro = form.intro ? `<p class="text">${esc(form.intro)}</p>` : "";
   const bar = many && form.layout?.progress !== "none" ? `<div class="bar" data-cl-progress aria-hidden="true"><i></i></div>` : "";
   // The welcome screen, first on the page, with its photo; one question at a time when the form showed screens.

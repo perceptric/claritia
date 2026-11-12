@@ -1,6 +1,6 @@
 # The Ending, made real: a better thank-you, the real redirect page, the real booking page
 
-Status: plan, 12 November 2026. Covers three things the owner asked for on the Ending page of Form Studio:
+Status: Parts 2 and 3 and Part 4 in the editor built, 12 November 2026. Part 4 on the live form is next. Covers three things the owner asked for on the Ending page of Form Studio:
 
 1. Every template's thank-you message gets a better layout.
 2. With **Redirect**, the canvas shows the page people will land on, fetched and drawn right there.
