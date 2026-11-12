@@ -9,7 +9,16 @@ import type { ResendDomain, ResendRecord } from "./resend.ts";
 
 export type RecordState = "verified" | "waiting" | "wrong";
 export type DnsRecord = { key: string; type: "CNAME" | "MX" | "TXT"; name: string; value: string; status: RecordState; seen?: string };
-export type DomainRow = { id: string; domain: string; provider_id: string | null };
+export type DomainRow = {
+  id: string;
+  domain: string;
+  provider_id: string | null;
+  /** 145_ses_domains.sql; absent before it. */
+  provider?: "resend" | "ses";
+  ses_status?: "pending" | "verified" | "failed" | null;
+  ses_mail_from?: string | null;
+  ses_records?: unknown[];
+};
 
 export type Resolver = {
   mx: (name: string) => Promise<{ exchange: string; priority: number }[]>;
@@ -110,4 +119,70 @@ async function dmarcOf(domain: string, r: Resolver): Promise<{ ok: boolean; seen
     return rec ? { ok: true, seen: rec } : { ok: false, seen: got.join(" | ") };
   }
   return { ok: false };
+}
+
+// Amazon SES (docs/ses-plan.md, Steps 3 and 4) ----------------------------------------------------------------------
+//   DKIM: three CNAMEs from SES (Easy DKIM). SPF and bounces: an MX and a TXT on the MAIL FROM subdomain
+//   (bounce.<domain>). DMARC as above. SES's word wins for DKIM and MAIL FROM; DNS tells "waiting" from "wrong".
+
+/** What SES says about a domain identity (src/lib/email/ses.ts). */
+export type SesIdentity = { dkimStatus: string; dkimTokens: string[]; mailFrom: string | null; mailFromStatus: string | null; verified: boolean };
+
+/** The SES records to add, before any check. */
+export function sesRecords(domain: string, mailFrom: string, region: string, tokens: string[]): Omit<DnsRecord, "status">[] {
+  return [
+    ...tokens.map((t, i) => ({ key: `dkim${i + 1}`, type: "CNAME" as const, name: `${t}._domainkey.${domain}`, value: `${t}.dkim.amazonses.com` })),
+    { key: "mx", type: "MX" as const, name: mailFrom, value: `10 feedback-smtp.${region}.amazonses.com` },
+    { key: "spf", type: "TXT" as const, name: mailFrom, value: "v=spf1 include:amazonses.com ~all" },
+    dmarcRecord(domain),
+  ];
+}
+
+/** Check the SES records. Verified once SES confirms DKIM and the MAIL FROM, and a DMARC record exists. */
+export async function checkSesRecords(domain: string, mailFrom: string, identity: SesIdentity, region: string, r: Resolver = systemResolver): Promise<{ records: DnsRecord[]; status: "pending" | "verified" | "failed" }> {
+  const dkimOk = identity.dkimStatus === "SUCCESS";
+  const mailFromOk = identity.mailFromStatus === "SUCCESS" && same(identity.mailFrom ?? "", mailFrom);
+  const records: DnsRecord[] = [];
+  for (const w of sesRecords(domain, mailFrom, region, identity.dkimTokens)) {
+    if (w.type === "CNAME") {
+      if (dkimOk) {
+        records.push({ ...w, status: "verified" });
+        continue;
+      }
+      const got = await look(() => r.cname(w.name));
+      records.push({ ...w, status: got?.length && !got.some((g) => same(g, w.value)) ? "wrong" : "waiting", ...(got?.length ? { seen: got.join(", ") } : {}) });
+    } else if (w.key === "mx") {
+      if (mailFromOk) {
+        records.push({ ...w, status: "verified" });
+        continue;
+      }
+      const got = await look(() => r.mx(w.name));
+      const host = w.value.split(" ")[1] ?? "";
+      records.push({ ...w, status: got?.length && !got.some((g) => same(g.exchange, host)) ? "wrong" : "waiting", ...(got?.length ? { seen: got.map((g) => `${g.priority} ${g.exchange}`).join(", ") } : {}) });
+    } else if (w.key === "spf") {
+      const got = (await look(() => r.txt(w.name)))?.map((p) => p.join("")) ?? null;
+      const spf = got?.filter((t) => /^v=spf1\b/i.test(t)) ?? [];
+      const ok = spf.some((t) => /include:amazonses\.com\b/i.test(t));
+      records.push({ ...w, status: ok && mailFromOk ? "verified" : spf.length && !ok ? "wrong" : "waiting", ...(spf.length ? { seen: spf.join(" | ").slice(0, 300) } : {}) });
+    } else {
+      const found = await dmarcOf(domain, r);
+      records.push({ ...w, status: found.ok ? "verified" : found.seen ? "wrong" : "waiting", ...(found.seen ? { seen: found.seen } : {}) });
+    }
+  }
+  const dmarc = records.find((x) => x.key === "dmarc")?.status === "verified";
+  const status = identity.dkimStatus === "FAILED" ? "failed" : dkimOk && mailFromOk && dmarc ? "verified" : "pending";
+  return { records, status };
+}
+
+/**
+ * Claritia's own domains, which no workspace may add for sending: SES identities belong to the whole AWS account, so
+ * a workspace that added one would inherit its verified status. CLARITIA_OWN_DOMAINS (default tryclaritia.com and
+ * perceptric.com) and the domains in EMAIL_SES_DOMAINS; their subdomains too.
+ */
+export function ownDomain(domain: string, env: NodeJS.ProcessEnv = process.env): boolean {
+  const list = [...(env.CLARITIA_OWN_DOMAINS ?? "tryclaritia.com,perceptric.com").split(","), ...(env.EMAIL_SES_DOMAINS ?? "").split(",")]
+    .map((x) => x.trim().toLowerCase().replace(/^@/, ""))
+    .filter((x) => x && x !== "all");
+  const d = domain.toLowerCase();
+  return list.some((x) => d === x || d.endsWith(`.${x}`));
 }

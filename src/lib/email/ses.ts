@@ -7,10 +7,11 @@
 // try; a paused account or a used-up daily quota is `later` too, so mail waits instead of failing. Every send waits
 // its turn in a bucket at the account's MaxSendRate, so SES never has to throttle us.
 
+import type { SesIdentity } from "./domains.ts";
 import { SendError, type Outgoing } from "./provider.ts";
 import { signV4, type Creds } from "./sigv4.ts";
 
-export type Identity = { dkimStatus: string; dkimTokens: string[]; mailFrom: string | null; mailFromStatus: string | null; verified: boolean };
+export type Identity = SesIdentity;
 
 /** One email as SES takes it: several addresses get the same message (alerts to a team). */
 export type SesMail = Omit<Outgoing, "to"> & { to: string | string[] };

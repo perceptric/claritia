@@ -25,7 +25,9 @@ const notSet = (what: string) => new SendError(`${what} isn't set up on the serv
 /** The send job's sender: SES for the domains on it, Resend for the rest. Null when neither is set up. */
 export function routedSender(o: { resend: Resend | null; ses: Ses | null; onSes: OnSes }): Sender | null {
   if (!o.resend && !o.ses) return null;
-  const viaSes = (m: Outgoing) => !!o.ses && o.onSes(m.from);
+  // A domain moved to SES says so on each message (via); Claritia's own domains follow EMAIL_SES_DOMAINS. Without SES
+  // keys everything stays on Resend, where a moved domain is still verified until Resend is turned off.
+  const viaSes = (m: Outgoing) => !!o.ses && (m.via === "ses" || o.onSes(m.from));
   return {
     async send(m, key) {
       if (viaSes(m)) return o.ses!.send(m);

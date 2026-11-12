@@ -54,6 +54,22 @@ before(async () => {
   process.env.SECRETS_KEY = "s".repeat(40);
 });
 
+/**
+ * The minute tick's send jobs for this workspace. sends_due wakes every workspace, so it runs in a transaction that's
+ * rolled back: other test files running at the same time never see its jobs.
+ */
+async function wokenByTick(ws: string): Promise<number> {
+  const c = await pool.connect();
+  try {
+    await c.query("begin");
+    await c.query("select sends_due()");
+    return (await c.query(`select count(*)::int n from jobs where workspace_id = $1 and kind = 'send'`, [ws])).rows[0].n as number;
+  } finally {
+    await c.query("rollback");
+    c.release();
+  }
+}
+
 test("the plans' monthly emails, and Settings › Billing shows them", async () => {
   assert.deepEqual((await q(`select p, plan_sends(p) n from unnest(array['free','starter','pro','business','team']) p`)).map((r) => [r.p, r.n]), [["free", 1000], ["starter", 10000], ["pro", 50000], ["business", 200000], ["team", 1000]]);
   const { ws } = await workspace("pro", 0);
@@ -86,14 +102,12 @@ test("at the limit nothing more goes, and nothing is skipped: messages wait, and
   assert.equal(await usage(ws), 1000);
   // The minute tick doesn't wake a workspace with no room, and another round sends nothing.
   await q(`delete from jobs where workspace_id = $1 and kind = 'send'`, [ws]);
-  await rpc("sends_due", {});
-  assert.equal((await one<{ n: number }>(`select count(*)::int n from jobs where workspace_id = $1 and kind = 'send'`, [ws])).n, 0);
+  assert.equal(await wokenByTick(ws), 0);
   await runSend(ws);
   assert.equal(sent.length, 2);
   // An upgrade to Starter: the rest go, and the tick wakes the workspace again.
   await q(`insert into workspace_billing (workspace_id, plan) values ($1, 'starter') on conflict (workspace_id) do update set plan = 'starter'`, [ws]);
-  await rpc("sends_due", {});
-  assert.equal((await one<{ n: number }>(`select count(*)::int n from jobs where workspace_id = $1 and kind = 'send'`, [ws])).n, 1);
+  assert.equal(await wokenByTick(ws), 1);
   await runSend(ws);
   assert.deepEqual(await statuses(ws), { sent: 5 });
 });

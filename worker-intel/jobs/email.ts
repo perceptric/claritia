@@ -4,14 +4,17 @@
 //         SES one by one for the domains on SES (src/lib/email/senders.ts, docs/ses-plan.md), then records
 //         each answer. Runs about 50 seconds, then queues the next round if more wait. A rate limit ends the round
 //         and the rest go back in line without using a try.
-//   domain_check: makes the Resend domain if needed, asks Resend to verify, then checks every DNS record.
-//   domain_remove: deletes a removed domain from Resend, unless it was added again.
+//   domain_check: makes the Resend domain if needed, asks Resend to verify, then checks every DNS record. A domain
+//         moving to Amazon SES, or made on it (EMAIL_SES_MOVE=1), gets its SES identity and MAIL FROM, and its SES
+//         records checked; SES verified flips the domain to SES (145_ses_domains.sql, docs/ses-plan.md).
+//   domain_remove: deletes a removed domain from Resend and SES, unless it was added again.
 
 import type pg from "pg";
-import { checkRecords, systemResolver, type DomainRow, type Resolver } from "../../src/lib/email/domains.ts";
+import { checkRecords, checkSesRecords, ownDomain, systemResolver, type DomainRow, type Resolver } from "../../src/lib/email/domains.ts";
 import { outcomeOf, SendError, type Outcome, type Outgoing, type Sender } from "../../src/lib/email/provider.ts";
 import { renderMessage, type Claimed } from "../../src/lib/email/render.ts";
 import type { Resend, ResendDomain } from "../../src/lib/email/resend.ts";
+import type { Ses } from "../../src/lib/email/ses.ts";
 import { JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
 import { reconnectNote, viaMailbox, type Broken } from "../../src/lib/mailbox/server.ts";
 import { mime } from "../../src/lib/meetings/emails.ts";
@@ -162,13 +165,51 @@ export const send =
 
 const NO_DOMAIN = /already|exists|registered/i;
 
+/** The SES part of domain_check (docs/ses-plan.md, Steps 3 and 4). */
+export type SesDomains = Pick<Ses, "getIdentity" | "createIdentity" | "putMailFrom" | "deleteIdentity" | "region">;
+
+async function sesCheck(rpc: Rpc, d: DomainRow, ses: SesDomains, resolver: Resolver, env: NodeJS.ProcessEnv): Promise<void> {
+  const mailFrom = d.ses_mail_from || `bounce.${d.domain}`;
+  const update = (a: { records?: unknown; status: string; error: string | null }) =>
+    call(rpc, "sending_domain_ses_update", { p_id: d.id, p_records: a.records ?? null, p_status: a.status, p_mail_from: mailFrom, p_error: a.error });
+  // Claritia's own domains are never a workspace's: their SES identity is verified for the whole account.
+  if (ownDomain(d.domain, env)) {
+    await update({ status: "failed", error: "This domain belongs to Claritia and can't be added." });
+    return;
+  }
+  try {
+    let id = await ses.getIdentity(d.domain);
+    // The first check for this workspace: an identity that already exists (left by a workspace that removed the
+    // domain, or made outside Claritia) is made again, so its new DKIM records prove this workspace holds the DNS.
+    if (id && !(d.ses_records ?? []).length) {
+      await ses.deleteIdentity(d.domain);
+      id = null;
+    }
+    if (!id) id = await ses.createIdentity(d.domain);
+    if ((id.mailFrom ?? "").toLowerCase() !== mailFrom.toLowerCase()) {
+      await ses.putMailFrom(d.domain, mailFrom);
+      id = (await ses.getIdentity(d.domain)) ?? id;
+    }
+    const { records, status } = await checkSesRecords(d.domain, mailFrom, id, ses.region, resolver);
+    await update({ records, status, error: status === "failed" ? "SES couldn't find the DKIM records. Check them, then press Check." : null });
+  } catch (e) {
+    await update({ status: d.ses_status === "verified" ? "verified" : "pending", error: (e as Error).message });
+    throw e;
+  }
+}
+
 export const domainCheck =
-  (rpc: Rpc, resend: Pick<Resend, "createDomain" | "getDomain" | "findDomain" | "verifyDomain"> | null, resolver: Resolver = systemResolver): Handler =>
+  (rpc: Rpc, resend: Pick<Resend, "createDomain" | "getDomain" | "findDomain" | "verifyDomain"> | null, resolver: Resolver = systemResolver, o: { ses?: SesDomains | null; sesNew?: boolean; env?: NodeJS.ProcessEnv } = {}): Handler =>
   async (job) => {
     const id = String(job.payload.domain_id ?? "");
     if (!/^[0-9a-f-]{36}$/.test(id)) throw new JobError("domain_check needs a domain", { retry: false });
     const d = await call<DomainRow | null>(rpc, "sending_domain_load", { p_id: id });
     if (!d) return;
+    const env = o.env ?? process.env;
+    // On SES: a domain moving there, or a new one never made on Resend while new domains go to SES.
+    const onSes = !!o.ses && (d.ses_status != null || (!!o.sesNew && !d.provider_id));
+    if (onSes && !d.provider_id) return sesCheck(rpc, d, o.ses!, resolver, env);
+    if (onSes) await sesCheck(rpc, d, o.ses!, resolver, env);
     const update = (a: { provider: string | null; records?: unknown; status: string; error: string | null }) =>
       call(rpc, "sending_domain_update", { p_id: id, p_provider_id: a.provider, p_records: a.records ?? null, p_status: a.status, p_error: a.error });
     if (!resend) {
@@ -209,13 +250,15 @@ export const domainCheck =
   };
 
 export const domainRemove =
-  (pool: pg.Pool, resend: Pick<Resend, "deleteDomain" | "findDomain"> | null): Handler =>
+  (pool: pg.Pool, resend: Pick<Resend, "deleteDomain" | "findDomain"> | null, o: { ses?: Pick<Ses, "deleteIdentity"> | null; env?: NodeJS.ProcessEnv } = {}): Handler =>
   async (job) => {
     const domain = String(job.payload.domain ?? "");
     if (!domain) throw new JobError("domain_remove needs a domain", { retry: false });
-    if (!resend) return;
     const again = await pool.query(`select 1 from sending_domains where domain = $1`, [domain]);
     if (again.rowCount) return;
+    // SES: the identity goes too, so nobody adding the domain later inherits it. Claritia's own stay.
+    if (o.ses && !ownDomain(domain, o.env ?? process.env)) await o.ses.deleteIdentity(domain);
+    if (!resend) return;
     const pid = typeof job.payload.provider_id === "string" && job.payload.provider_id ? job.payload.provider_id : ((await resend.findDomain(domain))?.id ?? null);
     if (pid) await resend.deleteDomain(pid);
   };

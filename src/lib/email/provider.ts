@@ -1,7 +1,18 @@
 // What every email sender shares (docs/enrich-workflows-reports.md Part 0): the outgoing shape, the From header and
 // the error that sorts a provider's answer into sent, not now, failed or unknown.
 
-export type Outgoing = { from: string; to: string; replyTo?: string | null; subject: string; html: string; text: string; headers: { name: string; value: string }[]; tags: Record<string, string> };
+export type Outgoing = {
+  from: string;
+  to: string;
+  replyTo?: string | null;
+  subject: string;
+  html: string;
+  text: string;
+  headers: { name: string; value: string }[];
+  tags: Record<string, string>;
+  /** "ses": the sending domain has moved to Amazon SES (docs/ses-plan.md). Unset: the domain list decides. */
+  via?: "ses";
+};
 
 /**
  * A provider's no. later: the provider refused it for now (rate limit) and sent nothing, so it goes back in line

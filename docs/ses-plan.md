@@ -1,6 +1,6 @@
 # Moving Claritia's email from Resend to Amazon SES
 
-Status: Step 1 built (switched off until `EMAIL_SES_DOMAINS` is set), 12 November 2026.
+Status: Steps 1, 3 and 4 built, all switched off until set on the server (`EMAIL_SES_DOMAINS`, `EMAIL_SES_MOVE`), 12 November 2026. SES keys, the configuration set and the SNS subscription are live; production access is with AWS.
 
 Done so far: AWS account, SES in us-east-2 on the Essentials plan, `tryclaritia.com` verified (three DKIM records and
 MAIL FROM `mail.tryclaritia.com`, added through the Hostinger DNS API), `vincent@perceptric.com` verified, production
@@ -98,19 +98,26 @@ Done when: a week with bounces under 2%, complaints under 0.05%, no `unknown` se
 delivery.
 Back out: empty the variable.
 
-### Step 3. New customer domains on SES (one release)
+### Steps 3 and 4. Customer domains on SES (built)
 
-`EMAIL_SES_DOMAINS=all` for new domains: Settings › Sending makes them on SES and shows five records (three DKIM
-CNAMEs, MX and TXT on `bounce.<domain>`), checked by `checkRecords` every few minutes until verified.
+`EMAIL_SES_MOVE=1` on the server turns both on (`supabase/migrations/145_ses_domains.sql`):
 
-### Step 4. Moving existing domains (two to four weeks)
+- **New domains** added in Settings › Sending are made on SES: the identity with Easy DKIM, MAIL FROM
+  `bounce.<domain>`, and five records plus DMARC (`sesRecords`, `checkSesRecords` in `src/lib/email/domains.ts`). The
+  domain opens for sending once SES confirms DKIM and MAIL FROM and DMARC is there.
+- **Existing domains** get "Move to new sending" (owner only). Its five records show beside the Resend ones, checked
+  every 10 minutes; the domain keeps sending on Resend until SES verifies them, then `provider` flips to `ses` in one
+  update (`sending_domain_ses_update`), logged as `sending.domain_on_ses`.
+- **Each message's provider** comes from its domain in `send_claim`: SES only while the domain's SES records check
+  out; if they stop, messages go back to Resend, where the domain is still verified. A domain can be put back on
+  Resend in one update until Step 7.
+- **Safety:** SES identities belong to the whole AWS account, so Claritia's own domains (`CLARITIA_OWN_DOMAINS`,
+  default tryclaritia.com and perceptric.com, plus `EMAIL_SES_DOMAINS`) can't be added, and an identity already in the
+  account is made again on a workspace's first check, so fresh DKIM records prove that workspace holds the DNS.
+  Removing a domain deletes its identity.
+- Tests: `tests/pg/sesDomains.pg.ts` (5), `tests/ses.test.ts` (15).
 
-1. Settings › Sending shows "Move to the new sending" with the five SES records beside the Resend ones, and the owner
-   gets one email with the same records.
-2. The domain keeps sending on Resend until SES verifies all five, then `provider` flips in one update.
-3. Reminders at 7 and 14 days; a domain still on Resend after 30 days keeps working on Resend.
-4. Bounces and unsubscribes already in Claritia carry over, since suppression is ours, not the provider's. Resend's own
-   suppression list is exported once and added to ours.
+The owner email with the new records and the 7- and 14-day reminders are still to come.
 
 ### Step 5. Meeting invites over SES SMTP (small)
 

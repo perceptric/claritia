@@ -12,7 +12,20 @@ import { Badge, Button, CardHead, ErrorNote, errorText, Field, IconButton, Input
 import { CopyButton } from "../CopyButton";
 
 type DnsRecord = { key: string; type: string; name: string; value: string; status: "verified" | "waiting" | "wrong"; seen?: string };
-type Domain = { id: string; domain: string; status: "pending" | "verified" | "failed"; records: DnsRecord[]; error: string | null; checked_at: string | null };
+type Domain = {
+  id: string;
+  domain: string;
+  status: "pending" | "verified" | "failed";
+  records: DnsRecord[];
+  error: string | null;
+  checked_at: string | null;
+  /** Amazon SES (145_ses_domains.sql, docs/ses-plan.md); absent before it. */
+  provider_id?: string | null;
+  provider?: "resend" | "ses";
+  ses_status?: "pending" | "verified" | "failed" | null;
+  ses_records?: DnsRecord[];
+  ses_error?: string | null;
+};
 type Settings = { from_name: string | null; from_email: string | null; reply_to: string | null; address: string | null; cap_count: number; cap_days: number; quiet_start: number; quiet_end: number; timezone: string; paused: boolean; paused_reason: string | null };
 type Topic = { id: string; name: string; default_on: boolean };
 type Sent = { id: string; to_email: string; status: string; skip_reason: string | null; error: string | null; created_at: string; sent_at: string | null; emails: { subject: string; kind: string } | null };
@@ -50,13 +63,15 @@ const HOURS = Array.from({ length: 24 }, (_, h) => ({ value: h, label: `${String
 
 export function SendingSettings({ sb, session, ws, role , part = "domains" }: Pick<ViewProps, "sb" | "session" | "ws" | "role"> & { part?: "domains" | "sender" }) {
   const owner = role === "owner";
-  const domains = useLoad(async () => must(await sb.from("sending_domains").select("id, domain, status, records, error, checked_at").eq("workspace_id", ws.id).order("created_at")) as Domain[], `${ws.id}:domains`);
+  const domains = useLoad(async () => must(await sb.from("sending_domains").select("*").eq("workspace_id", ws.id).order("created_at")) as Domain[], `${ws.id}:domains`);
+  // Whether the server offers the move to Amazon SES (EMAIL_SES_MOVE=1 with SES set up).
+  const sesMove = useLoad(async () => ((await fetch("/api/email/ses-move").then((r) => r.json()).catch(() => null)) as { on?: boolean } | null)?.on === true, "ses-move");
   const settings = useLoad(
     async () => must(await sb.from("send_settings").select("from_name, from_email, reply_to, address, cap_count, cap_days, quiet_start, quiet_end, timezone, paused, paused_reason").eq("workspace_id", ws.id).maybeSingle()) as Settings | null,
     `${ws.id}:send_settings`,
   );
   const [error, setError] = useState("");
-  const waiting = domains.data?.some((d) => d.status !== "verified") ?? false;
+  const waiting = domains.data?.some((d) => d.status !== "verified" || d.ses_status === "pending") ?? false;
   const reloadDomains = domains.reload;
 
   // A domain waiting on DNS: check every 10 seconds, then less often, and stop after 15 minutes (Verify checks again).
@@ -124,7 +139,7 @@ export function SendingSettings({ sb, session, ws, role , part = "domains" }: Pi
           <CardHead label="Domains" count={domains.data.length} />
           <div className="divide-y divide-line">
             {domains.data.map((d) => (
-              <DomainCard key={d.id} d={d} owner={owner} sb={sb} onChange={domains.reload} onError={setError} />
+              <DomainCard key={d.id} d={d} owner={owner} canMove={sesMove.data === true} sb={sb} onChange={domains.reload} onError={setError} />
             ))}
           </div>
           {owner ? (
@@ -175,8 +190,11 @@ function AddDomain({ sb, ws, onAdded, onError }: Pick<ViewProps, "sb" | "ws"> & 
   );
 }
 
-function DomainCard({ d, owner, sb, onChange, onError }: { d: Domain; owner: boolean; sb: ViewProps["sb"]; onChange: () => void; onError: (m: string) => void }) {
+function DomainCard({ d, owner, canMove, sb, onChange, onError }: { d: Domain; owner: boolean; canMove: boolean; sb: ViewProps["sb"]; onChange: () => void; onError: (m: string) => void }) {
   const [label, tone] = DOMAIN[d.status];
+  // On Resend and moving to SES: the new records beside the current ones, until SES verifies them.
+  const moving = !!d.provider_id && d.provider !== "ses" && !!d.ses_status;
+  const onSes = d.provider === "ses" && d.ses_status === "verified";
   const act = async (fn: () => Promise<unknown>) => {
     onError("");
     try {
@@ -191,11 +209,26 @@ function DomainCard({ d, owner, sb, onChange, onError }: { d: Domain; owner: boo
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-mono text-[13px] font-medium">{d.domain}</span>
         <Badge tone={tone}>{label}</Badge>
-        <span className="ml-auto flex items-center gap-2">
+        {onSes && d.provider_id ? <Badge tone="brand">New sending</Badge> : null}
+        <span className="ml-auto flex flex-wrap items-center gap-2">
           {d.checked_at ? <span className="text-[12px] text-faint">{timeAgo(d.checked_at)}</span> : null}
           <IconButton label="Check now" onClick={() => act(async () => must(await sb.rpc("sending_domain_check_now", { p_id: d.id })))}>
             <Refresh size={14} />
           </IconButton>
+          {owner && canMove && d.status === "verified" && d.provider_id && d.provider !== "ses" && !d.ses_status ? (
+            <Button
+              size="sm"
+              variant="plain"
+              onClick={() =>
+                act(async () => {
+                  if (!(await askConfirm(`Move ${d.domain} to the new sending?`, { body: "Add the five records it shows. Emails keep going as now until they check out.", ok: "Move" }))) return;
+                  must(await sb.rpc("sending_domain_move", { p_id: d.id }));
+                })
+              }
+            >
+              Move to new sending
+            </Button>
+          ) : null}
           {owner ? (
             <IconButton
               label="Remove domain"
@@ -212,7 +245,28 @@ function DomainCard({ d, owner, sb, onChange, onError }: { d: Domain; owner: boo
         </span>
       </div>
       <ErrorNote message={d.error ?? ""} />
+      {moving ? (
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[13px] font-medium">New sending</span>
+            <Badge tone={DOMAIN[d.ses_status!][1]}>{DOMAIN[d.ses_status!][0]}</Badge>
+          </div>
+          <ErrorNote message={d.ses_error ?? ""} />
+          {d.ses_records?.length ? <Records records={d.ses_records} /> : d.ses_error ? null : <Loading />}
+        </div>
+      ) : null}
       {d.records.length ? (
+        <Records records={d.records} />
+      ) : d.error ? null : (
+        <Loading />
+      )}
+    </div>
+  );
+}
+
+/** A domain's DNS records with their state, each name and value ready to copy. */
+function Records({ records }: { records: DnsRecord[] }) {
+  return (
         <div className="overflow-x-auto rounded-lg bg-card shadow-rest">
           <table className="w-full text-[12.5px] [&_tbody_tr:last-child_td]:border-b-0">
             <thead>
@@ -224,7 +278,7 @@ function DomainCard({ d, owner, sb, onChange, onError }: { d: Domain; owner: boo
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
-              {d.records.map((r) => (
+              {records.map((r) => (
                 <tr key={r.key} className="align-top">
                   <Td className="font-mono">{r.type}</Td>
                   <Td>
@@ -242,10 +296,6 @@ function DomainCard({ d, owner, sb, onChange, onError }: { d: Domain; owner: boo
             </tbody>
           </table>
         </div>
-      ) : d.error ? null : (
-        <Loading />
-      )}
-    </div>
   );
 }
 

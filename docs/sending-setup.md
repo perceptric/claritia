@@ -164,6 +164,8 @@ On the VPS (Hostinger › Docker Manager › claritia › Environment), set by t
 | `SES_SNS_TOPIC_ARN` | The ARN of `claritia-ses-events` |
 | `SES_MAX_RATE` | Optional: the send rate to start from before SES says (default 1 a second) |
 | `EMAIL_SES_DOMAINS` | Empty at first, then `tryclaritia.com`, later `all` |
+| `EMAIL_SES_MOVE` | `1` makes new customer domains on SES and offers "Move to new sending" (docs/ses-plan.md Steps 3 and 4) |
+| `CLARITIA_OWN_DOMAINS` | Optional: domains no workspace may add (default `tryclaritia.com,perceptric.com`) |
 
 AWS console, once:
 
