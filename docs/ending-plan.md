@@ -101,7 +101,7 @@ the thank-you text, in the same frame `<claritia-book>` uses (it reports its hei
 ### On the live form
 
 After the send, the form shows the meeting's booking page in a frame under the thank-you:
-`https://tryclaritia.com/book/f/<token>?embed=1` (`src/app/book/f/[token]/page.tsx`, `src/lib/forms/bookPage.ts`).
+`https://app.tryclaritia.com/book/f/<token>?embed=1` (`src/app/book/f/[token]/page.tsx`, `src/lib/forms/bookPage.ts`).
 
 - **The token is the form's own booking token** (`signBooking` in `src/lib/forms/booking.ts`): the fill, the meeting
   type, Routing's rep and two hours from when the times were first shown. Nothing new is written at the send, so a

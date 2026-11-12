@@ -16,10 +16,10 @@ test("the switch: off unless the workspace is listed, or all", () => {
   assert.equal(bookPageOn(WS, "0192f3a1-0000-7000-8000-0000000000ab"), false);
 });
 
-test("the page lives on the booking site, with the token kept whole", () => {
+test("the page lives on the app, with the token kept whole", () => {
   const token = `${WS}.${WS}.~${WS}.abc.sig_-x`;
-  assert.equal(bookPageUrl("https://app.tryclaritia.com", token), `https://tryclaritia.com/book/f/${token}`);
-  assert.equal(bookPageUrl("https://app.tryclaritia.com/", "a b"), "https://tryclaritia.com/book/f/a%20b");
+  assert.equal(bookPageUrl("https://app.tryclaritia.com", token), `https://app.tryclaritia.com/book/f/${token}`);
+  assert.equal(bookPageUrl("https://app.tryclaritia.com/", "a b"), "https://app.tryclaritia.com/book/f/a%20b");
 });
 
 test("with Routing's rep, the page shows that rep alone; without, the type's hosts", () => {

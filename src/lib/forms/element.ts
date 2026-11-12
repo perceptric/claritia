@@ -2266,7 +2266,8 @@ export class ClaritiaForm extends Base {
     let heard = false;
     const on = (e: MessageEvent) => {
       const d = e.data;
-      if (e.source !== f.contentWindow || e.origin !== new URL(src).origin || d?.claritia !== true) return;
+      const o = new URL(src).origin;
+      if (e.source !== f.contentWindow || (e.origin !== o && e.origin !== o.replace("://", "://app.")) || d?.claritia !== true) return;
       if (d.type === "book:height" && typeof d.height === "number") {
         heard = true;
         f.style.height = `${Math.max(320, Math.min(2400, Math.round(d.height)))}px`;

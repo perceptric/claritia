@@ -23,7 +23,6 @@ import { brandPlan } from "@/lib/meetings/brandPage";
 import { entryOf } from "@/lib/sources/catalog";
 import { moveForm } from "../folders";
 import { meetingsApi } from "../../meetings/parts";
-import { bookingOrigin } from "@/lib/meetings/handles";
 
 type Line = { t?: string; done?: string; cut?: boolean; css?: string; say?: string; profile?: unknown; error?: string; working?: number; beat?: number };
 
@@ -111,7 +110,7 @@ export function Studio({ sb, session, ws, navigate, formId = "", chatId = "", fr
       // The workspace's booking pages, for the meeting's own page in a form's Ending (docs/ending-plan.md Part 4).
       bookBase: async () => {
         const r = await meetingsApi<{ workspaceSlug: string }>(sessionRef.current, ws.id, "profile", {});
-        return r.workspaceSlug ? `${bookingOrigin(location)}/book/${r.workspaceSlug}` : "";
+        return r.workspaceSlug ? `${location.origin}/book/${r.workspaceSlug}` : "";
       },
       routingFacts: async () => {
         const screen = await rt<Screen>(sessionRef.current, ws.id, "rt_screen");
