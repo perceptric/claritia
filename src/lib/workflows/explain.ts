@@ -5,7 +5,7 @@ import { BASE_FIELDS, ruleWords } from "../router/conditions.ts";
 import { find, walk } from "./tree.ts";
 import type { Body, Goal, Step, Trigger } from "./types.ts";
 
-export type Names = { forms?: Record<string, string>; segments?: Record<string, string>; types?: Record<string, string>; people?: Record<string, string>; emails?: Record<string, string>; chats?: Record<string, string>; events?: Record<string, string> };
+export type Names = { lists?: Record<string, string>; forms?: Record<string, string>; segments?: Record<string, string>; types?: Record<string, string>; people?: Record<string, string>; emails?: Record<string, string>; chats?: Record<string, string>; events?: Record<string, string> };
 
 const list = (xs: string[]) => (xs.length <= 1 ? (xs[0] ?? "") : `${xs.slice(0, -1).join(", ")} or ${xs[xs.length - 1]}`);
 /** The names of the picked ids. Deleted ones drop out; when all are gone, `gone` says so. */
@@ -33,6 +33,8 @@ export function triggerWords(t: Trigger, n: Names = {}): string {
       return t.result === "unassigned" ? "When no one is found for a lead" : t.result === "routed" ? "When a lead is assigned" : "When a lead is routed";
     case "clicked":
       return `When someone clicks ${named(t.emails, n.emails, "an email", "a deleted email")}`;
+    case "list":
+      return `When someone joins ${named(t.lists, n.lists, "any list", "a deleted list")}`;
   }
 }
 
@@ -51,6 +53,8 @@ export function triggerTitle(t: Trigger): string {
       return t.result === "unassigned" ? "Lead unassigned" : t.result === "routed" ? "Lead assigned" : "Lead routed";
     case "clicked":
       return "Email clicked";
+    case "list":
+      return "Joined a list";
   }
 }
 
@@ -66,6 +70,8 @@ export function triggerDetail(t: Trigger, n: Names = {}): string {
       return "Any lead";
     case "clicked":
       return named(t.emails, n.emails, "Any email", "A deleted email");
+    case "list":
+      return named(t.lists, n.lists, "Any list", "A deleted list");
   }
 }
 

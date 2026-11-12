@@ -80,6 +80,8 @@ export type Names = {
   chats?: { id: string; name: string; kind: string }[];
   /** Segment, PostHog, Mixpanel and Amplitude connections, for the event step. */
   events?: { id: string; name: string; kind: string }[];
+  /** Emails › Audiences lists, for the Joined a list trigger. */
+  lists?: { id: string; name: string }[];
 };
 
 export const byId = (xs: { id: string; name: string }[]) => Object.fromEntries(xs.map((x) => [x.id, x.name]));
