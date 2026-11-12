@@ -1,6 +1,6 @@
 # The Ending, made real: a better thank-you, the real redirect page, the real booking page
 
-Status: Parts 2 and 3 and Part 4 in the editor built, 12 November 2026. Part 4 on the live form is next. Covers three things the owner asked for on the Ending page of Form Studio:
+Status: built, 12 November 2026. Part 4 on the live form is behind the `FORM_BOOK_PAGE` switch on the server. Covers three things the owner asked for on the Ending page of Form Studio:
 
 1. Every template's thank-you message gets a better layout.
 2. With **Redirect**, the canvas shows the page people will land on, fetched and drawn right there.
@@ -100,33 +100,33 @@ the thank-you text, in the same frame `<claritia-book>` uses (it reports its hei
 
 ### On the live form
 
-After the send, the form embeds the booking page for the meeting and the rep Routing picked, through a **single-use
-link** made for that lead. Single-use links already exist (`/book/l/<token>`, docs/meetings-scheduler.md 1.8b): they
-book one meeting with one host, in the workspace's look.
+After the send, the form shows the meeting's booking page in a frame under the thank-you:
+`https://tryclaritia.com/book/f/<token>?embed=1` (`src/app/book/f/[token]/page.tsx`, `src/lib/forms/bookPage.ts`).
 
-1. The submit reply (`src/lib/forms/submit.ts`) gets a `bookUrl` when the plan is "times": the server makes a
-   single-use link for the routed rep and meeting, carrying the submission's id, the lead's name and email, and an
-   expiry of 7 days.
-2. The form shows the thank-you, then the booking page in a frame at `bookUrl&embed=1`, prefilled. The frame grows
-   with its height; a booking fires the form's own `claritia:booked` event, so the embed API and workflows ("when they
-   don't book") keep working.
-3. A booking made there is linked to the submission and its contact by the id the link carries, the same way the
-   form's own booking links them today.
-4. The states stay as they are: while Routing hasn't answered, the form shows "We're finishing your request" and asks
-   again; held or unassigned leads see the thank-you only; a rep with no free times follows **If no one is free**
-   (the thank-you, or "We'll email you times").
-5. If making the link fails, the form falls back to its own calendar, as today, so no lead loses the booking.
+- **The token is the form's own booking token** (`signBooking` in `src/lib/forms/booking.ts`): the fill, the meeting
+  type, Routing's rep and two hours from when the times were first shown. Nothing new is written at the send, so a
+  retried send gets the same token and the same address.
+- **The page** is the type's booking page (description, lengths, questions, location, the brand's look on paid plans)
+  with Routing's rep as its one host. Its times and its Book go through `/api/book/f/<token>`, which uses the same code
+  as the form's own calendar (`timesForClaim`, `bookForClaim`): the live free/busy check, the meeting booked with that
+  rep alone, joined to the fill and its contact, one meeting per fill (a second booking gets the first one back). The
+  name and email are the fill's; the type's questions are checked as on any booking page and kept on the meeting. No
+  payment, as with the form's own calendar.
+- **The form** (`bookFrame` in `src/lib/forms/element.ts`) frames only an `https://…/book/f/…` address from the reply,
+  grows the frame with the page's `book:height`, and fires `claritia:booked` when the page books. A page that says
+  nothing within 10 seconds gives way to the form's own calendar, with the same token, so no lead loses the booking.
+- **The rep's face**: the booking keeps the routed rep's name and photo even when the lead's owner changes between the
+  send and the booking (`supabase/migrations/143_form_booking_rep.sql`).
+- **The switch**: `FORM_BOOK_PAGE` on the server, workspace ids with commas between, or `all`. Off, the reply has no
+  `bookPage` and the form shows its own calendar as before.
+- The states stay as they are: "We're finishing your request" while Routing answers, held or unassigned leads see the
+  thank-you only, a rep with no free times follows **If no one is free**.
 
-This is booking and routing code, so it ships only with tests that prove it on flaky cases
-(CLAUDE.md, reliability first):
-
-- the link is made once per submission, even when the submit is retried with the same key;
-- a submit that times out before the link exists shows the pending state, then the frame;
-- link creation fails → the form's own calendar shows, and booking still links to the submission;
-- the rep changes between submit and booking (an owner reassigns) → the link books the rep it names, and the
-  booking shows on the right contact;
-- a second visit to the link says it's used, with the host's page;
-- the booking page's Book links the meeting to the submission (`tests/pg/` against the real database).
+Tests: `tests/formBookPage.test.ts` (the switch, the address, the page's host); `tests/pg/formBookPage.pg.ts` on a real
+database (the same address on a retried send, off for other workspaces, the fill's email and the type's questions,
+Routing's rep after the owner changed, two bookings at once make one meeting, a time taken while the page was open gives
+fresh times, a type that's gone is refused); `scripts/form-bookpage-check.ts` in a real browser (the frame, its height,
+`claritia:booked`, the fallback after 10 seconds, addresses that aren't a booking page never framed).
 
 ### What stays the same
 

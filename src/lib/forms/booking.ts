@@ -162,7 +162,7 @@ export async function bookForClaim(
   rpc: Rpc,
   token: string,
   c: Claim,
-  o: { start: number; length?: number; tz?: string; now?: number; base?: string; liveBusyFor: (ws: string) => (hosts: string[], from: number, to: number) => Promise<Set<string>> },
+  o: { start: number; length?: number; tz?: string; now?: number; base?: string; answers?: Record<string, string>; liveBusyFor: (ws: string) => (hosts: string[], from: number, to: number) => Promise<Set<string>> },
 ): Promise<BookAnswer> {
   const ctx = await fillCtx(rpc, c.submission, c.type);
   if (!ctx?.type || !ctx.contact_id || !ctx.email) return gone;
@@ -177,7 +177,7 @@ export async function bookForClaim(
       type: t,
       length,
       start: o.start,
-      guest: { email: ctx.email, ...(name ? { name } : {}), ...(o.tz ? { tz: o.tz } : {}) },
+      guest: { email: ctx.email, ...(name ? { name } : {}), ...(o.tz ? { tz: o.tz } : {}), ...(o.answers && Object.keys(o.answers).length ? { answers: o.answers } : {}) },
       source: "form",
       owner: c.owner,
       only: c.only ? c.owner : null,
@@ -199,7 +199,8 @@ export async function bookForClaim(
     // failure here never undoes the meeting: it's only the run's record (Section 15).
     const linked = await callNewer(rpc, "routing_booking_touch", { p_ws: ctx.workspace_id, p_key: `form:${c.submission}` }).catch(() => null);
     if (!linked) await callNewer(rpc, "routing_run_booking", { p_ws: ctx.workspace_id, p_key: `form:${c.submission}`, p_state: "confirmed", p_reason: null }).catch(() => null);
-    const manage = o.base ? `${o.base}/book/m/${r.token}` : undefined;
+    // base "" gives the page's own path (the booking page from the form, src/lib/forms/bookPage.ts).
+    const manage = o.base !== undefined ? `${o.base}/book/m/${r.token}` : undefined;
     return { status: 200, body: { booked: bookedView(ctx, { start: new Date(r.start).toISOString(), end: new Date(r.end).toISOString(), hosts: r.hosts }, manage) } };
   }
   if (r.error === "link_used" || r.error === "link_closed") return gone;
