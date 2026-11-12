@@ -163,7 +163,7 @@ try {
   check(opts1.brand.includes("[Industry: Hospitality and events, US. Write the form in English"), "Tia gets the industry's recipe in the brand block");
   check(opts1.brand.includes("<brand_css>") && !first.at(-1)!.content.includes("<brand_css>"), "the brand's CSS goes once in the cached brand block, not in each message");
   check(await form.locator("#title").isVisible(), "the form draws in the preview");
-  check((await form.locator('#photo input[type="file"]').count()) === 1 && (await form.locator("#photo .label").textContent())!.includes("A photo of your day"), "a Claritia block shows in the preview with its label");
+  check((await form.locator("#photo .cl-drop").count()) === 1 && (await form.locator("#photo .label").textContent())!.includes("A photo of your day"), "a Claritia block shows in the preview with its label, as a drop zone");
   const logo = await p.evaluate(() => (document.querySelector("#studio")!.shadowRoot!.getElementById("host")!.shadowRoot!.querySelector("img[data-cl-logo]") as HTMLImageElement | null)?.src ?? "");
   check(logo.startsWith("data:image/png"), "the form shows the brand's real logo");
   check((await $("#chatPick").textContent())!.includes("Daily check-in"), "the chat takes the form's name");
@@ -419,7 +419,7 @@ try {
   const design = $("#pscroll .sec").filter({ has: p.locator("h4", { hasText: /^Design$/ }) });
   const basic = (await design.textContent())!;
   check(["Background", "Questions", "Answers", "Buttons", "Button text", "Alignment", "Font size", "Logo", "Round corners"].every((x) => basic.includes(x)) && basic.includes("Open theme gallery"), "Design opens on Basic: five colors, alignment, font, size, logo and corners");
-  await design.locator(".pill").filter({ hasText: "Change" }).click();
+  await design.locator(".pill").filter({ hasText: "Open theme gallery" }).click();
   check((await $("#themeDlg .tcard").count()) >= 18, "Change opens the theme gallery with every style");
   if (shots) await p.screenshot({ path: `${shots}/2d-theme.png` });
   const styleBefore = await p.evaluate(() => Object.values((window as unknown as { saved: Record<string, { body?: { style?: string } }> }).saved).map((c) => c.body?.style ?? "").join(","));
@@ -631,6 +631,8 @@ try {
   await idle();
   const fixAsk = ((await calls()).filter((c) => c.mode === "tia")[tiaBefore]!.body as { content: string }[]).at(-1)!.content;
   check(fixAsk.startsWith("Fix this:") && fixAsk.includes("send button"), "Fix sends the problem to Tia");
+  check(await $("#undo").isHidden(), "Preview shows no undo");
+  await toEdit();
   await $("#undo").click();
   await $("#undo").click();
   await p.waitForFunction(() => (window as unknown as { studioState: { issues: { level: string }[] } }).studioState.issues.every((i) => i.level !== "error"));
