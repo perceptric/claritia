@@ -607,7 +607,24 @@ try {
   await $("#layer .menu .mi").filter({ hasText: "Cy Park" }).click();
   await p.waitForFunction(() => (document.querySelector("#studio")?.shadowRoot?.querySelectorAll("#flow .rcard.on .tbox .tmem").length ?? 0) === 3, null, { timeout: 4000 }).catch(() => null);
   check((await $("#flow .rcard.on .tbox .tmem").count()) === 3, "Add member adds them to the team");
+  check(((await $("#flow .rcard.on .tbox").textContent()) ?? "").includes("Account owner"), "the team box shows the account owner goes first");
   if (shots) await p.screenshot({ path: `${shots}/4g-team.png` });
+  // Collective: everyone on the team attends, so there's no distribution to pick.
+  await openRule.locator("button[aria-label='With']").click();
+  await $("#layer .menu .mi").filter({ hasText: "Enterprise (Collective)" }).click();
+  await p.waitForFunction(() => (document.querySelector("#studio")?.shadowRoot?.querySelector("#flow .rcard.on button[aria-label='With']")?.textContent ?? "").includes("Collective"), null, { timeout: 4000 }).catch(() => null);
+  const coll = ((await $("#flow .rcard.on .tbox").textContent()) ?? "");
+  check(((await openRule.locator("button[aria-label='With']").textContent()) ?? "").includes("Enterprise (Collective)") && coll.includes("Everyone on the team") && (await $("#flow .rcard.on .tbox button[aria-label='Distribution']").count()) === 0 && (await $("#flow .rcard.on .tbox .tmem").count()) === 3, "Collective books the whole team: its members, no distribution");
+  if (shots) await p.screenshot({ path: `${shots}/4h-collective.png` });
+  // New team, from the bottom of the With menu: named in place, then picked.
+  await openRule.locator("button[aria-label='With']").click();
+  const items = await $("#layer .menu .mi").allTextContents();
+  check(items[items.length - 1]?.includes("New team") ?? false, "New team is last in the With menu");
+  await $("#layer .menu .mi").filter({ hasText: "New team" }).click();
+  await $("#flow .rcard.on input[aria-label='Team name']").fill("Partners");
+  await $("#flow .rcard.on .tnew button").filter({ hasText: "Create" }).click();
+  await p.waitForFunction(() => (document.querySelector("#studio")?.shadowRoot?.querySelector("#flow .rcard.on button[aria-label='With']")?.textContent ?? "").includes("Partners"), null, { timeout: 4000 }).catch(() => null);
+  check((await calls()).some((c) => c.mode === "createTeam" && c.body === "Partners") && ((await openRule.locator("button[aria-label='With']").textContent()) ?? "").includes("Partners (Round robin)") && (await $("#flow .rcard.on .tbox .tmem").count()) === 0, "New team creates the team and picks it, with no members yet");
   // Every part of the When row on one line: their middles line up.
   const mids = await openRule.locator(".rule").first().evaluate((r) => [...r.children].map((c) => { const b = c.getBoundingClientRect(); return b.top + b.height / 2; }));
   const ruleWide = mids.length > 1 && Math.max(...mids) - Math.min(...mids) < 6;

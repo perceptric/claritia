@@ -65,7 +65,18 @@ export type FillCtx = {
   type: MeetingType | null;
   meeting: { id: string; start: string; end: string; hosts: string[] } | null;
   profiles: Record<string, Profile>;
+  /** A Collective team meeting: everyone who attends, taken once for this fill (147_collective_booking.sql). */
+  hosts?: string[] | null;
 };
+
+/** The meeting as the fill books it: Collective with the fill's hosts when it has them, else the type as it is. */
+export function fillType(ctx: Pick<FillCtx, "type" | "hosts">): MeetingType | null {
+  const t = ctx.type;
+  if (!t || !ctx.hosts?.length) return t;
+  const { team: _team, ...settings } = t.settings as typeof t.settings & { team?: string };
+  void _team;
+  return { ...t, kind: "collective", hosts: ctx.hosts.map((user_id) => ({ user_id })), settings: settings as typeof t.settings };
+}
 
 export async function fillCtx(rpc: Rpc, submission: string, type: string): Promise<FillCtx | null> {
   const { data, error } = await rpc("form_booking_ctx", { p_submission: submission, p_type: type });
@@ -88,10 +99,12 @@ function shownHost(t: MeetingType, slots: Slot[]): string | undefined {
 }
 
 async function times(rpc: Rpc, ctx: FillCtx, owner: string | null, length: number | undefined, now: number, live?: LiveRouter | null, only?: string | null) {
-  const t = ctx.type!;
+  const t = fillType(ctx)!;
   const lengths = t.settings.lengths;
   const len = length !== undefined && lengths.includes(length) ? length : lengths[0]!;
-  const o = await offer(rpc, { ws: ctx.workspace_id, type: t, length: len, now, owner, live, only });
+  // Collective: only the times when everyone on the fill's host list is free, whoever owns the lead.
+  const all = !!ctx.hosts?.length;
+  const o = await offer(rpc, all ? { ws: ctx.workspace_id, type: t, length: len, now } : { ws: ctx.workspace_id, type: t, length: len, now, owner, live, only });
   return { slots: o.slots.map((s) => s.start), lengths, length: len, host: hostView(ctx, only ?? shownHost(t, o.slots)), out: o.out };
 }
 
@@ -109,7 +122,7 @@ function whyNone(out: { id: string; why: string }[], rep: string | null | undefi
  */
 export async function offerForFill(
   rpc: Rpc,
-  o: { submission: string; typeId: string; secret: string; now?: number; clock?: number; live?: LiveRouter | null; rep?: string | null; report?: (why: AvailabilityFailure) => void },
+  o: { submission: string; typeId: string; secret: string; now?: number; clock?: number; live?: LiveRouter | null; rep?: string | null; all?: { key: string; hosts?: string[] } | null; report?: (why: AvailabilityFailure) => void },
 ): Promise<Booking | null> {
   const now = o.now ?? Date.now();
   const ctx = await fillCtx(rpc, o.submission, o.typeId);
@@ -117,20 +130,32 @@ export async function offerForFill(
     o.report?.("unknown");
     return null;
   }
+  // Collective (a rule's team, everyone attends): the members are taken once for this fill, and kept.
+  if (o.all && !ctx.hosts?.length) {
+    const { data, error } = await rpc("form_booking_hosts", { p_submission: o.submission, p_hosts: o.all.hosts?.length ? o.all.hosts.slice(0, 20) : null, p_key: o.all.key });
+    if (error) throw new Error(error.message);
+    ctx.hosts = Array.isArray(data) && data.length ? (data as string[]) : null;
+    if (!ctx.hosts) {
+      o.report?.("unknown");
+      return null;
+    }
+  }
+  const collective = !!ctx.hosts?.length;
+  const rep = collective ? null : o.rep;
   const owner = o.rep ?? ctx.owner;
-  const r = await times(rpc, ctx, owner, undefined, now, o.live, o.rep);
+  const r = await times(rpc, ctx, owner, undefined, now, o.live, rep);
   if (!r.slots.length) {
-    o.report?.(whyNone(r.out, o.rep));
+    o.report?.(whyNone(r.out, rep));
     return null;
   }
   // With a rep, the book-later email offers that rep's times only (092); before 092, the plain call.
-  const shown = o.rep ? await callNewer(rpc, "form_booking_shown_rep", { p_submission: o.submission, p_type: o.typeId, p_owner: owner }) : null;
+  const shown = rep ? await callNewer(rpc, "form_booking_shown_rep", { p_submission: o.submission, p_type: o.typeId, p_owner: owner }) : null;
   const { data, error } = shown ?? (await rpc("form_booking_shown", { p_submission: o.submission, p_type: o.typeId, p_owner: owner }));
   if (error) throw new Error(error.message);
   // The token's time runs from the first showing, so a retried send gets the same token.
   const exp = new Date(data as string).getTime() + BOOK_TTL;
   if (!(exp > (o.clock ?? Date.now()))) return null;
-  const token = signBooking({ submission: o.submission, type: o.typeId, owner, exp, ...(o.rep ? { only: true } : {}) }, o.secret);
+  const token = signBooking({ submission: o.submission, type: o.typeId, owner, exp, ...(rep ? { only: true } : {}) }, o.secret);
   return { token, slots: r.slots, lengths: r.lengths, length: r.length, ...(r.host ? { host: r.host } : {}) };
 }
 
@@ -167,7 +192,9 @@ export async function bookForClaim(
   const ctx = await fillCtx(rpc, c.submission, c.type);
   if (!ctx?.type || !ctx.contact_id || !ctx.email) return gone;
   if (ctx.meeting) return { status: 200, body: { booked: bookedView(ctx, ctx.meeting) } };
-  const t = ctx.type;
+  const t = fillType(ctx)!;
+  // Collective: everyone on the fill's host list, so no single owner or rep.
+  const collective = !!ctx.hosts?.length;
   const length = o.length !== undefined && t.settings.lengths.includes(o.length) ? o.length : t.settings.lengths[0]!;
   const name = [ctx.first_name, ctx.last_name].filter(Boolean).join(" ");
   let r;
@@ -179,8 +206,8 @@ export async function bookForClaim(
       start: o.start,
       guest: { email: ctx.email, ...(name ? { name } : {}), ...(o.tz ? { tz: o.tz } : {}), ...(o.answers && Object.keys(o.answers).length ? { answers: o.answers } : {}) },
       source: "form",
-      owner: c.owner,
-      only: c.only ? c.owner : null,
+      owner: collective ? null : c.owner,
+      only: !collective && c.only ? c.owner : null,
       contactId: ctx.contact_id,
       submissionId: c.submission,
       now: o.now,
@@ -206,6 +233,6 @@ export async function bookForClaim(
   if (r.error === "link_used" || r.error === "link_closed") return gone;
   // A taken slot is a sign of life from the session (the owner stays; fresh times go back).
   await callNewer(rpc, "routing_booking_touch", { p_ws: ctx.workspace_id, p_key: `form:${c.submission}` }).catch(() => null);
-  const host = hostView(ctx, c.only && c.owner ? c.owner : shownHost(t, r.slots));
+  const host = collective ? undefined : hostView(ctx, c.only && c.owner ? c.owner : shownHost(t, r.slots));
   return { status: 409, body: { taken: true, booking: { token, slots: r.slots.map((s) => s.start), lengths: t.settings.lengths, length, ...(host ? { host } : {}) } } };
 }

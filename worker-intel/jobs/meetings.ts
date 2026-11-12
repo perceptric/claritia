@@ -648,6 +648,10 @@ export const meetingBookLater =
       }
       // One nudge (docs/scheduling-plan.md Part 13.1): a live "Didn't book" journey for this form sends the follow-up.
       if (await call<boolean>(rpc, "form_journey_follows", { p_submission: submission }).catch(() => false)) return;
+      // A Collective fill (147): the email's link books one host, so none is sent; a fill whose hosts can't be read
+      // gets none either, since a wrong link costs more than a missing one.
+      const hosts = await call<string[] | null>(rpc, "form_booking_hosts", { p_submission: submission, p_hosts: null, p_key: null }).catch(() => ["?"]);
+      if (hosts?.length) return;
       const c = info.contact;
       const t = info.type ? typeOf(info.type) : null;
       if (!c?.email || !t || !t.active) return;

@@ -116,6 +116,10 @@ export function Studio({ sb, session, ws, navigate, formId = "", chatId = "", fr
       saveTeam: async (t: { id: string; name: string; method: string; revision: number; members: { user: string; weight: number }[] }) => {
         await rt(sessionRef.current, ws.id, "rt_team", { team: t.id, name: t.name, method: t.method, members: t.members, revision: t.revision });
       },
+      createTeam: async (name: string) => {
+        const r = await rt<{ key: string }>(sessionRef.current, ws.id, "rt_team", { name, members: [] });
+        return { key: r.key };
+      },
       routingFacts: async () => {
         const screen = await rt<Screen>(sessionRef.current, ws.id, "rt_screen");
         return {

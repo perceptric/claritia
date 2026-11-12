@@ -93,16 +93,25 @@ the form picks the meeting type, the meeting picks the person.
   unused, so switching back keeps them.
 - **Team meeting's rules** (`src/lib/studio/routes.ts`): named rules in run order, first match wins, then **Otherwise** (the form's
   meeting), fixed last. A rule is "When <question> <test> <value>", then more conditions joined by **+ and** or
-  **+ or**; **Book** <meeting>; **With** "As the meeting says" (the meeting's own host or Dynamic rules), a team that
-  takes turns, or one person. Rules move up and down and can be deleted. The first condition sits at the top of the
+  **+ or**; **Book** <meeting>; **With** "Meeting hosts" (the meeting's own host or Dynamic rules), a team by its
+  distribution ("Enterprise (Round robin)", one host chosen in turn), a team **Collective** ("Enterprise (Collective)",
+  everyone on the team attends), or one person, and **New team** at the bottom, named in place and created with no
+  members. A picked team opens below in place: **First** Account owner (a lead with an owner books with them before any
+  rule, Routing's keep step), its distribution (or **Attendees** Everyone on the team when Collective) and its
+  members, saved to the team itself. Rules move up and down and can be deleted.
+- **Collective** (`with.all`, router rule `book: "all"`, `supabase/migrations/147_collective_booking.sql`): the team's
+  turn still picks the lead's owner, and the meeting holds every member. The members are taken once, when the times
+  are first offered, and kept on the fill (`submissions.booking_hosts`, at most 20), so a retried send, the booking
+  page and the form's calendar show the same people even after the team changes. The times are those when everyone is
+  free (`fillType` in `src/lib/forms/booking.ts`). `tests/pg/collectiveBooking.pg.ts`. The first condition sits at the top of the
   rule (field, op, value) as rows did before, and the rest in `more`, so older rows read as they were. The tests fit
   the question: is or is not one of its answers for a choice; less than, more than, at most, at least, between and is
   for a number; contains, is, is not and starts with for text; is answered and is empty for all. Numbers are compared
   as numbers. Rows saved before tests ("Plan is Enterprise") read as "is" that answer. Each rule compiles to router
   conditions on `answer.<key>` (`pageForm` in `src/lib/studio/page.ts`); a rule with a question gone or a value
   blank never routes anyone.
-- **Before any rule**: **Spam check** and **Keep existing owners**, both on. Turned off, the form's own policy turns
-  that check off (`schedule.before`, `compileRouting`).
+- **Before any rule**: the spam check and keeping existing owners always run; the Studio no longer shows them (a form
+  saved with them off keeps that, `schedule.before`, `compileRouting`).
 - **If no one is free** (Routing, or a Dynamic meeting): **Show the thank-you** or **Email times later**
   (`schedule.none`).
 - **Preview as**: one chip per rule and Otherwise over the canvas. The chip's lead (answers that meet the rule,

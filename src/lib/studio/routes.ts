@@ -10,7 +10,8 @@ import type { Cond, Op } from "../router/types.ts";
 /** One condition. `field` is a question's name on the page, or a past fill (past.*). */
 export type RouteCond = { field: string; op: Op; value?: string | number | string[] | number[] };
 /** Who takes the meeting a rule books, when it isn't the meeting's own people: one person, or a team taking turns. */
-export type RouteWith = { kind: "user" | "team"; id: string };
+/** `all`: everyone on the team attends (Collective); without it the team's distribution picks one. */
+export type RouteWith = { kind: "user" | "team"; id: string; all?: boolean };
 /**
  * One rule: its first condition, then `more` joined by `match` (all: and, any: or), the meeting it books and, when
  * set, who takes it. `name` is what the team calls it ("Big teams").
@@ -106,7 +107,7 @@ export function cleanRoute(raw: unknown): StudioRoute | null {
     ...(name ? { name } : {}),
     ...(x.match === "any" && more.length ? { match: "any" as const } : {}),
     ...(more.length ? { more } : {}),
-    ...(withOk ? { with: { kind: w!.kind as RouteWith["kind"], id: w!.id as string } } : {}),
+    ...(withOk ? { with: { kind: w!.kind as RouteWith["kind"], id: w!.id as string, ...(w!.kind === "team" && w!.all === true ? { all: true } : {}) } } : {}),
   };
 }
 

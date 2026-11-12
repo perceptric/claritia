@@ -395,6 +395,14 @@ test("book later does nothing when the lead booked meanwhile", async () => {
   assert.equal((await q(`select 1 from contact_events where contact_id = $1 and kind = 'meeting.not_booked'`, [t.contact])).length, 1);
 });
 
+test("book later sends no email for a Collective fill (its link books one host); the fill is still marked not booked", async () => {
+  const s = await submission();
+  await q(`update submissions set booking_hosts = array[$2::uuid] where id = $1`, [s.id, host]);
+  await bookLater(s.id, { host });
+  assert.equal(sent.length, 0);
+  assert.equal((await q(`select 1 from contact_events where contact_id = $1 and kind = 'meeting.not_booked'`, [s.contact])).length, 1);
+});
+
 test("a calendar that needs reconnecting sends its person one email per break, and none once reconnected", async () => {
   const u = randomUUID();
   await q(`insert into auth.users (id, email) values ($1, $2)`, [u, `${u}@acme.test`]);

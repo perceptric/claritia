@@ -25,8 +25,9 @@ export function bookPageOn(ws: string, env = process.env.FORM_BOOK_PAGE): boolea
 /** The page's address on the app (tryclaritia.com/book sends people there anyway, so the frame skips that hop). */
 export const bookPageUrl = (base: string, token: string) => `${base.replace(/\/+$/, "")}/book/f/${encodeURIComponent(token)}`;
 
-/** The type as the page shows it: with Routing's rep, that rep alone. */
-export function pageType(t: MeetingType, c: Claim): MeetingType {
+/** The type as the page shows it: a collective fill's whole team, or with Routing's rep, that rep alone. */
+export function pageType(t: MeetingType, c: Claim, hosts?: string[] | null): MeetingType {
+  if (hosts?.length) return { ...t, kind: "collective", hosts: hosts.map((user_id) => ({ user_id })) as MeetingType["hosts"] };
   return c.only && c.owner ? { ...t, hosts: [{ user_id: c.owner }] as MeetingType["hosts"] } : t;
 }
 

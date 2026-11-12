@@ -404,6 +404,7 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .tav { width: 24px; height: 24px; border-radius: 999px; background: var(--bg); box-shadow: 0 0 0 1px var(--line); display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; flex: none; }
 .tname { flex: 1; min-width: 0; font-size: 13px; overflow-wrap: anywhere; }
 .tmem .tw { width: 56px; height: 28px; flex: none; }
+.tfix { font-size: 13px; min-width: 0; overflow-wrap: anywhere; }
 .arow .w { color: var(--muted); font-size: 12px; min-width: 64px; }
 .arow .in.wide { flex: 1; min-width: 180px; height: 30px; }
 .arow .pill > span:first-child { display: inline-flex; }
@@ -733,6 +734,8 @@ export type StudioApi = {
   routingFacts?(): Promise<{ teams: StudioTeam[]; people: { id: string; name: string }[] }>;
   /** Saves a team's distribution and members (Routing › Teams' own save). */
   saveTeam?(t: { id: string; name: string; method: string; revision: number; members: { user: string; weight: number }[] }): Promise<void>;
+  /** A new team with no members yet; resolves to its key. */
+  createTeam?(name: string): Promise<{ key: string }>;
   /** preview: the home page with its scripts out, for a frame that runs nothing; shot: its share picture. */
   /** The page an address shows, for the Ending's Redirect on the canvas. */
   page?(url: string): Promise<{ url: string; preview: string | null; shot: string | null }>;
@@ -3108,6 +3111,7 @@ ${CAL_CSS}
   // and its settings sit in the left sidebar, like Add fields; a Team meeting's rules are edited in the center, beside
   // the booking page they lead to.
   let openRule = 0;
+  let newTeamAt = -1;
   const onEnding = () => S.mode === "edit" && S.view === "thanks" && !!cur && built();
   function endUi() {
     const flow = $("flow");
@@ -3227,8 +3231,8 @@ ${CAL_CSS}
     const teamOf = (id) => FACTS?.teams?.find((t) => t.key === id);
     const teamName = (id) => teamOf(id)?.name || "A team";
     const personName = (id) => FACTS?.people?.find((p) => p.id === id)?.name || "A teammate";
-    const teamWords = (t) => `${t?.name || "A team"} (${METHOD_LABEL[t?.method] || "Round robin"})`;
-    const withWords = (r) => (r.with ? (r.with.kind === "team" ? teamWords(teamOf(r.with.id)) : personName(r.with.id)) : "Meeting hosts");
+    const teamWords = (t, all) => `${t?.name || "A team"} (${all ? "Collective" : METHOD_LABEL[t?.method] || "Round robin"})`;
+    const withWords = (r) => (r.with ? (r.with.kind === "team" ? teamWords(teamOf(r.with.id), r.with.all) : personName(r.with.id)) : "Meeting hosts");
     const never = routes.every((r) => r && r.field) ? neverRuns(routes, qs) : routes.map(() => -1);
     if (openRule >= routes.length) openRule = routes.length - 1;
 
@@ -3255,9 +3259,13 @@ ${CAL_CSS}
         const addC = (match) => { if (conds.length >= 10) return; const f = qs.find((x) => x.options.length) || qs[0]; const field = f ? f.name : PAST_ROUTES[0].field; const next = withConds(r, [...conds, { field, ...routeStart(field, f) }]); setRoutes(routes.map((x, j) => (j === i ? { ...next, ...(match === "any" ? { match: "any" } : { match: undefined }) } : x))); };
         card.append(h("div", { class: "chips" }, h("button", { class: "pill", text: "+ and", onclick: () => addC("all") }), h("button", { class: "pill", text: "+ or", onclick: () => addC("any") })));
         card.append(h("div", { class: "rule" }, h("span", { class: "w", text: "Book" }), menuPill(mName(r.meeting), MEETINGS.map((m) => [`${m.name}, ${m.length} min`, () => upd({ meeting: m.id }), m.id === r.meeting]), "Meeting")));
-        const withItems = [["Meeting hosts", () => upd({ with: undefined }), !r.with], ...((FACTS?.teams || []).length ? ["sep"] : []), ...(FACTS?.teams || []).map((t) => [teamWords(t), () => upd({ with: { kind: "team", id: t.key } }), r.with?.kind === "team" && r.with.id === t.key]), ...((FACTS?.people || []).length ? ["sep"] : []), ...(FACTS?.people || []).map((p) => [p.name, () => upd({ with: { kind: "user", id: p.id } }), r.with?.kind === "user" && r.with.id === p.id])];
+        // Each team twice: its distribution (one host, chosen in turn) and Collective (everyone on the team attends).
+        const onTeam = (t, all) => r.with?.kind === "team" && r.with.id === t.key && !!r.with.all === all;
+        const teamItems = (FACTS?.teams || []).flatMap((t) => [[teamWords(t, false), () => upd({ with: { kind: "team", id: t.key } }), onTeam(t, false)], [teamWords(t, true), () => upd({ with: { kind: "team", id: t.key, all: true } }), onTeam(t, true)]]);
+        const withItems = [["Meeting hosts", () => upd({ with: undefined }), !r.with], ...(teamItems.length ? ["sep"] : []), ...teamItems, ...((FACTS?.people || []).length ? ["sep"] : []), ...(FACTS?.people || []).map((p) => [p.name, () => upd({ with: { kind: "user", id: p.id } }), r.with?.kind === "user" && r.with.id === p.id]), ...(api.createTeam ? ["sep", ["New team", () => { newTeamAt = i; endUi(); draw(); }]] : [])];
         card.append(h("div", { class: "rule" }, h("span", { class: "w", text: "With" }), menuPill(withWords(r), withItems, "With")));
-        if (r.with?.kind === "team") { const tb = teamBox(r.with.id); if (tb) card.append(tb); }
+        if (newTeamAt === i) card.append(newTeamRow((key) => upd({ with: { kind: "team", id: key } })));
+        else if (r.with?.kind === "team") { const tb = teamBox(r.with.id, !!r.with.all); if (tb) card.append(tb); }
       }
       if (never[i] >= 0) card.append(h("p", { class: "rwarn", text: `Can never run: rule ${never[i] + 1} catches every lead it would.` }));
       box.append(card);
@@ -3272,7 +3280,7 @@ ${CAL_CSS}
    * members in round-robin order, each with a weight under Weighted round robin. Changes save to the team itself (the
    * same team as Routing › Teams and Meetings), so every form and meeting using it follows.
    */
-  function teamBox(key) {
+  function teamBox(key, all) {
     const t = FACTS?.teams?.find((x) => x.key === key);
     if (!t || !t.id || !Array.isArray(t.members)) return null;
     const pname = (id) => FACTS?.people?.find((p) => p.id === id)?.name || "Former teammate";
@@ -3290,11 +3298,14 @@ ${CAL_CSS}
       if (alive) endUi();
     };
     const box = h("div", { class: "tbox" });
-    box.append(h("div", { class: "rule" }, h("span", { class: "w", text: "Distribution" }), menuPill(METHOD_LABEL[method] || "Round robin", Object.entries(METHOD_LABEL).map(([v, label]) => [label, () => void save({ method: v }), v === method]), "Distribution")));
+    // Leads who already have an account owner book with that owner before any rule (Routing's keep step).
+    box.append(h("div", { class: "rule" }, h("span", { class: "w", text: "First" }), h("span", { class: "tfix", text: "Account owner" })));
+    if (all) box.append(h("div", { class: "rule" }, h("span", { class: "w", text: "Attendees" }), h("span", { class: "tfix", text: "Everyone on the team" })));
+    else box.append(h("div", { class: "rule" }, h("span", { class: "w", text: "Distribution" }), menuPill(METHOD_LABEL[method] || "Round robin", Object.entries(METHOD_LABEL).map(([v, label]) => [label, () => void save({ method: v }), v === method]), "Distribution")));
     const list = h("div", { class: "tmems" });
     t.members.forEach((m, i) => {
       const row = h("div", { class: "tmem" }, h("span", { class: "tav", text: (pname(m.user)[0] || "?").toUpperCase(), "aria-hidden": "true" }), h("span", { class: "tname", text: pname(m.user) }));
-      if (method === "weighted") {
+      if (method === "weighted" && !all) {
         const w = h("input", { class: "in tw", type: "number", min: "1", max: "10", value: String(m.weight || 1), "aria-label": `Weight for ${pname(m.user)}` });
         w.addEventListener("change", () => { const v = Math.max(1, Math.min(10, Math.round(Number(w.value) || 1))); void save({ members: t.members.map((x, j) => (j === i ? { ...x, weight: v } : x)) }); });
         row.append(w);
@@ -3306,6 +3317,30 @@ ${CAL_CSS}
     const addable = (FACTS?.people || []).filter((p) => !t.members.some((m) => m.user === p.id));
     if (addable.length) box.append(h("div", {}, menuPill("Add member", addable.map((p) => [p.name, () => void save({ members: [...t.members, { user: p.id, weight: 1 }] })]), "Add member")));
     return box;
+  }
+
+  /** A new team from the With menu: its name, then Create. It starts with no members; they're added in the team box. */
+  function newTeamRow(pick) {
+    const name = h("input", { class: "in", placeholder: "Team name", maxlength: "80", "aria-label": "Team name" });
+    const go = h("button", { class: "pill primary", type: "submit", text: "Create", disabled: "" });
+    name.addEventListener("input", () => { go.disabled = !name.value.trim(); });
+    const create = async () => {
+      const n = name.value.trim();
+      if (!n || !api.createTeam) return;
+      go.disabled = true;
+      try {
+        const { key } = await api.createTeam(n);
+        try { FACTS = await api.routingFacts(); } catch {}
+        newTeamAt = -1;
+        pick(key);
+        toast("Team created");
+      } catch (e) {
+        go.disabled = false;
+        toast(e?.message || "Couldn't create the team. Try again.");
+      }
+    };
+    setTimeout(() => name.focus(), 0);
+    return h("form", { class: "tbox tnew", onsubmit: (e) => { e.preventDefault(); void create(); } }, name, h("div", { class: "chips" }, go, h("button", { class: "pill", type: "button", text: "Cancel", onclick: () => { newTeamAt = -1; endUi(); draw(); } })));
   }
 
   /** One condition: the question or past fill, its test and its value, with a lead word (When, and, or). */

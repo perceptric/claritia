@@ -38,8 +38,10 @@ export type Then = "queue" | "owner" | "hold" | "user";
 /**
  * `meet`: the meeting type a form offers the lead this rule routes (docs/scheduling-plan.md 12.5), else the form's own.
  * `then: "user"` (v2): straight to one person, `user`.
+ * `book: "all"`: the meeting is Collective with the rule's team: everyone on it attends (147_collective_booking.sql).
+ * The team's turn still picks the lead's owner.
  */
-export type Rule = { id: string; name: string; match: "all" | "any"; conds: Cond[]; queue: string; on?: boolean; then?: Then; meet?: string; user?: string };
+export type Rule = { id: string; name: string; match: "all" | "any"; conds: Cond[]; queue: string; on?: boolean; then?: Then; meet?: string; user?: string; book?: "all" };
 
 export type Method = "rr" | "weighted" | "load";
 
