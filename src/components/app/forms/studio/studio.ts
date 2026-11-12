@@ -244,6 +244,8 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .phgrid button { aspect-ratio: 1; padding: 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--paper-deep); color: var(--muted); display: flex; align-items: center; justify-content: center; }
 .phgrid button[aria-pressed="true"] { border-color: var(--signal); box-shadow: 0 0 0 2px var(--signal-soft); }
 .phgrid img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.phgrid .phup { flex-direction: column; gap: 4px; border-style: dashed; border-color: var(--line-strong); background: var(--bg); font-size: 11.5px; color: var(--body); }
+.phgrid .phup:hover { border-color: var(--signal); color: var(--ink); }
 .focus3 { display: grid; grid-template-columns: repeat(3, 22px); gap: 4px; }
 .focus3 button { width: 22px; height: 22px; padding: 0; border-radius: 4px; border: 1px solid var(--line-strong); background: var(--bg); }
 .focus3 button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); }
@@ -336,6 +338,7 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .pill .logo { width: 16px; height: 16px; border-radius: 4px; flex: none; object-fit: contain; }
 .pill .logo.mark { border-radius: 0; }
 .cstage { flex: 1; min-width: 0; max-width: 1100px; display: flex; flex-direction: column; gap: 12px; }
+.cstage > .frame, .cstage > .asbar { flex: none; }
 .flow { display: flex; flex-direction: column; gap: 10px; }
 .logic { flex: 1; min-height: 0; display: flex; background: var(--paper); }
 .lmain { flex: 1; min-width: 0; overflow: auto; padding: 32px 24px; background-image: radial-gradient(var(--line) 1px, transparent 1px); background-size: 18px 18px; }
@@ -463,13 +466,16 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .hint0 { color: var(--muted); font-size: 12px; line-height: 1.5; margin: 0; }
 
 /* Floating: menus, the toast, the brand dialog */
-.menu { position: fixed; z-index: 60; background: var(--bg); border-radius: 10px; padding: 4px; box-shadow: 0 0 0 1px var(--line), 0 12px 32px -12px rgb(0 0 0 / .3); display: flex; flex-direction: column; min-width: 200px; max-height: 420px; overflow-y: auto; }
+.menu { position: fixed; z-index: 60; background: var(--bg); border-radius: 12px; padding: 6px; box-shadow: 0 0 0 1px var(--line), 0 12px 32px -12px rgb(0 0 0 / .3); display: flex; flex-direction: column; min-width: 200px; max-height: 420px; overflow-y: auto; }
 .menu .search { height: 32px; margin: 4px; border: 1px solid var(--line-strong); border-radius: 6px; padding: 0 10px; background: var(--bg); color: var(--ink); font: inherit; }
 .mrow { display: flex; align-items: center; gap: 2px; }
 .mi { flex: 1; min-width: 0; height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; text-align: left; }
 .mi:hover, .mi[aria-checked="true"] { background: var(--hover); }
 .mi .nm { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mi.small { height: 32px; }
+.mi.small { height: 36px; padding: 0 12px; font-size: 13px; }
+.mi svg { flex: none; color: var(--muted); }
+.mi.danger, .mi.danger svg { color: var(--rose); }
+.mi:disabled { opacity: .45; }
 .msep { height: 1px; background: var(--line); margin: 4px 2px; }
 .mdel { display: flex; align-items: center; gap: 6px; padding: 6px 10px; font-size: 12.5px; }
 .mdel .q { flex: 1; }
@@ -601,6 +607,7 @@ const P = {
   send: '<path d="M12 19V5M5 12l7-7 7 7"/>', x: '<path d="M6 6l12 12M18 6 6 18"/>', chev: '<path d="m6 9 6 6 6-6"/>', plus: '<path d="M12 5v14M5 12h14"/>', search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
   toggle: '<rect x="3" y="7" width="18" height="10" rx="5"/><circle cx="16" cy="12" r="3"/>', face: '<circle cx="12" cy="12" r="9"/><path d="M8.5 14.5c.9 1.2 2.1 1.8 3.5 1.8s2.6-.6 3.5-1.8M9 10h.01M15 10h.01"/>', thumb: '<path d="M7 11v9H4v-9zM7 11l4-7c1.4 0 2.2 1 2 2.4L12.5 10H18a2 2 0 0 1 2 2.3l-1.2 6A2 2 0 0 1 16.8 20H7"/>', pie: '<path d="M12 3v9h9a9 9 0 1 1-9-9z"/><path d="M15 3.5A9 9 0 0 1 20.5 9H15z"/>', cart: '<path d="M3 4h2l2.4 11h10.2L20 8H7"/><circle cx="9" cy="19" r="1.4"/><circle cx="17" cy="19" r="1.4"/>', camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>', crop: '<path d="M6 2v14a2 2 0 0 0 2 2h14M2 6h14a2 2 0 0 1 2 2v14"/>', mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>', pin: '<path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>', mapi: '<path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15M15 6v15"/>', calc: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 12h.01M12 12h.01M16 12h.01M8 16h.01M12 16h.01M16 16h.01"/>', progress: '<rect x="3" y="10" width="18" height="4" rx="2"/><path d="M3 12h10"/>', play: '<rect x="3" y="5" width="18" height="14" rx="3"/><path d="m10 9 5 3-5 3z"/>', quizi: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5V14M12 17h.01"/>', review: '<path d="M9 5h10M9 12h10M9 19h10M4 5l1 1 2-2M4 12l1 1 2-2M4 19l1 1 2-2"/>', section: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/>',
   qname: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>', company: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 7h2M13 7h2M9 11h2M13 11h2M10 21v-4h4v4"/>', jobtitle: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>', website: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>', country: '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>', birthday: '<path d="M4 21h16M5 21v-8h14v8M12 13V9M12 6v.01"/><path d="M5 17c2 0 2-1.5 3.5-1.5S10 17 12 17s2-1.5 3.5-1.5S17 17 19 17"/>', matrix: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16"/>', likert: '<path d="M4 12h16"/><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>', agree: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8 12 3 3 5-6"/>', nps: '<path d="M3 17h2v3H3zM8 14h2v6H8zM13 11h2v9h-2zM18 7h2v13h-2z"/>', slider: '<path d="M4 12h16"/><circle cx="14" cy="12" r="3"/>', currency: '<path d="M12 3v18M16 7H10a3 3 0 0 0 0 6h4a3 3 0 0 1 0 6H8"/>', percent: '<path d="M19 5 5 19"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/>', datetime: '<rect x="3" y="5" width="12" height="12" rx="2"/><path d="M3 9h12M7 3v4M11 3v4"/><circle cx="17" cy="17" r="4"/><path d="M17 15.5V17l1 1"/>', month: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M7 14h10"/>', daterange: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M7 15h10M7 15l2-2M17 15l-2 2"/>', image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 17-5-5-9 8"/>', color: '<circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h9"/>', hidden: '<path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.4 5.2A9.8 9.8 0 0 1 12 5c5 0 9 5 9 7 0 .9-.6 2.1-1.7 3.4M6.3 6.3C4.2 7.7 3 9.8 3 12c0 2 4 7 9 7 1.5 0 2.9-.4 4.1-1"/>', del: '<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>',
+  imgUp: '<path d="M10.3 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10l-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/><path d="m14 19.5 3-3 3 3"/><path d="M17 22v-5.5"/><circle cx="9" cy="9" r="2"/>', pen: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>', clip2: '<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>',
   up: '<path d="m18 15-6-6-6 6"/>', down: '<path d="m6 9 6 6 6-6"/>', dup: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>', parent: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 6 6v5"/>',
   style: '<path d="M12 3a9 9 0 1 0 0 18c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.3 0-1.1.9-2 2-2h2.4A4.6 4.6 0 0 0 21 9.8C21 6 17 3 12 3z"/>', set: '<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>',
   block: '<rect x="4" y="5" width="16" height="14" rx="2"/>', row: '<rect x="3" y="7" width="7" height="10" rx="1.5"/><rect x="14" y="7" width="7" height="10" rx="1.5"/>', col: '<rect x="6" y="3" width="12" height="7" rx="1.5"/><rect x="6" y="14" width="12" height="7" rx="1.5"/>',
@@ -1350,16 +1357,16 @@ ${CAL_CSS}
       }
       return wrap;
     };
-    const item = (text, fn, off) => h("button", { class: "mi small", role: "menuitem", text, disabled: off || null, onclick: () => { closeMenu(); fn(); } });
+    const item = (ic, text, fn, off, danger) => { const b = h("button", { class: `mi small${danger ? " danger" : ""}`, role: "menuitem", disabled: off || null, html: `${SVG(ic, 15)}<span class="nm"></span>`, onclick: () => { closeMenu(); fn(); } }); b.querySelector(".nm").textContent = text; return b; };
     const pageMenu = (i) => () => [
-      item("Rename", () => { renaming = i; stepUi(); }),
-      item("Duplicate", () => dupStep(i)),
-      item("Copy", () => copyPage(i)),
-      item("Timer", () => requestAnimationFrame(() => { const b = bar.querySelectorAll(".pg .pm")[i + (cover ? 1 : 0)]; if (b) timerMenu(b, i); })),
+      item(P.pen, "Rename", () => { renaming = i; stepUi(); }),
+      item(P.dup, "Duplicate", () => dupStep(i)),
+      item(P.clip2, "Copy", () => copyPage(i)),
+      item(P.time, "Timer", () => requestAnimationFrame(() => { const b = bar.querySelectorAll(".pg .pm")[i + (cover ? 1 : 0)]; if (b) timerMenu(b, i); })),
       h("div", { class: "msep" }),
-      item("Delete", () => delStep(i), steps.length < 2),
+      item(P.del, "Delete", () => delStep(i), steps.length < 2, true),
     ];
-    if (cover) bar.append(tab("★", "Welcome", "cover", editing ? () => [item("Delete", () => delCover())] : null));
+    if (cover) bar.append(tab("★", "Welcome", "cover", editing ? () => [item(P.del, "Delete", () => delCover(), false, true)] : null));
     if (steps.length) steps.forEach((st, i) => bar.append(tab(String(i + 1), stepName(st, i), i, pageMenu(i), steps.length > 1 ? i : undefined)));
     else bar.append(tab("1", "Page 1", 0, null));
     if (thanks) { bar.append(h("div", { class: "psep", text: "Ending" })); bar.append(tab(SVG(P.check, 12), endKindName(), "thanks", null, undefined, "end")); }
@@ -1563,9 +1570,8 @@ ${CAL_CSS}
     S.state = "";
     const sec = h("div", { class: "sec qs" }, h("h4", { text: "Style" }));
     if (cls && alike > 1) sec.append(h("div", { class: "sel-head" }, h("span", { class: "lbl", text: "Apply to" }), h("span", { class: "spacer" }), h("div", { class: "seg" }, h("button", { "aria-pressed": String(S.scope === "el"), onclick: () => { S.scope = "el"; panel(); }, text: "Only this" }), h("button", { "aria-pressed": String(S.scope === "class"), onclick: () => { S.scope = "class"; panel(); }, text: `All ${alike} ${plural(nameOf(el))}` }))));
-    const wt = h("div", { class: "seg", role: "group", "aria-label": "Weight" });
     const w0 = getP("font-weight") || comp("font-weight");
-    for (const [w, t] of [["400", "Regular"], ["500", "Medium"], ["600", "Bold"]]) wt.append(h("button", { "aria-pressed": String(w0 === w || (w === "600" && Number(w0) >= 600)), text: t, onclick: () => setP("font-weight", w) }));
+    const wt = choice("Weight", [["400", "Regular"], ["500", "Medium"], ["600", "Bold"]], Number(w0) >= 600 ? "600" : w0 === "500" ? "500" : "400", (w) => setP("font-weight", w));
     const al = h("div", { class: "icons", role: "group", "aria-label": "Align" });
     for (const [v, ic, tip] of [["left", P.al, "Left"], ["center", P.ac, "Center"], ["right", P.ar, "Right"]]) al.append(h("button", { class: "ib", "data-tip": tip, "aria-label": tip, "aria-pressed": String((getP("text-align") || comp("text-align")).replace("start", "left").replace("end", "right") === v), html: SVG(ic, 15), onclick: () => setP("text-align", v) }));
     const width = getP("width");
@@ -1578,7 +1584,7 @@ ${CAL_CSS}
       row("Text color", color("Text color", "color")),
       row("Fill", color("Background", "background-color")),
       row("Corners", num("Corners", "border-radius", "px")),
-      h("div", { class: "row3" }, h("span", { class: "lbl2", text: "Width" }), pick(wMode === "fill" ? "Fill" : wMode === "auto" ? "Auto" : width, [["Auto", () => setMany([["width", ""], ["align-self", ""]]), wMode === "auto"], ["Fill", () => setMany([["width", "100%"], ["align-self", "stretch"]]), wMode === "fill"]])),
+      h("div", { class: "row3" }, h("span", { class: "lbl2", text: "Width" }), pick(wMode === "fill" ? "Fill" : wMode === "auto" ? "Auto" : width, [["Auto", () => setMany([["width", ""], ["align-self", ""]]), wMode === "auto"], ["Fill", () => setMany([["width", "100%"], ["align-self", "stretch"]]), wMode === "fill"]], "Width")),
     );
     p.append(sec);
   }
@@ -1611,7 +1617,12 @@ ${CAL_CSS}
     return b;
   }
   function questions() { const out = []; src.querySelectorAll("input[name],textarea[name],select[name]").forEach((el) => { let q = out.find((x) => x.name === el.name); if (!q) { q = { name: el.name, options: [] }; out.push(q); } if (el.type === "radio" || el.type === "checkbox") { if (!q.options.some((o) => o.value === el.value)) q.options.push({ value: el.value, label: (el.closest("label")?.textContent || el.value).trim() }); } else if (el.tagName === "SELECT") for (const o of el.options) if (o.value) q.options.push({ value: o.value, label: o.textContent.trim() }); }); return out; }
-  const pick = (text, items) => { const b = h("button", { class: "dd" }, h("span", { text }), h("span", { html: SVG(P.chev, 12) })); b.onclick = () => openMenu(b, items.map(([t, fn, on]) => h("button", { class: "mi small", role: "menuitemradio", "aria-checked": String(!!on), text: t, onclick: () => { closeMenu(); fn(); } }))); return b; };
+  const pick = (text, items, label) => { const b = h("button", { class: "dd", "aria-label": label || null, "aria-haspopup": "menu" }, h("span", { text }), h("span", { html: SVG(P.chev, 12) })); b.onclick = () => openMenu(b, items.map(([t, fn, on]) => h("button", { class: "mi small", role: "menuitemradio", "aria-checked": String(!!on), text: t, onclick: () => { closeMenu(); fn(); } }))); return b; };
+  /** A choice: a switch for two short options, a dropdown for more (or longer) ones, so nothing wraps in the panel. */
+  const choice = (label, opts, now, fn) => {
+    if (opts.length <= 2 && opts.every(([, t]) => t.length <= 12)) return h("div", { class: "seg", role: "group", "aria-label": label }, ...opts.map(([v, t]) => h("button", { "aria-pressed": String(v === now), text: t, onclick: () => fn(v) })));
+    return pick(opts.find(([v]) => v === now)?.[1] || opts[0][1], opts.map(([v, t]) => [t, () => fn(v), v === now]), label);
+  };
   function blockSettings(p, bl) {
     const type = bl.getAttribute("data-cl-field"), name = bl.getAttribute("data-cl-name") || "";
     const B = h("div", { class: "sec" }, h("h4", { text: BLOCK_NAMES[type] || "Block" }));
@@ -2415,7 +2426,7 @@ ${CAL_CSS}
   function photoGrid(current, choose) {
     const grid = h("div", { class: "phgrid", role: "group", "aria-label": "Photos" });
     const file = h("input", { type: "file", accept: "image/png,image/jpeg,image/webp,image/gif", hidden: true });
-    const up = h("button", { "aria-label": "Upload a photo", "data-tip": "Upload a photo", html: SVG(P.up, 16), onclick: () => file.click() });
+    const up = h("button", { class: "phup", "aria-label": "Upload a photo", html: `${SVG(P.imgUp, 20)}<span>Upload</span>`, onclick: () => file.click() });
     file.addEventListener("change", async () => {
       const f = file.files?.[0]; if (!f) return;
       up.disabled = true;
@@ -2442,14 +2453,14 @@ ${CAL_CSS}
     const set = (pairs) => { snap(); for (const [k, v] of pairs) v ? el.setAttribute(k, v) : el.removeAttribute(k); commit(); panel(); };
     const Ph = h("div", { class: "sec" }, h("h4", { text: "Photo" }));
     if (url) Ph.append(h("img", { class: "phthumb", src: widthsOf(url, el.getAttribute("data-cl-sizes")).includes(640) ? sizedUrl(url, 640) : url, alt: "" }));
-    const acts = h("div", { class: "phacts" }, h("button", { class: "pill", "aria-expanded": String(!!S.photoLib), text: url ? "Change photo" : "Add photo", onclick: () => { S.photoLib = !S.photoLib; panel(); } }));
+    const acts = h("div", { class: "phacts" }, h("button", { class: "pill", "aria-expanded": String(!!S.photoLib), html: `${SVG(P.image, 14)}<span>${url ? "Change photo" : "Add photo"}</span>`, onclick: () => { S.photoLib = !S.photoLib; panel(); } }));
     if (url) acts.append(h("button", { class: "ib", "data-tip": "Remove photo", "aria-label": "Remove photo", html: SVG(P.del, 14), onclick: () => set([["data-cl-media", ""], ["data-cl-sizes", ""], ["data-cl-layout", ""], ["data-cl-focus", ""], ["data-cl-alt", ""]]) }));
     Ph.append(acts);
     if (S.photoLib) Ph.append(photoGrid(url, (pic) => { S.photoLib = false; set([["data-cl-media", pic.url], ["data-cl-sizes", (pic.sizes || []).join(",")], ["data-cl-layout", el.getAttribute("data-cl-layout") || (page ? "top" : el.hasAttribute("data-cl-cover") ? "left" : "behind")]]); }));
     if (url) {
       const lay = el.getAttribute("data-cl-layout") || "";
       const opts = [["left", "Left"], ["right", "Right"], ["top", "Top"], ...(page ? [] : [["behind", "Behind"]])];
-      Ph.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Place" }), h("div", { class: "seg" }, ...opts.map(([v, t]) => h("button", { "aria-pressed": String(lay === v), text: t, onclick: () => set([["data-cl-layout", v]]) })))));
+      Ph.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Place" }), choice("Place", opts, lay, (v) => set([["data-cl-layout", v]]))));
       const fo = el.getAttribute("data-cl-focus") || "50,50";
       const f3 = h("div", { class: "focus3", role: "group", "aria-label": "Keep in view" });
       for (const y of [15, 50, 85]) for (const x of [15, 50, 85]) { const v = `${x},${y}`; f3.append(h("button", { "aria-label": `${y === 15 ? "Top" : y === 50 ? "Middle" : "Bottom"} ${x === 15 ? "left" : x === 50 ? "center" : "right"}`, "aria-pressed": String(fo === v), onclick: () => set([["data-cl-focus", v === "50,50" ? "" : v]]) })); }
@@ -2492,7 +2503,7 @@ ${CAL_CSS}
     S.dlevel ||= "basic";
     D.append(h("div", { class: "seg", role: "group", "aria-label": "Styling" }, ...[["basic", "Basic"], ["advanced", "Advanced"]].map(([v, t]) => h("button", { "aria-pressed": String(S.dlevel === v), text: t, onclick: () => { S.dlevel = v; panel(); } }))));
     const row = (label, ctl) => h("div", { class: "row2" }, h("span", { class: "lbl", text: label }), ctl);
-    const segOf = (label, opts, now, fn) => h("div", { class: "seg", role: "group", "aria-label": label }, ...opts.map(([v, t]) => h("button", { "aria-pressed": String(v === now), text: t, onclick: () => fn(v) })));
+    const segOf = choice;
     const sw = (label, on, fn) => h("div", {}, h("button", { class: "sw", role: "switch", "aria-checked": String(on), "aria-label": label, onclick: fn }));
     if (S.dlevel === "basic") {
       D.append(
@@ -2976,7 +2987,7 @@ ${CAL_CSS}
     const flow = $("flow"); flow.innerHTML = "";
     const a = body().after;
     const set = (p) => { snap(); if (p.kind === "meeting") bookSpot(); body().after = { ...a, ...p }; changed(); stepUi(); runCheck(); draw(); endUi(); };
-    const seg = (label, opts, val, fn) => h("div", { class: "seg", role: "group", "aria-label": label }, ...opts.map(([v, t]) => h("button", { "aria-pressed": String(v === val), text: t, onclick: () => fn(v) })));
+    const seg = choice;
     const c1 = h("div", { class: "card2" }, h("span", { class: "lbl", text: "Ending type" }), seg("Ending type", [["thanks", "Message"], ["page", "Redirect"], ["meeting", "Book a meeting"]], a.kind, (k) => set({ kind: k, ...(k === "meeting" && !a.meeting && MEETINGS[0] ? { meeting: MEETINGS[0].id } : {}) })));
     if (a.kind === "page") { const i = h("input", { class: "in", placeholder: "https://yourcompany.com/thanks", value: a.url || "", "aria-label": "Page address", style: "height:34px" }); i.addEventListener("change", () => set({ url: i.value.trim() })); c1.append(i); }
     // Confetti over the thank-you once it's sent (data-cl-confetti on the thank-you, run by the form script).
@@ -3052,7 +3063,7 @@ ${CAL_CSS}
     }
     if (routing || MEETINGS.find((x) => x.id === a.meeting)?.dynamic) {
       const none = a.none === "later" ? "later" : "message";
-      box.append(h("div", { class: "card2" }, h("span", { class: "lbl", text: "If no one is free" }), h("div", { class: "seg", role: "group", "aria-label": "If no one is free" }, ...[["message", "Show the thank-you"], ["later", "Email times later"]].map(([v, t]) => h("button", { "aria-pressed": String(v === none), text: t, onclick: () => set({ none: v === "later" ? "later" : undefined }) })))));
+      box.append(h("div", { class: "card2" }, h("span", { class: "lbl", text: "If no one is free" }), choice("If no one is free", [["message", "Show the thank-you"], ["later", "Email times later"]], none, (v) => set({ none: v === "later" ? "later" : undefined }))));
     }
   }
 
