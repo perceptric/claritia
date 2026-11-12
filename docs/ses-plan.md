@@ -1,6 +1,6 @@
 # Moving Claritia's email from Resend to Amazon SES
 
-Status: plan, 12 November 2026.
+Status: Step 1 built (switched off until `EMAIL_SES_DOMAINS` is set), 12 November 2026.
 
 Done so far: AWS account, SES in us-east-2 on the Essentials plan, `tryclaritia.com` verified (three DKIM records and
 MAIL FROM `mail.tryclaritia.com`, added through the Hostinger DNS API), `vincent@perceptric.com` verified, production
@@ -73,16 +73,27 @@ back, fitted to today's `provider.ts`. `sending_domains` still has `mail_from` a
     `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `SES_REGION=us-east-2`, `SES_CONFIGURATION_SET=claritia`,
     `SES_SNS_TOPIC_ARN`, later `SES_SMTP_USER`, `SES_SMTP_PASS`.
 
-### Step 1. The code, switched off (one release)
+### Step 1. The code, switched off (built)
 
-Restore and fit the three files, `Sender` and `senderFor`, the bucket, `/api/email/ses`, places 5 to 7 on the shared
-sender, migration 144, the tests in section 6. `EMAIL_SES_DOMAINS` empty: nothing changes for anyone.
-Done when: every test passes, a test send from the app reaches a verified inbox through SES in sandbox.
+- `src/lib/email/sigv4.ts` and `src/lib/email/sns.ts` restored; `src/lib/email/ses.ts` rebuilt on today's
+  `SendError` (simple and raw sends, the send rate from `GetAccount`, identities for Step 3).
+- `src/lib/email/senders.ts`: `sesDomains` (reads `EMAIL_SES_DOMAINS`), `routedSender` for the send job,
+  `routedBatcher` for teammate alerts (a batch with any SES email is refused before anything goes, so each goes over
+  the mailer), `routedMailer` for raw mail (SES's raw send, so meeting invites on SES domains need no SMTP), and
+  `systemSend` for alerts and form codes.
+- `worker-intel/jobs/email.ts`: a round sends Resend's first tries in one batch and SES's one by one; an unclear SES
+  answer stays `unknown` (never sent again), while Resend's keyed one is tried again.
+- `/api/email/ses` takes SNS: subscription confirmed for our topic only, every message checked, events into
+  `email_event_apply` and `meeting_mail_event` like Resend's.
+- Tests: `tests/ses.test.ts` (13), and the sending database tests (`tests/pg/email.pg.ts`, `mailboxes.pg.ts`) still pass.
+- With `EMAIL_SES_DOMAINS` empty, or no AWS keys, every email goes exactly as before.
+
+Migration 144 (`sending_domains.provider`) moves to Step 3, where it's first used.
 
 ### Step 2. Claritia's own mail on SES (one week of watching)
 
-`EMAIL_SES_DOMAINS=tryclaritia.com`: alerts, form codes, teammate alerts and Claritia's own workflows go through
-SES.
+`EMAIL_SES_DOMAINS=tryclaritia.com`: alerts, form codes, teammate alerts, meeting emails from `mail.tryclaritia.com`
+and Claritia's own workflows go through SES (the subdomain follows its parent).
 Done when: a week with bounces under 2%, complaints under 0.05%, no `unknown` sends, events arriving for every
 delivery.
 Back out: empty the variable.

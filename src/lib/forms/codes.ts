@@ -1,6 +1,7 @@
 import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { alertsFrom } from "../alertSender.ts";
+import { sesDomains, systemSend } from "../email/senders.ts";
 import { allFields, type Field, type Form } from "./schema.ts";
 
 // Email and phone codes (docs/fields-plan.md Part 3): a field set to "Verify with a code" sends a 6-digit code to the
@@ -14,8 +15,8 @@ const secret = () => process.env.FORM_CODE_SECRET?.trim() || process.env.SECRETS
 const hmac = (s: string) => createHmac("sha256", secret()).update(s).digest();
 const norm = (field: Field, to: string) => (field.type === "phone" ? to.replace(/[^\d+]/g, "") : to.trim().toLowerCase());
 
-/** Codes by email need Resend and a secret; by text message, Twilio Verify. */
-export const emailCodesReady = () => !!process.env.RESEND_API_KEY?.trim() && !!secret();
+/** Codes by email need Resend (or SES for the codes' domain) and a secret; by text message, Twilio Verify. */
+export const emailCodesReady = () => (!!process.env.RESEND_API_KEY?.trim() || (!!process.env.AWS_ACCESS_KEY_ID?.trim() && sesDomains()(alertsFrom()))) && !!secret();
 export const smsCodesReady = () => !!secret() && !!process.env.TWILIO_ACCOUNT_SID?.trim() && !!process.env.TWILIO_AUTH_TOKEN?.trim() && !!process.env.TWILIO_VERIFY_SID?.trim();
 /** Whether the form asks for a code on this field: it's set to, and the server can send one. */
 export const codeAsked = (f: Field) => !!f.verify && (f.type === "email" ? emailCodesReady() : f.type === "phone" ? smsCodesReady() : false);
@@ -61,16 +62,11 @@ export function missingProofs(form: string, body: Form, answers: Record<string, 
 }
 
 export async function sendEmailCode(to: string, code: string, formName: string, fetchFn: typeof fetch = fetch): Promise<boolean> {
-  const key = process.env.RESEND_API_KEY?.trim();
-  if (!key) return false;
+  if (!emailCodesReady()) return false;
   const text = `Your code for ${formName || "the form"} is ${code}. It works for 30 minutes.`;
-  const res = await fetchFn("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: alertsFrom(), to: [to], subject: `${code} is your code`, text, html: `<p style="font:16px/1.5 Inter,system-ui,sans-serif">Your code for ${formName.replace(/[<>&"]/g, "") || "the form"} is</p><p style="font:600 28px/1.2 Inter,system-ui,sans-serif;letter-spacing:4px">${code}</p><p style="font:14px/1.5 Inter,system-ui,sans-serif;color:#666">It works for 30 minutes.</p>` }),
-    signal: AbortSignal.timeout(10_000),
-  }).catch(() => null);
-  return !!res?.ok;
+  const html = `<p style="font:16px/1.5 Inter,system-ui,sans-serif">Your code for ${formName.replace(/[<>&"]/g, "") || "the form"} is</p><p style="font:600 28px/1.2 Inter,system-ui,sans-serif;letter-spacing:4px">${code}</p><p style="font:14px/1.5 Inter,system-ui,sans-serif;color:#666">It works for 30 minutes.</p>`;
+  // Through SES when the codes' domain is on it (EMAIL_SES_DOMAINS), else Resend (src/lib/email/senders.ts).
+  return (await systemSend({ from: alertsFrom(), to: [to], subject: `${code} is your code`, text, html }, { fetchFn })) === null;
 }
 
 const twilio = (path: string, body: Record<string, string>, fetchFn: typeof fetch) =>
