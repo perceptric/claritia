@@ -130,6 +130,7 @@ export function cleanBody(raw: unknown): RouterBody {
       ...(o.then === "owner" || o.then === "hold" || (o.then === "user" && v2) ? { then: o.then } : {}),
       ...(o.then === "user" && v2 && UUID.test(s(o.user, 36)) ? { user: s(o.user, 36) } : {}),
       ...(o.then !== "hold" && UUID.test(s(o.meet, 36)) ? { meet: s(o.meet, 36) } : {}),
+      ...(o.book === "all" && (!o.then || o.then === "queue") ? { book: "all" as const } : {}),
     });
   }
   const fb = obj(r.fallback);

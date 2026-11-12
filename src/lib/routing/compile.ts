@@ -13,7 +13,8 @@ import { fieldOf } from "./screenModel.ts";
  * One rule of the form: when all its conditions hold (or any, with match "any"), the lead books `meet`, with the
  * meeting's own people, or with `with` (one person, or a team taking turns) when set.
  */
-export type FormRoute = { id: string; conds: Cond[]; meet: string; match?: "all" | "any"; name?: string; with?: { kind: "user" | "team"; id: string } };
+/** `with.all`: a team's members all attend (Collective); without it the team's turn picks one. */
+export type FormRoute = { id: string; conds: Cond[]; meet: string; match?: "all" | "any"; name?: string; with?: { kind: "user" | "team"; id: string; all?: boolean } };
 /** The checks before any rule, when the form sets them: the spam check and keeping existing owners. */
 export type FormBefore = { spam?: boolean; keep?: boolean };
 /** Where a Dynamic meeting sends a lead: one rep, or a team whose members take turns (a team key). */
@@ -89,7 +90,8 @@ export function compileRouting(base: RouterBody, o: { def: string | null | undef
         problems.push(`${label}: its team is gone`);
         continue;
       }
-      list.push(withDest({ id: `f_${row.id}`.slice(0, 40), name: short(`${label}, ${t.name}`), match: row.match === "any" ? "any" : "all", conds: row.conds, meet: t.id }, row.with));
+      const rule = withDest({ id: `f_${row.id}`.slice(0, 40), name: short(`${label}, ${t.name}`), match: row.match === "any" ? "any" : "all", conds: row.conds, meet: t.id }, row.with);
+      list.push(row.with.kind === "team" && row.with.all ? { ...rule, book: "all" } : rule);
       continue;
     }
     // An "or" rule over a Dynamic meeting is one path per condition, each joined with the meeting's own rules, so

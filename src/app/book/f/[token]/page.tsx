@@ -40,7 +40,7 @@ export default async function FormBookPage({ params, searchParams }: Props) {
   if (!found?.type || found.type.id !== c.type) return <Missing embed={o.embed} />;
   const t = await withBrand(found, null);
   // The form's own calendar takes no payment, so neither does this page: the price stays off.
-  const type = guestTypeOf(pageType(t.type!, c), t.profiles, false);
+  const type = guestTypeOf(pageType(t.type!, c, ctx.hosts), t.profiles, false);
   const first = await claimSlots(rpc, token, c, type.lengths[0]).catch(() => null);
   const name = [ctx.first_name, ctx.last_name].filter(Boolean).join(" ");
   const s = shellOf(t);

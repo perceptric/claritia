@@ -338,7 +338,10 @@ export async function routeFillWith(
     const body = live?.body;
     const rule = res.rule ? body?.rules.list.find((x) => x.id === res.rule) : undefined;
     const meet = rule ? rule.meet : res.by === "fallback" ? body?.fallback?.meet : undefined;
-    return { routed: { kind: "owner", rule: res.rule ?? null, by: res.by, user: res.user, ...(meet ? { meet } : {}) }, live, run: r.run };
+    // A Collective rule: everyone on its team attends; the team's turn still picked the owner. An older body keeps its
+    // team's members itself; a newer one names a routing team, read when the times are offered.
+    const all = rule?.book === "all" && rule.queue ? { key: rule.queue, ...(body?.queues.find((q) => q.id === rule.queue)?.members.length ? { hosts: body!.queues.find((q) => q.id === rule.queue)!.members.map((m) => m.user) } : {}) } : null;
+    return { routed: { kind: "owner", rule: res.rule ?? null, by: res.by, user: res.user, ...(meet ? { meet } : {}), ...(all ? { all } : {}) }, live, run: r.run };
   } catch {
     // Failed before it claimed the lead, or while committing: the job routes it (a repeat by key writes nothing).
     if (owner !== "job") await later();
@@ -512,7 +515,7 @@ export async function acceptFill(
     if (plan.kind === "times" && o.secret) {
       let why: AvailabilityFailure | null = null;
       try {
-        booking = await offerForFill(rpc, { submission: sid, typeId: plan.type, secret: o.secret, now: o.now, live: routing?.live, rep: plan.rep, report: (w) => (why = w) });
+        booking = await offerForFill(rpc, { submission: sid, typeId: plan.type, secret: o.secret, now: o.now, live: routing?.live, rep: plan.rep, all: plan.all ?? null, report: (w) => (why = w) });
       } catch {
         booking = null;
         why = "unknown";

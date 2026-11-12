@@ -1176,7 +1176,7 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
               conds: (Array.isArray(x.conds) ? x.conds : []).slice(0, 10).map(cleanCondition).filter((c): c is NonNullable<typeof c> => !!c),
               ...(x.match === "any" ? { match: "any" as const } : {}),
               ...(name ? { name } : {}),
-              ...(withOk ? { with: { kind: w!.kind as "user" | "team", id: w!.id as string } } : {}),
+              ...(withOk ? { with: { kind: w!.kind as "user" | "team", id: w!.id as string, ...(w!.kind === "team" && w!.all === true ? { all: true } : {}) } } : {}),
             };
           });
         const bf = sch.before && typeof sch.before === "object" ? (sch.before as Record<string, unknown>) : null;

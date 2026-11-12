@@ -60,7 +60,8 @@ export const OWNED = "owned";
 /** How routing placed the lead, as far as the booking step needs it. null: routing didn't answer in time. */
 /** `meet`: the meeting type the routing rule (or the fallback) names, offered instead of the form's own. */
 /** `user`: the rep Routing gave the lead. */
-export type RoutedAs = { kind: "owner" | "held" | "unassigned"; rule?: string | null; by?: string | null; meet?: string | null; user?: string | null } | null;
+/** `all`: the rule books its team collectively (everyone attends): the team's key, and its members when the body holds them. */
+export type RoutedAs = { kind: "owner" | "held" | "unassigned"; rule?: string | null; by?: string | null; meet?: string | null; user?: string | null; all?: { key: string; hosts?: string[] } | null } | null;
 
 /**
  * What a Claritia-calendar form does after the send (docs/inbound.md: Routing decides, the form shows the result).
@@ -69,7 +70,7 @@ export type RoutedAs = { kind: "owner" | "held" | "unassigned"; rule?: string | 
  *   pending: Routing hasn't committed an owner yet: "Your details are saved. We're finishing your request." The form
  *            sends the same request again (same key) until it has; it never shows another host's times meanwhile.
  */
-export type BookPlan = { kind: "message" } | { kind: "times"; type: string; rep: string | null } | { kind: "pending" };
+export type BookPlan = { kind: "message" } | { kind: "times"; type: string; rep: string | null; all?: { key: string; hosts?: string[] } | null } | { kind: "pending" };
 
 /**
  * With Routing live (a live router, not paused) the lead books the meeting their rule names (else the form's own)
@@ -85,7 +86,7 @@ export function claritiaPlan(s: Schedule, routed: RoutedAs, live: { paused?: boo
   if (!routed) return own ? { kind: "pending" } : { kind: "message" };
   if (routed.kind !== "owner" || !routed.user) return { kind: "message" };
   const type = routed.meet || own;
-  return type ? { kind: "times", type, rep: routed.user } : { kind: "message" };
+  return type ? { kind: "times", type, rep: routed.user, ...(routed.all ? { all: routed.all } : {}) } : { kind: "message" };
 }
 
 /**

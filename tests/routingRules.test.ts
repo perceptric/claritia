@@ -10,6 +10,7 @@ import { checkStudioPage } from "../src/lib/studio/check.ts";
 import { cleanPage, checkPage, isRouting, pageForm, type PageAfter } from "../src/lib/studio/page.ts";
 import { cleanRoute, neverRuns, routeIndex, ruleHolds, ruleWords, sampleFor, type StudioRoute } from "../src/lib/studio/routes.ts";
 import { compileRouting, type MeetingLite } from "../src/lib/routing/compile.ts";
+import { cleanBody } from "../src/lib/router/check.ts";
 
 const DEMO = "11111111-1111-4111-8111-111111111111";
 const ENT = "22222222-2222-4222-8222-222222222222";
@@ -144,6 +145,14 @@ test("who takes it: a person or team booked straight, with or kept; a team that'
   assert.equal(one.body.rules.list[0]!.user, PRIYA);
   const team = compileRouting(base, { def: "m_intro", routes: [{ id: "r1", conds: [US], meet: "m_intro", with: { kind: "team", id: "q_ent" } }], types: [intro, sales], teamKeys: TEAMS });
   assert.equal(team.body.rules.list[0]!.queue, "q_ent");
+  assert.equal(team.body.rules.list[0]!.book, undefined, "a team's distribution books one host");
+  // Collective: the rule books everyone on its team, and a saved body keeps it.
+  const all = compileRouting(base, { def: "m_intro", routes: [{ id: "r1", conds: [US], meet: "m_intro", with: { kind: "team", id: "q_ent", all: true } }], types: [intro, sales], teamKeys: TEAMS });
+  assert.deepEqual([all.body.rules.list[0]!.queue, all.body.rules.list[0]!.book], ["q_ent", "all"]);
+  const kept = cleanBody(JSON.parse(JSON.stringify(all.body)));
+  assert.equal(kept.rules.list[0]!.book, "all");
+  assert.deepEqual(cleanRoute({ ...big, with: { kind: "team", id: "q_ent", all: true } })!.with, { kind: "team", id: "q_ent", all: true });
+  assert.deepEqual(cleanRoute({ ...big, with: { kind: "user", id: PRIYA, all: true } as never })!.with, { kind: "user", id: PRIYA }, "only a team books collectively");
   const gone = compileRouting(base, { def: "m_intro", routes: [{ id: "r1", name: "Big", conds: [US], meet: "m_intro", with: { kind: "team", id: "q_old" } }], types: [intro, sales], teamKeys: TEAMS });
   assert.deepEqual(gone.body.rules.list, []);
   assert.deepEqual(gone.problems, ["Big: its team is gone"]);
