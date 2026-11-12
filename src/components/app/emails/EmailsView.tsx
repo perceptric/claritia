@@ -10,12 +10,15 @@ import { useEffect, useRef, useState } from "react";
 import { newBlock, newSection, readEmailDoc, type EmailDoc } from "@/lib/design/email/doc";
 import { emailsPage, EMAILS_TABS } from "@/lib/nav";
 import { Branch, Plus, Trash } from "../../Icons";
-import { askConfirm } from "../Dialogs";
+import { askConfirm, askText, tell } from "../Dialogs";
+import { Select } from "../Select";
+import { Sheet } from "../Sheet";
 import { EmailBuilder } from "../email/EmailBuilder";
+import { SendPanel } from "./SendPanel";
 import { ToolIntro } from "../ToolIntro";
 import { BrandSettings } from "../views/BrandSettings";
 import { EmailTemplatesView } from "../workflows/EmailTemplatesView";
-import { Badge, Button, ErrorNote, errorText, IconButton, invalidate, Loading, must, Page, Section, Td, Th, timeAgo, useQuery, type Tone, type ViewProps } from "../ui";
+import { Badge, Button, ErrorNote, errorText, IconButton, invalidate, Loading, must, Page, postJson, Section, Td, Th, timeAgo, useQuery, type Tone, type ViewProps } from "../ui";
 
 export function EmailsView(props: ViewProps) {
   const p = emailsPage(props.id);
@@ -44,9 +47,10 @@ const pct = (part: number, whole: number) => (whole ? `${Math.round((part / whol
 
 // Campaigns ---------------------------------------------------------------------------------------------------------
 
-type Campaign = { id: string; name: string; subject: string; status: string; updated_at: string; first_sent: string | null; recipients: number; sent: number; delivered: number; clicked: number; unsubscribed: number; bounced: number; complained: number };
-const CAMPAIGN_TONE: Record<string, Tone> = { sent: "green", sending: "amber", scheduled: "sky", draft: "gray" };
-const CAMPAIGN_LABEL: Record<string, string> = { sent: "Sent", sending: "Sending", scheduled: "Scheduled", draft: "Draft" };
+type Campaign = { id: string; name: string; subject: string; status: string; updated_at: string; first_sent: string | null; recipients: number; sent: number; delivered: number; clicked: number; unsubscribed: number; bounced: number; complained: number; send_at: string | null; waiting: number };
+const CAMPAIGN_TONE: Record<string, Tone> = { sent: "green", sending: "amber", scheduled: "sky", paused: "amber", draft: "gray" };
+const CAMPAIGN_LABEL: Record<string, string> = { sent: "Sent", sending: "Sending", scheduled: "Scheduled", paused: "Paused", draft: "Draft" };
+const whenWords = (iso: string) => new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
 /** A new email: only the footer, so Tia can start it from any template without asking first. */
 const blankDoc = (): EmailDoc => ({ ...readEmailDoc({}), sections: [newSection([newBlock("footer")])] });
@@ -76,6 +80,14 @@ function Campaigns({ sb, ws, navigate }: ViewProps) {
     } catch (e) {
       setError(errorText(e));
     }
+  };
+  // Pause, Resume and Cancel act at once; the list reads again after.
+  const act = async (fn: "pause" | "resume" | "cancel", c: Campaign) => {
+    if (fn === "cancel" && !(await askConfirm(`Cancel ${c.name}?`, { body: "It goes back to a draft and nobody gets it.", ok: "Cancel sending", danger: true }))) return;
+    setError("");
+    const r = fn === "cancel" ? await sb.rpc("email_campaign_cancel", { p_ws: ws.id, p_email: c.id }) : await sb.rpc("email_campaign_pause", { p_ws: ws.id, p_email: c.id, p_pause: fn === "pause" });
+    if (r.error) setError(r.error.message);
+    void list.reload();
   };
   const add = (
     <Button onClick={() => void create()} disabled={busy}>
@@ -117,7 +129,7 @@ function Campaigns({ sb, ws, navigate }: ViewProps) {
               <Th>Clicked</Th>
               <Th>Unsubscribed</Th>
               <Th>Bounced</Th>
-              <Th className="w-12">
+              <Th className="w-40">
                 <span className="sr-only">Actions</span>
               </Th>
             </tr>
@@ -150,7 +162,7 @@ function Campaigns({ sb, ws, navigate }: ViewProps) {
                     <Badge tone={CAMPAIGN_TONE[c.status] ?? "gray"} dot>
                       {CAMPAIGN_LABEL[c.status] ?? c.status}
                     </Badge>
-                    <span className="text-[12px] text-muted">{timeAgo(c.first_sent ?? c.updated_at)}</span>
+                    <span className="text-[12px] text-muted">{c.status === "scheduled" && c.send_at ? whenWords(c.send_at) : c.status === "sending" || c.status === "paused" ? `${n(c.waiting)} to go` : timeAgo(c.first_sent ?? c.updated_at)}</span>
                   </span>
                 </Td>
                 <Td className="tabular-nums">{c.sent ? n(c.sent) : "—"}</Td>
@@ -164,6 +176,17 @@ function Campaigns({ sb, ws, navigate }: ViewProps) {
                       <IconButton label={`Delete ${c.name}`} onClick={() => void remove(c)}>
                         <Trash size={13} />
                       </IconButton>
+                    </span>
+                  ) : c.status === "scheduled" || c.status === "sending" || c.status === "paused" ? (
+                    <span className="flex flex-wrap justify-end gap-1">
+                      <Button size="sm" variant="ghost" onClick={() => void act(c.status === "paused" ? "resume" : "pause", c)}>
+                        {c.status === "paused" ? "Resume" : "Pause"}
+                      </Button>
+                      {c.sent === 0 ? (
+                        <Button size="sm" variant="ghost" onClick={() => void act("cancel", c)}>
+                          Cancel
+                        </Button>
+                      ) : null}
                     </span>
                   ) : null}
                 </Td>
@@ -200,6 +223,7 @@ function DraftEditor({ sb, session, ws, navigate, emailId, draft }: ViewProps & 
   const [state, setState] = useState(() => ({ name: draft.name, subject: draft.subject, doc: draft.doc ? readEmailDoc(draft.doc, { allowHtml: true }) : blankDoc() }));
   const [fresh] = useState(() => !state.doc.sections.some((x) => x.columns.some((c) => c.blocks.some((b) => b.type !== "footer"))));
   const [error, setError] = useState("");
+  const [sending, setSending] = useState(false);
   const dirty = useRef(false);
   const latest = useRef(state);
   const save = async () => {
@@ -252,12 +276,36 @@ function DraftEditor({ sb, session, ws, navigate, emailId, draft }: ViewProps & 
         startOn={fresh ? "ai" : "settings"}
         title={state.name}
         onSubject={(subject) => change({ subject })}
+        actions={
+          <Button
+            onClick={async () => {
+              await saveRef.current();
+              setSending(true);
+            }}
+          >
+            Send
+          </Button>
+        }
         onChange={(doc, subject) => change({ doc, ...(subject ? { subject } : {}) })}
         onClose={() => {
           void saveRef.current();
           navigate("emails");
         }}
       />
+      {sending ? (
+        <SendPanel
+          sb={sb}
+          session={session}
+          ws={ws.id}
+          emailId={emailId}
+          subject={state.subject}
+          onClose={() => setSending(false)}
+          onSent={() => {
+            invalidate(`email_campaigns:${ws.id}`);
+            navigate("emails");
+          }}
+        />
+      ) : null}
     </>
   );
 }
@@ -337,31 +385,172 @@ const STATUS_TONE: Record<string, Tone> = { subscribed: "green", unsubscribed: "
 const STATUS_LABEL: Record<string, string> = { subscribed: "Subscribed", unsubscribed: "Unsubscribed", bounced: "Bounced", complained: "Marked as spam", "no consent": "No consent" };
 const SOURCE_LABEL: Record<string, string> = { form: "Form", import: "Import", manual: "Added by hand", api: "API", hubspot: "HubSpot", salesforce: "Salesforce", omniscient: "Omniscient" };
 
-function Audiences({ sb, ws }: ViewProps) {
+type ListRow = { id: string; name: string; members: number };
+
+function Audiences({ sb, session, ws }: ViewProps) {
   const [q, setQ] = useState("");
   const [limit, setLimit] = useState(50);
+  const [view, setView] = useState("everyone");
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [importing, setImporting] = useState(false);
+  const [error, setError] = useState("");
   const term = q.trim();
+  const listId = view === "everyone" ? null : view;
   const total = useQuery(`audience_count:${ws.id}`, async () => must(await sb.rpc("audience_count", { p_ws: ws.id })) as number);
-  const people = useQuery(`audience_people:${ws.id}:${term}:${limit}`, async () => (must(await sb.rpc("audience_people", { p_ws: ws.id, p_q: term || null, p_limit: limit })) ?? []) as Person[]);
-  if (total.error || people.error) return <ErrorNote message={total.error || people.error} />;
-  if (total.data === null || !people.data) return <Loading />;
-  if (!total.data)
+  const lists = useQuery(`lists:${ws.id}`, async () => (must(await sb.rpc("lists_overview", { p_ws: ws.id })) ?? []) as ListRow[]);
+  const people = useQuery(`audience_people:${ws.id}:${view}:${term}:${limit}`, async () => (must(await sb.rpc("audience_people", { p_ws: ws.id, p_q: term || null, p_limit: limit, p_list: listId })) ?? []) as Person[]);
+  const list = (lists.data ?? []).find((l) => l.id === listId) ?? null;
+  const refresh = () => {
+    invalidate(`lists:${ws.id}`);
+    invalidate(`audience_count:${ws.id}`);
+    void people.reload();
+    void lists.reload();
+  };
+  const run = async (fn: () => Promise<unknown>) => {
+    setError("");
+    try {
+      await fn();
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
+  const newList = () =>
+    run(async () => {
+      const name = await askText("Name the list", { placeholder: "Workshop waitlist", ok: "Create" });
+      if (!name?.trim()) return;
+      const id = must(await sb.rpc("list_save", { p_ws: ws.id, p_id: null, p_name: name.trim() })) as string;
+      refresh();
+      setView(id);
+      setPicked(new Set());
+    });
+  const rename = (l: ListRow) =>
+    run(async () => {
+      const name = await askText("Rename the list", { initial: l.name, ok: "Save" });
+      if (!name?.trim() || name.trim() === l.name) return;
+      must(await sb.rpc("list_save", { p_ws: ws.id, p_id: l.id, p_name: name.trim() }));
+      refresh();
+    });
+  const removeList = (l: ListRow) =>
+    run(async () => {
+      if (!(await askConfirm(`Delete ${l.name}?`, { body: "The people stay; only the list goes.", ok: "Delete", danger: true }))) return;
+      must(await sb.rpc("list_delete", { p_ws: ws.id, p_id: l.id }));
+      setView("everyone");
+      refresh();
+    });
+  const addTo = (id: string) =>
+    run(async () => {
+      must(await sb.rpc("list_add", { p_ws: ws.id, p_list: id, p_contacts: [...picked] }));
+      setPicked(new Set());
+      refresh();
+    });
+  const takeOut = () =>
+    run(async () => {
+      if (!listId) return;
+      must(await sb.rpc("list_remove", { p_ws: ws.id, p_list: listId, p_contacts: [...picked] }));
+      setPicked(new Set());
+      refresh();
+    });
+
+  if (total.error || people.error || lists.error) return <ErrorNote message={total.error || people.error || lists.error} />;
+  if (total.data === null || !people.data || !lists.data) return <Loading />;
+  if (!total.data && !lists.data.length)
     return (
       <Page title="Audiences">
-        <ToolIntro sketch="megaphone" title={"The people your emails go to\nfill in from your forms and bookings"} lead="Everyone who fills a form or books a meeting shows here, with whether they agreed to get email." />
+        <ErrorNote message={error} />
+        <ToolIntro
+          sketch="megaphone"
+          title={"The people your emails go to\nfill in from your forms and bookings"}
+          lead="Everyone who fills a form or books a meeting shows here, with whether they agreed to get email."
+          action={
+            <Button variant="ghost" onClick={() => void newList()}>
+              <Plus size={14} /> New list
+            </Button>
+          }
+        />
       </Page>
     );
   const name = (p: Person) => [p.first_name, p.last_name].filter(Boolean).join(" ");
+  const all = people.data.length > 0 && people.data.every((p) => picked.has(p.id));
+  const toggle = (id: string) => setPicked((s) => {
+    const x = new Set(s);
+    if (x.has(id)) x.delete(id);
+    else x.add(id);
+    return x;
+  });
   return (
-    <Page title="Audiences" count={total.data}>
+    <Page
+      title="Audiences"
+      count={total.data}
+      actions={
+        <Button variant="ghost" onClick={() => void newList()}>
+          <Plus size={14} /> New list
+        </Button>
+      }
+    >
+      <ErrorNote message={error} />
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name or email" aria-label="Search people" className="h-8 w-full max-w-sm min-w-0 rounded-md bg-card px-3 text-[13px] text-ink shadow-input outline-none focus:shadow-focus" />
+        <Select<string>
+          ariaLabel="Show"
+          value={view}
+          onChange={(v) => {
+            setView(v);
+            setPicked(new Set());
+            setLimit(50);
+          }}
+          options={[{ value: "everyone", label: "Everyone", hint: `${n(total.data)} ${total.data === 1 ? "person" : "people"}` }, ...lists.data.map((l) => ({ value: l.id, label: l.name, hint: `${n(l.members)} ${l.members === 1 ? "person" : "people"}`, group: "Lists" }))]}
+          menuWidth={260}
+          className="h-8 min-w-[200px] rounded-full bg-card px-3.5 text-[12.5px] font-medium text-ink shadow-chip"
+        />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name or email" aria-label="Search people" className="h-8 w-full max-w-xs min-w-0 rounded-md bg-card px-3 text-[13px] text-ink shadow-input outline-none focus:shadow-focus" />
+        <span className="flex-1" />
+        {list ? (
+          <span className="flex flex-wrap items-center gap-1">
+            <Button size="sm" variant="ghost" onClick={() => setImporting(true)}>
+              Import
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => void rename(list)}>
+              Rename
+            </Button>
+            <IconButton label={`Delete ${list.name}`} onClick={() => void removeList(list)}>
+              <Trash size={13} />
+            </IconButton>
+          </span>
+        ) : null}
       </div>
+      {picked.size ? (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg bg-card px-3 py-2 shadow-rest">
+          <span className="text-[13px] font-medium text-ink tabular-nums">{n(picked.size)} picked</span>
+          {lists.data.filter((l) => l.id !== listId).length ? (
+            <Select<string>
+              ariaLabel="Add to a list"
+              value=""
+              placeholder="Add to a list"
+              plainPlaceholder
+              onChange={(id) => void addTo(id)}
+              options={lists.data.filter((l) => l.id !== listId).map((l) => ({ value: l.id, label: l.name }))}
+              menuWidth={220}
+              className="h-7 rounded-full bg-card px-3 text-[12.5px] font-medium text-ink shadow-chip"
+            />
+          ) : null}
+          {listId ? (
+            <Button size="sm" variant="ghost" onClick={() => void takeOut()}>
+              Remove from list
+            </Button>
+          ) : null}
+          <span className="flex-1" />
+          <Button size="sm" variant="plain" onClick={() => setPicked(new Set())}>
+            Clear
+          </Button>
+        </div>
+      ) : null}
       <div className="overflow-x-auto rounded-lg bg-card shadow-rest">
-        <table className="w-full min-w-[720px] border-collapse [&_tbody_tr:last-child_td]:border-b-0">
+        <table className="w-full min-w-[760px] border-collapse [&_tbody_tr:last-child_td]:border-b-0">
           <thead>
             <tr>
-              <Th className="pl-5">Person</Th>
+              <Th className="w-10 pl-4">
+                <input type="checkbox" checked={all} aria-label="Pick everyone shown" onChange={() => setPicked(all ? new Set() : new Set(people.data!.map((p) => p.id)))} className="size-4 accent-[var(--color-signal)]" />
+              </Th>
+              <Th>Person</Th>
               <Th>Email status</Th>
               <Th>Came from</Th>
               <Th>Added</Th>
@@ -371,7 +560,10 @@ function Audiences({ sb, ws }: ViewProps) {
           <tbody>
             {people.data.map((p) => (
               <tr key={p.id}>
-                <Td className="pl-5">
+                <Td className="pl-4">
+                  <input type="checkbox" checked={picked.has(p.id)} aria-label={`Pick ${name(p) || p.email}`} onChange={() => toggle(p.id)} className="size-4 accent-[var(--color-signal)]" />
+                </Td>
+                <Td>
                   <span className="flex min-w-0 flex-col py-1">
                     {name(p) ? <span className="font-medium break-words text-ink">{name(p)}</span> : null}
                     <span className={`${name(p) ? "text-[12px] text-muted" : "font-medium text-ink"} wrap-anywhere`}>{p.email}</span>
@@ -387,8 +579,14 @@ function Audiences({ sb, ws }: ViewProps) {
             ))}
             {!people.data.length ? (
               <tr>
-                <td colSpan={5} className="px-5 py-6 text-center text-[13px] text-muted">
-                  No matches
+                <td colSpan={6} className="px-5 py-6 text-center text-[13px] text-muted">
+                  {list && !term ? (
+                    <Button size="sm" variant="ghost" onClick={() => setImporting(true)}>
+                      Import people
+                    </Button>
+                  ) : (
+                    "No matches"
+                  )}
                 </td>
               </tr>
             ) : null}
@@ -402,7 +600,53 @@ function Audiences({ sb, ws }: ViewProps) {
           </Button>
         </div>
       ) : null}
+      {importing && list ? <ImportSheet session={session} ws={ws.id} list={list} onClose={() => setImporting(false)} onDone={() => (setImporting(false), refresh())} /> : null}
     </Page>
+  );
+}
+
+/** Paste people into a list: one a line, with whether they agreed to get email. */
+function ImportSheet({ session, ws, list, onClose, onDone }: { session: ViewProps["session"]; ws: string; list: ListRow; onClose: () => void; onDone: () => void }) {
+  const [text, setText] = useState("");
+  const [consent, setConsent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const go = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const r = await postJson<{ added: number; skipped: number }>(session, "/api/emails/import", { workspaceId: ws, listId: list.id, text, consent });
+      if (r.skipped) await tell(`Added ${n(r.added)}`, `${n(r.skipped)} ${r.skipped === 1 ? "line wasn't an email or was a repeat" : "lines weren't emails or were repeats"}.`);
+      onDone();
+    } catch (e) {
+      setError(errorText(e));
+      setBusy(false);
+    }
+  };
+  return (
+    <Sheet
+      title={`Import to ${list.name}`}
+      onClose={onClose}
+      footer={
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={() => void go()} disabled={busy || !text.trim()}>
+            {busy ? "Importing…" : "Import"}
+          </Button>
+        </div>
+      }
+    >
+      <div className="flex flex-col gap-3">
+        <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder={"ana@example.com, Ana, Diaz\nben@example.com, Ben"} aria-label="People, one a line" rows={12} className="w-full rounded-lg bg-card p-3 font-mono text-[12.5px] text-ink shadow-input outline-none focus:shadow-focus" />
+        <label className="flex items-start gap-2 text-[13px] text-ink">
+          <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5 size-4 accent-[var(--color-signal)]" />
+          They agreed to get email from us
+        </label>
+        <ErrorNote message={error} />
+      </div>
+    </Sheet>
   );
 }
 

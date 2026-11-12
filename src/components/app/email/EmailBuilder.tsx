@@ -72,6 +72,7 @@ export function EmailBuilder({
   startOn = "settings",
   title = "Email builder",
   onSubject,
+  actions,
 }: {
   session: Session;
   sb: SupabaseClient;
@@ -89,6 +90,8 @@ export function EmailBuilder({
   title?: string;
   /** Given, the subject is typed in the top bar (a campaign); without it, the caller holds it (a workflow step). */
   onSubject?: (subject: string) => void;
+  /** More buttons at the right of the top bar, before Done (a campaign's Send). */
+  actions?: React.ReactNode;
 }) {
   const [kits, setKits] = useState<Kit[]>([]);
   const [error, setError] = useState("");
@@ -366,7 +369,10 @@ export function EmailBuilder({
           <Send size={13} />
           {sending ? "Sending…" : "Test"}
         </Button>
-        <Button onClick={onClose}>Done</Button>
+        {actions}
+        <Button variant={actions ? "ghost" : "primary"} onClick={onClose}>
+          Done
+        </Button>
       </div>
       {error || draft.error || notes.length ? (
         <div className="border-b border-line bg-card px-4 py-2">
