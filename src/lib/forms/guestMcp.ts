@@ -19,7 +19,7 @@ const guestTools: Tool<GuestCtx>[] = [
   {
     name: "find_form_template",
     title: "Find a form template",
-    description: "Use it first when someone asks for a form, survey, sign-up, booking request, RSVP, quiz or intake. Searches Claritia's 740 ready-made forms and gives the best matches with their ids for create_form.",
+    description: "Use it first when someone asks for a form, survey, sign-up, booking request, RSVP, quiz or intake. Searches Claritia's 840 ready-made forms and gives the best matches with their ids for create_form.",
     inputSchema: { type: "object", properties: { query: { ...str, description: "What the form is for, in a few words: 'yoga class sign-up', 'wedding photography inquiry'." } }, required: ["query"] },
     readOnly: true,
     async run(_ctx, args) {

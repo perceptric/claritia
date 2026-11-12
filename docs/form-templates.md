@@ -1,6 +1,6 @@
 # Form templates and styles
 
-A gallery of 740 ready forms for 38 industries, each in one of 18 styles, with menus to find them, starter kits, and
+A gallery of 840 ready forms for 38 industries, each in one of 18 styles, with menus to find them, starter kits, and
 templates that come wired with their meeting and follow-up. It lives on the website (tryclaritia.com/templates,
 `dev-arrowsterr/claritia-site`) and in the app (Forms › Templates). The plan behind it is
 `docs/form-templates-plan.md`.
@@ -11,6 +11,12 @@ templates that come wired with their meeting and follow-up. It lives on the webs
   150 are in the industry files (`general.ts`, `saas.ts` and the rest); wave 1 (274 more) is in the `wave1-*.ts` files
   by kind: booking, events, feedback, home services, leads, consent and legal, money, operations, quizzes and
   applications.
+- Wave 4 (100 more) is calculators, in `wave4-calc-home.ts` (45 for the home: remodels, home systems, upkeep) and
+  `wave4-calc-more.ts` (55 for auto, events, business services, people and care, real estate, money and retail), built
+  with `calcForm` in `calcKit.ts`. Each is two pages: the questions that set the price, with the price worked out live,
+  then where to send it; most end on a booking to confirm the exact price. Prices are ballpark US numbers a business
+  tunes to its own. No pictures. Loans and refinancing use `pow` in the formula. `tests/formCalculators.test.ts` runs
+  every one with real answers and checks the loan math against a bank's.
 - Every template has 1 to 3 categories and teams, set by hand: in `tpl()` (`cats`, `teams`, `subs`) or, for the first
   150, in `tags.ts`.
 - New templates are checked before they join: `node scripts/check-templates.ts <file> <EXPORT>` runs the form check in

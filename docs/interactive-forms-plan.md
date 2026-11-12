@@ -29,7 +29,7 @@ Most of the outside draft is already in Claritia. The plan only adds what is mis
 |---|---|---|
 | One schema with a checker | Built. 15 field types, 4 content blocks, consent | `src/lib/forms/schema.ts` |
 | Steps, branching, visibility rules | Built. Conditions with All/Any groups, step skips, lists that follow a field | `schema.ts`, `src/lib/forms/values.ts` |
-| Safe formulas, never `eval` | Built. Own parser: `+ - * /`, comparisons, `and`, `or`, `min`, `max`, `round`, `abs`, `if`, `ifempty`. Empty stays empty, divide by zero is empty | `src/lib/forms/formula.ts` |
+| Safe formulas, never `eval` | Built. Own parser: `+ - * /`, comparisons, `and`, `or`, `min`, `max`, `round`, `abs`, `pow`, `if`, `ifempty`. Empty stays empty, divide by zero is empty | `src/lib/forms/formula.ts` |
 | Server works out results again | Built. The server recomputes every calc from the answers | `formula.ts`, `src/lib/forms/submit.ts` |
 | Scores on choices | Built. Each choice can carry a score that formulas read | `Choice.score` in `schema.ts` |
 | Brand from the website | Built. Brand kit scan, fonts, colors, corners | `src/lib/forms/brand.ts` |

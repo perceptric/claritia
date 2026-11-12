@@ -9,7 +9,9 @@ import { findTemplates, GUEST_KEY, guestForm, guestIpHash, guestKeyHash, guestRi
 const PAGE = (q: string) => `<form><label>Email <input type="email" name="email" data-cl-save="email"></label>${q}<button type="submit">Send</button><section data-cl-thanks hidden><h2>Thanks</h2></section></form>`;
 
 test("the template search puts the closest form first", () => {
-  assert.equal(findTemplates("wedding photography inquiry")[0]?.name, "Wedding planning inquiry");
+  assert.equal(findTemplates("wedding photography inquiry")[0]?.name, "Photography inquiry");
+  assert.ok(findTemplates("wedding photography inquiry", 3).some((t) => t.name === "Wedding planning inquiry"));
+  assert.equal(findTemplates("loan payment calculator")[0]?.name, "Loan payment calculator");
   assert.match(findTemplates("dentist new patient intake")[0]?.name ?? "", /patient intake/i);
   assert.equal(findTemplates("event rsvp")[0]?.name, "Event RSVP");
   assert.ok(findTemplates("yoga class sign up").some((t) => t.name === "Free trial class"));

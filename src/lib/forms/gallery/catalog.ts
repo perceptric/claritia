@@ -27,6 +27,8 @@ import { WAVE3_INTAKE, WAVE3_OPS, WAVE3_LEGAL } from "./templates/wave3-ops.ts";
 import { WAVE3_FEEDBACK, WAVE3_QUIZZES } from "./templates/wave3-feedback.ts";
 import { WAVE3_APPLY, WAVE3_EVENTS } from "./templates/wave3-apply.ts";
 import { WAVE3_BOOKING, WAVE3_MONEY } from "./templates/wave3-booking.ts";
+import { WAVE4_CALC_HOME } from "./templates/wave4-calc-home.ts";
+import { WAVE4_CALC_MORE } from "./templates/wave4-calc-more.ts";
 import { defaultThemes } from "./themes.ts";
 import { withPhotos } from "./photos/index.ts";
 import { INDUSTRIES, type FormTemplate, type Industry, type UseCase } from "./types.ts";
@@ -82,6 +84,9 @@ const RAW: FormTemplate[] = [
   ...WAVE3_EVENTS,
   ...WAVE3_BOOKING,
   ...WAVE3_MONEY,
+  // Wave 4: 100 price and savings calculators (docs/form-templates.md).
+  ...WAVE4_CALC_HOME,
+  ...WAVE4_CALC_MORE,
 ];
 
 /** A template with its menus: the first 150 take theirs from tags.ts unless they set their own. */
