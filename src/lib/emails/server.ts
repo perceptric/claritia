@@ -7,6 +7,7 @@ import type { EmailDoc } from "../design/email/doc.ts";
 import { compileWithKit, loadKits } from "../design/email/server.ts";
 import { readSystem } from "../design/model.ts";
 import { extractLinks } from "../email/track.ts";
+import { sendCheck } from "./sendCheck.ts";
 import { cleanTokens } from "../forms/brand.ts";
 import { bookingUrl } from "../meetings/links.ts";
 import { viaLink } from "../share/channels.ts";
@@ -53,8 +54,15 @@ export async function emailChatTurn(db: SupabaseClient, model: Model, ws: string
   ).result;
 }
 
-/** An email's blocks made into what goes out (the same draft styles the builder shows), or the check's first block. */
-export async function buildForSend(db: SupabaseClient, ws: string, doc: EmailDoc): Promise<{ html: string; text: string; links: string[]; preheader: string } | { error: string }> {
+/**
+ * An email's blocks made into what goes out (the same draft styles the builder shows), or the check's first block.
+ * With `final` (a real send, not a test) the send check's stops count too: a placeholder or a broken link.
+ */
+export async function buildForSend(db: SupabaseClient, ws: string, doc: EmailDoc, final?: { subject: string }): Promise<{ html: string; text: string; links: string[]; preheader: string } | { error: string }> {
+  if (final) {
+    const stop = sendCheck(doc, final.subject).stops[0];
+    if (stop) return { error: stop };
+  }
   const kits = await loadKits(db, ws, [doc.kitId]);
   let built;
   try {

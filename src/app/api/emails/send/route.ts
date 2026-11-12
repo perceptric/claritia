@@ -35,7 +35,7 @@ export async function POST(request: Request) {
   const no = notReady(ready);
   if (no) return no;
   const doc = readEmailDoc(row.data.doc ?? {}, { allowHtml: true });
-  const built = await buildForSend(db, ws, doc);
+  const built = await buildForSend(db, ws, doc, { subject: row.data.subject ?? "" });
   if ("error" in built) return bad(built.error);
   const { data, error } = await db.rpc("email_campaign_send", {
     p_ws: ws,

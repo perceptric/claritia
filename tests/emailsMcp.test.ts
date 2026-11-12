@@ -3,7 +3,7 @@
 // owner, the list, the topic and the time; a database refusal comes back as words.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { EMAIL_TEMPLATES } from "../src/lib/design/email/library.ts";
+import { newBlock, newSection, readEmailDoc, type Block } from "../src/lib/design/email/doc.ts";
 
 const { emailTools } = await import("../src/lib/emails/mcp.ts");
 
@@ -14,12 +14,19 @@ const E2 = "33333333-3333-4333-8333-333333333333";
 const OWNER = "44444444-4444-4444-8444-444444444444";
 const ADMIN = "55555555-5555-4555-8555-555555555555";
 
+/** A filled email: words, a button with a real link, the footer. */
+const filled = () => {
+  const text = { ...newBlock("text"), html: "<p>Spring is here and the workshop opens next week. Bring a laptop and your questions about the garden.</p>" } as Block;
+  const button = { ...newBlock("button"), label: "Book a time", url: "https://acme.com/book" } as Block;
+  return { ...readEmailDoc({}), sections: [newSection([text, button]), newSection([newBlock("footer")])] };
+};
+
 function world(o: { ready?: number; refuse?: string } = {}) {
   const db: Record<string, Row[]> = {
     api_keys: [{ id: "k-owner", created_by: OWNER }, { id: "k-admin", created_by: ADMIN }],
     workspace_members: [{ workspace_id: "ws1", user_id: OWNER, role: "owner" }, { workspace_id: "ws1", user_id: ADMIN, role: "admin" }],
     emails: [
-      { id: E1, workspace_id: "ws1", kind: "broadcast", name: "Spring", subject: "Spring reset", status: "draft", doc: EMAIL_TEMPLATES[0]!.make() },
+      { id: E1, workspace_id: "ws1", kind: "broadcast", name: "Spring", subject: "Spring reset", status: "draft", doc: filled() },
       { id: E2, workspace_id: "ws1", kind: "broadcast", name: "Winter", subject: "Winter", status: "sent", doc: null },
       { id: "e-other", workspace_id: "ws2", kind: "broadcast", name: "Secret", subject: "x", status: "draft", doc: null },
     ],
@@ -59,7 +66,7 @@ function world(o: { ready?: number; refuse?: string } = {}) {
     },
   };
   const ctx = (key: string) => ({ sb, workspaceId: "ws1", keyId: key }) as never;
-  return { calls, ctx };
+  return { calls, ctx, emails: db.emails! };
 }
 const tool = (name: string) => emailTools.find((t) => t.name === name)!;
 const refusal = async (p: Promise<unknown>) => {
@@ -101,6 +108,10 @@ test("a sent email can't change or send again; another workspace's email isn't f
   assert.match(await refusal(tool("schedule_campaign").run(w.ctx("k-owner"), { email: "Winter" })), /isn't a draft/);
   assert.match(await refusal(tool("schedule_campaign").run(w.ctx("k-owner"), { email: "Secret" })), /not found/);
   assert.match(await refusal(tool("schedule_campaign").run(w.ctx("k-owner"), { email: "Spring", list: "Nope" })), /List Nope not found/);
+  // A template sent as it comes stops at the send check: its links aren't filled in.
+  const raw = world();
+  raw.emails[0]!.doc = (await import("../src/lib/design/email/library.ts")).EMAIL_TEMPLATES[0]!.make();
+  assert.match(await refusal(tool("schedule_campaign").run(raw.ctx("k-owner"), { email: "Spring" })), /Fill in|working link/);
   const r = world({ refuse: "Pick who gets it" });
   assert.equal(await refusal(tool("schedule_campaign").run(r.ctx("k-owner"), { email: "Spring" })), "Pick who gets it");
 });

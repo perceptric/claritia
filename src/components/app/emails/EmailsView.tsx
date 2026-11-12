@@ -20,6 +20,7 @@ import { AiMark } from "../Ai";
 import { ToolIntro } from "../ToolIntro";
 import { BrandSettings } from "../views/BrandSettings";
 import { TemplateGallery } from "./TemplateGallery";
+import { isRoleAddress } from "@/lib/emails/role";
 import { Badge, Button, ErrorNote, errorText, IconButton, invalidate, Loading, must, Page, postJson, Section, Td, Th, timeAgo, useQuery, type Tone, type ViewProps } from "../ui";
 
 export function EmailsView(props: ViewProps) {
@@ -300,6 +301,7 @@ function DraftEditor({ sb, session, ws, navigate, emailId, draft }: ViewProps & 
           ws={ws.id}
           emailId={emailId}
           subject={state.subject}
+          doc={state.doc}
           onClose={() => setSending(false)}
           onSent={() => {
             invalidate(`email_campaigns:${ws.id}`);
@@ -529,7 +531,7 @@ const SOURCE_LABEL: Record<string, string> = { form: "Form", import: "Import", m
 
 type ListRow = { id: string; name: string; members: number };
 
-function Audiences({ sb, session, ws }: ViewProps) {
+function Audiences({ sb, session, ws, role }: ViewProps) {
   const [q, setQ] = useState("");
   const [limit, setLimit] = useState(50);
   const [view, setView] = useState("everyone");
@@ -542,6 +544,13 @@ function Audiences({ sb, session, ws }: ViewProps) {
   const lists = useQuery(`lists:${ws.id}`, async () => (must(await sb.rpc("lists_overview", { p_ws: ws.id })) ?? []) as ListRow[]);
   const people = useQuery(`audience_people:${ws.id}:${view}:${term}:${limit}`, async () => (must(await sb.rpc("audience_people", { p_ws: ws.id, p_q: term || null, p_limit: limit, p_list: listId })) ?? []) as Person[]);
   const list = (lists.data ?? []).find((l) => l.id === listId) ?? null;
+  const held = useQuery(`contact_imports:${ws.id}`, async () => (must(await sb.from("contact_imports").select("id, list_id, people, created_at").eq("workspace_id", ws.id).order("created_at")) ?? []) as HeldImport[]);
+  const answer = (h: HeldImport, action: "add" | "discard") =>
+    run(async () => {
+      await postJson(session, "/api/emails/import", { workspaceId: ws.id, importId: h.id, action });
+      void held.reload();
+      refresh();
+    });
   const refresh = () => {
     invalidate(`lists:${ws.id}`);
     invalidate(`audience_count:${ws.id}`);
@@ -630,6 +639,25 @@ function Audiences({ sb, session, ws }: ViewProps) {
       }
     >
       <ErrorNote message={error} />
+      {role === "owner" && held.data?.length ? (
+        <ul aria-label="Imports waiting for an owner" className="mb-3 flex flex-col gap-2">
+          {held.data.map((h) => (
+            <li key={h.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-card px-4 py-2.5 shadow-rest">
+              <span className="min-w-0 flex-1 text-[13px] break-words text-ink">
+                {n(h.people.length)} {h.people.length === 1 ? "person" : "people"} for {lists.data?.find((l) => l.id === h.list_id)?.name ?? "a list"}, imported without consent
+              </span>
+              <span className="flex flex-wrap items-center gap-1">
+                <Button size="sm" variant="plain" onClick={() => void answer(h, "discard")}>
+                  Discard
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => void answer(h, "add")}>
+                  Add them
+                </Button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <Select<string>
           ariaLabel="Show"
@@ -708,7 +736,10 @@ function Audiences({ sb, session, ws }: ViewProps) {
                 <Td>
                   <span className="flex min-w-0 flex-col py-1">
                     {name(p) ? <span className="font-medium break-words text-ink">{name(p)}</span> : null}
-                    <span className={`${name(p) ? "text-[12px] text-muted" : "font-medium text-ink"} wrap-anywhere`}>{p.email}</span>
+                    <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+                      <span className={`${name(p) ? "text-[12px] text-muted" : "font-medium text-ink"} min-w-0 wrap-anywhere`}>{p.email}</span>
+                      {isRoleAddress(p.email) ? <Badge tone="gray">Shared inbox</Badge> : null}
+                    </span>
                   </span>
                 </Td>
                 <Td>
@@ -747,6 +778,8 @@ function Audiences({ sb, session, ws }: ViewProps) {
   );
 }
 
+type HeldImport = { id: string; list_id: string; people: { email: string }[]; created_at: string };
+
 /** Paste people into a list: one a line, with whether they agreed to get email. */
 function ImportSheet({ session, ws, list, onClose, onDone }: { session: ViewProps["session"]; ws: string; list: ListRow; onClose: () => void; onDone: () => void }) {
   const [text, setText] = useState("");
@@ -757,8 +790,14 @@ function ImportSheet({ session, ws, list, onClose, onDone }: { session: ViewProp
     setBusy(true);
     setError("");
     try {
-      const r = await postJson<{ added: number; skipped: number }>(session, "/api/emails/import", { workspaceId: ws, listId: list.id, text, consent });
-      if (r.skipped) await tell(`Added ${n(r.added)}`, `${n(r.skipped)} ${r.skipped === 1 ? "line wasn't an email or was a repeat" : "lines weren't emails or were repeats"}.`);
+      const r = await postJson<{ added: number; held: number; skipped: number; disposable: number; shared: number }>(session, "/api/emails/import", { workspaceId: ws, listId: list.id, text, consent });
+      const notes = [
+        r.held ? `${n(r.held)} ${r.held === 1 ? "person waits" : "people wait"} for an owner to add them, since they didn't agree to get email.` : "",
+        r.skipped ? `${n(r.skipped)} ${r.skipped === 1 ? "line wasn't an email or was a repeat" : "lines weren't emails or were repeats"}.` : "",
+        r.disposable ? `${n(r.disposable)} throwaway ${r.disposable === 1 ? "address was" : "addresses were"} left out.` : "",
+        r.shared ? `${n(r.shared)} ${r.shared === 1 ? "is a shared inbox" : "are shared inboxes"}, like info@.` : "",
+      ].filter(Boolean);
+      if (notes.length) await tell(r.held ? "Waiting for an owner" : `Added ${n(r.added)}`, notes.join(" "));
       onDone();
     } catch (e) {
       setError(errorText(e));

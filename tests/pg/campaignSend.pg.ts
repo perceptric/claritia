@@ -152,4 +152,12 @@ test("importing to a list: with consent people get opt-in; without it, someone w
   // With consent: opt-in from the import.
   const withConsent = await upsert([{ email: "yes@x.io", email_clean: "yes@x.io", basis: "opt_in" }]);
   assert.deepEqual(await latest(withConsent.ids[0]!), { basis: "opt_in", status: "granted" });
+  // A shared inbox keeps its class (Audiences marks it).
+  const shared = await upsert([{ email: "info@x.io", email_clean: "info@x.io", email_class: "role" }]);
+  assert.equal((await one<{ c: string }>(`select email_class c from contacts where id = $1`, [shared.ids[0]])).c, "role");
+  // An import waiting for an owner is the workspace's members' to read, and goes when its list does.
+  const held = await one<{ id: string }>(`insert into contact_imports (workspace_id, list_id, people) values ($1, $2, $3) returning id`, [s.ws, s.list, JSON.stringify([{ email: "a@x.io", email_clean: "a@x.io" }])]);
+  await assert.rejects(q(`insert into contact_imports (workspace_id, list_id, people) values ($1, $2, '[]')`, [s.ws, s.list]));
+  await q(`delete from lists where id = $1`, [s.list]);
+  assert.equal((await q(`select 1 from contact_imports where id = $1`, [held.id])).length, 0);
 });
