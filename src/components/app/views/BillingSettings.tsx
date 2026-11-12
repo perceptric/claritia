@@ -1,6 +1,6 @@
 "use client";
 
-// Settings › Billing (docs/pricing.md): the plan, this month's submissions, AI credits and seats, and the four plans
+// Settings › Billing (docs/pricing.md): the plan, this month's submissions, AI credits, workflow emails and seats, and the four plans
 // to move between. Free to paid goes through Stripe's checkout; paid to paid changes the subscription in place,
 // prorated; cards, invoices and cancelling are on Stripe's billing page. Only the owner changes anything.
 
@@ -22,6 +22,9 @@ export type PlanStatus = {
   submissions_cap: number | null;
   ai_credits: number;
   ai_credits_cap: number;
+  /** Before 144_send_limits.sql the database sends neither. */
+  sends?: number;
+  sends_cap?: number;
 };
 
 export const planStatusKey = (ws: string) => `plan_status:${ws}`;
@@ -129,6 +132,7 @@ export function BillingSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
         <div className="flex flex-col divide-y divide-line">
           <Meter label="Submissions" used={s.submissions} cap={s.submissions_cap} />
           <Meter label="AI credits" used={s.ai_credits} cap={s.ai_credits_cap} />
+          {s.sends_cap !== undefined ? <Meter label="Workflow emails" used={s.sends ?? 0} cap={s.sends_cap} /> : null}
           <Meter label="Seats" used={s.hosts} cap={s.plan === "free" ? 1 : null} />
         </div>
       </Panel>
@@ -164,6 +168,7 @@ export function BillingSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
                   <span>{p.id === "free" ? "1 seat" : "Unlimited seats"}</span>
                   <span>{amount(p.submissions)} submissions/month</span>
                   <span>{amount(p.aiCredits)} AI credits/month</span>
+                  <span>{amount(p.sends)} workflow emails/month</span>
                   {p.id !== "free" && hostsShown > 1 ? (
                     <span className="text-ink">
                       {money(total)} for {hostsShown} seats

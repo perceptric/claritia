@@ -26,7 +26,7 @@ const CARDS = PLANS.map((p) => ({
   name: p.name,
   price: `$${p.monthly}`,
   note: p.id === "free" ? "/month" : "/seat/month",
-  items: [`${amount(p.submissions)} submissions/month`, `${amount(p.aiCredits)} AI credits/month`, `${amount(p.meetingTypes)} meeting ${p.meetingTypes === 1 ? "type" : "types"}`, `${amount(p.calendars)} ${p.calendars === 1 ? "calendar" : "calendars"} per seat`],
+  items: [`${amount(p.submissions)} submissions/month`, `${amount(p.aiCredits)} AI credits/month`, `${amount(p.sends)} workflow emails/month`, `${amount(p.meetingTypes)} meeting ${p.meetingTypes === 1 ? "type" : "types"}`, `${amount(p.calendars)} ${p.calendars === 1 ? "calendar" : "calendars"} per seat`],
   cta: "Start free",
   featured: p.id === "pro",
   contact: false,

@@ -20,6 +20,7 @@ ${row("Price per seat/month, billed yearly", (p) => money(p.yearly))}
 ${row("Seats", (p) => (p.id === "free" ? "1" : "Unlimited"))}
 ${row("Submissions/month", (p) => amount(p.submissions))}
 ${row("AI credits/month", (p) => amount(p.aiCredits))}
+${row("Workflow emails/month", (p) => amount(p.sends))}
 ${row("Calendars per seat", (p) => amount(p.calendars))}
 ${row("Meeting types", (p) => amount(p.meetingTypes))}
 
