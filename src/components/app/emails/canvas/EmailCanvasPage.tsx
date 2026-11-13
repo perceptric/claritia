@@ -60,9 +60,12 @@ import { useTyping } from "./useTyping";
 import { typable } from "@/lib/design/email/typing";
 import { cleanBody } from "@/lib/workflows/check";
 import { emailSteps, sameEmail } from "@/lib/workflows/stepEmails";
+import { FIELDS_FOR, isSystemKey, SYSTEM_FIELDS, SYSTEM_META, systemDefault } from "@/lib/meetings/systemEmails";
 import { EmailBuilder } from "../../email/EmailBuilder";
 
 export const UNGROUPED = "ungrouped";
+/** The workspace's System emails (docs/system-emails.md): one canvas, "campaigns/group/system". */
+export const SYSTEM_GROUP = "system";
 const PHONE = 390;
 const TONE: Record<string, Tone> = { sent: "green", sending: "amber", scheduled: "sky", paused: "amber", draft: "gray" };
 const LABEL: Record<string, string> = { sent: "Sent", sending: "Sending", scheduled: "Scheduled", paused: "Paused", draft: "Draft" };
@@ -81,6 +84,8 @@ function htmlFor(row: CanvasRow, kits: CanvasKit[], doc: EmailDoc, system: Desig
   built.set(doc, { system, dark, kits, status: row.status, html });
   return html;
 }
+/** A System email's key (docs/system-emails.md), or null. */
+const keyOf = (r: CanvasRow | undefined) => (r && isSystemKey(r.system_key) ? r.system_key : null);
 const sameBox = (a: LocalBox | null, b: LocalBox | null) => (!a || !b ? a === b : a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h);
 
 export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick }: ViewProps & { groupId: string; pick?: string | null }) {
@@ -89,12 +94,18 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
   // are sent by the automation, so this canvas has no Send, Add email, Duplicate, Delete or moving between groups.
   const wfId = groupId.startsWith("wf:") ? groupId.slice(3) : null;
   const auto = !!wfId;
+  // The System emails (docs/system-emails.md): one of each, sent for every meeting, so none are added or removed here.
+  const sys = groupId === SYSTEM_GROUP;
+  const fixed = auto || sys;
+  const FIXED_NOTE = sys ? "System emails are one of each. Change their words here, or turn one off." : "Automation emails come and go with their steps. Change them in the automation.";
   const group = useQuery(
     `email_group:${groupId}`,
     async () =>
       ungrouped
         ? { id: UNGROUPED, name: "Ungrouped" }
-        : wfId
+        : sys
+          ? { id: SYSTEM_GROUP, name: "System emails" }
+          : wfId
           ? await (async () => {
               const w = must(await sb.from("workflows").select("id, name").eq("id", wfId).eq("workspace_id", ws.id).maybeSingle()) as { id: string; name: string } | null;
               return w ? { id: groupId, name: w.name } : null;
@@ -105,13 +116,16 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
   const rows = useQuery(
     `email_canvas:${groupId}`,
     async () => {
-      const q = sb.from("emails").select("id, name, subject, preheader, status, doc, html, group_id, group_position, updated_at, step_id").eq("workspace_id", ws.id);
-      const r = wfId
+      const cols = sys ? "id, name, subject, preheader, status, doc, html, group_id, group_position, updated_at, step_id, system_key, paused_at" : "id, name, subject, preheader, status, doc, html, group_id, group_position, updated_at, step_id";
+      const q = sb.from("emails").select(cols).eq("workspace_id", ws.id);
+      const r = sys
+        ? await q.eq("kind", "system").order("group_position")
+        : wfId
         ? await q.eq("kind", "journey").eq("workflow_id", wfId).order("group_position")
         : ungrouped
           ? await q.eq("kind", "broadcast").neq("status", "archived").is("group_id", null).order("updated_at", { ascending: false }).limit(300)
           : await q.eq("kind", "broadcast").neq("status", "archived").eq("group_id", groupId).order("group_position").order("created_at");
-      return (must(r) ?? []) as CanvasRow[];
+      return (must(r) ?? []) as unknown as CanvasRow[];
     },
     { staleMs: 0 },
   );
@@ -209,6 +223,11 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
   const status = useCallback((r: CanvasRow) => states.data?.find((s) => s.id === r.id)?.status ?? r.status, [states.data]);
   const list = useMemo(() => rows.data ?? [], [rows.data]);
   const kitList = useMemo(() => kits.data ?? [], [kits.data]);
+  // A System email's merge values, for the format bar's Insert.
+  const sysFields = (id: string | null) => {
+    const k = keyOf(list.find((x) => x.id === id));
+    return k ? FIELDS_FOR[k].map((f) => ({ tag: f, label: SYSTEM_FIELDS[f] })) : undefined;
+  };
   // The email being edited: the one picked, alone.
   const editId = picked.length === 1 ? picked[0]! : null;
   const setRows = rows.set;
@@ -707,7 +726,7 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
     if (e.button !== 0) return;
     e.stopPropagation();
     setEl(null);
-    if (ungrouped || auto) return setPicked((p) => (e.shiftKey ? (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]) : [id]));
+    if (ungrouped || fixed) return setPicked((p) => (e.shiftKey ? (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]) : [id]));
     setDrag({ id, x0: e.clientX, y0: e.clientY, on: false, dx: 0, dy: 0, slot: 0, shift: {}, lineX: 0 });
   };
   useEffect(() => {
@@ -794,7 +813,7 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
   const saved = async (id: string) => (draftRef.current.id === id ? void (await draftRef.current.flush()) : undefined);
   const duplicate = (id: string) =>
     run(async () => {
-      if (auto) return say("Automation emails come and go with their steps. Change them in the automation.");
+      if (fixed) return say(FIXED_NOTE);
       await saved(id);
       const r = rowsNow().find((x) => x.id === id);
       if (!r) return;
@@ -818,7 +837,7 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
     });
   const remove = (ids: string[]) =>
     run(async () => {
-      if (auto) return say("Automation emails come and go with their steps. Change them in the automation.");
+      if (fixed) return say(FIXED_NOTE);
       const drafts = ids.map(rowOf).filter((r): r is CanvasRow => !!r && status(r) === "draft");
       if (!drafts.length) return say("Sent emails stay; only drafts can be deleted");
       const title = drafts.length === 1 ? `Delete ${drafts[0]!.name}?` : `Delete ${drafts.length} drafts?`;
@@ -827,9 +846,29 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
       setPicked([]);
       reload();
     });
+  // A System email: on or off, and back to how it started.
+  const turn = (id: string, on: boolean) =>
+    run(async () => {
+      const r = rowOf(id);
+      must(await sb.rpc("system_email_turn", { p_ws: ws.id, p_id: id, p_on: on }));
+      setRows((prev) => prev.map((x) => (x.id === id ? { ...x, paused_at: on ? null : new Date().toISOString() } : x)));
+      invalidate(`email_groups:${ws.id}`);
+      say(`${r?.name ?? "The email"} is ${on ? "on" : "off"}`);
+    });
+  const startOver = (id: string) =>
+    run(async () => {
+      const r = rowOf(id);
+      const key = keyOf(r);
+      if (!r || !key) return;
+      if (!(await askConfirm(`Start ${r.name} over?`, { body: "Its words and design go back to how they started.", ok: "Start over", danger: true }))) return;
+      const d = systemDefault(key);
+      must(await sb.rpc("email_draft_save", { p_ws: ws.id, p_id: id, p_name: r.name, p_subject: d.subject, p_preheader: d.doc.settings.preheader, p_doc: d.doc }));
+      await rows.reload();
+      say(`${r.name} is back to how it started`);
+    });
   const moveTo = (ids: string[], gid: string | null) =>
     run(async () => {
-      if (auto) return say("Automation emails come and go with their steps. Change them in the automation.");
+      if (fixed) return say(FIXED_NOTE);
       for (const id of ids) await place(id, gid, null);
       setPicked([]);
       reload();
@@ -853,7 +892,7 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
       await saved(id);
       const r = rowsNow().find((x) => x.id === id);
       if (!r) return;
-      await postJson(session, "/api/email/test", { workspaceId: ws.id, subject: r.subject, doc: r.doc });
+      await postJson(session, "/api/email/test", { workspaceId: ws.id, subject: r.subject, doc: r.doc, ...(keyOf(r) ? { system: keyOf(r) } : {}) });
       say("Test sent to you");
     });
   const addNew = () =>
@@ -884,7 +923,15 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
     const draft = status(r) === "draft";
     setMenu({
       anchor,
-      items: auto
+      items: sys
+        ? [
+            ...(keyOf(r) && !SYSTEM_META[keyOf(r)!].required ? [{ label: r.paused_at ? "Turn on" : "Turn off", run: () => void turn(id, !!r.paused_at) }] : []),
+            { label: "Start over", run: () => void startOver(id) },
+            { label: "Open in the classic editor", run: () => void saved(id).then(() => setClassic(id)) },
+            { label: "Code", run: () => setCode({ html: sourceHtml(r, kits.data ?? []), name: r.name }) },
+            { label: showResolved ? "Hide resolved comments" : "Show resolved comments", run: () => setShowResolved((v) => !v) },
+          ]
+        : auto
         ? [
             { label: "Open in the classic editor", run: () => void saved(id).then(() => setClassic(id)) },
             { label: "Code", run: () => setCode({ html: sourceHtml(r, kits.data ?? []), name: r.name }) },
@@ -1312,7 +1359,13 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
                   style={{ left: a.x, top: a.y, width: r.w * z, transform: "translateY(-100%)" }}
                 >
                   <span className="min-w-0 break-words">{row.name}</span>
-                  {auto ? (changedSinceLive(row) ? <Badge tone="violet">Changed since publish</Badge> : null) : <Badge tone={TONE[st] ?? "gray"}>{LABEL[st] ?? st}</Badge>}
+                  {sys ? (
+                    keyOf(row) && SYSTEM_META[keyOf(row)!].required ? <Badge tone="green">Always on</Badge> : row.paused_at ? <Badge tone="gray">Off</Badge> : <Badge tone="green">On</Badge>
+                  ) : auto ? (
+                    changedSinceLive(row) ? <Badge tone="violet">Changed since publish</Badge> : null
+                  ) : (
+                    <Badge tone={TONE[st] ?? "gray"}>{LABEL[st] ?? st}</Badge>
+                  )}
                   {row.doc ? <VersionPill sb={sb} ws={ws.id} email={r.id} viewing={viewing?.email === r.id ? viewing.v : null} onHover={(v) => hoverVersion(r.id, v)} onPick={(v) => pickVersion(r.id, v)} /> : null}
                   {openCount(r.id) ? (
                     <span className="inline-flex h-5 shrink-0 items-center gap-1 rounded-full bg-paper-deep px-1.5 text-[11.5px] text-muted">
@@ -1452,7 +1505,7 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
               const r = rects.find((x) => x.id === editId);
               if (!r) return null;
               const a = toScreen(c, r.x + boxes.picked.x, r.y + boxes.picked.y);
-              return <FormatBar box={{ left: a.x, top: a.y, width: boxes.picked.w * z, height: boxes.picked.h * z }} below={boxes.picked.y * z < 48} mode={typingHere.mode} marks={typer.marks} onExec={typer.exec} onLink={() => void typer.link()} onInsert={typer.insert} />;
+              return <FormatBar box={{ left: a.x, top: a.y, width: boxes.picked.w * z, height: boxes.picked.h * z }} below={boxes.picked.y * z < 48} mode={typingHere.mode} marks={typer.marks} onExec={typer.exec} onLink={() => void typer.link()} onInsert={typer.insert} fields={sysFields(editId)} />;
             })()
           : null}
         {pickedBox && !drag?.on && !resize ? toolbarFor(pickedBox, c, view) : null}
@@ -1478,7 +1531,7 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
         {many ? (
           <>
             <span className="px-2.5 text-[13px] font-medium text-ink">{picked.length} emails</span>
-            {auto ? null : (
+            {fixed ? null : (
               <>
                 <span className="mx-0.5 h-4 w-px bg-line" />
                 <Button size="sm" variant="plain" onClick={(e) => moveMenu(e.currentTarget, picked)}>
@@ -1510,7 +1563,12 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
             <Button size="sm" variant="plain" onClick={() => void test(r!.id)}>
               Test
             </Button>
-            {auto ? null : (
+            {sys && keyOf(r!) && !SYSTEM_META[keyOf(r!)!].required ? (
+              <Button size="sm" variant="plain" onClick={() => void turn(r!.id, !!r!.paused_at)}>
+                {r!.paused_at ? "Turn on" : "Turn off"}
+              </Button>
+            ) : null}
+            {fixed ? null : (
               <Button size="sm" onClick={() => void run(async () => (await saved(r!.id), setSending(rowsNow().find((x) => x.id === r!.id) ?? r!)))}>
                 <Send size={13} /> Send
               </Button>
@@ -1594,7 +1652,7 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
       count={list.length}
       flush
       back={{ label: "Emails", onClick: back }}
-      onRename={ungrouped || auto ? undefined : (name) => void run(async () => (must(await sb.rpc("email_group_save", { p_ws: ws.id, p_id: groupId, p_name: name })), void group.reload(), invalidate(`email_groups:${ws.id}`), void groups.reload()))}
+      onRename={ungrouped || fixed ? undefined : (name) => void run(async () => (must(await sb.rpc("email_group_save", { p_ws: ws.id, p_id: groupId, p_name: name })), void group.reload(), invalidate(`email_groups:${ws.id}`), void groups.reload()))}
       actions={
         <span className="flex min-w-0 flex-wrap items-center gap-2">
           {editor.saving ? <span className="text-[12.5px] text-muted">Saving…</span> : null}
@@ -1631,7 +1689,9 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
               </button>
             ))}
           </div>
-          {auto ? (
+          {sys ? (
+            <Badge tone="sky">System</Badge>
+          ) : auto ? (
             <>
               <Badge tone="violet">Automation</Badge>
               <Button variant="ghost" onClick={() => navigate("emails", `automations/${wfId}`)}>
@@ -1686,7 +1746,7 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
                   panTo(email);
                 }}
                 onFlash={flashEmails}
-                onWrite={auto ? () => say("New emails in an automation are new steps. Add them in the automation.") : writeSeries}
+                onWrite={sys ? () => say(FIXED_NOTE) : auto ? () => say("New emails in an automation are new steps. Add them in the automation.") : writeSeries}
               />
             )}
           </LeftPanel>

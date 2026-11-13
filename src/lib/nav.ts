@@ -164,8 +164,9 @@ export const EMAILS_TABS: Tab<EmailsPageKey>[] = [
 export function emailsPage(id: string): { page: EmailsPageKey; id: string; open?: string; group?: string; wf?: string } {
   const [raw = "", b = "", c = ""] = id.split("/");
   if ((raw === "automations" || raw === "journeys") && (b === "new" || UUID.test(b))) return { page: "automations", id: `automations/${b}`, wf: b };
-  // An automation's emails open as their own group: campaigns/group/wf:<workflow id> (docs/email-unify-plan.md, E3).
-  if (raw === "campaigns" && b === "group" && (UUID.test(c) || c === "ungrouped" || (c.startsWith("wf:") && UUID.test(c.slice(3))))) return { page: "campaigns", id: `campaigns/group/${c}`, group: c };
+  // An automation's emails open as their own group: campaigns/group/wf:<workflow id> (docs/email-unify-plan.md, E3);
+  // the System emails as campaigns/group/system (docs/system-emails.md).
+  if (raw === "campaigns" && b === "group" && (UUID.test(c) || c === "ungrouped" || c === "system" || (c.startsWith("wf:") && UUID.test(c.slice(3))))) return { page: "campaigns", id: `campaigns/group/${c}`, group: c };
   if (raw === "campaigns" && UUID.test(b)) return { page: "campaigns", id: `campaigns/${b}`, open: b };
   const a = ({ journeys: "automations", library: "templates" } as Record<string, string>)[raw] ?? raw;
   if (a === "automations" || a === "audiences" || a === "templates" || a === "brand") return { page: a, id: a };

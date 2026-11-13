@@ -6,12 +6,16 @@ import { rpcOr } from "@/lib/rpcCompat";
 import { requireUser, roleIn } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { notReady, sendReady } from "@/lib/email/ready";
+import { applyConditions } from "@/lib/design/email/compile";
+import { HTML_FIELDS, isSystemKey, sampleVars } from "@/lib/meetings/systemEmails";
+import { fillFields, type Vars } from "@/lib/meetings/systemSend";
 
 type Db = NonNullable<ReturnType<typeof serviceClient>>;
 
 // Settings › Sending › Send test: one email to the member who asked, through the whole pipeline (guard, tracked
 // link, footer, one-click unsubscribe). POST { workspaceId }. The email builder's Test sends the email being built:
-// POST { workspaceId, subject, doc }, compiled with its brand kit's draft styles.
+// POST { workspaceId, subject, doc }, compiled with its brand kit's draft styles. A System email (system: its key) is
+// filled with a sample meeting's values (docs/system-emails.md).
 //
 // Round trips: whether sending is ready (one call, email_test_ready) and the brand kit are read together, then the
 // email is made and queued in one call (email_test_send). Both are always read fresh: a pause or a new From address
@@ -30,7 +34,7 @@ async function send(db: Db, ws: string, user: string, values: Record<string, unk
 export async function POST(request: Request) {
   const auth = await requireUser(request);
   if ("denied" in auth) return auth.denied;
-  const body = (await request.json().catch(() => ({}))) as { workspaceId?: unknown; subject?: unknown; doc?: unknown };
+  const body = (await request.json().catch(() => ({}))) as { workspaceId?: unknown; subject?: unknown; doc?: unknown; system?: unknown };
   const ws = typeof body.workspaceId === "string" && /^[0-9a-f-]{36}$/.test(body.workspaceId) ? body.workspaceId : null;
   if (!ws) return Response.json({ error: "Workspace not found." }, { status: 404 });
   const role = await roleIn(auth, ws);
@@ -51,8 +55,18 @@ export async function POST(request: Request) {
     }
     const blocked = built.notes.find((n) => n.level === "block");
     if (blocked) return Response.json({ error: blocked.text }, { status: 400 });
-    const subject = typeof body.subject === "string" && body.subject.trim() ? `[Test] ${body.subject.trim().slice(0, 190)}` : "[Test] Email";
-    const { data: messageId, error } = await send(db, ws, auth.user.id, { kind: "test", name: "Test", subject, preheader: doc.settings.preheader, html: built.html, text: built.text, links: extractLinks(built.html), marketing: true });
+    let words = typeof body.subject === "string" ? body.subject.trim() : "";
+    let preheader = doc.settings.preheader;
+    if (isSystemKey(body.system)) {
+      const s = sampleVars();
+      const vars: Vars = { text: Object.fromEntries(Object.entries(s).map(([k, v]) => [k, HTML_FIELDS.includes(k as never) ? v.replace(/<br>/g, "\n").replace(/<[^>]+>/g, "") : v])), html: { answers: s.answers, open_times: s.open_times, about: s.about } };
+      const conds = vars.text as Record<string, string>;
+      built = { ...built, html: fillFields(applyConditions(built.html, conds), vars, true), text: fillFields(applyConditions(built.text, conds), vars, false) };
+      words = fillFields(words, vars, false);
+      preheader = fillFields(preheader, vars, false);
+    }
+    const subject = words ? `[Test] ${words.slice(0, 190)}` : "[Test] Email";
+    const { data: messageId, error } = await send(db, ws, auth.user.id, { kind: "test", name: "Test", subject, preheader, html: built.html, text: built.text, links: extractLinks(built.html), marketing: true });
     if (error) return Response.json({ error: error.message }, { status: 500 });
     return Response.json({ ok: true, messageId });
   }

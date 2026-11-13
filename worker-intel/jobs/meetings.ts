@@ -9,6 +9,8 @@
 // Every email is started in meeting_mails under a dedupe key before it's handed to SES, and one that may have gone out
 // is never sent again, so a job delivered twice sends one email. Emails go from the workspace's From address when its
 // domain is verified, else from MEETINGS_FROM (default meetings@mail.tryclaritia.com, the domain verified in Resend).
+// A workspace's System emails (docs/system-emails.md, 164) replace the built-in words and design, and can turn the
+// reminders, the follow-ups and the host's notes off; the built-in email goes when there's none or it can't be built.
 
 import { slackNote } from "../../src/lib/delivery/send.ts";
 import { outcomeOf, SendError } from "../../src/lib/email/provider.ts";
@@ -19,6 +21,7 @@ import {
   bookLaterEmail,
   cancelEmail,
   confirmEmail,
+  fromNow,
   hostBookedEmail,
   hostCanceledEmail,
   hostMovedEmail,
@@ -41,6 +44,8 @@ import { bookingUrl, bookRef, keptManageToken, manageUrl, newNonce, outcomeToken
 import { offer } from "../../src/lib/meetings/server.ts";
 import { validZone } from "../../src/lib/meetings/time.ts";
 import { DEFAULT_SETTINGS, type MeetingType, type TypeSettings } from "../../src/lib/meetings/types.ts";
+import type { SystemKey } from "../../src/lib/meetings/systemEmails.ts";
+import { meetingFields, readSystemSet, systemOff, systemParts, timesFields, type SystemSet } from "../../src/lib/meetings/systemSend.ts";
 
 const MIN = 60_000;
 const NOT_SET = "Resend isn't set up on the worker (RESEND_API_KEY).";
@@ -333,6 +338,22 @@ async function load(rpc: Rpc, meeting: string): Promise<Info | null> {
   return await call<Info | null>(rpc, "meeting_mail_info", { p_meeting: meeting });
 }
 
+/**
+ * The workspace's System emails (164_system_emails.sql), or null: then the built-in emails go. A read that fails
+ * (before 164, a hiccup) is null too, so a meeting email is never held up by it.
+ */
+export async function systemSet(rpc: Rpc, ws: string): Promise<SystemSet | null> {
+  try {
+    const { data, error } = await rpc("meeting_system_emails", { p_ws: ws });
+    return error ? null : readSystemSet(data);
+  } catch {
+    return null;
+  }
+}
+
+/** The team's design for this email when it has one, else the built-in email. */
+const partsOf = (sys: SystemSet | null, key: SystemKey, vars: Parameters<typeof systemParts>[2], fallback: () => MailParts) => () => systemParts(sys, key, vars, fallback);
+
 /** The guest's reschedule and cancel page, when a sealed copy of their token is kept (links.ts). */
 const manageLink = (o: MeetingOpts, m: MeetingRow) => {
   const t = keptManageToken(m, o.secret);
@@ -403,6 +424,9 @@ export const meetingNotify =
         const extras = await inviteExtras(rpc, m.id, { base: o.base, secret: o.secret });
         const moved = event === "moved";
         const from = info.moved_from ? ms(info.moved_from) : null;
+        const sys = await systemSet(rpc, ws);
+        const guestKey = moved ? "update" : "confirm";
+        const hostKey = moved ? "host_moved" : "host_booked";
         results.push(
           await sendOne(rpc, o, info.sending, {
             ws,
@@ -413,7 +437,7 @@ export const meetingNotify =
             fromName: fromHost(info),
             replyTo: info.hosts[0]?.email,
             host: info.hosts[0]?.id,
-            parts: () => (moved ? updateEmail(view(info, "guest", now, manage), from) : confirmEmail(view(info, "guest", now, manage))),
+            parts: partsOf(sys, guestKey, () => meetingFields(view(info, "guest", now, manage), { oldTime: from }), () => (moved ? updateEmail(view(info, "guest", now, manage), from) : confirmEmail(view(info, "guest", now, manage)))),
             ics: () => ics(info, "REQUEST", now, extras, manage),
           }),
         );
@@ -429,12 +453,13 @@ export const meetingNotify =
               fromName: fromHost(info),
               replyTo: info.hosts[0]?.email,
               host: info.hosts[0]?.id,
-              parts: () => (moved ? updateEmail(view(info, "guest", now, null), from) : confirmEmail(view(info, "guest", now, null))),
+              parts: partsOf(sys, guestKey, () => meetingFields(view(info, "guest", now, null), { oldTime: from }), () => (moved ? updateEmail(view(info, "guest", now, null), from) : confirmEmail(view(info, "guest", now, null)))),
               ics: () => ics(info, "REQUEST", now, extras, null),
             }),
           );
         }
-        for (const h of info.hosts) {
+        // The host's note, unless the team turned it off.
+        for (const h of systemOff(sys, hostKey) ? [] : info.hosts) {
           results.push(
             await sendOne(rpc, o, info.sending, {
               ws,
@@ -444,7 +469,7 @@ export const meetingNotify =
               dedupe: moved ? `host_moved:${m.id}:${info.sequence}:${h.id}` : `host_booked:${m.id}:${h.id}`,
               fromName: fromTeam(info),
               replyTo: m.guest_email,
-              parts: () => (moved ? hostMovedEmail(view(info, h, now), from) : hostBookedEmail(view(info, h, now))),
+              parts: partsOf(sys, hostKey, () => meetingFields(view(info, h, now), { forHost: true, oldTime: from }), () => (moved ? hostMovedEmail(view(info, h, now), from) : hostBookedEmail(view(info, h, now)))),
             }),
           );
         }
@@ -458,6 +483,7 @@ export const meetingNotify =
         await call(rpc, "meeting_jobs_drop", { p_meeting: m.id, p_keep: [] });
         const t = info.type;
         const bookAgain = t && t.active && !t.secret ? bookingUrl(o.base, { workspace: info.workspace.slug, type: t.slug, name: m.guest_name, email: m.guest_email }) : null;
+        const sys = await systemSet(rpc, ws);
         // The guest who canceled still gets the cancel, so their calendar drops the invite.
         results.push(
           await sendOne(rpc, o, info.sending, {
@@ -469,7 +495,7 @@ export const meetingNotify =
             fromName: fromHost(info),
             replyTo: info.hosts[0]?.email,
             host: info.hosts[0]?.id,
-            parts: () => cancelEmail(view(info, "guest", now), { reason: m.cancel_reason, bookAgain }),
+            parts: partsOf(sys, "cancel", () => meetingFields(view(info, "guest", now), { reason: m.cancel_reason, bookLink: bookAgain }), () => cancelEmail(view(info, "guest", now), { reason: m.cancel_reason, bookAgain })),
             ics: () => ics(info, "CANCEL", now),
           }),
         );
@@ -484,12 +510,12 @@ export const meetingNotify =
               fromName: fromHost(info),
               replyTo: info.hosts[0]?.email,
               host: info.hosts[0]?.id,
-              parts: () => cancelEmail(view(info, "guest", now), { reason: m.cancel_reason, bookAgain: null }),
+              parts: partsOf(sys, "cancel", () => meetingFields(view(info, "guest", now), { reason: m.cancel_reason }), () => cancelEmail(view(info, "guest", now), { reason: m.cancel_reason, bookAgain: null })),
               ics: () => ics(info, "CANCEL", now),
             }),
           );
         }
-        for (const h of info.hosts) {
+        for (const h of systemOff(sys, "host_canceled") ? [] : info.hosts) {
           results.push(
             await sendOne(rpc, o, info.sending, {
               ws,
@@ -499,7 +525,7 @@ export const meetingNotify =
               dedupe: `host_canceled:${m.id}:${h.id}`,
               fromName: fromTeam(info),
               replyTo: m.guest_email,
-              parts: () => hostCanceledEmail(view(info, h, now), m.cancel_reason),
+              parts: partsOf(sys, "host_canceled", () => meetingFields(view(info, h, now), { forHost: true, reason: m.cancel_reason }), () => hostCanceledEmail(view(info, h, now), m.cancel_reason)),
             }),
           );
         }
@@ -509,6 +535,8 @@ export const meetingNotify =
 
       // no_show: one follow-up per meeting, with the host's next times, when the type allows it.
       if (m.status !== "no_show" || !info.type || settingsOf(info.type).noShowFollowUp === false) return;
+      const sys = await systemSet(rpc, ws);
+      if (systemOff(sys, "no_show")) return;
       const t = typeOf(info.type);
       const host = info.hosts[0];
       let times: number[] = [];
@@ -531,7 +559,10 @@ export const meetingNotify =
           fromName: fromHost(info),
           replyTo: host?.email,
           host: host?.id,
-          parts: () => noShowEmail({ name: m.guest_name, host: host?.name ?? info.workspace.name, typeName: t.name, times, tz, link, now }),
+          parts: (() => {
+            const tv = { name: m.guest_name, host: host?.name ?? info.workspace.name, typeName: t.name, times, tz, link, now };
+            return partsOf(sys, "no_show", () => timesFields(tv, info.workspace.name), () => noShowEmail(tv));
+          })(),
         }),
       );
       settle(results, job, o);
@@ -552,8 +583,12 @@ export const meetingRemind =
       const m = info.meeting;
       // A reminder workflow went live after this was scheduled: it sends the reminders now.
       if (await remindersByWorkflow(rpc, m.workspace_id)) return;
+      // The team turned reminders off on Emails.
+      const sys = await systemSet(rpc, m.workspace_id);
+      if (systemOff(sys, "reminder")) return;
       const manage = manageLink(o, m);
       const left = Math.max(1, Math.round((start - now) / MIN));
+      const leftNow = Math.abs(left - min) <= 5 ? min : left;
       settleFor(job, o, [
         await sendOne(rpc, o, info.sending, {
           ws: m.workspace_id,
@@ -565,7 +600,7 @@ export const meetingRemind =
           replyTo: info.hosts[0]?.email,
           host: info.hosts[0]?.id,
           // The subject says how long is left now, in case the job ran late.
-          parts: () => reminderEmail(view(info, "guest", now, manage), Math.abs(left - min) <= 5 ? min : left),
+          parts: partsOf(sys, "reminder", () => meetingFields(view(info, "guest", now, manage), { timeLeft: fromNow(leftNow) }), () => reminderEmail(view(info, "guest", now, manage), leftNow)),
         }),
         ...(await Promise.all(
           otherGuests(m).map((g) =>
@@ -578,7 +613,7 @@ export const meetingRemind =
               fromName: fromHost(info),
               replyTo: info.hosts[0]?.email,
               host: info.hosts[0]?.id,
-              parts: () => reminderEmail(view(info, "guest", now, null), Math.abs(left - min) <= 5 ? min : left),
+              parts: partsOf(sys, "reminder", () => meetingFields(view(info, "guest", now, null), { timeLeft: fromNow(leftNow) }), () => reminderEmail(view(info, "guest", now, null), leftNow)),
             }),
           ),
         )),
@@ -597,7 +632,8 @@ export const meetingAfter =
       const now = o.now?.() ?? Date.now();
       const m = info.meeting;
       const results: Outcome[] = [];
-      for (const h of info.hosts) {
+      const sys = await systemSet(rpc, m.workspace_id);
+      for (const h of systemOff(sys, "after") ? [] : info.hosts) {
         const nonce = newNonce();
         const link = (outcome: "held" | "no_show") => outcomeUrl(o.base, outcomeToken({ meeting: m.id, outcome, nonce }, o.secret));
         results.push(
@@ -608,7 +644,10 @@ export const meetingAfter =
             to: h.email,
             dedupe: `after:${m.id}:${new Date(end).toISOString()}:${h.id}`,
             fromName: fromTeam(info),
-            parts: () => afterEmail(view(info, h, now), { held: link("held"), noShow: link("no_show") }),
+            parts: (() => {
+              const links = { held: link("held"), noShow: link("no_show") };
+              return partsOf(sys, "after", () => meetingFields(view(info, h, now), { forHost: true, held: links.held, noShow: links.noShow }), () => afterEmail(view(info, h, now), links));
+            })(),
           }),
         );
       }
@@ -675,6 +714,9 @@ export const meetingBookLater =
       const times = slots.filter((s) => !who || s.hosts.includes(who)).slice(0, 5).map((s) => s.start);
       const name = [c.first_name, c.last_name].filter(Boolean).join(" ") || null;
       const link = bookingUrl(o.base, { workspace: info.workspace.slug, type: t.slug, name, email: c.email, host: who && (only || t.hosts.length > 1) ? who : null, ref: bookRef(submission, now, o.secret) });
+      const sys = await systemSet(rpc, info.submission.workspace_id);
+      if (systemOff(sys, "book_later")) return;
+      const tv = { name, host: person?.name ?? info.workspace.name, typeName: t.name, times, tz: tzOr(c.timezone, person?.tz), link, now };
       settleFor(job, o, [
         await sendOne(rpc, o, info.sending, {
           ws: info.submission.workspace_id,
@@ -686,7 +728,7 @@ export const meetingBookLater =
           fromName: person?.name ?? info.sending.from_name ?? info.workspace.name,
           replyTo: person?.email,
           host: person?.id,
-          parts: () => bookLaterEmail({ name, host: person?.name ?? info.workspace.name, typeName: t.name, times, tz: tzOr(c.timezone, person?.tz), link, now }),
+          parts: partsOf(sys, "book_later", () => timesFields(tv, info.workspace.name), () => bookLaterEmail(tv)),
         }),
       ]);
     });

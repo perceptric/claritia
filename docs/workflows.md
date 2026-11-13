@@ -60,6 +60,9 @@ Every workspace gets two folders the first time anyone opens Workflows (`workflo
 
 ## Meeting reminders
 
+The meeting's own emails (confirmed, reminder, the host's notes and the rest) are System emails on the Emails page
+(docs/system-emails.md); an automation adds to them.
+
 Reminders are a workflow. The meeting screens no longer set them.
 
 - A **Wait** can be **Before the meeting**: until that long before the contact's next booked meeting

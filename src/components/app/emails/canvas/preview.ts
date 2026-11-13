@@ -7,9 +7,10 @@ import { readEmailDoc, type EmailDoc } from "@/lib/design/email/doc";
 import { designFonts, fontUrl } from "@/lib/design/fonts";
 import { readSystem, type DesignSystem } from "@/lib/design/model";
 import { cleanTokens, type Tokens } from "@/lib/forms/brand";
+import { sampleFill } from "@/lib/meetings/systemEmails";
 
 export type CanvasKit = { id: string; tokens: Partial<Tokens> | null; logo_url: string | null; design: unknown };
-export type CanvasRow = { id: string; name: string; subject: string; preheader: string | null; status: string; doc: unknown; html: string; group_id: string | null; group_position: number; updated_at: string; /** An automation's email (163): its step. */ step_id?: string | null };
+export type CanvasRow = { id: string; name: string; subject: string; preheader: string | null; status: string; doc: unknown; html: string; group_id: string | null; group_position: number; updated_at: string; /** An automation's email (163): its step. */ step_id?: string | null; /** A System email (164): its key, and when it was turned off. */ system_key?: string | null; paused_at?: string | null };
 
 /** Merge tags as a reader sees them: the fallback, a sample address, a dead unsubscribe link. */
 export const filled = (html: string) => html.replace(/\{\{\s*([a-z_]+)\s*(?:\|([^}]*))?\}\}/g, (_m, k: string, f?: string) => (k === "company_address" ? "" : k === "unsubscribe_url" ? "#" : (f ?? "")));
@@ -35,12 +36,15 @@ export function sourceHtml(row: Pick<CanvasRow, "doc" | "status" | "html">, kits
 
 /**
  * What the canvas shows: a sent email as sent; a draft built with the canvas's marks (so a click finds its parts),
- * from its live document and styles while it's being edited. Merge tags show their fallback.
+ * from its live document and styles while it's being edited. Merge tags show their fallback (a System email's, a sample
+ * meeting's values).
  */
-export function previewHtml(row: Pick<CanvasRow, "doc" | "status" | "html">, kits: CanvasKit[], live?: { doc: EmailDoc; system: DesignSystem; tokens: Partial<Tokens>; dark?: boolean }): string {
+export function previewHtml(row: Pick<CanvasRow, "doc" | "status" | "html" | "system_key">, kits: CanvasKit[], live?: { doc: EmailDoc; system: DesignSystem; tokens: Partial<Tokens>; dark?: boolean }): string {
+  // A System email shows a sample meeting's values (src/lib/meetings/systemEmails.ts).
+  const fill = row.system_key ? (h: string) => sampleFill(h) : filled;
   try {
-    if (row.status !== "draft" && row.html) return filled(row.html);
-    return filled(live ? buildDoc(live.doc, kits, { system: live.system, tokens: live.tokens, marks: true, dark: live.dark }) : buildDoc(docOf(row), kits, { marks: true }));
+    if (row.status !== "draft" && row.html) return fill(row.html);
+    return fill(live ? buildDoc(live.doc, kits, { system: live.system, tokens: live.tokens, marks: true, dark: live.dark }) : buildDoc(docOf(row), kits, { marks: true }));
   } catch {
     return "";
   }

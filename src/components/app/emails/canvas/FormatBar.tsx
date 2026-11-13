@@ -26,6 +26,7 @@ export function FormatBar({
   onExec,
   onLink,
   onInsert,
+  fields = MERGE,
 }: {
   box: { left: number; top: number; width: number; height: number };
   below: boolean;
@@ -34,6 +35,8 @@ export function FormatBar({
   onExec: (cmd: "bold" | "italic" | "underline" | "strikeThrough" | "removeFormat") => void;
   onLink: () => void;
   onInsert: (text: string) => void;
+  /** The merge values Insert offers: a contact's, or a System email's meeting fields. */
+  fields?: { tag: string; label: string }[];
 }) {
   const [open, setOpen] = useState<HTMLElement | null>(null);
   const btn = (label: string, keys: string, on: boolean, run: () => void, face: React.ReactNode) => (
@@ -86,7 +89,7 @@ export function FormatBar({
       {open ? (
         <Popover anchor={open} onClose={() => setOpen(null)} width={180}>
           <div role="menu" data-typing-keep="" data-canvas-ui="" className="flex flex-col p-1">
-            {MERGE.map((m) => (
+            {fields.map((m) => (
               <button
                 key={m.tag}
                 type="button"
