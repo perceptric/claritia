@@ -2,7 +2,7 @@
 
 // One group's emails on a canvas (docs/email-canvas-b1.md): side by side in the group's order, as they'd arrive, on a
 // surface you can pan and zoom (canvas/Surface.tsx). Click picks an email (Shift adds), ← and → step, Enter or a
-// double-click opens it in the Email Studio (Done comes back here). The toolbar above the pick holds Open, Test, Send
+// double-click on its name zooms to it (campaign drafts are edited here, docs/email-canvas-b5.md 6.2). The toolbar above the pick holds Check, Dark, Test, Send
 // and More (Rename, Duplicate, Code, Move to group, Take out of the group, Delete); a sent email offers Results and
 // Duplicate; several picked, Move to group and Delete. Drag an email by its name or grip to reorder it; drag a side
 // handle to resize it (600, 640 or 700 px). Add email makes a new draft, uses a template or brings one in from
@@ -51,7 +51,8 @@ import { addChip, type Chip } from "@/lib/design/email/turn";
 import { AiAvatar, AiMark } from "../../Ai";
 import { VersionPill, versionTime, type Version } from "./VersionPill";
 import { Composer, Pin, ThreadCard, type CommentRow } from "./Comments";
-import { Message } from "../../../Icons";
+import { Check, Message, Moon, Sun, Warn } from "../../../Icons";
+import { compileEmail } from "@/lib/design/email/compile";
 import { useImageResize } from "./useImageResize";
 import { useCanvasClipboard } from "./useCanvasClipboard";
 import { FormatBar } from "./FormatBar";
@@ -261,14 +262,9 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
     setHover(id);
     if (!id) setElHover(null);
   }, []);
-  const open = useCallback(
-    (id: string) =>
-      void (async () => {
-        if (draftRef.current.id === id) await draftRef.current.flush();
-        navigate("emails", `campaigns/${id}`, `back=${groupId}`);
-      })(),
-    [navigate, groupId],
-  );
+  // Campaign drafts are edited here (B5e): "opening" an email zooms to it.
+  const zoomRef = useRef<(id: string) => void>(() => undefined);
+  const open = useCallback((id: string) => zoomRef.current(id), []);
 
   // The element under the pointer, found through the email's own frame: the innermost marked element that's in the
   // document (a component's inner blocks climb to their section), and the part clicked.
@@ -429,6 +425,29 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
       e,
       () => addClick(item),
     );
+  // Check (B5e): what's wrong with the picked email, as the Email Studio's check list shows it; a note picks its part.
+  const checks = useMemo(() => {
+    if (!editDoc || draft.readOnly) return [];
+    const seen = new Set<string>();
+    const notes = compileEmail(draft.system, editDoc, { tokens: draft.tokens })
+      .notes.map((n) => ({ text: n.text, id: n.id ?? null }))
+      .filter((n) => !seen.has(`${n.id}:${n.text}`) && !!seen.add(`${n.id}:${n.text}`));
+    return draft.subject.trim() ? notes : [{ text: "The subject is empty.", id: null }, ...notes];
+  }, [editDoc, draft.system, draft.tokens, draft.subject, draft.readOnly]);
+  const checkMenu = (anchor: HTMLElement) =>
+    setMenu({
+      anchor,
+      items: checks.length
+        ? checks.map((n) => ({ label: n.text, run: () => (n.id && editId ? (setEl({ email: editId, id: n.id, part: null }), setPanel(true)) : (setPanel(true), setTab("element"), setEl(null))) }))
+        : [{ label: "Nothing to fix", run: () => undefined, disabled: true }],
+    });
+  useEffect(() => {
+    zoomRef.current = (id: string) => {
+      const r = rects.find((x) => x.id === id);
+      if (r) surface.current?.focus({ x: r.x, y: r.y, r: r.x + r.w, b: r.y + Math.min(r.h, 900) });
+    };
+  });
+
   // Tia (B5): Add to chat, the green ring on emails she changed, and new emails from a plan.
   const addToChat = (email: string, id: string | null) => {
     if (editor.readOnly(email)) return say("Sent emails can't change. Duplicate to edit.");
@@ -1427,9 +1446,15 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
             <Button size="sm" variant="plain" onClick={() => addToChat(r!.id, null)}>
               <AiMark size={13} /> Add to chat
             </Button>
-            <Button size="sm" variant="plain" onClick={() => open(r!.id)}>
-              Open
-            </Button>
+            {r!.id === editId ? (
+              <button type="button" aria-label={`Check${checks.length ? `, ${checks.length} to fix` : ""}`} title="Check" onClick={(e) => checkMenu(e.currentTarget)} className={`flex h-7 items-center gap-1 rounded-full px-2 text-[12.5px] font-medium hover:bg-hover ${checks.length ? "text-rose" : "text-muted hover:text-ink"}`}>
+                {checks.length ? <Warn size={13} /> : <Check size={13} />}
+                {checks.length ? checks.length : null}
+              </button>
+            ) : null}
+            <button type="button" aria-label={look === "dark" && r!.id === editId ? "Light" : "Dark"} aria-pressed={look === "dark" && r!.id === editId} title={look === "dark" && r!.id === editId ? "Show light" : "Show dark"} onClick={() => (r!.id === editId ? setLook(look === "dark" ? undefined : "dark") : (setPicked([r!.id]), setLook("dark")))} className="flex size-7 items-center justify-center rounded-full text-muted hover:bg-hover hover:text-ink">
+              {look === "dark" && r!.id === editId ? <Sun size={14} /> : <Moon size={14} />}
+            </button>
             <Button size="sm" variant="plain" onClick={() => void test(r!.id)}>
               Test
             </Button>
@@ -1634,7 +1659,7 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
           onKey={onKey}
           onBackground={() => (setPicked([]), setEl(null))}
         >
-          <div data-canvas-ui="" className="absolute top-3 left-3 z-[4] flex gap-2">
+          <div data-canvas-ui="" className="absolute top-1/2 left-3 z-[4] flex -translate-y-1/2 flex-col gap-2">
             <button type="button" aria-label="Add a block" aria-expanded={addOpen} title="Add a block (A)" onClick={() => setAddOpen(!addOpen)} className={`flex size-9 items-center justify-center rounded-full shadow-float transition-colors duration-[140ms] ${addOpen ? "bg-ink text-paper" : "bg-card text-ink hover:bg-hover"}`}>
               <Plus size={16} />
             </button>

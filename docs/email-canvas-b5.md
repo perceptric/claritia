@@ -1,6 +1,6 @@
 # B5: Tia on the canvas, versions, comments, Campaigns views
 
-Plan, 13 November 2026. Step B5 of `docs/email-canvas-plan.md`, the last canvas step, after B4 (drag and drop, the +
+Plan, 13 November 2026; built the same day (section 12). Step B5 of `docs/email-canvas-plan.md`, the last canvas step, after B4 (drag and drop, the +
 panel, image resize, copy and paste, one undo history for the canvas; `docs/email-canvas-b4.md`). B5 brings Tia onto
 the canvas, gives every email its versions and comments, adds Groups and List views to Campaigns, and makes the
 canvas the place where campaign emails are edited, so the Email Studio is no longer needed for them.
@@ -245,3 +245,31 @@ Assumed use per team a month: 45 email changes on the canvas, and 2 plans of 4 n
 
 Some of this replaces chat use in the Email Studio, which campaign drafts no longer open, so the real increase is
 lower.
+
+## 12. As built
+
+- **Files:** `src/lib/design/email/scope.ts` (checked before and after each of Tia's tool calls inside `chat.ts`),
+  `turn.ts` (targets, chips, changed-meanwhile) and `series.ts`; `src/app/api/email/series/route.ts` (plan and build,
+  both through the step cache); the chat route takes `scope` and `turnWith`; `CanvasChat.tsx`, `LeftPanel.tsx`,
+  `VersionPill.tsx`, `Comments.tsx` in `src/components/app/emails/canvas/`; `AddPanel.tsx` now holds the Add tab's
+  tiles; migration 160 is applied on the server. Tests: `tests/emailScope.test.ts` (with a scripted model),
+  `tests/emailTurn.test.ts`, `tests/emailSeries.test.ts`, `tests/pg/canvasVersions.pg.ts`.
+- **Locks** live in the canvas editor: a locked email takes no change from the canvas (drags, pastes, typing, undo)
+  until Tia's turn ends; the panel says "Tia is changing this email".
+- **"Changed while Tia worked"** is decided by `changedMeanwhile` (unit-tested). With locks, it can only happen from
+  another tab or person, so the browser check doesn't stage it.
+- **Versions:** the menu shows each version's time, Tia's tag and its note; it doesn't show people's names (the app
+  has no member names to show yet). A version with the same content as the newest one isn't saved again, so a Restore
+  of the newest version adds nothing. Picking a version locks the email until Restore or Back to latest.
+- **Comments:** pins show the thread's count instead of initials (no member names yet); the thread card says "You" or
+  "Teammate". The workspace has owners and members only, so "owners and admins" means owners.
+- **Tia's and Add's buttons** sit in a column on the left middle of the canvas, so the email toolbar never covers
+  them.
+- **Campaign drafts** open on their canvas from every route (`campaigns/<id>`); the canvas's Open button and the
+  campaign Studio editor are gone, and a double-click on an email's name zooms to it. The Email Studio stays for
+  automation emails and templates.
+- **Dark** shows the brand's dark-mode styles; an email with none looks the same in both.
+- **Not browser-checked:** Campaigns' Groups and List switch (the stand-in page renders the canvas only); it's
+  covered by the type check and lint.
+- **Proof:** `scripts/email-canvas-check.ts` parts B5 (checks 60 to 68), 155 browser checks in all; 1,305 unit tests;
+  the Studio check passes.

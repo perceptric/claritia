@@ -134,7 +134,7 @@ try {
   await p.mouse.click(pick0.x + 40, pick0.y + 80);
   const tb = p.locator("[aria-label='Email actions']");
   check(await tb.isVisible(), "a click picks the email and shows the toolbar");
-  check((await tb.textContent())?.includes("Open") && (await tb.textContent())?.includes("Send") ? true : false, "a draft's toolbar has Open, Test and Send");
+  check((await tb.textContent())?.includes("Add to chat") && (await tb.textContent())?.includes("Test") && (await tb.textContent())?.includes("Send") ? true : false, "a draft's toolbar has Add to chat, Test and Send");
   const tbb = (await tb.boundingBox())!;
   check(tbb.y + tbb.height <= pick0.y && tbb.x < pick0.x + pick0.width && tbb.x + tbb.width > pick0.x, "the toolbar sits above the picked email");
   if (shots) await p.screenshot({ path: `${shots}/2-picked.png` });
@@ -149,11 +149,14 @@ try {
   await p.keyboard.press("ArrowRight");
   await p.keyboard.press("Enter");
   check((await p.locator("[data-canvas-tag='pick']").textContent()) === "Section", "Enter steps into the picked email's first section");
+  const zoomBefore = await zoom();
   await p.locator("[data-canvas-item]").filter({ hasText: "Class reminder" }).first().dblclick();
-  const nav = (await calls()).find((c) => c.mode === "navigate");
+  await p.waitForTimeout(450);
   const ids = await p.evaluate(() => (window as unknown as { db: { emails: { id: string; group_position: number; group_id: string | null }[] } }).db.emails.filter((e) => e.group_id).sort((a, b) => a.group_position - b.group_position).map((e) => e.id));
-  check(nav?.body.i === `campaigns/${ids[1]}` && String(nav?.body.q).startsWith("back="), "arrows step through the emails and a double-click on the name opens it, with the way back");
+  check((await zoom()) !== zoomBefore && !(await calls()).some((c) => c.mode === "navigate"), "a double-click on an email's name zooms to it (campaign drafts are edited here)");
   await clear();
+  await p.keyboard.press("Shift+Digit1");
+  await settle();
 
   // 6. Drag to reorder: Escape cancels; a drop saves the order
   await p.keyboard.press("Escape");
@@ -1335,6 +1338,42 @@ try {
   check((await vp.locator("[data-comment-pin]").count()) === 0 && (await vdb()).email_comments.length === 0, "deleting the first comment takes the thread");
   if (shots) await vp.screenshot({ path: `${shots}/17-b5-versions.png` });
   await vp.close();
+  // 67. Check: the count and the list; a note picks its part
+  const ck = await ctx.newPage();
+  ck.on("pageerror", (e) => errors.push(e.message));
+  await openCanvas(ck);
+  const ckName = (await ck.locator("[data-canvas-item]").filter({ hasText: "Welcome" }).first().boundingBox())!;
+  await ck.mouse.click(ckName.x + 10, ckName.y + ckName.height / 2);
+  const checkBtn = ck.getByRole("toolbar", { name: "Email actions" }).getByRole("button", { name: /^Check/ });
+  const before67 = (await checkBtn.getAttribute("aria-label")) ?? "";
+  await ck.getByRole("button", { name: "Add a block" }).click();
+  await ck.locator("aside[aria-label='Add'] [data-add='image']").click();
+  await ck.waitForTimeout(300);
+  await ck.keyboard.press("Escape");
+  const nb67 = (await ck.locator("[data-canvas-item]").filter({ hasText: "Welcome" }).first().boundingBox())!;
+  await ck.mouse.click(nb67.x + 10, nb67.y + nb67.height / 2);
+  await ck.waitForTimeout(200);
+  const after67 = (await checkBtn.getAttribute("aria-label")) ?? "";
+  const fixes = (l: string) => Number(/(\d+) to fix/.exec(l)?.[1] ?? 0);
+  check(fixes(after67) === fixes(before67) + 1, `Check counts what to fix (${before67} → ${after67})`);
+  await checkBtn.click();
+  await ck.getByRole("menuitem", { name: "An image has no picture yet." }).last().click();
+  await ck.waitForTimeout(150);
+  check((await ck.locator("[data-canvas-tag='pick']").textContent()) === "Image", "a note in Check picks its part");
+
+  // 68. Light and Dark: the picked email shows as dark-mode mail apps show it
+  const bg = () => ck.evaluate(() => {
+    const f = document.querySelectorAll<HTMLIFrameElement>("[data-email] iframe")[0]!;
+    const t = f.contentDocument!.querySelector("[data-eid='email']") as HTMLElement;
+    return getComputedStyle(t).backgroundColor;
+  });
+  const light = await bg();
+  await ck.getByRole("toolbar", { name: "Email actions" }).getByRole("button", { name: "Dark" }).click();
+  await ck.waitForTimeout(300);
+  const dark = await bg();
+  check(light !== dark && (await ck.getByRole("toolbar", { name: "Email actions" }).getByRole("button", { name: "Light" }).getAttribute("aria-pressed")) === "true", `Dark shows the email in dark mode (${light} → ${dark})`);
+  if (shots) await ck.screenshot({ path: `${shots}/18-b5-check.png` });
+  await ck.close();
   }
 
   // 12. A row of 60 emails: only those near the view load

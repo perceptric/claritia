@@ -9,14 +9,14 @@ import { useMemo } from "react";
 import { must, timeAgo, useQuery } from "../../ui";
 import { previewHtml, type CanvasKit } from "./preview";
 
-type Mini = { id: string; status: string; doc: unknown; html: string; updated_at: string };
-type Card = { id: string; name: string; count: number; edited: string | null; minis: Mini[] };
+type Mini = { id: string; status: string; doc: unknown; html: string; updated_at: string; updated_by?: string | null };
+type Card = { id: string; name: string; count: number; edited: string | null; by: string | null; minis: Mini[] };
 const n = (x: number) => x.toLocaleString("en-US");
 
-export function GroupCards({ sb, ws, onOpen }: { sb: SupabaseClient; ws: string; onOpen: (id: string) => void }) {
+export function GroupCards({ sb, ws, me, onOpen }: { sb: SupabaseClient; ws: string; me: string; onOpen: (id: string) => void }) {
   const kits = useQuery(`email_canvas_kits:${ws}`, async () => (must(await sb.from("brand_kits").select("id, tokens, logo_url, design").eq("workspace_id", ws).order("created_at")) ?? []) as CanvasKit[]);
   const cards = useQuery(`email_groups:${ws}`, async () => {
-    const cols = "id, status, doc, html, updated_at";
+    const cols = "id, status, doc, html, updated_at, updated_by";
     const [groups, loose, looseCount] = await Promise.all([
       sb.from("email_groups").select(`id, name, created_at, emails(${cols}, group_position)`).eq("workspace_id", ws).order("created_at"),
       sb.from("emails").select(cols).eq("workspace_id", ws).eq("kind", "broadcast").is("group_id", null).neq("status", "archived").order("updated_at", { ascending: false }).limit(3),
@@ -25,10 +25,12 @@ export function GroupCards({ sb, ws, onOpen }: { sb: SupabaseClient; ws: string;
     const gs = (must(groups) ?? []) as { id: string; name: string; created_at: string; emails: (Mini & { group_position: number })[] }[];
     const ls = (must(loose) ?? []) as Mini[];
     const latest = (ms: Mini[], fallback: string | null) => ms.reduce<string | null>((a, m) => (!a || m.updated_at > a ? m.updated_at : a), fallback);
-    const out: Card[] = [{ id: "ungrouped", name: "Ungrouped", count: looseCount.count ?? ls.length, edited: latest(ls, null), minis: ls }];
+    // Who saved the most recently edited email (migration 160).
+    const by = (ms: Mini[]) => [...ms].sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0]?.updated_by ?? null;
+    const out: Card[] = [{ id: "ungrouped", name: "Ungrouped", count: looseCount.count ?? ls.length, edited: latest(ls, null), by: by(ls), minis: ls }];
     for (const g of gs) {
       const sorted = [...g.emails].sort((a, b) => a.group_position - b.group_position);
-      out.push({ id: g.id, name: g.name, count: g.emails.length, edited: latest(g.emails, g.created_at), minis: sorted.slice(0, 3) });
+      out.push({ id: g.id, name: g.name, count: g.emails.length, edited: latest(g.emails, g.created_at), by: by(g.emails), minis: sorted.slice(0, 3) });
     }
     return out;
   });
@@ -50,7 +52,7 @@ export function GroupCards({ sb, ws, onOpen }: { sb: SupabaseClient; ws: string;
               <span className="font-medium break-words text-ink">{c.name}</span>
               <span className="text-[12.5px] text-muted">
                 {n(c.count)} {c.count === 1 ? "email" : "emails"}
-                {c.edited ? `, edited ${timeAgo(c.edited)}` : ""}
+                {c.edited ? `, edited ${timeAgo(c.edited)}${c.by ? (c.by === me ? " by you" : " by a teammate") : ""}` : ""}
               </span>
             </span>
           </a>

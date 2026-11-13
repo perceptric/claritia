@@ -28,9 +28,14 @@ const K2 = "aaaaaaaa-0000-4000-8000-000000000002";
 const LOGO = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='40'%3E%3Crect width='120' height='40' fill='%23888'/%3E%3C/svg%3E";
 const K1_DESIGN = { email: { globals: {}, classes: [{ id: "big1", name: "Big", styles: {} }], components: [{ id: "cmp1", name: "Footer block", stackOnPhone: true, columns: [{ id: "kcol1", width: 100, blocks: [{ id: "kblk1", type: "text", html: "<p>Thanks for reading.</p>" }] }] }] } };
 const K2_DESIGN = { email: { globals: {}, classes: [{ id: "kid1", name: "Playful", styles: {} }] } };
+// "Welcome" has a dark-mode background, so the canvas's Dark switch shows a difference (B5e).
+const withDark = (r: Row): Row => {
+  const d = r.doc as { styles?: Record<string, Record<string, unknown>> };
+  return { ...r, doc: { ...d, styles: { ...(d.styles ?? {}), email: { ...(d.styles?.email ?? {}), content: { ...((d.styles?.email?.content as object) ?? {}), "base:dark": { "background-color": "#1f1f1f" } } } } } };
+};
 const db: Record<string, Row[]> = {
   email_groups: [{ id: G, workspace_id: "ws1", name: "Welcome series", created_at: new Date(now - 86400000).toISOString() }, { id: "22222222-2222-4222-8222-222222222222", workspace_id: "ws1", name: "Holiday promo", created_at: new Date(now).toISOString() }],
-  emails: [email("Welcome", 0, G, 0), email("Class reminder", 3, G, 1), { ...email("Monthly news", 6, G, 2), doc: { ...EMAIL_TEMPLATES[6]!.make(), kitId: K2 } }, email("Spring workshop", 9, null, 0)],
+  emails: [withDark(email("Welcome", 0, G, 0)), email("Class reminder", 3, G, 1), { ...email("Monthly news", 6, G, 2), doc: { ...EMAIL_TEMPLATES[6]!.make(), kitId: K2 } }, email("Spring workshop", 9, null, 0)],
   email_versions: [],
   email_comments: [],
   brand_kits: [{ id: K1, workspace_id: "ws1", name: "Juniper", design: K1_DESIGN, design_live: K1_DESIGN, tokens: {}, logo_url: LOGO, design_rev: 0, created_at: new Date(now - 86400000).toISOString() },
