@@ -131,6 +131,43 @@ test("Gradual Send spaces the messages evenly over the hours; Pause and Resume k
   assert.ok(r[0]! <= Date.now() / 1000 + 1, "the first of the rest goes at once");
 });
 
+test("Intelligent Send: each person at their own hour within 24 hours, then their time zone, then the workspace's hour; Resume keeps it", async () => {
+  const s = await setup();
+  // Ana clicked earlier emails at 14:00 UTC and opened one at 03:00; a click counts more than an open.
+  const old = (await one<{ id: string }>(`insert into emails (workspace_id, name, kind, subject, html, text, status) values ($1, 'Old', 'broadcast', 'Old', '<p>x</p>', 'x', 'sent') returning id`, [s.ws])).id;
+  const msg = (await one<{ id: string }>(`insert into email_messages (workspace_id, email_id, contact_id, to_email, status, dedupe) values ($1, $2, $3, 'ana@x.io', 'sent', 'old-ana') returning id`, [s.ws, old, s.ids.ana])).id;
+  for (const at of ["2026-10-01T14:05:00Z", "2026-10-08T14:40:00Z"]) await q(`insert into email_events (workspace_id, message_id, kind, at) values ($1, $2, 'clicked', $3)`, [s.ws, msg, at]);
+  await q(`insert into email_events (workspace_id, message_id, kind, at) values ($1, $2, 'opened', now() - interval '3 days')`, [s.ws, msg]);
+  await q(`update email_events set at = date_trunc('day', at) + interval '3 hours' where message_id = $1 and kind = 'opened'`, [msg]);
+  // Ben has no history but a time zone: 10 AM in Tokyo is 01:00 UTC.
+  await q(`update contacts set timezone = 'Asia/Tokyo' where id = $1`, [s.ids.ben]);
+  const counts = (await one<{ c: { smart: Record<string, number> } }>(`select email_audience_counts($1, $2, false, null) c`, [s.ws, [s.list]])).c;
+  assert.deepEqual(counts.smart, { history: 1, timezone: 1, workspace: 1 }, "ana, ben, and cy at the workspace's hour");
+  const start = Date.now();
+  await assert.rejects(doSend(s, { lists: [s.list], smart: true, spread_hours: 4 }), /Intelligent Send or Gradual Send/);
+  await doSend(s, { lists: [s.list], smart: true });
+  const at = async () => Object.fromEntries((await q(`select c.first_name n, extract(epoch from m.send_after)::float8 t from email_messages m join contacts c on c.id = m.contact_id where m.email_id = $1 and m.status = 'queued'`, [s.draft])).map((r) => [r.n as string, (r.t as number) * 1000]));
+  const check = (t: Record<string, number>, from: number) => {
+    for (const [who, v] of Object.entries(t)) assert.ok(v >= from - 2000 && v < from + 86_400_000, `${who} within 24 hours`);
+    const hour = (v: number) => new Date(v).getUTCHours();
+    assert.ok(hour(t.ana!) === 14 || Math.abs(t.ana! - from) < 2000, "Ana at 14:00 UTC");
+    assert.ok(hour(t.ben!) === 1 || Math.abs(t.ben! - from) < 2000, "Ben at 10 AM Tokyo");
+    assert.ok(hour(t.cy!) === 14 || Math.abs(t.cy! - from) < 2000, "Cy at the workspace's hour");
+  };
+  check(await at(), start);
+  const c = await pool.connect();
+  try {
+    await c.query(`select set_config('request.jwt.claim.sub', $1, false)`, [s.user]);
+    await c.query(`select email_campaign_pause($1, $2, true)`, [s.ws, s.draft]);
+    await c.query(`select email_campaign_pause($1, $2, false)`, [s.ws, s.draft]);
+  } finally {
+    await c.query(`select set_config('request.jwt.claim.sub', '', false)`);
+    c.release();
+  }
+  check(await at(), Date.now());
+  assert.equal((await one<{ smart_send: boolean }>(`select smart_send from emails where id = $1`, [s.draft])).smart_send, true);
+});
+
 test("someone who unsubscribes after the send but before it goes gets nothing", async () => {
   sent = [];
   const s = await setup();

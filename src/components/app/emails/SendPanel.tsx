@@ -2,7 +2,8 @@
 
 // Send a campaign (docs/email-studio-plan.md Part 5, and step 1 of the Brew comparison), from the Email Studio. Left:
 // the sender (one of the workspace's verified domains, the From name and address, the reply-to), the subject and
-// preview text with merge values, how it shows in an inbox, and when (now, a day and time, or spread over some hours).
+// preview text with merge values, how it shows in an inbox, and when (now, a day and time, spread over some hours, or
+// each person at the hour they usually open, within a day: Intelligent Send, 159).
 // Right: who gets it (everyone or a list, and a topic they can leave), the count by the same rules every message
 // passes when it goes (email_audience_preview, 151), and the send check (Part 10). While the picked domain warms up
 // (155), a big campaign shows the days it takes. Send saves the draft, then runs /api/emails/send, which freezes the
@@ -23,10 +24,10 @@ import { Button, ErrorNote, errorText, IconButton, must, postJson, useQuery } fr
 
 type List = { id: string; name: string; members: number };
 type Topic = { id: string; name: string };
-type Preview = { total: number; ready: number; suppressed: number; no_consent: number; not_subscribed: number; room: number | null };
+type Preview = { total: number; ready: number; suppressed: number; no_consent: number; not_subscribed: number; room: number | null; smart?: Partial<Record<"history" | "timezone" | "workspace" | "start", number>> };
 type Domain = { domain: string; since: string; left_today: number | null };
 type Sender = { from_name: string | null; from_email: string | null; reply_to: string | null; domains: Domain[] };
-type When = "now" | "later" | "gradual";
+type When = "now" | "later" | "smart" | "gradual";
 
 const TIMES = Array.from({ length: 96 }, (_, i) => `${String(Math.floor(i / 4)).padStart(2, "0")}:${String((i % 4) * 15).padStart(2, "0")}`);
 const timeWords = (t: string) => new Date(`2000-01-01T${t}:00`).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
@@ -136,6 +137,7 @@ export function SendPanel({
         fromEmail,
         replyTo: reply.trim(),
         spreadHours: when === "gradual" ? hours : null,
+        smart: when === "smart",
       });
       onSent(r.status);
     } catch (e) {
@@ -146,6 +148,14 @@ export function SendPanel({
   const left = p ? [p.suppressed ? `${n(p.suppressed)} unsubscribed or bounced` : "", p.no_consent ? `${n(p.no_consent)} without consent` : "", p.not_subscribed ? `${n(p.not_subscribed)} not on this topic` : ""].filter(Boolean) : [];
   const perHour = p ? Math.ceil(p.ready / hours) : 0;
   const done = new Date(now + hours * 3_600_000);
+  const at = (d: Date) => d.toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" });
+  const smart = p?.smart ?? {};
+  const smartLines = [
+    smart.history ? `${n(smart.history)} at the hour they usually open` : "",
+    smart.timezone ? `${n(smart.timezone)} at 10 AM their time` : "",
+    smart.workspace ? `${n(smart.workspace)} at the hour your emails are opened most` : "",
+    smart.start ? `${n(smart.start)} right away` : "",
+  ].filter(Boolean);
   const vars = (ref: React.RefObject<HTMLInputElement | null>, value: string, set: (v: string) => void, what: string) => (
     <Select<string>
       ariaLabel={`Add a merge value to the ${what}`}
@@ -253,6 +263,18 @@ export function SendPanel({
                 </span>,
               )}
               {option(
+                "smart",
+                "Intelligent Send",
+                <span className="flex flex-col gap-0.5 text-[12.5px] break-words text-muted">
+                  <span>
+                    Between {at(new Date(now))} and {at(new Date(now + 86_400_000))}
+                  </span>
+                  {smartLines.map((l) => (
+                    <span key={l}>{l}</span>
+                  ))}
+                </span>,
+              )}
+              {option(
                 "gradual",
                 "Gradual Send",
                 <span className="flex flex-wrap items-center gap-2 text-[12.5px] text-muted">
@@ -322,7 +344,7 @@ export function SendPanel({
             Cancel
           </Button>
           <Button onClick={() => void send()} disabled={busy || !p || !p.ready || !!problem}>
-            {busy ? "Sending…" : when === "later" ? "Schedule" : when === "gradual" ? "Start Gradual Send" : "Send now"}
+            {busy ? "Sending…" : when === "later" ? "Schedule" : when === "gradual" ? "Start Gradual Send" : when === "smart" ? "Start Intelligent Send" : "Send now"}
           </Button>
         </div>
       </div>
