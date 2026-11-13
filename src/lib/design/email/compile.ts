@@ -292,8 +292,11 @@ function sectionHtml(ctx: Ctx, s: Section, inner: number): string {
       const w = Math.floor((avail * c.width) / 100);
       const col = style(ctx, c.id, "column", isMargin);
       parts.push(`<!--[if mso]><td width="${w}" valign="top"><![endif]-->`);
+      // Columns that stay side by side on a phone keep their share of its width there, so they never wrap.
+      const keep = s.stackOnPhone ? "" : ` clr-k${c.id}`;
+      if (keep) ctx.rules.phone.push(`.clr-k${c.id}{max-width:${c.width}%!important}`);
       parts.push(
-        `<div${mark(c.id)} class="clr-col${s.stackOnPhone ? " clr-stack" : ""}${col.className ? ` ${col.className}` : ""}" style="display:inline-block;vertical-align:top;width:100%;max-width:${w}px;font-size:16px;${escapeAttr(col.inline)}">${blocksOf(c, w)}</div>`,
+        `<div${mark(c.id)} class="clr-col${s.stackOnPhone ? " clr-stack" : ""}${keep}${col.className ? ` ${col.className}` : ""}" style="display:inline-block;vertical-align:top;width:100%;max-width:${w}px;font-size:16px;${escapeAttr(col.inline)}">${blocksOf(c, w)}</div>`,
       );
       parts.push("<!--[if mso]></td><![endif]-->");
     }

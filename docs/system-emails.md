@@ -33,6 +33,16 @@ words and look were fixed in code (`src/lib/meetings/emails.ts`) and nobody coul
 
 The calendar reconnect email stays Claritia's own.
 
+## The look
+
+Every starting design has the same calm layout (docs/brand.md): a small green status line ("Confirmed", "Reminder"),
+a 30px heading with one gray line under it, then the meeting on a tinted band, with a calendar tile (the month on a
+green strip, the day below) beside the meeting's name, date, start and end time, length and place. Under it: the Join
+pill, Add to calendar as two quiet pills, gray labels over the description and their answers, a hairline before
+Reschedule or cancel, and a centered footer. Canceled emails strike the meeting through and turn the tile gray. The band
+keeps the tile beside the details on a phone (side-by-side columns now keep their share of a phone's width, in
+`compile.ts`); the pills stack there.
+
 ## How it works
 
 - Each is an `emails` row of kind `system` with its `system_key` (`supabase/migrations/164_system_emails.sql`). The
@@ -43,7 +53,7 @@ The calendar reconnect email stays Claritia's own.
   **Start over** puts back the starting design. The canvas shows a sample meeting's values in place of merge fields, and
   Insert in the format bar offers the meeting's fields. Test sends it to you with the sample values.
 - Merge fields: `first_name`, `guest_name`, `guest_email`, `host_name`, `meeting_name`, `meeting_time`,
-  `meeting_length`, `meeting_where`, `meeting_link`, `reschedule_link`, `calendar_google`, `calendar_outlook`, `about`,
+  `meeting_date`, `meeting_clock`, `meeting_month`, `meeting_day`, `meeting_length`, `meeting_where`, `meeting_link`, `reschedule_link`, `calendar_google`, `calendar_outlook`, `about`,
   `answers`, `old_time`, `cancel_reason`, `book_link`, `time_left`, `held_link`, `no_show_link`, `open_times`,
   `workspace` (each email has the ones listed in `FIELDS_FOR`). Values are escaped in HTML; `answers`, `open_times` and
   `about` are lines.

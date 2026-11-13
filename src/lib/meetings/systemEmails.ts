@@ -36,6 +36,10 @@ export const SYSTEM_FIELDS = {
   host_name: "Host's name",
   meeting_name: "Meeting name",
   meeting_time: "Meeting time",
+  meeting_date: "Meeting date",
+  meeting_clock: "Start and end time",
+  meeting_month: "Month",
+  meeting_day: "Day of the month",
   meeting_length: "Meeting length",
   meeting_where: "Where",
   meeting_link: "Join link",
@@ -59,7 +63,7 @@ export const HTML_FIELDS: readonly SystemField[] = ["answers", "open_times", "ab
 
 /** The fields each email has a value for. */
 export const FIELDS_FOR: Record<SystemKey, SystemField[]> = (() => {
-  const meeting: SystemField[] = ["first_name", "guest_name", "guest_email", "host_name", "meeting_name", "meeting_time", "meeting_length", "meeting_where", "meeting_link", "about", "answers", "workspace"];
+  const meeting: SystemField[] = ["first_name", "guest_name", "guest_email", "host_name", "meeting_name", "meeting_time", "meeting_date", "meeting_clock", "meeting_month", "meeting_day", "meeting_length", "meeting_where", "meeting_link", "about", "answers", "workspace"];
   const guest: SystemField[] = [...meeting, "reschedule_link", "calendar_google", "calendar_outlook"];
   const times: SystemField[] = ["first_name", "guest_name", "guest_email", "host_name", "meeting_name", "book_link", "open_times", "workspace"];
   return {
@@ -77,149 +81,229 @@ export const FIELDS_FOR: Record<SystemKey, SystemField[]> = (() => {
 })();
 
 // The starting designs ---------------------------------------------------------------------------------------------
+//
+// One calm layout for every email (docs/brand.md): a small green status line, a big heading and one line under it,
+// then the meeting on a tinted band (a calendar tile with the month and day beside the meeting, its date, time and
+// place), pill buttons, quiet label-and-value rows, and a centered footer. Everything is ordinary blocks and styles,
+// so a team changes any of it on the canvas.
 
-/** Ids for one email's elements: short, fixed and unique within it. */
-function ids(prefix: string) {
+type Styles = NonNullable<EmailDoc["styles"]>;
+type Decls = Record<string, string>;
+const SIGNAL = "#0c8c5e";
+const PAPER = "#f6f6f3";
+const LINE = "#e8e8e4";
+const corners = (r: string): Decls => ({ "border-top-left-radius": r, "border-top-right-radius": r, "border-bottom-left-radius": r, "border-bottom-right-radius": r });
+const frame = (c: string): Decls =>
+  Object.fromEntries((["top", "right", "bottom", "left"] as const).flatMap((s) => [[`border-${s}-width`, "1px"], [`border-${s}-style`, "solid"], [`border-${s}-color`, c]]));
+const pad = (t: string, r: string, b = t, l = r): Decls => ({ "padding-top": t, "padding-right": r, "padding-bottom": b, "padding-left": l });
+
+/** Builds one email: element ids (short, fixed, unique within it) and their styles. */
+function maker(prefix: string) {
   let n = 0;
-  return () => `${prefix}${(n++).toString(36)}`;
+  const styles: Styles = { email: { content: { base: { ...corners("20px") } } } };
+  const id = () => `${prefix}${(n++).toString(36)}`;
+  const style = (el: string, part: string, base: Decls) => {
+    styles[el] = { ...(styles[el] ?? {}), [part]: { base } } as Styles[string];
+  };
+  const sec = (blocks: Block[], o: { showIf?: EmailCond; look?: Decls } = {}): Section => {
+    const s: Section = { id: id(), stackOnPhone: true, columns: [{ id: id(), width: 100, blocks }], ...(o.showIf ? { showIf: o.showIf } : {}) };
+    style(s.id, "section", { ...pad("8px", "40px"), ...(o.look ?? {}) });
+    return s;
+  };
+  const text = (html: string, look?: Decls, showIf?: EmailCond): Block => {
+    const b: Block = { id: id(), type: "text", html, ...(showIf ? { showIf } : {}) };
+    if (look) style(b.id, "text", look);
+    return b;
+  };
+  const button = (label: string, url: string, o: { secondary?: boolean; showIf?: EmailCond } = {}): Block => {
+    const b: Block = { id: id(), type: "button", label, url, align: "left", ...(o.showIf ? { showIf: o.showIf } : {}) };
+    style(b.id, "button", { ...corners("999px"), "font-size": "15px", "font-weight": "600", ...pad("12px", "22px"), "margin-top": "4px", "margin-bottom": "4px", ...(o.secondary ? { "background-color": "#ffffff", color: "$text", ...frame(LINE), ...pad("11px", "20px") } : {}) });
+    return b;
+  };
+  return { id, styles, style, sec, text, button };
 }
-
-type Make = () => string;
-const heading = (id: Make, text: string, level: 1 | 3 = 1): Block => ({ id: id(), type: "heading", text, level });
-const text = (id: Make, html: string, showIf?: EmailCond): Block => ({ id: id(), type: "text", html, ...(showIf ? { showIf } : {}) });
-const button = (id: Make, label: string, url: string, showIf?: EmailCond): Block => ({ id: id(), type: "button", label, url, align: "left", ...(showIf ? { showIf } : {}) });
+type Make = ReturnType<typeof maker>;
 const known = (field: EmailCond["field"]): EmailCond => ({ field, op: "is_set" });
-const section = (id: Make, blocks: Block[], showIf?: EmailCond): Section => ({ id: id(), stackOnPhone: true, columns: [{ id: id(), width: 100, blocks }], ...(showIf ? { showIf } : {}) });
-/** The meeting card: the meeting, its time and length, and where. */
-const card = (id: Make, title: string): Block => ({ id: id(), type: "event", title, when: "{{meeting_time}} ({{meeting_length}})", where: "{{meeting_where}}", url: "", button: "" });
-const join = (id: Make) => button(id, "Join the meeting", "{{meeting_link}}", known("meeting_link"));
-const calendar = (id: Make) =>
-  text(id, '<p>Add it to <a href="{{calendar_google}}">Google Calendar</a> or <a href="{{calendar_outlook}}">Outlook</a>. For Apple Calendar and others, open the attached invite.</p>');
-const manage = (id: Make) => section(id, [{ id: id(), type: "divider" }, text(id, '<p>Need to make a change? <a href="{{reschedule_link}}">Reschedule or cancel</a></p>')], known("reschedule_link"));
-const answers = (id: Make, title: string) => section(id, [heading(id, title, 3), text(id, "<p>{{answers}}</p>")], known("answers"));
-const footer = (id: Make) => section(id, [text(id, "<p>Sent for {{workspace}} because you booked a meeting.</p>")]);
-const base = (decls: Record<string, string>) => ({ base: decls });
-const corners = (r: string) => ({ "border-top-left-radius": r, "border-top-right-radius": r, "border-bottom-left-radius": r, "border-bottom-right-radius": r });
-const frame = { "border-top-width": "1px", "border-top-style": "solid", "border-top-color": "$border", "border-right-width": "1px", "border-right-style": "solid", "border-right-color": "$border", "border-bottom-width": "1px", "border-bottom-style": "solid", "border-bottom-color": "$border", "border-left-width": "1px", "border-left-style": "solid", "border-left-color": "$border" };
-const SMALL = /Sent for|count as held|For Apple Calendar/;
 
-/** The look meeting emails had: a framed meeting card, small gray labels, pill buttons and a quiet footer line. */
-function styled(sections: Section[]): EmailDoc["styles"] {
-  const out: NonNullable<EmailDoc["styles"]> = { email: { content: base({ ...corners("16px") }) } };
-  for (const s of sections)
-    for (const c of s.columns)
-      for (const b of c.blocks) {
-        if (b.type === "heading") out[b.id] = { heading: base(b.level === 1 ? { "font-size": "24px", "margin-bottom": "10px" } : { "font-size": "13px", color: "$muted", "margin-bottom": "6px" }) };
-        else if (b.type === "event") out[b.id] = { card: base({ ...corners("12px"), ...frame, "padding-top": "16px", "padding-bottom": "16px", "padding-left": "18px", "padding-right": "18px", "margin-top": "12px", "margin-bottom": "12px" }), "card-title": base({ "font-size": "17px" }) };
-        else if (b.type === "button") out[b.id] = { button: base({ ...corners("999px"), "font-size": "15px", "margin-top": "4px", "margin-bottom": "4px" }) };
-        else if (b.type === "text" && SMALL.test(b.html)) out[b.id] = { text: base({ "font-size": "13px", color: "$muted" }) };
-      }
-  return out;
+/** The status line and heading at the top. */
+function hero(m: Make, status: string, title: string, sub: string, tone: "signal" | "muted" = "signal"): Section {
+  const h: Block = { id: m.id(), type: "heading", text: title, level: 1 };
+  m.style(h.id, "heading", { "font-size": "30px", "line-height": "1.15", "letter-spacing": "-0.02em", "margin-bottom": "10px" });
+  return m.sec([m.text(`<p>${status}</p>`, { "font-size": "13px", "font-weight": "600", color: tone === "signal" ? SIGNAL : "$muted", "margin-bottom": "12px" }), h, m.text(`<p>${sub}</p>`, { "font-size": "16px", color: "$muted", "line-height": "1.55" })], { look: pad("40px", "40px", "20px") });
 }
-const doc = (preheader: string, sections: Section[]): EmailDoc => ({ v: 1, settings: { width: 600, align: "center", darkMode: "auto", preheader, lang: "en" }, sections, styles: styled(sections) });
 
-/** The subject, preheader and design each email starts with: the same words Claritia sent before System emails. */
+/** The meeting on a tinted band: a calendar tile beside its name, date, time and place. */
+function band(m: Make, title: string, o: { struck?: boolean } = {}): Section {
+  const tile = m.text("<p>{{meeting_month}}</p>", { "font-size": "12px", "font-weight": "600", "text-transform": "uppercase", "letter-spacing": "0.06em", color: "#ffffff", "background-color": o.struck ? "#8a8a85" : SIGNAL, "text-align": "center", ...pad("4px", "0px"), "border-top-left-radius": "12px", "border-top-right-radius": "12px" });
+  const day = m.text("<p>{{meeting_day}}</p>", { "font-size": "28px", "font-weight": "600", "line-height": "1.2", "text-align": "center", "background-color": "#ffffff", ...pad("8px", "0px", "10px"), "border-bottom-left-radius": "12px", "border-bottom-right-radius": "12px", ...frame(LINE), "border-top-width": "0px" });
+  const strike: Decls = o.struck ? { "text-decoration-line": "line-through" } : {};
+  const indent: Decls = { "padding-left": "18px" };
+  const name = m.text(`<p>${title}</p>`, { "font-size": "17px", "font-weight": "600", "line-height": "1.35", ...indent, ...strike });
+  const when = m.text("<p>{{meeting_date}}<br>{{meeting_clock}} ({{meeting_length}})</p>", { "font-size": "15px", color: "$text", "line-height": "1.5", "padding-top": "4px", ...indent, ...strike });
+  const where = m.text("<p>{{meeting_where}}</p>", { "font-size": "14px", color: "$muted", "padding-top": "4px", ...indent });
+  const s: Section = {
+    id: m.id(),
+    stackOnPhone: false,
+    columns: [
+      { id: m.id(), width: 16, blocks: [tile, day] },
+      { id: m.id(), width: 84, blocks: [name, when, where] },
+    ],
+  };
+  m.style(s.id, "section", { ...pad("24px", "40px"), "background-color": PAPER, "border-top-width": "1px", "border-top-style": "solid", "border-top-color": LINE, "border-bottom-width": "1px", "border-bottom-style": "solid", "border-bottom-color": LINE });
+  return s;
+}
+
+/** A small gray label over rows of answers, a description or open times. */
+function block(m: Make, label: string, html: string, field: EmailCond["field"]): Section {
+  return m.sec([m.text(`<p>${label}</p>`, { "font-size": "13px", "font-weight": "600", color: "$muted", "margin-bottom": "6px" }), m.text(`<p>${html}</p>`, { "font-size": "15px", "line-height": "1.65" })], { showIf: known(field), look: pad("14px", "40px") });
+}
+
+const joinSec = (m: Make) => m.sec([m.button("Join the meeting", "{{meeting_link}}")], { showIf: known("meeting_link"), look: pad("24px", "40px", "4px") });
+/** Add to calendar: two quiet pills side by side, and a word about the attached invite. */
+function calendarSec(m: Make): Section[] {
+  const s: Section = {
+    id: m.id(),
+    stackOnPhone: true,
+    columns: [
+      { id: m.id(), width: 35, blocks: [m.button("Google Calendar", "{{calendar_google}}", { secondary: true })] },
+      { id: m.id(), width: 65, blocks: [m.button("Outlook", "{{calendar_outlook}}", { secondary: true })] },
+    ],
+  };
+  m.style(s.id, "section", pad("4px", "40px", "0px"));
+  return [m.sec([m.text("<p>Add to calendar</p>", { "font-size": "13px", "font-weight": "600", color: "$muted" })], { look: pad("20px", "40px", "2px") }), s, m.sec([m.text("<p>Apple Calendar and others: open the attached invite.</p>", { "font-size": "13px", color: "$muted" })], { look: pad("2px", "40px", "8px") })];
+}
+const manageSec = (m: Make) =>
+  m.sec([m.text('<p>Need to make a change? <a href="{{reschedule_link}}">Reschedule</a> or <a href="{{reschedule_link}}">cancel</a>.</p>', { "font-size": "14px", color: "$muted" })], { showIf: known("reschedule_link"), look: { ...pad("20px", "40px"), "border-top-width": "1px", "border-top-style": "solid", "border-top-color": LINE } });
+const footerSec = (m: Make, why = "because you booked a meeting") =>
+  m.sec([m.text(`<p>Sent for {{workspace}} ${why}.<br>Scheduled with <a href="https://tryclaritia.com">Claritia</a></p>`, { "font-size": "12px", color: "$muted", "text-align": "center", "line-height": "1.6" })], { look: pad("24px", "40px", "32px") });
+const lineSec = (m: Make, html: string, showIf?: EmailCond) => m.sec([m.text(`<p>${html}</p>`, { "font-size": "15px", "line-height": "1.6" })], { showIf, look: pad("14px", "40px", "0px") });
+
+const doc = (m: Make, preheader: string, sections: Section[]): EmailDoc => ({ v: 1, settings: { width: 600, align: "center", darkMode: "auto", preheader, lang: "en" }, sections, styles: m.styles });
+
+/** The subject, preheader and design each email starts with. */
 export function systemDefault(key: SystemKey): { subject: string; doc: EmailDoc } {
-  const id = ids(key.replace(/_/g, "").slice(0, 6));
+  const m = maker(key.replace(/_/g, "").slice(0, 6));
   switch (key) {
     case "confirm":
       return {
         subject: "Confirmed: {{meeting_name}} with {{host_name}} on {{meeting_time}}",
-        doc: doc("{{meeting_time}} with {{host_name}}", [
-          section(id, [heading(id, "Your meeting is booked"), text(id, "<p>Hi {{first_name|there}}, you're booked with {{host_name}}.</p>"), card(id, "{{meeting_name}} with {{host_name}}"), join(id)]),
-          section(id, [heading(id, "About this meeting", 3), text(id, "<p>{{about}}</p>")], known("about")),
-          answers(id, "Your answers"),
-          section(id, [calendar(id)]),
-          manage(id),
-          footer(id),
+        doc: doc(m, "{{meeting_time}} with {{host_name}}", [
+          hero(m, "Confirmed", "Your meeting is booked", "Hi {{first_name|there}}, you're all set with {{host_name}}. Everything you need is below."),
+          band(m, "{{meeting_name}} with {{host_name}}"),
+          joinSec(m),
+          ...calendarSec(m),
+          block(m, "About this meeting", "{{about}}", "about"),
+          block(m, "Your answers", "{{answers}}", "answers"),
+          manageSec(m),
+          footerSec(m),
         ]),
       };
     case "update":
       return {
         subject: "Updated: {{meeting_name}} with {{host_name}} is now {{meeting_time}}",
-        doc: doc("Now {{meeting_time}}", [
-          section(id, [heading(id, "Your meeting moved"), text(id, "<p>Hi {{first_name|there}}, here's the new time.</p>"), card(id, "{{meeting_name}} with {{host_name}}"), text(id, "<p>It was {{old_time}}.</p>", known("old_time")), join(id)]),
-          section(id, [calendar(id)]),
-          manage(id),
-          footer(id),
+        doc: doc(m, "Now {{meeting_time}}", [
+          hero(m, "New time", "Your meeting moved", "Hi {{first_name|there}}, here's the new time with {{host_name}}."),
+          band(m, "{{meeting_name}} with {{host_name}}"),
+          lineSec(m, "It was {{old_time}}.", known("old_time")),
+          joinSec(m),
+          ...calendarSec(m),
+          manageSec(m),
+          footerSec(m),
         ]),
       };
     case "cancel":
       return {
         subject: "Canceled: {{meeting_name}} with {{host_name}} on {{meeting_time}}",
-        doc: doc("{{meeting_time}} is canceled", [
-          section(id, [
-            heading(id, "Your meeting is canceled"),
-            text(id, "<p>Hi {{first_name|there}}, this meeting is canceled.</p>"),
-            card(id, "{{meeting_name}} with {{host_name}}"),
-            text(id, "<p>Reason: {{cancel_reason}}</p>", known("cancel_reason")),
-            button(id, "Book a new time", "{{book_link}}", known("book_link")),
-          ]),
-          footer(id),
+        doc: doc(m, "{{meeting_time}} is canceled", [
+          hero(m, "Canceled", "Your meeting is canceled", "Hi {{first_name|there}}, this meeting is off your calendar.", "muted"),
+          band(m, "{{meeting_name}} with {{host_name}}", { struck: true }),
+          lineSec(m, "Reason: {{cancel_reason}}", known("cancel_reason")),
+          m.sec([m.button("Book a new time", "{{book_link}}")], { showIf: known("book_link"), look: pad("24px", "40px", "8px") }),
+          footerSec(m),
         ]),
       };
     case "reminder":
       return {
         subject: "Reminder: {{meeting_name}} with {{host_name}} {{time_left}}",
-        doc: doc("{{meeting_time}}", [
-          section(id, [heading(id, "Your meeting is {{time_left}}"), text(id, "<p>Hi {{first_name|there}}, see you soon.</p>"), card(id, "{{meeting_name}} with {{host_name}}"), join(id)]),
-          manage(id),
-          footer(id),
+        doc: doc(m, "{{meeting_time}}", [
+          hero(m, "Reminder", "Your meeting is {{time_left}}", "Hi {{first_name|there}}, see you soon."),
+          band(m, "{{meeting_name}} with {{host_name}}"),
+          joinSec(m),
+          manageSec(m),
+          footerSec(m),
         ]),
       };
     case "no_show":
       return {
         subject: "Pick a new time with {{host_name}}",
-        doc: doc("Book {{meeting_name}} again", [
-          section(id, [heading(id, "Pick a new time with {{host_name}}"), text(id, "<p>Hi {{first_name|there}}, we missed you at {{meeting_name}}. Book a new time when it suits you.</p>")]),
-          section(id, [text(id, "<p>Open times with {{host_name}}:</p><p>{{open_times}}</p>")], known("open_times")),
-          section(id, [button(id, "Pick a time", "{{book_link}}")]),
+        doc: doc(m, "Book {{meeting_name}} again", [
+          hero(m, "Let's try again", "Pick a new time with {{host_name}}", "Hi {{first_name|there}}, we missed you at {{meeting_name}}. Book a new time when it suits you."),
+          block(m, "Open times", "{{open_times}}", "open_times"),
+          m.sec([m.button("Pick a time", "{{book_link}}")], { look: pad("20px", "40px", "8px") }),
+          footerSec(m, "because you booked a meeting"),
         ]),
       };
     case "book_later":
       return {
         subject: "Pick a time with {{host_name}}",
-        doc: doc("Book {{meeting_name}}", [
-          section(id, [heading(id, "Pick a time with {{host_name}}"), text(id, "<p>Hi {{first_name|there}}, thanks for getting in touch. Book {{meeting_name}} at a time that suits you.</p>")]),
-          section(id, [text(id, "<p>Open times with {{host_name}}:</p><p>{{open_times}}</p>")], known("open_times")),
-          section(id, [button(id, "Pick a time", "{{book_link}}")]),
+        doc: doc(m, "Book {{meeting_name}}", [
+          hero(m, "One more step", "Pick a time with {{host_name}}", "Hi {{first_name|there}}, thanks for getting in touch. Book {{meeting_name}} at a time that suits you."),
+          block(m, "Open times", "{{open_times}}", "open_times"),
+          m.sec([m.button("Pick a time", "{{book_link}}")], { look: pad("20px", "40px", "8px") }),
+          footerSec(m, "because you got in touch"),
         ]),
       };
     case "host_booked":
       return {
         subject: "New meeting: {{guest_name}} on {{meeting_time}}",
-        doc: doc("{{meeting_name}}, {{meeting_time}}", [
-          section(id, [heading(id, "{{guest_name}} booked {{meeting_name}}"), card(id, "{{meeting_name}} with {{guest_name}}"), text(id, "<p>Guest: {{guest_email}}</p>"), join(id)]),
-          answers(id, "Their answers"),
+        doc: doc(m, "{{meeting_name}}, {{meeting_time}}", [
+          hero(m, "New booking", "{{guest_name}} booked {{meeting_name}}", "{{guest_email}}"),
+          band(m, "{{meeting_name}} with {{guest_name}}"),
+          joinSec(m),
+          block(m, "Their answers", "{{answers}}", "answers"),
+          m.sec([], { look: pad("12px", "40px") }),
         ]),
       };
     case "host_moved":
       return {
         subject: "Moved: {{guest_name}} is now {{meeting_time}}",
-        doc: doc("{{meeting_name}}, now {{meeting_time}}", [
-          section(id, [heading(id, "{{guest_name}} moved {{meeting_name}}"), card(id, "{{meeting_name}} with {{guest_name}}"), text(id, "<p>It was {{old_time}}.</p>", known("old_time")), text(id, "<p>Guest: {{guest_email}}</p>")]),
+        doc: doc(m, "{{meeting_name}}, now {{meeting_time}}", [
+          hero(m, "New time", "{{guest_name}} moved {{meeting_name}}", "{{guest_email}}"),
+          band(m, "{{meeting_name}} with {{guest_name}}"),
+          lineSec(m, "It was {{old_time}}.", known("old_time")),
+          m.sec([], { look: pad("12px", "40px") }),
         ]),
       };
     case "host_canceled":
       return {
         subject: "Canceled: {{guest_name}} on {{meeting_time}}",
-        doc: doc("{{meeting_name}}, {{meeting_time}}", [
-          section(id, [heading(id, "{{meeting_name}} with {{guest_name}} is canceled"), card(id, "{{meeting_name}} with {{guest_name}}"), text(id, "<p>Guest: {{guest_email}}</p>"), text(id, "<p>Reason: {{cancel_reason}}</p>", known("cancel_reason"))]),
+        doc: doc(m, "{{meeting_name}}, {{meeting_time}}", [
+          hero(m, "Canceled", "{{meeting_name}} with {{guest_name}} is canceled", "{{guest_email}}", "muted"),
+          band(m, "{{meeting_name}} with {{guest_name}}", { struck: true }),
+          lineSec(m, "Reason: {{cancel_reason}}", known("cancel_reason")),
+          m.sec([], { look: pad("12px", "40px") }),
         ]),
       };
-    case "after":
+    case "after": {
+      const s: Section = {
+        id: m.id(),
+        stackOnPhone: true,
+        columns: [
+          { id: m.id(), width: 18, blocks: [m.button("Held", "{{held_link}}")] },
+          { id: m.id(), width: 82, blocks: [m.button("No-show", "{{no_show_link}}", { secondary: true })] },
+        ],
+      };
+      m.style(s.id, "section", pad("24px", "40px", "4px"));
       return {
         subject: "How did it go with {{guest_name}}?",
-        doc: doc("{{meeting_name}}, {{meeting_time}}", [
-          section(id, [
-            heading(id, "How did it go with {{guest_name}}?"),
-            card(id, "{{meeting_name}} with {{guest_name}}"),
-            button(id, "Held", "{{held_link}}"),
-            button(id, "No-show", "{{no_show_link}}"),
-            text(id, "<p>Meetings not marked within 24 hours count as held.</p>"),
-          ]),
+        doc: doc(m, "{{meeting_name}}, {{meeting_time}}", [
+          hero(m, "Follow-up", "How did it go with {{guest_name}}?", "Mark the meeting so your reports stay right."),
+          band(m, "{{meeting_name}} with {{guest_name}}"),
+          s,
+          m.sec([m.text("<p>Meetings not marked within 24 hours count as held.</p>", { "font-size": "13px", color: "$muted" })], { look: pad("8px", "40px", "32px") }),
         ]),
       };
+    }
   }
 }
 
@@ -238,6 +322,10 @@ export function sampleVars(now = Date.now()): Record<SystemField, string> {
     host_name: "Alex Kim",
     meeting_name: "Intro call",
     meeting_time: when,
+    meeting_date: new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric" }).format(at),
+    meeting_clock: `${new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(at)} – ${new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZoneName: "short" }).format(new Date(at.getTime() + 1_800_000))}`,
+    meeting_month: new Intl.DateTimeFormat("en-US", { month: "short" }).format(at),
+    meeting_day: String(at.getDate()),
     meeting_length: "30 min",
     meeting_where: "Google Meet",
     meeting_link: "https://meet.google.com/abc-defg-hij",

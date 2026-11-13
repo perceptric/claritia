@@ -1427,7 +1427,7 @@ try {
     await se.waitForTimeout(500);
     check((await se.locator("[data-email]").count()) === 10, "the System emails' canvas shows all ten");
     check((await se.getByText("System", { exact: true }).count()) >= 1 && (await se.getByRole("button", { name: /Add email/ }).count()) === 0, "it has the System tag and no Add email");
-    const names = (await se.locator("[data-canvas-item]").allInnerTexts()).map((n) => n.replace(/\s+/g, " "));
+    const names = (await se.locator("[data-canvas-item]").allInnerTexts()).map((n) => n.replace(/\s+/g, " ")).filter((n) => n.trim());
     check(names.some((n) => n.includes("Booking confirmed") && n.includes("Always on")) && names.some((n) => n.includes("Reminder") && n.includes("On")) && names.some((n) => n.includes("Pick a time") && n.includes("Off")), `each email says On, Off or Always on (${names.slice(0, 6).join(" / ")})`);
     const first = await se.locator("[data-email] iframe").first().evaluate((f) => (f as HTMLIFrameElement).contentDocument?.body.innerText ?? "");
     check(first.includes("Intro call with Alex Kim") && !first.includes("{{"), `the canvas shows a sample meeting in place of merge fields (${first.slice(0, 80).replace(/\s+/g, " ")})`);
@@ -1441,7 +1441,8 @@ try {
     await bar.getByRole("button", { name: "Turn off" }).click();
     await se.waitForTimeout(200);
     const turned = await se.evaluate(() => (window as unknown as { calls: { mode: string; body: { p_on?: boolean } }[] }).calls.filter((c) => c.mode === "system_email_turn"));
-    check(turned.length === 1 && turned[0]!.body.p_on === false && (await se.locator("[data-canvas-item]").nth(3).innerText()).includes("Off"), "Turn off turns it off and says so");
+    const label = (await se.locator("[data-canvas-item]", { hasText: "Reminder" }).first().innerText()).replace(/\s+/g, " ");
+    check(turned.length === 1 && turned[0]!.body.p_on === false && label.includes("Off"), `Turn off turns it off and says so (${turned.length} call, "${label}")`);
     await se.keyboard.press("Delete");
     await se.waitForTimeout(200);
     check((await se.locator("[data-email]").count()) === 10 && (await se.locator("[role='status']").allInnerTexts()).some((t) => t.includes("one of each")), "Delete leaves it and says why");

@@ -6,7 +6,7 @@ import { applyConditions } from "../design/email/compile.ts";
 import { readEmailDoc } from "../design/email/doc.ts";
 import { compileWithKit, type KitRow } from "../design/email/server.ts";
 import { MERGE } from "../workflows/merge.ts";
-import { addToCalendar, fmtShort, fmtWhen, names, type MailParts, type MeetingView, type TimesView } from "./emails.ts";
+import { addToCalendar, fmtDay, fmtRange, fmtShort, fmtWhen, names, type MailParts, type MeetingView, type TimesView } from "./emails.ts";
 import { HTML_FIELDS, isSystemKey, SYSTEM_FIELDS, SYSTEM_META, type SystemField, type SystemKey } from "./systemEmails.ts";
 
 /** A workspace's System emails as meeting_system_emails gives them, with its brand kits. */
@@ -82,6 +82,14 @@ const lengthOf = (start: number, end: number) => {
   const m = Math.round((end - start) / 60_000);
   return m % 60 === 0 && m >= 60 ? `${m / 60} hour${m === 60 ? "" : "s"}` : `${m} min`;
 };
+const zoneOf = (tz: string) => {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: tz });
+    return tz;
+  } catch {
+    return "UTC";
+  }
+};
 const firstName = (name: string | null | undefined) => (name ?? "").trim().split(/\s+/)[0] ?? "";
 
 /** A meeting email's values for one reader (the guest, or a host with `forHost`). */
@@ -102,6 +110,10 @@ export function meetingFields(
       host_name: host,
       meeting_name: v.typeName,
       meeting_time: fmtWhen(v.start, v.tz, v.now),
+      meeting_date: fmtDay(v.start, v.tz, v.now),
+      meeting_clock: fmtRange(v.start, v.end, v.tz),
+      meeting_month: new Intl.DateTimeFormat("en-US", { timeZone: zoneOf(v.tz), month: "short" }).format(v.start),
+      meeting_day: new Intl.DateTimeFormat("en-US", { timeZone: zoneOf(v.tz), day: "numeric" }).format(v.start),
       meeting_length: lengthOf(v.start, v.end),
       meeting_where: where,
       meeting_link: v.where.url ?? null,

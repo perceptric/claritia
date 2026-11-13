@@ -115,3 +115,10 @@ test("the System emails open as their own group on Emails", async () => {
   const { emailsPage } = await import("../src/lib/nav.ts");
   assert.deepEqual(emailsPage("campaigns/group/system"), { page: "campaigns", id: "campaigns/group/system", group: "system" });
 });
+
+test("the meeting band keeps its date tile beside the details on a phone", () => {
+  const p = systemParts(setOf("confirm"), "confirm", sample(), fallback);
+  const band = systemDefault("confirm").doc.sections.find((s) => s.columns.length === 2 && !s.stackOnPhone)!;
+  for (const c of band.columns) assert.ok(p.html.includes(`.clr-k${c.id}{max-width:${c.width}%!important}`), `column ${c.id} keeps ${c.width}% on a phone`);
+  assert.ok(p.html.includes(">Nov<") && p.html.includes(">14<"), "the tile says the month and day");
+});
