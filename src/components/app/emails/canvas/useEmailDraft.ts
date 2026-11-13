@@ -26,7 +26,11 @@ export type EmailDraft = {
   kit: Kit | null;
   tokens: ReturnType<typeof cleanTokens>["tokens"];
   readOnly: boolean;
+  /** Changes the email. Changes with the same `merge` key within a second join one undo step; a key starting with
+   * "~" (a typing run) joins however long the pauses are. */
   apply: (next: Partial<EmailEdit> & { subject?: string }, merge?: string) => void;
+  /** The document as it is right now, including changes made since the last render. */
+  latest: () => EmailDoc | null;
   undo: () => void;
   redo: () => void;
   canUndo: boolean;
@@ -121,7 +125,7 @@ export function useEmailDraft({ sb, session, ws, row, kits, onSaved }: { sb: Sup
       if (!c.id || !c.doc || c.readOnly) return;
       const h = history(c.id);
       const now = Date.now();
-      const joins = !!mergeOn && merge.current?.key === mergeOn && now - merge.current.at < 1000;
+      const joins = !!mergeOn && merge.current?.key === mergeOn && (mergeOn.startsWith("~") || now - merge.current.at < 1000);
       merge.current = mergeOn ? { key: mergeOn, at: now } : null;
       putHistory(c.id, { past: joins ? h.past : [...h.past.slice(-99), { doc: c.doc, system: design.current(), subject: c.subject }], future: [] });
       const doc = next.doc ?? c.doc;
@@ -168,6 +172,7 @@ export function useEmailDraft({ sb, session, ws, row, kits, onSaved }: { sb: Sup
     tokens,
     readOnly: cur.readOnly,
     apply,
+    latest: () => latest.current.doc,
     undo: () => step("undo"),
     redo: () => step("redo"),
     canUndo: !!h?.past.length,

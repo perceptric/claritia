@@ -38,6 +38,9 @@ import { LayerTree } from "./LayerTree";
 import { Overlay } from "./Overlay";
 import { docOf, previewHtml, sourceHtml, widthOf, type CanvasRow } from "./preview";
 import { useEmailDraft } from "./useEmailDraft";
+import { FormatBar } from "./FormatBar";
+import { useTyping } from "./useTyping";
+import { typable } from "@/lib/design/email/typing";
 
 export const UNGROUPED = "ungrouped";
 const PHONE = 390;
@@ -231,10 +234,42 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
     else frames.current.delete(id);
     setFrameTick((t) => t + 1);
   }, []);
-  const handlers = useRef({ hitAt, editId, el: elNow });
-  useEffect(() => {
-    handlers.current = { hitAt, editId, el: elNow };
+  // Typing in place (B3): the frame's HTML is held while typing, so the caret stays.
+  const typer = useTyping({
+    frames,
+    doc: () => draftRef.current.latest(),
+    apply: (d, merge) => draftRef.current.apply({ doc: d }, merge),
+    zoom: () => surface.current?.camera().z ?? 1,
+    onPick: (id) => {
+      const e = draftRef.current.id;
+      if (e) setEl(id ? { email: e, id, part: null } : null);
+    },
   });
+  const typingHere = typer.typing && typer.typing.email === editId ? typer.typing : null;
+  const shown = useMemo(() => (typingHere ? { ...htmls, [typingHere.email]: typingHere.html } : htmls), [htmls, typingHere]);
+  const canType = (id: string) => {
+    const b = editDoc ? findEl(editDoc, id)?.block : undefined;
+    return !!b && typable(b) && !draft.readOnly;
+  };
+  const handlers = useRef({ hitAt, editId, el: elNow, start: typer.start, canType, htmls: shown });
+  useEffect(() => {
+    handlers.current = { hitAt, editId, el: elNow, start: typer.start, canType, htmls: shown };
+  });
+  // Typing ends when the pick moves, and on a press anywhere outside the email's frame (but the format bar).
+  const endTyping = typer.end;
+  useEffect(() => {
+    const t = typer.typing;
+    if (t && (t.email !== editId || elNow?.id !== t.id)) endTyping();
+  });
+  useEffect(() => {
+    if (!typer.typing) return;
+    const down = (e: PointerEvent) => {
+      if ((e.target as Element | null)?.closest?.("[data-typing-keep], [role='dialog'], [role='menu']")) return;
+      endTyping();
+    };
+    window.addEventListener("pointerdown", down, true);
+    return () => window.removeEventListener("pointerdown", down, true);
+  }, [typer.typing, endTyping]);
   const onDown = useCallback((id: string, e: React.PointerEvent) => {
     if (e.button !== 0) return;
     if (e.shiftKey) {
@@ -251,9 +286,17 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
     setElHover((cur) => (cur === (hit?.id ?? null) ? cur : (hit?.id ?? null)));
   }, []);
   const onBoardOpen = useCallback(
-    (id: string) => {
-      // B3 types in place; until then a double-click on an element goes to its first field in the panel.
-      if (handlers.current.el && handlers.current.editId === id) {
+    (id: string, e: React.MouseEvent) => {
+      const h = handlers.current;
+      // A double-click on a block that types starts typing where it landed.
+      const hit = h.editId === id ? h.hitAt(id, e.clientX, e.clientY) : null;
+      if (hit && h.canType(hit.id)) {
+        setEl(hit);
+        h.start(id, hit.id, h.htmls[id] ?? "", { x: e.clientX, y: e.clientY });
+        return;
+      }
+      // Other parts: their first field in the panel.
+      if (h.el && h.editId === id) {
         setPanel(true);
         setTab("element");
         window.setTimeout(() => document.querySelector<HTMLElement>("[data-canvas-panel] textarea, [data-canvas-panel] input:not([type='hidden']):not([type='file']), [data-canvas-panel] [contenteditable='true']")?.focus(), 0);
@@ -584,6 +627,8 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
         return true;
       }
       if (e.key === "Enter") {
+        e.preventDefault();
+        if (canType(id)) return (typer.start(editId!, id, shown[editId!] ?? ""), true);
         const n = firstChildOf(editDoc, id);
         if (n) pickEl(n);
         return true;
@@ -723,10 +768,12 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
                   c={c}
                   at={r}
                   hover={boxes.hover && elHover ? { box: boxes.hover, tag: tagOf(elHover) } : null}
-                  picked={boxes.picked && id ? { id, box: boxes.picked, tag: tagOf(id) } : null}
+                  picked={boxes.picked && id ? { id, box: boxes.picked, tag: typingHere ? "" : tagOf(id) } : null}
                   pad={boxes.pad}
                   actions={
-                    id && editable
+                    typingHere
+                      ? null
+                      : id && editable
                       ? {
                           parent: stepOut,
                           up: moveStep(editDoc, id, -1) !== editDoc ? () => moveEl(id, -1) : undefined,
@@ -740,6 +787,14 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
                   }
                 />
               );
+            })()
+          : null}
+        {typingHere && boxes.picked && !drag?.on
+          ? (() => {
+              const r = rects.find((x) => x.id === editId);
+              if (!r) return null;
+              const a = toScreen(c, r.x + boxes.picked.x, r.y + boxes.picked.y);
+              return <FormatBar box={{ left: a.x, top: a.y, width: boxes.picked.w * z, height: boxes.picked.h * z }} below={boxes.picked.y * z < 48} mode={typingHere.mode} marks={typer.marks} onExec={typer.exec} onLink={() => void typer.link()} onInsert={typer.insert} />;
             })()
           : null}
         {pickedBox && !drag?.on && !resize ? toolbarFor(pickedBox, c, view) : null}
@@ -815,7 +870,8 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
         key={r.id}
         id={r.id}
         name={row.name}
-        html={htmls[r.id] ?? ""}
+        html={shown[r.id] ?? ""}
+        typing={typingHere?.email === r.id}
         x={r.x}
         w={r.w}
         h={r.h}
