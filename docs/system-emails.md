@@ -11,11 +11,11 @@ words and look were fixed in code (`src/lib/meetings/emails.ts`) and nobody coul
 
 | What | Where it lives | What sends it |
 | --- | --- | --- |
-| **System emails**: confirmed, moved, canceled, reminder, no-show follow-up, pick a time, and the host's notes | Emails › Groups › System emails | The meeting worker, for every meeting (`worker-intel/jobs/meetings.ts`) |
-| **Automations**: follow-ups, extra reminders, Slack notes, texts | Emails › Automations; each automation's emails are also a group on Emails | The workflow worker, once the automation is published |
-| **Campaigns**: one-time sends to an audience | Emails › Groups and Ungrouped | Send on the canvas |
+| **System emails**: confirmed, moved, canceled, reminder, no-show follow-up, pick a time, and the host's notes | Workflows › Meetings, one step each | The meeting worker, for every meeting (`worker-intel/jobs/meetings.ts`) |
+| **Workflows**: follow-ups, extra reminders, Slack notes, texts | Workflows; each workflow's emails open on the canvas | The workflow worker, once the workflow is published |
+| **Campaigns**: one-time sends to an audience | The canvas (`/emails/campaigns`) | Send on the canvas |
 
-- A live automation with a **Before the meeting** wait sends the reminders; the System email Reminder then doesn't go,
+- A live workflow with a **Before the meeting** wait sends the reminders; the System email Reminder then doesn't go,
   so nobody gets two (`remindersByWorkflow`, docs/workflows.md).
 - When reminders go is set on each meeting type (Reminders, a day and an hour before by default). The Reminder email is
   what they say.

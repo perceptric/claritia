@@ -42,10 +42,10 @@ try {
   const order = () => p.locator("[data-node]").evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.node));
 
   // The canvas.
-  check((await p.getByRole("application", { name: "Automation" }).count()) === 1, "the flow sits on a canvas");
+  check((await p.getByRole("application", { name: "Workflow" }).count()) === 1, "the flow sits on a canvas");
   check((await p.getByRole("button", { name: "Zoom options" }).count()) === 1, "with the zoom control");
   const before = (await p.locator('[data-node="trigger"]').boundingBox())!;
-  await p.getByRole("application", { name: "Automation" }).hover();
+  await p.getByRole("application", { name: "Workflow" }).hover();
   await p.mouse.wheel(0, 200);
   await p.waitForTimeout(250);
   const after = (await p.locator('[data-node="trigger"]').boundingBox())!;
@@ -53,7 +53,7 @@ try {
   await p.keyboard.press("Shift+Digit1");
   await p.waitForTimeout(500);
   const fit = (await p.locator("[data-flow]").boundingBox())!;
-  const view = (await p.getByRole("application", { name: "Automation" }).boundingBox())!;
+  const view = (await p.getByRole("application", { name: "Workflow" }).boundingBox())!;
   check(fit.y >= view.y - 1 && fit.y + fit.height <= view.y + view.height + 1, "Shift+1 fits the whole flow");
   // Branches side by side.
   const paths = await p.locator("[data-path]").evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ x: r.x, y: r.y })));
@@ -116,7 +116,7 @@ try {
   check(ids2.indexOf("w1") > ids2.indexOf("m1"), "⌘Z puts it back");
 
   // The trigger as cards.
-  await p.getByRole("application", { name: "Automation" }).focus();
+  await p.getByRole("application", { name: "Workflow" }).focus();
   await p.keyboard.press("Shift+Digit1");
   await p.waitForTimeout(400);
   await p.locator('[data-node="trigger"]').click();
@@ -176,7 +176,7 @@ try {
   await mf.waitForTimeout(500);
   const cardsText = await mf.locator("[data-node]").allInnerTexts();
   check(cardsText.some((t) => t.includes("Booking confirmed, to the guest")) && cardsText.some((t) => t.includes("New booking for the host, to the host")), `the cards name each meeting email and who gets it (${cardsText.map((t) => t.replace(/\s+/g, " ")).join(" / ")})`);
-  check((await mf.getByRole("button", { name: "Delete automation" }).count()) === 0 && (await mf.getByRole("button", { name: "Pause" }).count()) === 0, "the workflow with the invite has no Delete and no Pause");
+  check((await mf.getByRole("button", { name: "Delete workflow" }).count()) === 0 && (await mf.getByRole("button", { name: "Pause" }).count()) === 0, "the workflow with the invite has no Delete and no Pause");
   const guestCard = mf.locator("[data-node]").nth(1);
   await guestCard.click();
   await mf.waitForTimeout(400);
@@ -197,6 +197,29 @@ try {
   check((await mf.locator("[data-node]").count()) === 3 && (await mf.getByText("sends the calendar invite").count()) >= 1, "Delete on it says why it stays");
   if (shots) await mf.screenshot({ path: `${shots}/automation-meeting.png` });
   await mf.close();
+
+  // Workflows' first screen (docs/workflows-plan.md, Part B): folders, then a folder's workflows, then one workflow.
+  const hm = await ctx.newPage();
+  hm.on("pageerror", (e) => check(false, `no page errors (${e.message})`));
+  await hm.goto(`${base}/?view=home`);
+  await hm.getByRole("button", { name: /^Meetings/ }).first().waitFor();
+  await hm.waitForTimeout(400);
+  const folderCards = await hm.locator("[data-folder]").allInnerTexts();
+  check(folderCards.length === 2 && folderCards[0]!.includes("Meetings") && folderCards[0]!.includes("3") && folderCards[1]!.includes("Forms"), `Workflows opens on its folders (${folderCards.map((t) => t.replace(/\s+/g, " ")).join(" / ")})`);
+  check((await hm.getByRole("button", { name: "New folder" }).count()) >= 1 && (await hm.getByRole("button", { name: "New workflow" }).count()) >= 1, "with New folder and New workflow");
+  check((await hm.locator("[data-folder] iframe").count()) >= 1, "a folder card shows its emails");
+  if (shots) await hm.screenshot({ path: `${shots}/workflows-folders.png` });
+  await hm.locator("[data-folder]").first().click();
+  await hm.locator("[data-workflow]").first().waitFor();
+  const wfCards = await hm.locator("[data-workflow]").allInnerTexts();
+  check(wfCards.length === 3 && wfCards[0]!.includes("Booking confirmed") && wfCards[0]!.includes("Always on"), `a folder opens on its workflows (${wfCards.map((t) => t.replace(/\s+/g, " ")).join(" / ")})`);
+  check((await hm.getByRole("button", { name: "Workflows" }).count()) >= 1, "with Workflows to go back");
+  if (shots) await hm.screenshot({ path: `${shots}/workflows-folder.png` });
+  await hm.locator("[data-workflow]").first().click();
+  await hm.locator("[data-node]").nth(1).waitFor();
+  check((await hm.getByRole("button", { name: "Meetings" }).count()) >= 1, "a workflow opens full width, with its folder to go back");
+  if (shots) await hm.screenshot({ path: `${shots}/workflows-open.png` });
+  await hm.close();
 } finally {
   await browser.close();
   server.close();

@@ -97,3 +97,10 @@ now.
 Built as planned (`src/lib/workflows/meetingFlows.ts`, 165). Two details: a Delay counts days and hours, so a meeting
 type's sub-hour reminder became an hour; and "After the meeting" starts on Meeting booked, with its email going when
 the meeting ends.
+
+## As built: Part B
+
+The Emails item left the Email section, and "Automation" became "Workflow" on every screen. Workflows opens on folder
+cards, a folder on its workflow cards, and a workflow in the editor at full width; the old folders column is gone. The
+canvas still opens through Open full editor, and its back button goes to the workflow. Checked in
+`scripts/automation-check.ts` (`?view=home`).

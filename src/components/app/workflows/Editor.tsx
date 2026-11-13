@@ -346,7 +346,7 @@ export function WorkflowEditor({
         </IconButton>
       </span>
       {required ? null : (
-        <IconButton label="Delete automation" onClick={() => void del()}>
+        <IconButton label="Delete workflow" onClick={() => void del()}>
           <Trash size={14} />
         </IconButton>
       )}
@@ -378,12 +378,12 @@ export function WorkflowEditor({
 
   return (
     <Page
-      title={name || "Untitled automation"}
+      title={name || "Untitled workflow"}
       onRename={(v: string) => {
         setName(v);
         setNameN((x) => x + 1);
       }}
-      back={{ label: home?.label ?? "Automations", onClick: goHome }}
+      back={{ label: home?.label ?? "Workflows", onClick: goHome }}
       actions={actions}
       flush
     >

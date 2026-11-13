@@ -1,19 +1,22 @@
 # Workflows
 
-Workflows live in Emails › Automations (13 November 2026): there is no Workflows item in the sidebar. The folders, every workflow and the editor are the same; their address is `/emails/automations/<id>` (`/emails/automations/new` picks a template), and old `/workflows` addresses open there.
+Workflows is the first item of the Email section (13 November 2026, docs/workflows-plan.md Part B): the Emails item is
+gone, and every email a team sends from Claritia is a step of a workflow. The address is `/emails/automations/<id>`
+(`/emails/automations/new` picks a template); old `/workflows` and `/emails/campaigns` addresses still open.
 
 Workflows is where every automated email lives, meeting reminders included. It replaced Emails: the
 Journeys, Emails, Library and Brand tabs are gone, and the senders stay in Settings › Sending.
 
 ## The page
 
-- Folders on the left, each holding workflows, and the open workflow in the editor on the right
-  (`src/components/app/workflows/Home.tsx`). `/workflows/<id>` opens one; `/workflows/new` picks a template.
-- The left column is a folder tree: each folder opens and closes, and its workflows hang under it on a guide line.
-  Creating lives in the tree: the **+** beside Folders, a folder's **+** on hover, the **New workflow** row at the end of
-  each folder (filed there, `?folder=<id>`), and the **New folder** row at the bottom, named in place. A folder's menu
-  renames it in place (or double-click), moves it up or down, or deletes it (its workflows stay, under No folder). Drag a
-  workflow onto a folder to move it there; the folder opens and outlines while it's under the pointer.
+- Three screens, one after another (`src/components/app/workflows/Home.tsx`):
+  - **Folders**: a card for each folder with a fan of its emails, its name and how many workflows, live ones and
+    emails it holds, then **New folder**. Workflows outside any folder show as No folder. A folder's menu adds a
+    workflow to it, renames it, moves it left or right, or deletes it (its workflows stay, under No folder).
+  - **A folder** (`/emails/automations/folder/<id>`): a card for each workflow with its emails, Always on for the
+    three with the calendar invite, its status, trigger and email count, then **New workflow** (filed there,
+    `?folder=<id>`). A card's menu moves it to another folder. Workflows goes back.
+  - **A workflow** (`/emails/automations/<id>`): the editor at full width, with its folder to go back.
 - The workflow sits on a dotted canvas (`flow-dots`), like Scoring's flowchart. Scoring's lines are measured from the
   cards (`src/components/app/FlowLines.tsx`): one near-black weight, smooth S-curves and an arrowhead into each card. The
   first column is ICP fit.
@@ -30,15 +33,15 @@ setting in one line; the + between them adds a step from a menu you can search; 
 copies the picked step and Delete removes it. The panel has Settings (the trigger as cards, each step's fields, Insert
 data on messages) and Test (pick a person and see what the step would do for them; nothing is sent).
 
-## Emails in an automation
+## Emails in a workflow
 
 Each email step is one email. It opens two ways, and both are the same email:
 
 - **In the step's panel**: From (your team or their owner), the subject with Insert data, and the email itself as it
   will look. A click on its words types in place, with bold, italic, links and Insert data
   (`src/components/app/workflows/EmailInPanel.tsx`, the canvas's own typing). **Rewrite with Tia** writes it again.
-- **On the Emails page**: **Open full editor** opens it on the automation's group canvas for the design (blocks,
-  colors, pictures, Tia, versions, comments). **Back to automation** comes back, with the changes already here.
+- **On the Emails page**: **Open full editor** opens it on the workflow's group canvas for the design (blocks,
+  colors, pictures, Tia, versions, comments). **Back to workflow** comes back, with the changes already here.
 
 There's no Approve. **Publish** shows every email once (its picture, subject and sender) with what changed, and takes
 each email as it is on the Emails page right then. The Footer block (address and unsubscribe link) is added for you

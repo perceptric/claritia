@@ -41,8 +41,7 @@ export const NAV: NavItem[] = [
   pageItem("meetings", "scheduling", "booking", "Booking page"),
   pageItem("meetings", "scheduling", "links", "Links and polls"),
   pageItem("meetings", "scheduling", "settings", "Meeting settings"),
-  pageItem("emails", "emails", "", "Emails"),
-  pageItem("emails", "emails", "automations", "Automations"),
+  pageItem("emails", "emails", "automations", "Workflows"),
   pageItem("emails", "emails", "audiences", "Audiences"),
   pageItem("emails", "emails", "templates", "Templates"),
   pageItem("emails", "emails", "brand", "Brand"),
@@ -65,8 +64,9 @@ export function activeItem(route: Route, id = ""): NavItem | null {
   if (route === "workflows") return find("emails", "automations");
   if (route === "scheduling") return find("scheduling", schedulingPage(id).page);
   if (route === "emails") {
+    // An email or a group of them on the canvas belongs to Workflows.
     const p = emailsPage(id).page;
-    return find("emails", p === "campaigns" ? "" : p);
+    return find("emails", p === "campaigns" ? "automations" : p);
   }
   return NAV.find((n) => n.route === route) ?? null;
 }
@@ -149,8 +149,7 @@ export const SCHEDULING_TABS: (Tab<SchedulingPageKey> & { icon: SchedulingTabIco
 export type EmailsPageKey = "campaigns" | "automations" | "audiences" | "templates" | "brand";
 /** Emails' tabs (docs/email-studio-plan.md Part 1). Campaigns is the route's first page (""). */
 export const EMAILS_TABS: Tab<EmailsPageKey>[] = [
-  { value: "campaigns", label: "Emails" },
-  { value: "automations", label: "Automations" },
+  { value: "automations", label: "Workflows" },
   { value: "audiences", label: "Audiences" },
   { value: "templates", label: "Templates" },
   { value: "brand", label: "Brand" },
@@ -164,13 +163,16 @@ export const EMAILS_TABS: Tab<EmailsPageKey>[] = [
 export function emailsPage(id: string): { page: EmailsPageKey; id: string; open?: string; group?: string; wf?: string } {
   const [raw = "", b = "", c = ""] = id.split("/");
   if ((raw === "automations" || raw === "journeys") && (b === "new" || UUID.test(b))) return { page: "automations", id: `automations/${b}`, wf: b };
+  // One folder of workflows (docs/workflows.md): automations/folder/<id>, or "none" for workflows in no folder.
+  if (raw === "automations" && b === "folder" && (UUID.test(c) || c === "none")) return { page: "automations", id: `automations/folder/${c}`, wf: `folder/${c}` };
   // An automation's emails open as their own group: campaigns/group/wf:<workflow id> (docs/email-unify-plan.md, E3);
   // the System emails as campaigns/group/system (docs/system-emails.md).
   if (raw === "campaigns" && b === "group" && (UUID.test(c) || c === "ungrouped" || c === "system" || (c.startsWith("wf:") && UUID.test(c.slice(3))))) return { page: "campaigns", id: `campaigns/group/${c}`, group: c };
   if (raw === "campaigns" && UUID.test(b)) return { page: "campaigns", id: `campaigns/${b}`, open: b };
   const a = ({ journeys: "automations", library: "templates" } as Record<string, string>)[raw] ?? raw;
   if (a === "automations" || a === "audiences" || a === "templates" || a === "brand") return { page: a, id: a };
-  return { page: "campaigns", id: "" };
+  // There's no Emails page: every email is edited in its workflow. Its old address opens Workflows.
+  return { page: "automations", id: "automations" };
 }
 
 /** Meetings › Settings: the things set once, listed on the left. */
@@ -264,7 +266,7 @@ export function resolveRoute(first: string, id: string): { route: Route; id: str
   // Workflows live in Emails › Automations: folders of workflows, one open beside them (/emails/automations/<id>);
   // /emails/automations/new picks a template. Old /workflows addresses, and links made with the "workflows" route,
   // open there.
-  if (first === "workflows") return { route: "emails", id: emailsPage(`automations/${a}`).id };
+  if (first === "workflows") return { route: "emails", id: emailsPage(["automations", a, ...rest].join("/")).id };
   if (first === "emails") return { route: "emails", id: emailsPage(id).id };
   if (ROUTES.has(first)) return { route: first as Route, id };
   const m = MOVED[first];

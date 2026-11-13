@@ -53,12 +53,12 @@ function TemplatePicker({ sb, ws, navigate }: ViewProps) {
 
   if (asked && templateByKey(asked) && !error)
     return (
-      <Page title="New automation" back={{ label: "Automations", onClick: () => navigate("workflows") }}>
+      <Page title="New workflow" back={{ label: "Workflows", onClick: () => navigate("workflows") }}>
         <Loading />
       </Page>
     );
   return (
-    <Page icon={<Branch size={16} />} title="New automation" back={{ label: "Automations", onClick: () => navigate("workflows") }}>
+    <Page icon={<Branch size={16} />} title="New workflow" back={{ label: "Workflows", onClick: () => navigate("workflows") }}>
       <ErrorNote message={error} />
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <Card name="Start blank" line="A trigger and nothing else" disabled={busy} onClick={() => create("Untitled workflow", emptyBody())} />

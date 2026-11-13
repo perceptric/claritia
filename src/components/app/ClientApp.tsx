@@ -278,7 +278,7 @@ export function ClientApp({ config }: { config: SupaConfig }) {
     { group: "Meetings", label: "Single-use link", run: () => navigate("scheduling", "links", "create=single_use") },
     { group: "Meetings", label: "Poll", run: () => navigate("scheduling", "links", "create=poll") },
     { group: "Emails", label: "Email template", run: () => navigate("emails", "templates", "create=1") },
-    { group: "Emails", label: "Automation", run: () => navigate("workflows", "new") },
+    { group: "Emails", label: "Workflow", run: () => navigate("workflows", "new") },
   ];
 
   // ⌘K "Copy my booking link": your page's address, or the Booking page to set one.

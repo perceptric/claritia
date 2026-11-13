@@ -417,7 +417,7 @@ function Describe({ sb, session, ws, navigate, onDone }: Pick<ViewProps, "sb" | 
     <div className="flex flex-col gap-2 rounded-lg bg-card p-3 shadow-rest">
       <label htmlFor="describe-automation" className="flex items-center gap-1.5 text-[13px] font-medium text-ink">
         <AiMark size={13} />
-        Describe an automation
+        Describe a workflow
       </label>
       <textarea
         id="describe-automation"
