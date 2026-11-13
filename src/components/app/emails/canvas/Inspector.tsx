@@ -24,7 +24,7 @@ import type { AssetCtx } from "../../email/ImagePicker";
 import { PropRow, type StyleCtx } from "../../email/StyleSections";
 import { INPUT, PICK } from "../../forms/controls";
 import { ChevronDown } from "../../forms/icons";
-import type { EmailDraft } from "./useEmailDraft";
+import type { EmailDraft } from "./useCanvasEditor";
 
 type Kind = Exclude<LayerKind, "body" | "container"> | "email";
 type GroupId = "content" | "text" | "layout" | "fill" | "stroke" | "corners" | "spacing" | "all";

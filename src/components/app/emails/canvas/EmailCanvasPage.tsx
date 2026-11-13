@@ -36,8 +36,10 @@ import { CanvasSend } from "./CanvasSend";
 import { Inspector } from "./Inspector";
 import { LayerTree } from "./LayerTree";
 import { Overlay } from "./Overlay";
-import { docOf, previewHtml, sourceHtml, widthOf, type CanvasRow } from "./preview";
-import { useEmailDraft } from "./useEmailDraft";
+import { docOf, previewHtml, sourceHtml, widthOf, type CanvasKit, type CanvasRow } from "./preview";
+import { cleanTokens } from "@/lib/forms/brand";
+import type { DesignSystem } from "@/lib/design/model";
+import { useCanvasEditor } from "./useCanvasEditor";
 import { FormatBar } from "./FormatBar";
 import { useTyping } from "./useTyping";
 import { typable } from "@/lib/design/email/typing";
@@ -51,6 +53,16 @@ type Menu = { anchor: HTMLElement; items: { label: string; run: () => void; dang
 type El = { email: string; id: string; part: EmailPartKey | null };
 type Boxes = { picked: LocalBox | null; hover: LocalBox | null; pad: Zone[] };
 const NO_BOXES: Boxes = { picked: null, hover: null, pad: [] };
+// Built emails, by document and styles, so a change rebuilds only the emails it touched.
+const built = new WeakMap<EmailDoc, { system: DesignSystem; dark: boolean; kits: unknown; status: string; html: string }>();
+function htmlFor(row: CanvasRow, kits: CanvasKit[], doc: EmailDoc, system: DesignSystem, dark: boolean): string {
+  const c = built.get(doc);
+  if (c && c.system === system && c.dark === dark && c.kits === kits && c.status === row.status) return c.html;
+  const k = kits.find((x) => x.id === doc.kitId) ?? kits[0];
+  const html = previewHtml(row, kits, { doc, system, tokens: cleanTokens((k?.tokens ?? {}) as object).tokens, dark });
+  built.set(doc, { system, dark, kits, status: row.status, html });
+  return html;
+}
 const sameBox = (a: LocalBox | null, b: LocalBox | null) => (!a || !b ? a === b : a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h);
 
 export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: ViewProps & { groupId: string; pick?: string | null }) {
@@ -100,6 +112,8 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
   const [look, setLook] = useState<EmailState | undefined>(undefined);
   const [boxes, setBoxes] = useState<Boxes>(NO_BOXES);
   const [undoNote, setUndoNote] = useState<string>("");
+  // What a screen reader hears after each change.
+  const [announce, setAnnounce] = useState("");
   const frames = useRef(new Map<string, HTMLIFrameElement>());
   const [, setFrameTick] = useState(0);
 
@@ -108,14 +122,12 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
   const kitList = useMemo(() => kits.data ?? [], [kits.data]);
   // The email being edited: the one picked, alone.
   const editId = picked.length === 1 ? picked[0]! : null;
-  const editRow = useMemo(() => (editId ? (list.find((r) => r.id === editId) ?? null) : null), [list, editId]);
   const setRows = rows.set;
-  const onSaved = useCallback(
-    (id: string, doc: EmailDoc, subject: string) =>
-      setRows((prev) => prev.map((r) => (r.id === id ? { ...r, doc, subject, preheader: doc.settings.preheader, name: r.name === "Untitled email" && subject.trim() ? subject.trim().slice(0, 200) : r.name } : r))),
-    [setRows],
-  );
-  const draft = useEmailDraft({ sb, session, ws: ws.id, row: editRow, kits: kitList, onSaved });
+  const onSaved = useCallback((id: string, doc: EmailDoc, subject: string, name: string) => setRows((prev) => prev.map((r) => (r.id === id ? { ...r, doc, subject, preheader: doc.settings.preheader, name } : r))), [setRows]);
+  // One editor for every email on the canvas, with one undo history (docs/email-canvas-b4.md section 4).
+  // Its own messages (an email sent meanwhile, styles changed elsewhere) show like the canvas's, a little longer.
+  const editor = useCanvasEditor({ sb, session, ws: ws.id, rows: list, kits: kitList, onSaved, onNotice: (t) => say(t, 5000) });
+  const draft = editor.draft(editId);
   const editDoc = draft.id === editId ? draft.doc : null;
   const draftRef = useRef(draft);
   const listRef = useRef(list);
@@ -129,19 +141,14 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
   });
   // A picked element that's gone (undo, another tab) falls back to the email.
   const elNow = el && editDoc && el.email === editId && findEl(editDoc, el.id) ? el : null;
-  // Emails on the same brand as the one being edited show its draft styles (an "Every heading" change shows on all).
-  const live = (doc: EmailDoc) => !!draft.kit && (kitList.find((k) => k.id === doc.kitId) ?? kitList[0])?.id === draft.kit.id;
-  const others = useMemo(() => {
-    const out: Record<string, string> = {};
-    for (const r of list) {
-      const doc = r.doc ? docOf(r) : null;
-      out[r.id] = doc && live(doc) ? previewHtml(r, kitList, { doc, system: draft.system, tokens: draft.tokens }) : previewHtml(r, kitList);
-    }
-    return out;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [list, kitList, draft.system, draft.tokens, draft.kit]);
-  const editHtml = useMemo(() => (editRow && draft.id === editRow.id && draft.doc ? previewHtml(editRow, kitList, { doc: draft.doc, system: draft.system, tokens: draft.tokens, dark: look === "dark" }) : null), [editRow, draft.id, draft.doc, draft.system, draft.tokens, kitList, look]);
-  const htmls = useMemo(() => (editId && editHtml !== null ? { ...others, [editId]: editHtml } : others), [others, editId, editHtml]);
+  // Each email as the canvas shows it: its document now, in its kit's styles as edited now (an "Every heading" change
+  // shows on every email of that kit). Built again only when its document, styles or dark view change.
+  const htmls: Record<string, string> = {};
+  for (const r of list) {
+    const doc = editor.docOf(r.id);
+    const k = doc ? editor.kitFor(doc) : null;
+    htmls[r.id] = doc && k?.state ? htmlFor(r, kitList, doc, k.state.system, look === "dark" && r.id === editId) : previewHtml(r, kitList);
+  }
   const rects = useMemo(() => rowLayout(list.map((r) => ({ id: r.id, w: phone ? PHONE : (widths[r.id] ?? widthOf(r)), h: heights[r.id] ?? 900 }))), [list, phone, widths, heights]);
   const all = useMemo(() => boundsOf(rects), [rects]);
   const pickedBox = useMemo(() => boundsOf(rects.filter((r) => picked.includes(r.id))), [rects, picked]);
@@ -162,10 +169,10 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
     [rects],
   );
   const back = () => navigate("emails");
-  const say = (t: string) => {
+  const say = useCallback((t: string, ms = 2600) => {
     setNotice(t);
-    window.setTimeout(() => setNotice((n) => (n === t ? "" : n)), 2600);
-  };
+    window.setTimeout(() => setNotice((n) => (n === t ? "" : n)), ms);
+  }, []);
   const reload = () => {
     void rows.reload();
     invalidate(`email_campaigns:${ws.id}`);
@@ -596,13 +603,37 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
     return k && k !== "email" ? KIND_LABEL[k] : "Email";
   };
 
+  // Undo and redo on the canvas: the step's emails change; one out of view is panned to and picked.
+  const historyGo = (dir: "undo" | "redo") => {
+    const r = dir === "undo" ? editor.undo() : editor.redo();
+    if (!r) return;
+    setAnnounce(`${dir === "undo" ? "Undone" : "Done again"}: ${r.label}`);
+    const first = r.ids[0];
+    if (!first) return;
+    if (first !== editId) {
+      setPicked([first]);
+      setEl(null);
+    }
+    panTo(first);
+  };
+  /** Pans to an email at the same zoom when it's out of view. */
+  const panTo = (id: string) => {
+    const r = rects.find((x) => x.id === id);
+    const sf = surface.current;
+    const host = document.querySelector("[data-email-canvas] [role='application']") as HTMLElement | null;
+    if (!r || !sf || !host) return;
+    const c = sf.camera();
+    const a = toScreen(c, r.x, r.y);
+    const w = r.w * c.z;
+    if (a.x + w < 0 || a.x > host.clientWidth || a.y > host.clientHeight || a.y + r.h * c.z < 0) sf.glide({ ...c, x: host.clientWidth / 2 - (r.x + r.w / 2) * c.z, y: Math.min(c.y, 64 - r.y * c.z) });
+  };
+
   // Keys the page handles before the surface's own.
   const onKey = (e: KeyboardEvent): boolean => {
     const mod = e.metaKey || e.ctrlKey;
-    if (mod && e.key.toLowerCase() === "z" && editDoc) {
+    if (mod && e.key.toLowerCase() === "z") {
       e.preventDefault();
-      if (e.shiftKey) draft.redo();
-      else draft.undo();
+      historyGo(e.shiftKey ? "redo" : "undo");
       return true;
     }
     if (e.key === "Escape") {
@@ -897,33 +928,27 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
       onRename={ungrouped ? undefined : (name) => void run(async () => (must(await sb.rpc("email_group_save", { p_ws: ws.id, p_id: groupId, p_name: name })), void group.reload(), invalidate(`email_groups:${ws.id}`), void groups.reload()))}
       actions={
         <span className="flex min-w-0 flex-wrap items-center gap-2">
-          {editDoc ? (
-            <>
-              {draft.saving ? <span className="text-[12.5px] text-muted">Saving…</span> : null}
-              {draft.error ? (
-                <span role="alert" className="flex min-w-0 flex-wrap items-center gap-1.5 text-[12.5px] text-rose">
-                  <span className="min-w-0 break-words">{draft.error}</span>
-                  {!draft.readOnly ? (
-                    <button type="button" onClick={() => void draft.flush()} className="font-medium text-ink underline underline-offset-2">
-                      Try again
-                    </button>
-                  ) : null}
-                </span>
-              ) : null}
-              <span className="flex items-center gap-0.5">
-                <button type="button" aria-label="Undo" title="Undo (⌘Z)" disabled={!draft.canUndo} onClick={draft.undo} className="flex size-8 items-center justify-center rounded-full text-body hover:bg-hover hover:text-ink disabled:pointer-events-none disabled:opacity-35">
-                  <Undo size={15} />
-                </button>
-                <button type="button" aria-label="Redo" title="Redo (⇧⌘Z)" disabled={!draft.canRedo} onClick={draft.redo} className="flex size-8 items-center justify-center rounded-full text-body hover:bg-hover hover:text-ink disabled:pointer-events-none disabled:opacity-35">
-                  <Redo size={15} />
-                </button>
-              </span>
-              {draft.stylesChanged ? (
-                <Button variant="ghost" onClick={() => void draft.publishStyles().then(() => kits.reload())}>
-                  Publish styles
-                </Button>
-              ) : null}
-            </>
+          {editor.saving ? <span className="text-[12.5px] text-muted">Saving…</span> : null}
+          {editor.failed.length ? (
+            <span role="alert" className="flex min-w-0 flex-wrap items-center gap-1.5 text-[12.5px] text-rose">
+              <span className="min-w-0 break-words">{editor.failed.length === 1 ? `${editor.failed[0]!.name} wasn't saved` : `${editor.failed.length} emails weren't saved`}</span>
+              <button type="button" onClick={editor.retry} className="font-medium text-ink underline underline-offset-2">
+                Try again
+              </button>
+            </span>
+          ) : null}
+          <span className="flex items-center gap-0.5">
+            <button type="button" aria-label="Undo" title={editor.undoLabel ? `Undo ${editor.undoLabel} (⌘Z)` : "Undo (⌘Z)"} disabled={!editor.canUndo} onClick={() => historyGo("undo")} className="flex size-8 items-center justify-center rounded-full text-body hover:bg-hover hover:text-ink disabled:pointer-events-none disabled:opacity-35">
+              <Undo size={15} />
+            </button>
+            <button type="button" aria-label="Redo" title={editor.redoLabel ? `Redo ${editor.redoLabel} (⇧⌘Z)` : "Redo (⇧⌘Z)"} disabled={!editor.canRedo} onClick={() => historyGo("redo")} className="flex size-8 items-center justify-center rounded-full text-body hover:bg-hover hover:text-ink disabled:pointer-events-none disabled:opacity-35">
+              <Redo size={15} />
+            </button>
+          </span>
+          {editor.stylesChanged() ? (
+            <Button variant="ghost" onClick={() => void editor.publishAll().then(() => kits.reload())}>
+              Publish styles
+            </Button>
           ) : null}
           <div role="radiogroup" aria-label="Size" className="flex items-center gap-0.5 rounded-full bg-paper-deep p-0.5">
             {(
@@ -944,6 +969,9 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
       }
     >
       <div data-email-canvas="" className="relative flex h-full min-h-0 min-w-0 flex-wrap lg:flex-nowrap">
+        <div aria-live="polite" className="sr-only">
+          {announce}
+        </div>
         <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
         {error ? (
           <div className="absolute top-3 left-1/2 z-[5] -translate-x-1/2 rounded-lg bg-card p-1 shadow-float">
@@ -990,7 +1018,7 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
             </div>
           ) : null}
           {notice ? (
-            <div role="status" className="anim-rise-sm pointer-events-none absolute bottom-4 left-4 z-[4] rounded-full bg-brand px-3.5 py-1.5 text-[12.5px] font-medium text-on-brand shadow-float">
+            <div role="status" className="anim-rise-sm pointer-events-none absolute bottom-4 left-4 z-[4] max-w-[calc(100%-32px)] rounded-full bg-brand px-3.5 py-1.5 text-[12.5px] font-medium text-on-brand shadow-float">
               {notice}
             </div>
           ) : null}
@@ -1000,7 +1028,7 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
               <button
                 type="button"
                 onClick={() => {
-                  draft.undo();
+                  historyGo("undo");
                   setUndoNote("");
                 }}
                 className="rounded-full px-2.5 py-1 hover:bg-brand-hover"
