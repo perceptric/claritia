@@ -1,6 +1,7 @@
 // Workflows in plain words: the trigger as a sentence, each card's one-line meaning, a run's lines in History, and
 // the changes Make live lists.
 
+import { clockLabel } from "./times.ts";
 import { BASE_FIELDS, ruleWords } from "../router/conditions.ts";
 import { find, walk } from "./tree.ts";
 import type { Body, Goal, Step, Trigger } from "./types.ts";
@@ -87,7 +88,7 @@ export function stepDetail(s: Step, n: Names = {}): string {
       const parts = [s.days ? plural(s.days, "day") : "", s.hours ? plural(s.hours, "hour") : ""].filter(Boolean);
       if (s.before === "meeting") return `${parts.join(" and ") || "The time"} before meeting`;
       const days = s.weekday?.length ? (s.weekday.length === 5 && !s.weekday.includes(0) && !s.weekday.includes(6) ? ", weekdays" : ", allowed days") : "";
-      return `${parts.join(" and ") || "A moment"}${days}${s.at ? ` at ${s.at}` : ""}`;
+      return `${parts.join(" and ") || "A moment"}${days}${s.at ? ` at ${clockLabel(s.at, true)}` : ""}`;
     }
     case "wait_until":
       return `Up to ${plural(s.days, "day")} for ${EVENT_WORDS[s.event] ?? s.event}`;
@@ -120,7 +121,7 @@ export function waitWords(s: Extract<Step, { kind: "wait" }>): string {
   const parts = [s.days ? plural(s.days, "day") : "", s.hours ? plural(s.hours, "hour") : ""].filter(Boolean);
   if (s.before === "meeting") return `Wait until ${parts.join(" and ") || "the time"} before the meeting`;
   const days = s.weekday?.length ? ` until ${s.weekday.length === 5 && !s.weekday.includes(0) && !s.weekday.includes(6) ? "a weekday" : "the next allowed day"}` : "";
-  return `Wait ${parts.join(" and ") || "a moment"}${days}${s.at ? ` at ${s.at}` : ""}`;
+  return `Wait ${parts.join(" and ") || "a moment"}${days}${s.at ? ` at ${clockLabel(s.at, true)}` : ""}`;
 }
 
 /** A card's one line. */

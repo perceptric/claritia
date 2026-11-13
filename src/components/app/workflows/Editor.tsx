@@ -5,7 +5,7 @@
 // last change, with the revision, so a second person's save shows as a conflict instead of being overwritten.
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
-import { cleanBody, problems as checkProblems } from "@/lib/workflows/check";
+import { cleanBody, goneProblems, problems as checkProblems } from "@/lib/workflows/check";
 import { find } from "@/lib/workflows/tree";
 import { newStep, type Body, type Step, type StepKind } from "@/lib/workflows/types";
 import { Redo, Trash, Undo } from "../../Icons";
@@ -58,7 +58,8 @@ export function WorkflowEditor({
   const [viewing, setViewing] = useState<Version | null>(null);
 
   const body = st.body;
-  const probs = useMemo(() => checkProblems(body), [body]);
+  const gone = useMemo(() => goneProblems(body, data.words), [body, data.words]);
+  const probs = useMemo(() => [...checkProblems(body), ...gone], [body, gone]);
   const edit = useCallback((b: Body, key?: string) => dispatch({ type: "set", body: b, key }), []);
 
   // Autosave --------------------------------------------------------------------------------------------------------
@@ -356,6 +357,7 @@ export function WorkflowEditor({
             <Flow
               body={shown}
               names={data.words}
+              triggerProblems={viewing ? [] : gone.map((x) => x.text)}
               sel={viewing ? null : sel}
               onSelect={(s) => !viewing && setSel(s)}
               onAdd={onAdd}
@@ -383,7 +385,7 @@ export function WorkflowEditor({
                 onRemove={() => void onRemove(selStep.id)}
               />
             ) : (
-              <TriggerPanel body={body} names={data.names} onChange={(b, key) => edit(b, key ? `trigger:${key}` : undefined)} readOnly={false} />
+              <TriggerPanel body={body} names={data.names} problems={gone.map((x) => x.text)} onChange={(b, key) => edit(b, key ? `trigger:${key}` : undefined)} readOnly={false} />
             )}
           </aside>
         </div>

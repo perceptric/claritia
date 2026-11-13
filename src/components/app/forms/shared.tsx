@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Tokens } from "@/lib/forms/brand";
 import { allRegions, usesRegions } from "@/lib/forms/regions";
 import type { Form } from "@/lib/forms/schema";
-import type { Tone } from "../ui";
+import { Checkbox, type Tone } from "../ui";
 
 export type FormRow = { id: string; name: string; status: "draft" | "live" | "paused"; draft: Form; draft_rev: number; version: number; brand_kit_id: string | null; published_at: string | null };
 export type Kit = { id: string; name: string; tokens: Partial<Tokens>; logo_url: string | null; notes: string[]; source_url: string | null; scan_status: "scanning" | "done" | "failed" | null; scan_error: string | null; scanned_at: string | null; design?: unknown; design_live?: unknown; design_rev?: number; social?: { kind: string; url: string }[] };
@@ -47,10 +47,9 @@ export function FormPreview({ form, logo, step = 0, done = false, answers }: { f
 
 export function Toggle({ label, checked, onChange, disabled }: { label: string; checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
   return (
-    <label className={`flex items-center gap-2 text-[13px] ${disabled ? "opacity-50" : "cursor-pointer"}`}>
-      <input type="checkbox" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} className="size-4 accent-[var(--color-ink)]" />
+    <Checkbox on={checked} onChange={onChange} disabled={disabled} className="items-center">
       {label}
-    </label>
+    </Checkbox>
   );
 }
 

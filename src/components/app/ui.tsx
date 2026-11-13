@@ -4,6 +4,7 @@ import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { cache, type Snap } from "@/lib/queryCache";
 import { Dots } from "./Ai";
+import { Check, Minus, Plus } from "../Icons";
 
 import type { Route } from "@/lib/nav";
 export type { Route };
@@ -491,6 +492,59 @@ export function Toggle({ on, onChange, label, disabled = false }: { on: boolean;
     >
       <span className={`absolute left-0.5 size-4 rounded-full bg-white shadow-xs transition-transform duration-[320ms] ease-spring ${on ? "translate-x-4" : ""}`} />
     </button>
+  );
+}
+
+/**
+ * A checkbox in the app's own look (a rounded square, green when on), never the browser's. With `children` it's a row
+ * that wraps its label; alone it needs `label` for screen readers.
+ */
+export function Checkbox({ on, onChange, label, children, disabled = false, className = "" }: { on: boolean; onChange: (v: boolean) => void; label?: string; children?: React.ReactNode; disabled?: boolean; className?: string }) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={on}
+      aria-label={children ? undefined : label}
+      disabled={disabled}
+      onClick={() => onChange(!on)}
+      className={`group inline-flex min-w-0 items-start gap-2.5 text-left text-[13px] text-ink disabled:opacity-45 ${className}`}
+    >
+      <span aria-hidden="true" className={`mt-px flex size-[18px] shrink-0 items-center justify-center rounded-[5px] transition-[background-color,box-shadow] duration-[140ms] ${on ? "bg-signal text-white" : "bg-card shadow-input group-hover:shadow-input-hover"}`}>
+        {on ? <Check size={12} /> : null}
+      </span>
+      {children ? <span className="min-w-0 break-words">{children}</span> : null}
+    </button>
+  );
+}
+
+/** A whole number with − and + buttons (no browser spinners); typing works too, kept between min and max. */
+export function NumberField({ value, onChange, min = 0, max = 9999, label, disabled = false, className = "" }: { value: number; onChange: (v: number) => void; min?: number; max?: number; label: string; disabled?: boolean; className?: string }) {
+  const clamp = (n: number) => Math.min(max, Math.max(min, Math.round(n)));
+  const [text, setText] = useState<string | null>(null);
+  return (
+    <div role="group" aria-label={label} className={`flex h-9 items-center overflow-hidden rounded-md bg-card shadow-input focus-within:shadow-focus ${disabled ? "opacity-60" : ""} ${className}`}>
+      <button type="button" aria-label={`Less ${label.toLowerCase()}`} disabled={disabled || value <= min} onClick={() => onChange(clamp(value - 1))} className="flex h-full w-8 shrink-0 items-center justify-center text-muted hover:bg-hover hover:text-ink disabled:opacity-40">
+        <Minus size={13} />
+      </button>
+      <input
+        inputMode="numeric"
+        aria-label={label}
+        disabled={disabled}
+        value={text ?? String(value)}
+        onChange={(e) => {
+          const t = e.target.value.replace(/[^0-9]/g, "").slice(0, 6);
+          // Over the top shows the top at once; under the bottom waits for the next key (typing "1" then "5").
+          setText(t !== "" && Number(t) > max ? String(max) : t);
+          if (t !== "") onChange(clamp(Number(t)));
+        }}
+        onBlur={() => setText(null)}
+        className="h-full min-w-0 flex-1 bg-transparent text-center text-[13.5px] font-medium text-ink tabular-nums outline-none focus:shadow-none focus-visible:shadow-none focus-visible:outline-none"
+      />
+      <button type="button" aria-label={`More ${label.toLowerCase()}`} disabled={disabled || value >= max} onClick={() => onChange(clamp(value + 1))} className="flex h-full w-8 shrink-0 items-center justify-center text-muted hover:bg-hover hover:text-ink disabled:opacity-40">
+        <Plus size={13} />
+      </button>
+    </div>
   );
 }
 

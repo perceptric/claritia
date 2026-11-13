@@ -39,6 +39,21 @@ export function problems(body: Body): Problem[] {
   return out;
 }
 
+/**
+ * What the trigger points at that's gone (docs/email-unify-plan.md, E1): a form or meeting type that was deleted. The
+ * engine never matches a deleted id, so the workflow would wait forever; the editor keeps Publish off until it's fixed.
+ */
+export function goneProblems(body: Body, known: { forms?: Record<string, string>; types?: Record<string, string> }): Problem[] {
+  const t = body.trigger;
+  const gone = (ids: string[], by?: Record<string, string>) => (by ? ids.filter((id) => !by[id]) : []);
+  if (t.kind === "form" || t.kind === "not_booked") {
+    const n = gone(t.forms, known.forms).length;
+    if (n) return [{ step: null, text: n === t.forms.length ? (n === 1 ? "The form this starts from was deleted. Pick a form." : "The forms this starts from were deleted. Pick a form.") : "A form this starts from was deleted. Remove it." }];
+  }
+  if (t.kind === "meeting" && gone(t.types, known.types).length) return [{ step: null, text: "A meeting type this starts from was deleted. Remove it." }];
+  return [];
+}
+
 /** What stops an email built with blocks from going out (the parts of the design check that don't need its styles). */
 export function docProblems(doc: EmailDoc): string[] {
   const out: string[] = [];

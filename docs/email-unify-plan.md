@@ -1,6 +1,6 @@
 # Email, round 3: one place for every email
 
-Plan, 13 November 2026. Today Emails has two halves that don't talk: Campaigns (the canvas, B1 to B5) and Automations
+Plan, 13 November 2026. E1 and E2 built the same day (see "As built" at the end). Today Emails has two halves that don't talk: Campaigns (the canvas, B1 to B5) and Automations
 (the workflow editor, `src/components/app/workflows/`), where an email step is a subject and a text box in a side
 panel. This plan fixes what's broken on those screens, gives Audiences real columns, turns Automations into a
 Zapier-style editor, and makes every email, sent once or by an automation, live on the Emails canvas.
@@ -157,3 +157,28 @@ inside each workflow, so the rows move rather than grow.
 2. E3: migration, Emails rename, automation groups on the canvas, publish copy; ship with its pg tests.
 3. E4: canvas, nodes, add menu, drag, the panel for every kind, Insert data, Test; ship with the automation check.
 4. E5 runs along each ship; the docs close it out.
+
+## As built: E1 and E2
+
+- **Shared parts:** `Checkbox` and `NumberField` in `src/components/app/ui.tsx`. Every browser checkbox in the app's
+  screens is gone (Audiences' rows, the import panel, Forms' settings toggles). The Delay, Re-entry, Event wait and
+  Split use `NumberField`; typing works too, and a number over the top shows the top at once.
+- **Delay time:** `src/lib/workflows/times.ts` lists every 15 minutes on the browser's 12 or 24 hour clock, plus Any
+  time; a value the list doesn't have (an older 09:10) stays. Cards say "at 9:15 AM".
+- **Deleted form:** `goneProblems` in `src/lib/workflows/check.ts`. The trigger card and panel say it in words, the
+  deleted form is its own chip with a remove button, and Publish stays off. A deleted meeting type works the same way.
+- **Rows with several buttons** (Forms, Meeting types, Then on, Status, Re-entry) are no longer `<label>`s, so a click
+  on their words doesn't press the first chip.
+- **Cards:** the first problem shows in words under the step's line; the bare count is gone.
+- **Audiences:** migration 162 (`audience_people` with phone, title, country, lists, sort and phone search;
+  `audience_person_update` for members, renamed from the plan's `contact_update`, which an older function already
+  used). The Columns menu is kept on this computer. A click on a first name, last name, phone, title or country edits
+  it; a click on the email opens the person's sheet. Add person goes through the import route (consent, throwaway
+  addresses and owners' review as for an import), onto the list shown or no list.
+- **Import:** Title and Country columns (country only as a two-letter code), and the panel's padding.
+- **Not in this round:** Delete on a row (people leave through Unsubscribe and the existing tools), and Phone and
+  Country as merge fields: first name, last name and title already are, and adding the rest means changing what every
+  send reads, which waits for a change with its own send tests.
+- **Proof:** `tests/emailRound3.test.ts`, `tests/pg/audienceColumns.pg.ts`, `scripts/emails-check.ts` (33 browser
+  checks on a stand-in page); the Studio and email canvas checks pass.
+- **Cost:** $0 a month at Beta and Growth.

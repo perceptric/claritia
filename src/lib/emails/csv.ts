@@ -3,10 +3,10 @@
 // and Excel's byte-order mark. Each column is matched to a field by its header, and a person can change the match.
 
 export type Csv = { head: string[]; rows: string[][] };
-export type Field = "email" | "first_name" | "last_name" | "full_name" | "phone" | "custom" | "skip";
-export type Person = { email: string; first_name?: string; last_name?: string; phone?: string; fields?: Record<string, string> };
+export type Field = "email" | "first_name" | "last_name" | "full_name" | "phone" | "title" | "country" | "custom" | "skip";
+export type Person = { email: string; first_name?: string; last_name?: string; phone?: string; title?: string; country?: string; fields?: Record<string, string> };
 
-export const FIELD_LABEL: Record<Field, string> = { email: "Email", first_name: "First name", last_name: "Last name", full_name: "Full name", phone: "Phone", custom: "Custom field", skip: "Leave out" };
+export const FIELD_LABEL: Record<Field, string> = { email: "Email", first_name: "First name", last_name: "Last name", full_name: "Full name", phone: "Phone", title: "Title", country: "Country", custom: "Custom field", skip: "Leave out" };
 export const MAX_ROWS = 5000;
 
 export function parseCsv(raw: string): Csv {
@@ -55,6 +55,8 @@ export function guessFields(head: string[]): Field[] {
     if (/^(lastname|last|surname|familyname|lname)$/.test(s)) return "last_name";
     if (/^(name|fullname|contactname|clientname)$/.test(s)) return "full_name";
     if (/phone|mobile|cell|tel/.test(s)) return "phone";
+    if (/^(title|jobtitle|role|position)$/.test(s)) return "title";
+    if (/^(country|countrycode)$/.test(s)) return "country";
     return "custom";
   };
   const seen = new Set<Field>();
@@ -81,6 +83,8 @@ export function peopleFrom(csv: Csv, fields: Field[]): Person[] {
       else if (f === "first_name") p.first_name = v;
       else if (f === "last_name") p.last_name = v;
       else if (f === "phone") p.phone = v;
+      else if (f === "title") p.title = v;
+      else if (f === "country") p.country = v;
       else if (f === "full_name") {
         const [a, ...b] = v.split(/\s+/);
         p.first_name ??= a;

@@ -8,8 +8,8 @@ import { cleanEmail, isRejected } from "../email/address.ts";
 // docs/email-studio-plan.md Part 10); shared inboxes (info@, sales@) are counted and kept, marked by their class.
 // Custom fields keep up to 20 values a person, keys as csv.ts makes them.
 
-export type Pasted = { email: string; email_clean: string; email_class: string; first_name?: string; last_name?: string; phone?: string; fields?: Record<string, string> };
-export type Given = { email?: unknown; first_name?: unknown; last_name?: unknown; phone?: unknown; fields?: unknown };
+export type Pasted = { email: string; email_clean: string; email_class: string; first_name?: string; last_name?: string; phone?: string; title?: string; country?: string; fields?: Record<string, string> };
+export type Given = { email?: unknown; first_name?: unknown; last_name?: unknown; phone?: unknown; title?: unknown; country?: unknown; fields?: unknown };
 export type Cleaned = { rows: Pasted[]; skipped: number; disposable: number; role: number };
 
 const str = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
@@ -37,6 +37,10 @@ export function cleanPeople(given: Given[]): Cleaned {
     const first = str(g.first_name, 100);
     const last = str(g.last_name, 100);
     const phone = str(g.phone, 50);
+    const title = str(g.title, 120);
+    // A two-letter country code; other words are left out (contacts keep codes, 033_contacts.sql).
+    const cc = str(g.country, 10);
+    const country = /^[A-Za-z]{2}$/.test(cc) ? cc.toUpperCase() : "";
     const fields =
       g.fields && typeof g.fields === "object" && !Array.isArray(g.fields)
         ? Object.fromEntries(
@@ -46,7 +50,7 @@ export function cleanPeople(given: Given[]): Cleaned {
               .map(([k, v]) => [k, (v as string).trim().slice(0, 500)]),
           )
         : {};
-    rows.push({ email, email_clean: c.clean, email_class: c.class ?? "work", ...(first ? { first_name: first } : {}), ...(last ? { last_name: last } : {}), ...(phone ? { phone } : {}), ...(Object.keys(fields).length ? { fields } : {}) });
+    rows.push({ email, email_clean: c.clean, email_class: c.class ?? "work", ...(first ? { first_name: first } : {}), ...(last ? { last_name: last } : {}), ...(phone ? { phone } : {}), ...(title ? { title } : {}), ...(country ? { country } : {}), ...(Object.keys(fields).length ? { fields } : {}) });
   }
   return { rows, skipped, disposable, role };
 }
