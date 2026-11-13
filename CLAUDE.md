@@ -34,5 +34,5 @@ Everything runs on the Hostinger VPS: the web app (`claritia-web`), the runner (
 - Raised things (cards, tables, inputs, chips) sit on ring shadows (`shadow-rest`, `shadow-chip`, `shadow-input`, `shadow-outline`) in place of borders; dividers inside them stay hairlines. Focus is `shadow-focus`, a green ring. No gradients and no emoji.
 - The mark is the Slot (`Mark` and `Logo` in `src/components/Logo.tsx`): six time slots on a green tile, one booked. Folded sidebars and tight spots show the mark without the name. The corner bracket stays Claritia's motif (the Catch in `src/components/app/Catch.tsx`).
 - AI is shown with the sparkle (`src/components/app/Ai.tsx`): `AiMark` beside AI controls, `AiAvatar` where AI speaks, `AiTag` on anything AI made.
-- Empty states and first screens use a drawing from `src/components/sketches`.
+- A drawing from `src/components/sketches` only goes on a screen with nothing else on it (a tool's first screen, an empty canvas). A part that's empty on a screen with other content (a list under a library, a filtered list, a side panel, a section of a page) gets one short line and its button, never a drawing.
 - Motion uses the three speeds and two curves in `docs/brand.md`, and stops under reduced motion. Every screen works in light and dark.

@@ -13,7 +13,6 @@ import { BrandLogo } from "../BrandLogo";
 import { DatePick, isoDay } from "../DatePick";
 import { ToolIntro } from "../ToolIntro";
 import { Badge, Button, Empty, ErrorNote, errorText, Input, invalidate, Loading, must, Page, Segmented, useQuery, type ViewProps } from "../ui";
-import { Sketch } from "../../sketches/Sketch";
 import { KIND_TONE } from "../scheduling/model";
 import { TabBar, TabBody } from "../scheduling/frame";
 import { MeetingSheet } from "./MeetingPage";
@@ -256,7 +255,7 @@ export function MeetingsCalendar(props: ViewProps) {
         ) : view === "week" ? (
           <WeekGrid from={span.from} items={items} typeOf={typeOf} now={now} onOpen={open} cursorId={cursorId} />
         ) : !groups.length ? (
-          <Empty sketch={<Sketch name="calendar" size={150} />} title={filtered ? "No matches" : "No meetings in this span"}>
+          <Empty icon={<CalendarIcon size={18} />} title={filtered ? "No matches" : "No meetings in this span"}>
             {!filtered ? (
               <Button variant="ghost" className="mt-3" onClick={() => navigate("scheduling", "types")}>
                 Share a meeting type
