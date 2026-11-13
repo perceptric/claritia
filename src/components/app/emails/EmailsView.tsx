@@ -22,7 +22,8 @@ import { BrandSettings } from "../views/BrandSettings";
 import { TemplateGallery } from "./TemplateGallery";
 import { FillsFrom, ImportHistory } from "./AudienceParts";
 import { ImportSheet } from "./ImportSheet";
-import { EmailGroup } from "./EmailGroup";
+import { EmailCanvasPage } from "./canvas/EmailCanvasPage";
+import { GroupCards } from "./canvas/GroupCards";
 import { WorkflowsView } from "../workflows/WorkflowsView";
 import { isRoleAddress } from "@/lib/emails/role";
 import { Badge, Button, ErrorNote, errorText, IconButton, invalidate, Loading, must, Page, postJson, Section, Td, Th, timeAgo, useQuery, type Tone, type ViewProps } from "../ui";
@@ -43,7 +44,7 @@ export function EmailsView(props: ViewProps) {
       ) : p.page === "brand" ? (
         <Brand {...props} />
       ) : p.group ? (
-        <EmailGroup key={p.group} {...props} groupId={p.group} />
+        <EmailCanvasPage key={p.group} {...props} groupId={p.group} pick={typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("pick")} />
       ) : p.open ? (
         <CampaignStudio key={p.open} {...props} emailId={p.open} />
       ) : (
@@ -66,11 +67,9 @@ const whenWords = (iso: string) => new Date(iso).toLocaleString("en-US", { month
 /** A new email: only the footer, so Tia can start it from any template without asking first. */
 const blankDoc = (): EmailDoc => ({ ...readEmailDoc({}), sections: [newSection([newBlock("footer")])] });
 
-type Group = { id: string; name: string; emails: { id: string; status: string }[] };
-
 function Campaigns({ sb, ws, navigate }: ViewProps) {
   const list = useQuery(`email_campaigns:${ws.id}`, async () => (must(await sb.rpc("email_campaigns", { p_ws: ws.id })) ?? []) as Campaign[]);
-  const groups = useQuery(`email_groups:${ws.id}`, async () => (must(await sb.from("email_groups").select("id, name, emails(id, status)").eq("workspace_id", ws.id).order("created_at")) ?? []) as Group[]);
+  const groups = useQuery(`email_groups_count:${ws.id}`, async () => (must(await sb.from("email_groups").select("id").eq("workspace_id", ws.id).limit(1)) ?? []) as { id: string }[]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const create = async () => {
@@ -149,28 +148,7 @@ function Campaigns({ sb, ws, navigate }: ViewProps) {
   return (
     <Page title="Campaigns" actions={add}>
       <ErrorNote message={error} />
-      {groups.data?.length ? (
-        <ul aria-label="Groups" className="mb-4 grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3">
-          {groups.data.map((g) => (
-            <li key={g.id}>
-              <a
-                href={`/emails/campaigns/group/${g.id}`}
-                onClick={(e) => {
-                  e.preventDefault();
-                  navigate("emails", `campaigns/group/${g.id}`);
-                }}
-                className="flex h-full flex-col gap-1 rounded-[10px] bg-card px-4 py-3 shadow-rest transition-[box-shadow,transform] duration-[150ms] ease-out hover:-translate-y-0.5 hover:shadow-hover motion-reduce:transform-none"
-              >
-                <span className="font-medium break-words text-ink">{g.name}</span>
-                <span className="text-[12.5px] text-muted">
-                  {n(g.emails.length)} {g.emails.length === 1 ? "email" : "emails"}
-                  {g.emails.some((e) => e.status !== "draft") ? `, ${n(g.emails.filter((e) => e.status !== "draft").length)} sent or sending` : ""}
-                </span>
-              </a>
-            </li>
-          ))}
-        </ul>
-      ) : null}
+      <GroupCards sb={sb} ws={ws.id} onOpen={(id) => navigate("emails", `campaigns/group/${id}`)} />
       <div className={`overflow-x-auto rounded-lg bg-card shadow-rest ${list.data.length ? "" : "hidden"}`}>
         <table className="w-full min-w-[900px] border-collapse [&_tbody_tr:last-child_td]:border-b-0">
           <thead>
@@ -341,7 +319,10 @@ function DraftEditor({ sb, session, ws, navigate, emailId, draft }: ViewProps & 
         onChange={(doc, subject) => change({ doc, ...(subject ? { subject } : {}) })}
         onClose={() => {
           void saveRef.current();
-          navigate("emails", draft.group_id ? `campaigns/group/${draft.group_id}` : "");
+          // Back to the canvas it was opened from (?back=<group> or ungrouped), with this email picked.
+          const from = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("back");
+          const to = from && /^([0-9a-f-]{36}|ungrouped)$/.test(from) ? from : draft.group_id;
+          navigate("emails", to ? `campaigns/group/${to}` : "", to ? `pick=${emailId}` : undefined);
         }}
       />
       {sending ? (

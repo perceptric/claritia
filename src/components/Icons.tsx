@@ -648,3 +648,24 @@ export const Info = (p: P) => (
     <path d="M12 11v5M12 8h.01" />
   </Svg>
 );
+
+/** The canvas's Select tool: an arrow pointer. */
+export const Cursor = (p: P) => (
+  <Svg {...p}>
+    <path d="M5 3.5 18.5 10l-6 2-2.2 6.3z" />
+  </Svg>
+);
+
+/** The canvas's Hand tool. */
+export const Hand = (p: P) => (
+  <Svg {...p}>
+    <path d="M8 12V5.5a1.5 1.5 0 0 1 3 0V11m0-6.5a1.5 1.5 0 0 1 3 0V11m0-4.5a1.5 1.5 0 0 1 3 0V11m0-2a1.5 1.5 0 0 1 3 0v5.5A6.5 6.5 0 0 1 13.5 21h-1.2a6 6 0 0 1-4.5-2L4.4 15.1a1.6 1.6 0 0 1 2.3-2.2L8 14.2" />
+  </Svg>
+);
+
+/** Zoom to fit: four corners. */
+export const Fit = (p: P) => (
+  <Svg {...p}>
+    <path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" />
+  </Svg>
+);

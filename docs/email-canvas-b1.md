@@ -1,5 +1,10 @@
 # B1: the Email Canvas surface
 
+Built 13 November 2026: `src/lib/canvas/view.ts` (tests: `tests/canvasView.test.ts`), `src/components/app/canvas/Surface.tsx`,
+`src/components/app/emails/canvas/` (EmailCanvasPage, Artboard, CanvasSend, GroupCards, preview), checked in a real browser
+by `scripts/email-canvas-check.ts` (36 checks). Emails › Templates takes `?group=<id>` so From a template lands in the
+group; the Email Studio's Done returns to the canvas it came from (`?back=<group>`, then `?pick=<email>`).
+
 Plan, 13 November 2026. Step B1 of `docs/email-canvas-plan.md`. B1 builds the surface: a group's emails on one canvas
 you can pan and zoom, each email picked, moved, resized, cloned, tested and sent from the canvas. Editing inside an
 email (picking blocks, typing in place, dragging blocks) is B2 to B4. Until then, opening an email opens today's
