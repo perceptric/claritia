@@ -2,7 +2,9 @@
 // (docs/email-unify-plan.md, E1 and E2). ?view=audiences renders Emails › Audiences over a fake database;
 // ?view=flow renders a workflow's flow, trigger panel and step panel with a deleted form and a Delay.
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useReducer, useState } from "react";
+import { useEmailCopies } from "../../src/components/app/workflows/emailCopies.ts";
+import { editorReducer, patchStep, startEditor } from "../../src/components/app/workflows/model.ts";
 import { createRoot } from "react-dom/client";
 import { DialogHost } from "../../src/components/app/Dialogs.tsx";
 import { EmailsView } from "../../src/components/app/emails/EmailsView.tsx";
@@ -23,8 +25,22 @@ const contacts: Row[] = [
 ];
 const lists: Row[] = [{ id: "11111111-1111-4111-8111-111111111111", name: "Test", members: 2 }];
 
+const copies: Row[] = [{ id: "copy-m1", step: "m1", subject: "From the canvas", preheader: "", doc: { v: 1, settings: { preheader: "" }, sections: [] }, made: false }];
+(window as unknown as { copies: Row[] }).copies = copies;
 const rpc = async (fn: string, a: Row) => {
   calls.push({ fn, body: a });
+  // E3: the automation's email copies. m1 already has one with newer words from the canvas.
+  if (fn === "workflow_email_ensure") {
+    for (const s of a.p_steps as Row[]) if (!copies.some((c) => c.step === s.step)) copies.push({ id: `copy-${s.step}`, step: s.step, subject: s.subject, preheader: s.preheader, doc: s.doc, made: true });
+    const out = copies.map((c) => ({ ...c }));
+    for (const c of copies) c.made = false;
+    return { data: out, error: null };
+  }
+  if (fn === "email_draft_save") {
+    const c = copies.find((x) => x.id === a.p_id)!;
+    Object.assign(c, { subject: a.p_subject, doc: a.p_doc });
+    return { data: c.id, error: null };
+  }
   if (fn === "audience_count") return { data: contacts.length, error: null };
   if (fn === "lists_overview") return { data: lists, error: null };
   if (fn === "audience_people") {
@@ -85,7 +101,11 @@ const start: Body = {
 };
 
 function FlowPage() {
-  const [body, setBody] = useState<Body>(start);
+  const [st, dispatch] = useReducer(editorReducer, start, startEditor);
+  const body = st.body;
+  const setBody = (b: Body | ((b: Body) => Body)) => dispatch({ type: "set", body: typeof b === "function" ? b(st.body) : b });
+  const sync = useCallback((fn: (b: Body) => Body) => dispatch({ type: "sync", fn }), []);
+  const mail = useEmailCopies({ sb, ws: "ws1", id: "wf1", body, sync, readOnly: false });
   const [sel, setSel] = useState<string>("trigger");
   useEffect(() => {
     (window as unknown as { body: Body }).body = body;
@@ -105,7 +125,7 @@ function FlowPage() {
         {sel === "trigger" ? (
           <TriggerPanel body={body} names={names} problems={gone.map((g) => g.text)} onChange={(b) => setBody(b)} readOnly={false} />
         ) : step ? (
-          <StepPanel step={step} names={names} onPatch={(patch) => setBody((b) => ({ ...b, steps: b.steps.map((s) => (s.id === step.id ? ({ ...s, ...patch } as Step) : s)) }))} readOnly={false} session={props.session} ws="ws1" workflowId={null} onRemove={() => {}} />
+          <StepPanel step={step} names={names} onPatch={(patch) => setBody((b) => patchStep(b, step.id, patch))} readOnly={false} session={props.session} ws="ws1" workflowId={null} onRemove={() => {}} onEditEmail={mail.copies.has(step.id) ? () => calls.push({ fn: "edit_email", body: { copy: mail.copies.get(step.id)!.id } }) : undefined} />
         ) : null}
       </aside>
     </div>

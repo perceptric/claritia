@@ -13,7 +13,12 @@ export type Action =
   | { type: "set"; body: Body; key?: string; at?: number }
   | { type: "undo" }
   | { type: "redo" }
-  | { type: "reset"; body: Body };
+  | { type: "reset"; body: Body }
+  /**
+   * Words from the emails' copies on the Emails canvas (src/lib/workflows/stepEmails.ts): applied to the draft and to
+   * every undo and redo step, so undo never brings older words back over newer ones. Not an undo step itself.
+   */
+  | { type: "sync"; fn: (b: Body) => Body };
 
 /** Typing in one field joins one undo step (the same key within 1.5 s); anything else is its own. */
 export function editorReducer(s: EditorState, a: Action): EditorState {
@@ -35,6 +40,8 @@ export function editorReducer(s: EditorState, a: Action): EditorState {
     }
     case "reset":
       return startEditor(a.body);
+    case "sync":
+      return { ...s, body: a.fn(s.body), past: s.past.map(a.fn), future: s.future.map(a.fn), n: s.n + 1 };
   }
 }
 

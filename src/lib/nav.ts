@@ -10,7 +10,7 @@ export type GroupKey = "main" | "settings";
 export const GROUPS: { key: GroupKey }[] = [{ key: "main" }, { key: "settings" }];
 
 export type NavSection = "meetings" | "emails";
-export const SECTION_LABEL: Record<NavSection, string> = { meetings: "Meetings", emails: "Emails" };
+export const SECTION_LABEL: Record<NavSection, string> = { meetings: "Meetings", emails: "Email" };
 
 export type NavItem = {
   /** Unique, for keys and the command bar. */
@@ -41,7 +41,7 @@ export const NAV: NavItem[] = [
   pageItem("meetings", "scheduling", "booking", "Booking page"),
   pageItem("meetings", "scheduling", "links", "Links and polls"),
   pageItem("meetings", "scheduling", "settings", "Meeting settings"),
-  pageItem("emails", "emails", "", "Campaigns"),
+  pageItem("emails", "emails", "", "Emails"),
   pageItem("emails", "emails", "automations", "Automations"),
   pageItem("emails", "emails", "audiences", "Audiences"),
   pageItem("emails", "emails", "templates", "Templates"),
@@ -149,7 +149,7 @@ export const SCHEDULING_TABS: (Tab<SchedulingPageKey> & { icon: SchedulingTabIco
 export type EmailsPageKey = "campaigns" | "automations" | "audiences" | "templates" | "brand";
 /** Emails' tabs (docs/email-studio-plan.md Part 1). Campaigns is the route's first page (""). */
 export const EMAILS_TABS: Tab<EmailsPageKey>[] = [
-  { value: "campaigns", label: "Campaigns" },
+  { value: "campaigns", label: "Emails" },
   { value: "automations", label: "Automations" },
   { value: "audiences", label: "Audiences" },
   { value: "templates", label: "Templates" },
@@ -164,7 +164,8 @@ export const EMAILS_TABS: Tab<EmailsPageKey>[] = [
 export function emailsPage(id: string): { page: EmailsPageKey; id: string; open?: string; group?: string; wf?: string } {
   const [raw = "", b = "", c = ""] = id.split("/");
   if ((raw === "automations" || raw === "journeys") && (b === "new" || UUID.test(b))) return { page: "automations", id: `automations/${b}`, wf: b };
-  if (raw === "campaigns" && b === "group" && (UUID.test(c) || c === "ungrouped")) return { page: "campaigns", id: `campaigns/group/${c}`, group: c };
+  // An automation's emails open as their own group: campaigns/group/wf:<workflow id> (docs/email-unify-plan.md, E3).
+  if (raw === "campaigns" && b === "group" && (UUID.test(c) || c === "ungrouped" || (c.startsWith("wf:") && UUID.test(c.slice(3))))) return { page: "campaigns", id: `campaigns/group/${c}`, group: c };
   if (raw === "campaigns" && UUID.test(b)) return { page: "campaigns", id: `campaigns/${b}`, open: b };
   const a = ({ journeys: "automations", library: "templates" } as Record<string, string>)[raw] ?? raw;
   if (a === "automations" || a === "audiences" || a === "templates" || a === "brand") return { page: a, id: a };

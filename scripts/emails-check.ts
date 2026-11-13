@@ -165,6 +165,21 @@ try {
   const capped = await p.evaluate(() => (window as unknown as { body: { steps: { days: number }[] } }).body.steps[0]!.days);
   check(capped === 365, `typing keeps days at most 365 (${capped})`);
   if (shots) await p.screenshot({ path: `${shots}/emails-delay.png` });
+
+  // E3: the email step and its copy on the Emails canvas.
+  const steps = () => p.evaluate(() => (window as unknown as { body: { steps: { id: string; email?: { subject: string; doc?: unknown }; approved?: boolean }[] } }).body.steps);
+  const m1 = (await steps()).find((s) => s.id === "m1")!;
+  check(m1.email!.subject === "From the canvas" && !!m1.email!.doc, `the canvas's newer words come into the draft (${m1.email!.subject})`);
+  await p.locator("button", { hasText: "From the canvas" }).first().click();
+  check((await p.getByRole("button", { name: "Edit email" }).count()) === 1, "the email step has Edit email");
+  const subj = p.getByRole("textbox").first();
+  await subj.fill("Thanks again");
+  await p.waitForTimeout(1300);
+  const saves = (await p.evaluate(() => (window as unknown as { calls: { fn: string; body: Record<string, unknown> }[] }).calls)).filter((c) => c.fn === "email_draft_save");
+  check(saves.some((c) => c.body.p_id === "copy-m1" && c.body.p_subject === "Thanks again"), "a subject typed here reaches the copy");
+  await p.getByRole("button", { name: "Edit email" }).click();
+  const edit = (await p.evaluate(() => (window as unknown as { calls: { fn: string; body: Record<string, unknown> }[] }).calls)).find((c) => c.fn === "edit_email");
+  check(edit?.body.copy === "copy-m1", "Edit email opens that email's copy");
   await p.close();
 } finally {
   await browser.close();
