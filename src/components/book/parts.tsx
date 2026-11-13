@@ -4,13 +4,14 @@ import type { GuestHost, GuestLocation } from "@/lib/meetings/guest";
 // Small pieces the booking pages draw on the server and the calendar draws in the browser (no hooks, no state).
 
 /** A host's photo or initials. Photos sit at the top of the card, so they load at once and decode off the main thread. */
-export function Avatar({ host, size }: { host: GuestHost; size?: "lg" }) {
+export function Avatar({ host, size }: { host: GuestHost; size?: "lg" | "md" }) {
   const initials = host.name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("");
-  const px = size === "lg" ? 64 : 40;
+  const px = size === "lg" ? 64 : size === "md" ? 56 : 40;
+  const cls = `cb-av ${size === "lg" ? "cb-lg" : size === "md" ? "cb-md" : ""}`;
   // eslint-disable-next-line @next/next/no-img-element
-  if (host.photo) return <img className={`cb-av ${size === "lg" ? "cb-lg" : ""}`} src={host.photo} alt="" width={px} height={px} decoding="async" referrerPolicy="no-referrer" />;
+  if (host.photo) return <img className={cls} src={host.photo} alt="" width={px} height={px} decoding="async" referrerPolicy="no-referrer" />;
   return (
-    <span className={`cb-av ${size === "lg" ? "cb-lg" : ""}`} aria-hidden="true">
+    <span className={cls} aria-hidden="true">
       {initials || "?"}
     </span>
   );

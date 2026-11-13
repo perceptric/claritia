@@ -14,6 +14,9 @@ Resend's SMTP relay with the same API key, and its webhook reports their bounces
    `https://app.tryclaritia.com/api/calendar/callback`.
 4. At Growth, ask for a higher Calendar API quota (free, check): the 10-minute refresh is about 360,000 free/busy
    calls a day at 2,500 connected people.
+5. Show my calendar on booking pages (docs/booking-page-plan.md, Part 6): add the redirect URI
+   `https://app.tryclaritia.com/api/book/overlay/callback` to the same client, and the scope `calendar.freebusy` to
+   the consent screen (sensitive, in the same review, check). Until then the button says it isn't set up yet.
 
 ## 2. Microsoft 365 (Outlook and Teams)
 
@@ -22,6 +25,8 @@ Resend's SMTP relay with the same API key, and its webhook reports their bounces
 2. API permissions (delegated): `offline_access`, `User.Read`, `Calendars.ReadWrite`.
 3. Certificates & secrets → New client secret. Note its end date: a new one is needed before it runs out.
 4. Publisher verification (free, check), so customers don't see "unverified".
+5. Show my calendar on booking pages: add the redirect URI `https://app.tryclaritia.com/api/book/overlay/callback`
+   and the delegated permission `Calendars.ReadBasic` (guests consent for themselves).
 
 ## 3. Zoom
 

@@ -31,7 +31,7 @@ export function KitFrame({ look, vars, brand, className = "", children }: { look
   const { theme, css } = look;
   const on = !!brand?.css;
   return (
-    <div className={`cb-root ${css ? "cb-ds " : ""}${on ? "cb-brand " : ""}${className}`} style={(theme ? { ...theme.vars, ...vars } : vars) as React.CSSProperties | undefined} data-dark={theme?.dark || undefined}>
+    <div className={`cb-root ${css ? "cb-ds " : ""}${on ? "cb-brand " : ""}${theme?.auto && !on ? "cb-auto " : ""}${className}`} style={(theme ? { ...theme.vars, ...vars } : vars) as React.CSSProperties | undefined} data-dark={theme?.dark || undefined}>
       <style href="clr-book" precedence="default">
         {BOOK_CSS}
       </style>

@@ -95,6 +95,22 @@ export const OAUTH: Record<string, OauthCfg> = {
     extra: { prompt: "select_account" },
     refreshScope: true,
   },
+  // A guest's own calendar on a booking page (docs/booking-page-plan.md, Part 6): free and busy only, read once to
+  // show which times clash and never kept. The same Google and Microsoft apps, with /api/book/overlay/callback added.
+  guest_google: {
+    env: "GOOGLE",
+    authorize: "https://accounts.google.com/o/oauth2/v2/auth",
+    token: "https://oauth2.googleapis.com/token",
+    scope: "https://www.googleapis.com/auth/calendar.freebusy",
+    extra: { prompt: "select_account" },
+  },
+  guest_microsoft: {
+    env: "MICROSOFT",
+    authorize: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+    token: "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+    scope: "Calendars.ReadBasic",
+    extra: { prompt: "select_account" },
+  },
   // More CRMs (docs/integrations-plan.md, Next step 4). Zoho: one app for every data center; the person's own comes
   // back as accounts-server. Dynamics 365: the Microsoft app meetings use, with Dynamics CRM's user_impersonation
   // added; it signs in to Microsoft's discovery service, and each call gets a token for the team's own Dynamics

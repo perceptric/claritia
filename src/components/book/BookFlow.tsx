@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import type { RouteQuestion } from "@/lib/meetings/dynamic";
 import type { BookReply, GuestSlot, GuestType } from "@/lib/meetings/guest";
+import type { WhenRange } from "@/lib/meetings/when";
 import { postToParent } from "./browser";
 import { Calendar, type BookRequest } from "./Calendar";
 import { RouteQuestions } from "./RouteQuestions";
@@ -31,6 +32,8 @@ export function BookFlow(p: {
   link?: { host?: string; ref?: string };
   /** A Dynamic meeting's questions, asked before the times. */
   questions?: RouteQuestion[];
+  /** The meeting's questions the form fill already answered (src/lib/meetings/known.ts). */
+  known?: Record<string, string>;
 }) {
   const { endpoint } = p;
   const host = p.link?.host;
@@ -39,15 +42,43 @@ export function BookFlow(p: {
   const [route, setRoute] = useState<Record<string, string> | null>(null);
   const [last, setLast] = useState<Record<string, string>>({});
   const waiting = asks && !route;
+  // This page's hold token: the time the guest picks is kept for them for 5 minutes (src/lib/meetings/holds.ts).
+  const [holdId] = useState(() => (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}${Math.random()}`).replace(/[^A-Za-z0-9]/g, "").slice(0, 32).padEnd(16, "0"));
   const load = useCallback(
     async (len: number) => {
       if (waiting) return [];
-      const q = new URLSearchParams({ len: String(len), ...(host ? { host } : {}), ...(route ? { a: JSON.stringify(route) } : {}) });
+      const q = new URLSearchParams({ len: String(len), hold: holdId, ...(host ? { host } : {}), ...(route ? { a: JSON.stringify(route) } : {}) });
       const res = await fetch(`${endpoint}?${q}`, { cache: "no-store" });
       if (!res.ok) throw new Error("load");
       return ((await res.json()) as { slots: GuestSlot[] }).slots;
     },
-    [endpoint, host, route, waiting],
+    [endpoint, host, route, waiting, holdId],
+  );
+  // The plain-words box's fallback: what the page couldn't read, read on the server.
+  const askWhen = useCallback(
+    async (text: string, today: string) => {
+      try {
+        const res = await fetch(`${endpoint}?${new URLSearchParams({ when: text, today })}`, { cache: "no-store" });
+        return res.ok ? (((await res.json()) as { when?: WhenRange | null }).when ?? null) : null;
+      } catch {
+        return null;
+      }
+    },
+    [endpoint],
+  );
+  // A hold that can't be asked lets the guest carry on: the booking's own checks stay in charge.
+  const hold = useCallback(
+    async (start: number) => {
+      if (p.preview) return true;
+      try {
+        const res = await fetch(endpoint, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ start, hold: holdId }) });
+        if (!res.ok) return true;
+        return ((await res.json()) as { ok?: boolean }).ok !== false;
+      } catch {
+        return true;
+      }
+    },
+    [endpoint, holdId, p.preview],
   );
   // The guest's email, for the page around an embed: its tracking links the visitor to them (bookElement.ts).
   const guest = useRef("");
@@ -55,9 +86,9 @@ export function BookFlow(p: {
     async (req: BookRequest) => {
       guest.current = req.email;
       if (p.preview) return { ok: true, start: req.start, end: req.start + req.length * 60_000, manage: "", hosts: [], confirmation: { kind: "message", text: "Preview only: nothing was booked." } } as BookReply;
-      return readReply(await fetch(endpoint, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...req, host, ref, ...(route ? { route } : {}) }) }));
+      return readReply(await fetch(endpoint, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...req, host, ref, hold: holdId, ...(route ? { route } : {}) }) }));
     },
-    [endpoint, host, ref, route, p.preview],
+    [endpoint, host, ref, route, p.preview, holdId],
   );
   return (
     <Calendar
@@ -67,6 +98,10 @@ export function BookFlow(p: {
       load={load}
       initialSlots={asks ? undefined : p.initialSlots}
       book={book}
+      hold={hold}
+      askWhen={p.preview ? undefined : askWhen}
+      overlay={!p.preview}
+      known={p.known}
       before={waiting ? <RouteQuestions questions={p.questions!} initial={last} onDone={(a) => (setLast(a), setRoute(a))} /> : undefined}
       banner={
         asks && route ? (

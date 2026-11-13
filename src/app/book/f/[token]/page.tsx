@@ -4,6 +4,7 @@ import { BookShell, Notice } from "@/components/book/BookShell";
 import { fillCtx, readBooking } from "@/lib/forms/booking";
 import { claimSlots, pageType } from "@/lib/forms/bookPage";
 import { guestTypeOf, loadTargetCached } from "@/lib/meetings/public";
+import { fillKnown } from "@/lib/meetings/knownServer";
 import { options, pageRpc, withBrand, type Search } from "../../load";
 import { Missing, shellOf } from "../../views";
 
@@ -41,7 +42,8 @@ export default async function FormBookPage({ params, searchParams }: Props) {
   const t = await withBrand(found, null);
   // The form's own calendar takes no payment, so neither does this page: the price stays off.
   const type = guestTypeOf(pageType(t.type!, c, ctx.hosts), t.profiles, false);
-  const first = await claimSlots(rpc, token, c, type.lengths[0]).catch(() => null);
+  // The form's answers to the meeting's own questions: with the name and email, a time books in one click.
+  const [first, known] = await Promise.all([claimSlots(rpc, token, c, type.lengths[0]).catch(() => null), fillKnown(rpc, c.submission, type.questions, type.location)]);
   const name = [ctx.first_name, ctx.last_name].filter(Boolean).join(" ");
   const s = shellOf(t);
   return (
@@ -53,6 +55,7 @@ export default async function FormBookPage({ params, searchParams }: Props) {
         logo={s.logo}
         embed={o.embed}
         prefill={{ name: name || undefined, email: ctx.email }}
+        known={known}
       />
     </BookShell>
   );

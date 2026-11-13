@@ -65,6 +65,9 @@ try {
   check((await page.locator(`.cb-day[data-cb-day="${focused}"]`).getAttribute("aria-pressed")) === "true", "Enter picks the day");
 
   await page.locator(".cb-tlist > .cb-time").first().click();
+  // A returning guest books from the time itself (docs/booking-page-plan.md); Change opens their details.
+  check((await page.locator(".cb-tpair .cb-btn").innerText()) === "Confirm" && (await page.locator("[data-cb-as]").innerText()).includes("Lee Park"), "a returning guest can confirm from the time");
+  await page.locator("[data-cb-as]").getByRole("button", { name: "Change" }).click();
   await page.locator(".cb-tpair .cb-btn").click();
   await page.locator(".cb-in").first().waitFor();
   check((await page.locator(".cb-in").nth(0).inputValue()) === "Lee Park" && (await page.locator(".cb-in").nth(1).inputValue()) === "lee@acme.com", "a returning guest's name and email are filled in");

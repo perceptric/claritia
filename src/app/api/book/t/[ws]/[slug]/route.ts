@@ -8,6 +8,8 @@ import { readBookRef } from "@/lib/meetings/links";
 import { answersOf, routedType } from "@/lib/meetings/dynamicServer";
 import { bookType, loadTarget, loadTargetCached, preferredSlots } from "@/lib/meetings/public";
 import { stripeClient } from "@/lib/billing";
+import { whenAnswer } from "@/lib/meetings/whenServer";
+import { heldByOthers, holds, holdToken, releaseHold, takeHold, withoutHeld } from "@/lib/meetings/holds";
 import { base, booked, failed, json, limited, liveFor, readBody, rpcOrNull, spamOk, startOf } from "../../../_shared";
 
 // A meeting type's booking page, for guests (docs/meetings-scheduler.md 1.8): GET the times for one length
@@ -36,12 +38,18 @@ export async function GET(request: Request, ctx: Ctx) {
     const x = await target(ctx, request, false);
     if ("error" in x) return x.error;
     const sp = new URL(request.url).searchParams;
+    // ?when=<words>&today=<date>: the plain-words box's range (src/lib/meetings/whenServer.ts).
+    if (sp.has("when")) return json({ when: await whenAnswer(x.rpc, x.t.ws.id, sp.get("when") ?? "", sp.get("today") ?? "") }, 200, { "Cache-Control": "no-store" });
     const len = Number(sp.get("len") ?? x.type.settings.lengths[0]);
     const from = sp.get("from") ? Number(sp.get("from")) : undefined;
     const to = sp.get("to") ? Number(sp.get("to")) : undefined;
     const type = await routedType(x.rpc, x.db, { ws: x.t.ws.id, type: x.type, answers: answersOf(sp.get("a")) });
-    const slots = await preferredSlots(x.rpc, { ws: x.t.ws.id, type, length: len, from, to, host: sp.get("host"), profiles: x.t.profiles });
-    return json({ slots }, 200, { "Cache-Control": "no-store" });
+    // Times other guests hold leave the list (src/lib/meetings/holds.ts); the guest's own hold stays.
+    const [slots, held] = await Promise.all([
+      preferredSlots(x.rpc, { ws: x.t.ws.id, type, length: len, from, to, host: sp.get("host"), profiles: x.t.profiles }),
+      holds(x.type.kind) ? heldByOthers(x.rpc, x.type.id, holdToken(sp.get("hold"))) : Promise.resolve(new Set<number>()),
+    ]);
+    return json({ slots: withoutHeld(slots, held) }, 200, { "Cache-Control": "no-store" });
   } catch {
     return json({ error: "Try again in a moment." }, 503);
   }
@@ -67,6 +75,15 @@ export async function POST(request: Request, ctx: Ctx) {
     const host = typeof body.host === "string" ? body.host.slice(0, 64) : null;
     const submissionId = typeof body.ref === "string" ? readBookRef(body.ref) : null;
     const type = await routedType(x.rpc, x.db, { ws: x.t.ws.id, type: x.type, answers: answersOf(body.route) });
+    // A time another guest holds is refused like a taken one, with fresh times; a hold that can't be read never blocks.
+    const hold = holdToken(body.hold);
+    if (holds(x.type.kind)) {
+      const held = await heldByOthers(x.rpc, x.type.id, hold);
+      if (held.has(start)) {
+        const fresh = await preferredSlots(x.rpc, { ws: x.t.ws.id, type, length, host, profiles: x.t.profiles }).catch(() => []);
+        return failed({ error: "slot_taken", slots: withoutHeld(fresh, held).filter((s) => s.start !== start) });
+      }
+    }
     // A type paid on PayPal or Square takes payments once that's connected (docs/integrations-plan.md, Next step 12).
     const own = type.settings.price?.provider;
     const r = await bookType(x.rpc, {
@@ -82,6 +99,7 @@ export async function POST(request: Request, ctx: Ctx) {
       liveBusy: liveFor(x.rpc, x.t.ws.id),
     });
     if (!r.ok) return failed(r);
+    await releaseHold(x.rpc, hold);
     await bookingTextConsent(x.rpc, x.t.ws.id, g.guest, x.type.settings.questions);
     let checkout: string | undefined;
     if (r.pending) {
@@ -100,6 +118,25 @@ export async function POST(request: Request, ctx: Ctx) {
     return booked(r, { profiles: x.t.profiles, confirmation: x.type.settings.confirmation, checkout });
   } catch {
     return json({ error: "Try again in a moment." }, 503);
+  }
+}
+
+/** PATCH { start, hold }: keep the picked time for this guest for 5 minutes. { ok: false } when someone else has it. */
+export async function PATCH(request: Request, ctx: Ctx) {
+  const stop = limited(request, "read");
+  if (stop) return stop;
+  const body = await readBody(request);
+  const hold = holdToken(body?.hold);
+  const start = startOf(body?.start);
+  if (!hold || start === null) return json({ error: "Bad request." }, 400);
+  try {
+    const x = await target(ctx, request, false);
+    if ("error" in x) return x.error;
+    if (!holds(x.type.kind)) return json({ ok: true });
+    // Couldn't be asked: the guest carries on, and the booking's own checks stay in charge.
+    return json({ ok: (await takeHold(x.rpc, x.type.id, start, hold)) !== false });
+  } catch {
+    return json({ ok: true });
   }
 }
 
