@@ -97,7 +97,6 @@ function Campaigns({ sb, session, ws, navigate }: ViewProps) {
   });
   // All, Campaigns or Automations (docs/email-unify-plan.md, E3).
   const [show, setShow] = useState<GroupShow>("all");
-  const groups = useQuery(`email_groups_count:${ws.id}`, async () => (must(await sb.from("email_groups").select("id").eq("workspace_id", ws.id).limit(1)) ?? []) as { id: string }[]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const create = async () => {
@@ -166,25 +165,8 @@ function Campaigns({ sb, session, ws, navigate }: ViewProps) {
   );
   if (list.error) return <ErrorNote message={list.error} />;
   if (!list.data) return <Loading />;
-  if (!list.data.length && !groups.data?.length)
-    return (
-      <Page title="Emails">
-        <ErrorNote message={error} />
-        <ToolIntro
-          sketch="envelopes"
-          title={"Write an email by describing it\nTia builds it in your brand"}
-          lead="Every campaign you send lists who got it, who clicked and who left the list."
-          action={
-            <>
-              {add}
-              <Button variant="ghost" onClick={() => navigate("settings", "sending")}>
-                Set up sending
-              </Button>
-            </>
-          }
-        />
-      </Page>
-    );
+  // No first screen: every workspace has its System emails and its automations' emails, so the groups always show
+  // (docs/system-emails.md).
   return (
     <Page title="Emails" actions={add}>
       <ErrorNote message={error} />
