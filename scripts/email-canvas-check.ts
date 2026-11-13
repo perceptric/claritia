@@ -4,7 +4,9 @@
 // Delete, Add email, a row of 60 emails, Phone, a narrow screen, dark mode and reduced motion. Part B2
 // (docs/email-canvas-b2.md section 9): picking inside an email, hover, stepping out and in, reading order, the panel's
 // groups at each level and screen, Every heading and Publish styles, the layer tree, the keys that move, copy and
-// delete, undo, a sent email's read-only panel, and the panel as a sheet on a phone.
+// delete, undo, a sent email's read-only panel, and the panel as a sheet on a phone. Part B3
+// (docs/email-canvas-b3.md section 7): typing in place, the format bar, links, merge values, paste rules, ending and
+// undo.
 //   CHROMIUM_PATH=… node scripts/email-canvas-check.ts   (SHOTS=dir saves screenshots)
 
 import { readFileSync } from "node:fs";
@@ -461,6 +463,151 @@ try {
   check(readOrder(await docOf("Welcome")).length === afterMove.length, "the saved email matches what shows");
   if (shots) await q.screenshot({ path: `${shots}/8-b2-tree.png` });
   await q.close();
+
+  // B3 ----------------------------------------------------------------------------------------------------------------
+  const t = await ctx.newPage();
+  t.on("pageerror", (e) => errors.push(e.message));
+  await t.goto(`http://localhost:${port}/`);
+  await t.waitForFunction(() => document.querySelectorAll("[data-email] iframe").length >= 3, null, { timeout: 15000 });
+  await t.waitForTimeout(400);
+  const tcalls = () => t.evaluate(() => (window as unknown as W).calls);
+  const tdoc = () => t.evaluate(() => (window as unknown as W).db.emails.find((e) => e.name === "Welcome")!.doc);
+  const blockOf = async (id: string) => (await tdoc()).sections.flatMap((x) => x.columns.flatMap((c) => c.blocks)).find((b) => b.id === id) as Record<string, unknown> | undefined;
+  const tpart = (kind: string, n = 0) =>
+    t.evaluate(
+      ([kind, n]) => {
+        const f = document.querySelectorAll<HTMLIFrameElement>("[data-email] iframe")[0]!;
+        const els = [...f.contentDocument!.querySelectorAll<HTMLElement>("[class]")].filter((e) => [...e.classList].some((c) => new RegExp(`^c[a-z0-9]+-${kind}$`).test(c)));
+        const el = els[n as number]!;
+        const fr = f.getBoundingClientRect();
+        const b = el.getBoundingClientRect();
+        const z = fr.width / f.offsetWidth;
+        const id = [...el.classList].map((c) => new RegExp(`^c([a-z0-9]+)-${kind}$`).exec(c)?.[1]).find(Boolean)!;
+        return { x: fr.left + (b.left + Math.min(b.width / 2, 30)) * z, y: fr.top + (b.top + b.height / 2) * z, id };
+      },
+      [kind, n] as const,
+    );
+  const editing = () => t.evaluate(() => document.querySelectorAll<HTMLIFrameElement>("[data-email] iframe")[0]!.contentDocument!.querySelector("[contenteditable='true']")?.className ?? null);
+  const paste = (data: Record<string, string>, plain = false) =>
+    t.evaluate(
+      ([data, plain]) => {
+        const d = document.querySelectorAll<HTMLIFrameElement>("[data-email] iframe")[0]!.contentDocument!;
+        const el = d.querySelector("[contenteditable='true']")!;
+        if (plain) el.dispatchEvent(new KeyboardEvent("keydown", { key: "V", ctrlKey: true, shiftKey: true, bubbles: true }));
+        const dt = new DataTransfer();
+        for (const [k, v] of Object.entries(data as Record<string, string>)) dt.setData(k, v);
+        el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+      },
+      [data, plain] as const,
+    );
+  const settleSave = () => t.waitForTimeout(1100);
+
+  // 23. Double-click a heading, type, Escape: it shows and one save has it
+  const th = await tpart("heading");
+  await t.mouse.click(th.x, th.y);
+  await t.mouse.dblclick(th.x, th.y);
+  await t.waitForTimeout(100);
+  check((await editing())?.includes(`c${th.id}-heading`) ?? false, "a double-click on a heading starts typing in it");
+  check((await t.locator("[aria-label='Text format']").isVisible()) && !(await t.locator("[aria-label='Element actions']").isVisible()), "the format bar replaces the element bar");
+  await t.keyboard.press("Control+a");
+  await t.keyboard.type("Fresh words");
+  await t.keyboard.press("Escape");
+  await t.waitForTimeout(100);
+  check((await editing()) === null, "Escape ends typing");
+  await settleSave();
+  check((await blockOf(th.id))?.text === "Fresh words", "the typed heading saves");
+  if (shots) await t.screenshot({ path: `${shots}/10-b3-typed.png` });
+
+  // 24. Enter on a picked text block types; ⌘B bolds; ⌘K links through the dialog
+  const tt = await tpart("text", 2);
+  await t.mouse.click(tt.x, tt.y);
+  await t.keyboard.press("Enter");
+  await t.waitForTimeout(100);
+  check((await editing())?.includes(`c${tt.id}-text`) ?? false, "Enter on a picked text block starts typing");
+  await t.keyboard.press("Control+a");
+  await t.keyboard.type("Hello there");
+  await t.keyboard.press("Control+a");
+  await t.keyboard.press("Control+b");
+  check((await t.locator("[aria-label='Text format'] [aria-label='Bold']").getAttribute("aria-pressed")) === "true", "⌘B bolds and the bar shows Bold on");
+  await t.keyboard.press("End");
+  await t.keyboard.press("Control+b");
+  await t.keyboard.type(" more");
+  for (let i = 0; i < 4; i++) await t.keyboard.press("Shift+ArrowLeft");
+  await t.keyboard.press("Control+k");
+  await t.getByRole("dialog").locator("input").fill("https://example.com/guide");
+  await t.getByRole("dialog").getByRole("button", { name: "Save" }).click();
+  await t.waitForTimeout(100);
+  if (shots) await t.screenshot({ path: `${shots}/11-b3-format.png` });
+
+  // 25. Merge value puts a merge tag at the caret
+  await t.keyboard.press("End");
+  await t.locator("[aria-label='Text format'] [aria-label='Merge value']").click();
+  await t.getByRole("menuitem", { name: "First name" }).click();
+  await settleSave();
+  const html1 = String((await blockOf(tt.id))?.html ?? "");
+  check(/<b>Hello there<\/b>/.test(html1) && html1.includes('href="https://example.com/guide"') && html1.includes("{{first_name}}"), `bold, the link and the merge value save (${html1})`);
+
+  // 26. Paste: rich keeps bold and drops scripts; ⌘⇧V is plain; Markdown with a heading and a list adds blocks
+  await paste({ "text/html": "<b>Pasted</b><script>alert(1)</script> words", "text/plain": "Pasted words" });
+  await paste({ "text/html": "<i>plain please</i>", "text/plain": "plain please" }, true);
+  await settleSave();
+  const html2 = String((await blockOf(tt.id))?.html ?? "");
+  check(html2.includes("<b>Pasted</b>") && !html2.includes("script") && !html2.includes("alert"), "a rich paste keeps bold and drops a script");
+  check(html2.includes("plain please") && !html2.includes("<i>plain please</i>"), "⌘⇧V pastes plain words");
+  await paste({ "text/plain": "# Agenda\n- First thing\n- Second thing" });
+  await t.waitForTimeout(150);
+  check((await editing()) === null && (await t.locator("[data-canvas-tag='pick']").textContent()) === "List", "a Markdown paste ends typing and picks the new list");
+  await settleSave();
+  const tcol = (await tdoc()).sections.flatMap((x) => x.columns).find((c) => c.blocks.some((b) => b.id === tt.id))!;
+  const atIdx = tcol.blocks.findIndex((b) => b.id === tt.id);
+  const tadded = tcol.blocks.slice(atIdx + 1, atIdx + 3) as unknown as { type: string; text?: string; items?: string[] }[];
+  check(tadded[0]?.type === "heading" && tadded[0].text === "Agenda" && tadded[1]?.type === "list" && tadded[1].items?.join("|") === "First thing|Second thing", "it adds a Heading and a List right after the text");
+
+  // 27. A button label types and Enter ends
+  const tb2 = await tpart("button");
+  await t.mouse.click(tb2.x, tb2.y);
+  await t.keyboard.press("Enter");
+  await t.keyboard.press("Control+a");
+  await t.keyboard.type("Book now");
+  await t.keyboard.press("Enter");
+  await t.waitForTimeout(100);
+  check((await editing()) === null, "Enter ends typing in a button");
+  await settleSave();
+  check((await blockOf(tb2.id))?.label === "Book now", "the button's new label saves");
+
+  // 28. While typing, the wheel still pans; a click on another part ends typing and picks it
+  const hh2 = await tpart("heading", 1);
+  await t.mouse.click(hh2.x, hh2.y);
+  await t.mouse.dblclick(hh2.x, hh2.y);
+  const pan0 = (await t.locator("[data-email]").first().boundingBox())!;
+  await t.mouse.move(pan0.x + 100, pan0.y + 200);
+  await t.mouse.wheel(0, 100);
+  await t.waitForTimeout(100);
+  const pan1 = (await t.locator("[data-email]").first().boundingBox())!;
+  check(Math.abs(pan0.y - pan1.y - 100) < 3 && (await editing()) !== null, "the wheel pans the canvas over the email being typed in");
+  const other2 = await tpart("text", 3);
+  await t.mouse.click(other2.x, other2.y);
+  await t.waitForTimeout(150);
+  check((await editing()) === null && (await t.locator("[data-canvas-pick]").first().getAttribute("data-canvas-pick")) === other2.id, "a click on another part ends typing and picks it");
+
+  // 29. A typing run, pauses and all, is one undo step
+  const runBefore = String((await blockOf(hh2.id))?.text ?? "");
+  const hh3 = await tpart("heading", 1);
+  await t.mouse.click(hh3.x, hh3.y);
+  await t.keyboard.press("Enter");
+  await t.keyboard.press("End");
+  await t.keyboard.type(" one");
+  await t.waitForTimeout(1300);
+  await t.keyboard.type(" two");
+  await t.waitForTimeout(1300);
+  await t.keyboard.press("Escape");
+  await settleSave();
+  check((await blockOf(hh2.id))?.text === `${runBefore} one two`, "the run saves as typed");
+  await t.keyboard.press("Control+z");
+  await settleSave();
+  check((await blockOf(hh2.id))?.text === runBefore, "one ⌘Z takes the whole run back");
+  void tcalls;
+  await t.close();
 
   // 22. A sent email's panel is read-only
   const sent = await ctx.newPage();

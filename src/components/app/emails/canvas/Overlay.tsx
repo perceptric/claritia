@@ -37,7 +37,7 @@ export function Overlay({ c, at, hover, picked, pad, actions }: { c: Camera; at:
             );
           })}
           <div data-canvas-pick={picked.id} aria-hidden="true" className="absolute shadow-[0_0_0_2px_var(--color-signal)]" style={place(picked.box)} />
-          <Tag box={place(picked.box)} text={picked.tag} inside={picked.box.y * z < 26} />
+          {picked.tag ? <Tag box={place(picked.box)} text={picked.tag} inside={picked.box.y * z < 26} /> : null}
           {actions ? <Bar box={place(picked.box)} actions={actions} below={picked.box.y * z < 48} /> : null}
         </>
       ) : null}
