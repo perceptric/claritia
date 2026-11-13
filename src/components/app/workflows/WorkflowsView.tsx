@@ -1,7 +1,7 @@
 "use client";
 
-// Workflows (docs/workflows.md): /workflows and /workflows/<id> are the folders with one workflow open (Home.tsx);
-// /workflows/new picks a template (?template=<key> opens that one; ?folder=<id> files it in that folder; ?form=<id>
+// Emails › Automations, the workflows (docs/workflows.md): /emails/automations and /emails/automations/<id> are the
+// folders with one workflow open (Home.tsx); /emails/automations/new picks a template (?template=<key> opens that one; ?folder=<id> files it in that folder; ?form=<id>
 // starts a form template on that form).
 
 import { useCallback, useEffect, useState } from "react";
@@ -11,7 +11,7 @@ import { Branch } from "../../Icons";
 import { ErrorNote, errorText, Loading, Page, type ViewProps } from "../ui";
 import { WorkflowsHome } from "./Home";
 
-export function WorkflowsView(p: ViewProps) {
+export function WorkflowsView(p: ViewProps & { describe?: (done: () => void) => React.ReactNode }) {
   if (p.id === "new") return <TemplatePicker {...p} />;
   return <WorkflowsHome {...p} />;
 }
@@ -53,12 +53,12 @@ function TemplatePicker({ sb, ws, navigate }: ViewProps) {
 
   if (asked && templateByKey(asked) && !error)
     return (
-      <Page title="New workflow" back={{ label: "Workflows", onClick: () => navigate("workflows") }}>
+      <Page title="New automation" back={{ label: "Automations", onClick: () => navigate("workflows") }}>
         <Loading />
       </Page>
     );
   return (
-    <Page icon={<Branch size={16} />} title="New workflow">
+    <Page icon={<Branch size={16} />} title="New automation" back={{ label: "Automations", onClick: () => navigate("workflows") }}>
       <ErrorNote message={error} />
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <Card name="Start blank" line="A trigger and nothing else" disabled={busy} onClick={() => create("Untitled workflow", emptyBody())} />

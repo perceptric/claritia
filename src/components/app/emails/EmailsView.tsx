@@ -23,6 +23,7 @@ import { TemplateGallery } from "./TemplateGallery";
 import { FillsFrom, ImportHistory } from "./AudienceParts";
 import { ImportSheet } from "./ImportSheet";
 import { EmailGroup } from "./EmailGroup";
+import { WorkflowsView } from "../workflows/WorkflowsView";
 import { isRoleAddress } from "@/lib/emails/role";
 import { Badge, Button, ErrorNote, errorText, IconButton, invalidate, Loading, must, Page, postJson, Section, Td, Th, timeAgo, useQuery, type Tone, type ViewProps } from "../ui";
 
@@ -32,7 +33,7 @@ export function EmailsView(props: ViewProps) {
   return (
     <Section nav={nav}>
       {p.page === "automations" ? (
-        <Automations {...props} />
+        <Automations {...props} wf={p.wf && p.wf !== "" ? p.wf : ""} />
       ) : p.page === "audiences" ? (
         <Audiences {...props} />
       ) : p.page === "templates" ? (
@@ -462,78 +463,16 @@ function Results({ sb, ws, navigate, emailId }: ViewProps & { emailId: string })
 }
 
 // Automations -------------------------------------------------------------------------------------------------------
+// Every workflow, in folders, with one open beside them (src/components/app/workflows): emails, meeting reminders,
+// texts and alerts. Workflows has no sidebar item of its own; its old addresses open here.
 
-type Automation = { id: string; name: string; status: string; trigger_kind: string | null; emails: number; updated_at: string };
-const TRIGGER_WORDS: Record<string, string> = { form: "Form submitted", meeting: "Meeting event", not_booked: "No booking after form", routed: "Lead routed", clicked: "Email clicked", list: "Joined a list" };
-const WF_TONE: Record<string, Tone> = { live: "green", paused: "amber", draft: "gray" };
-const WF_LABEL: Record<string, string> = { live: "Live", paused: "Paused", draft: "Draft" };
-
-function Automations({ sb, session, ws, navigate }: ViewProps) {
-  const list = useQuery(`email_automations:${ws.id}`, async () => (must(await sb.rpc("email_automations", { p_ws: ws.id })) ?? []) as Automation[]);
-  const add = (
-    <Button variant="ghost" onClick={() => navigate("workflows", "new")}>
-      <Plus size={14} /> Start from a template
-    </Button>
-  );
-  const ask = <Describe sb={sb} session={session} ws={ws.id} navigate={navigate} />;
-  if (list.error) return <ErrorNote message={list.error} />;
-  if (!list.data) return <Loading />;
-  if (!list.data.length)
-    return (
-      <Page title="Automations">
-        <ToolIntro sketch="plane" title={"Emails that send themselves\nwhen someone fills a form or books"} lead="Say what should happen. Tia builds it as a draft workflow, and nothing sends until you approve each email." action={add} />
-        <div className="mx-auto -mt-6 w-full max-w-xl">{ask}</div>
-      </Page>
-    );
-  return (
-    <Page title="Automations" actions={add}>
-      <div className="mb-4">{ask}</div>
-      <div className="overflow-x-auto rounded-lg bg-card shadow-rest">
-        <table className="w-full min-w-[640px] border-collapse [&_tbody_tr:last-child_td]:border-b-0">
-          <thead>
-            <tr>
-              <Th className="pl-5">Automation</Th>
-              <Th>Starts when</Th>
-              <Th>Emails</Th>
-              <Th>Status</Th>
-              <Th>Edited</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {list.data.map((a) => (
-              <tr key={a.id} className="cursor-pointer hover:[&>td]:bg-hover" onClick={() => navigate("workflows", a.id)}>
-                <Td className="pl-5">
-                  <a
-                    href={`/workflows/${a.id}`}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      navigate("workflows", a.id);
-                    }}
-                    className="flex min-w-0 items-center gap-2 font-medium break-words text-ink"
-                  >
-                    <Branch size={14} className="shrink-0 text-muted" />
-                    {a.name}
-                  </a>
-                </Td>
-                <Td className="text-muted">{TRIGGER_WORDS[a.trigger_kind ?? ""] ?? "Not set"}</Td>
-                <Td className="tabular-nums">{a.emails}</Td>
-                <Td>
-                  <Badge tone={WF_TONE[a.status] ?? "gray"} dot>
-                    {WF_LABEL[a.status] ?? a.status}
-                  </Badge>
-                </Td>
-                <Td className="text-muted">{timeAgo(a.updated_at)}</Td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </Page>
-  );
+function Automations(props: ViewProps & { wf: string }) {
+  const { sb, session, ws, navigate, wf } = props;
+  return <WorkflowsView {...props} id={wf} describe={(done) => <Describe sb={sb} session={session} ws={ws.id} navigate={navigate} onDone={done} />} />;
 }
 
-/** Describe an automation: Tia builds a draft workflow from the words, which opens in Workflows. */
-function Describe({ sb, session, ws, navigate }: Pick<ViewProps, "sb" | "session" | "navigate"> & { ws: string }) {
+/** Describe an automation: Tia builds a draft workflow from the words, which opens beside the others. */
+function Describe({ sb, session, ws, navigate, onDone }: Pick<ViewProps, "sb" | "session" | "navigate"> & { ws: string; onDone?: () => void }) {
   const [words, setWords] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -544,6 +483,7 @@ function Describe({ sb, session, ws, navigate }: Pick<ViewProps, "sb" | "session
       const r = await postJson<{ name: string; body: unknown }>(session, "/api/emails/automation", { workspaceId: ws, words });
       const saved = must(await sb.rpc("workflow_save", { p_ws: ws, p_id: null, p_name: r.name, p_draft: r.body, p_revision: null })) as { id: string };
       invalidate(`email_automations:${ws}`);
+      onDone?.();
       navigate("workflows", saved.id);
     } catch (e) {
       setError(errorText(e));
