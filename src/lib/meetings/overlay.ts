@@ -1,10 +1,10 @@
-// A guest's own calendar on a booking page (docs/booking-page-plan.md, Part 6): after they sign in with Google or
-// Microsoft in a small window, their busy times for the next weeks are read once and handed to the page that opened
+// A guest's own calendar on a booking page (docs/booking-page-plan.md, Part 6): after they sign in with Google in a
+// small window, their busy times for the next weeks are read once and handed to the page that opened
 // the window, so the times that clash with their day are marked. Nothing is stored: no token, no times.
 
 export type Busy = [number, number];
 export const OVERLAY_DAYS = 62;
-export const OVERLAY_KINDS = { google: "guest_google", microsoft: "guest_microsoft" } as const;
+export const OVERLAY_KINDS = { google: "guest_google" } as const;
 
 /** The page origins a busy list may go to: the app's and the booking site's (tryclaritia.com). */
 export function overlayOrigins(app: string): string[] {
@@ -42,15 +42,4 @@ export function clashes(busy: Busy[], start: number, length: number): boolean {
 export function googleBusy(j: unknown): Busy[] {
   const cals = ((j as { calendars?: Record<string, { busy?: { start: string; end: string }[] }> })?.calendars ?? {}) as Record<string, { busy?: { start: string; end: string }[] }>;
   return cleanBusy(Object.values(cals).flatMap((c) => (c.busy ?? []).map((b) => [Date.parse(b.start), Date.parse(b.end)])));
-}
-
-/** Microsoft's calendar view (UTC times) to spans; free and working-elsewhere events don't count. */
-export function microsoftBusy(events: unknown[]): Busy[] {
-  const t = (v: { dateTime?: string } | undefined) => (v?.dateTime ? Date.parse(/[zZ]|[+-]\d\d:\d\d$/.test(v.dateTime) ? v.dateTime : `${v.dateTime}Z`) : NaN);
-  return cleanBusy(
-    events
-      .map((e) => e as { showAs?: string; start?: { dateTime?: string }; end?: { dateTime?: string } })
-      .filter((e) => e.showAs !== "free" && e.showAs !== "workingElsewhere")
-      .map((e) => [t(e.start), t(e.end)]),
-  );
 }

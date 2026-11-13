@@ -130,7 +130,7 @@ test("a range keeps the times it covers, in the guest's zone", () => {
 });
 
 // The guest's own calendar (src/lib/meetings/overlay.ts).
-import { clashes, cleanBusy, googleBusy, microsoftBusy, overlayOrigins } from "../src/lib/meetings/overlay.ts";
+import { clashes, cleanBusy, googleBusy, overlayOrigins } from "../src/lib/meetings/overlay.ts";
 
 test("busy times are cleaned, merged and checked against a meeting's length", () => {
   const h = 3_600_000;
@@ -142,16 +142,9 @@ test("busy times are cleaned, merged and checked against a meeting's length", ()
   assert.equal(clashes([], 10 * h, 30), false);
 });
 
-test("Google's and Microsoft's answers become busy spans; free events don't count", () => {
+test("Google's answer becomes busy spans", () => {
   assert.deepEqual(googleBusy({ calendars: { primary: { busy: [{ start: "2026-11-17T02:00:00Z", end: "2026-11-17T03:00:00Z" }] } } }), [[Date.parse("2026-11-17T02:00:00Z"), Date.parse("2026-11-17T03:00:00Z")]]);
   assert.deepEqual(googleBusy(null), []);
-  assert.deepEqual(
-    microsoftBusy([
-      { showAs: "busy", start: { dateTime: "2026-11-17T02:00:00.0000000" }, end: { dateTime: "2026-11-17T03:00:00.0000000" } },
-      { showAs: "free", start: { dateTime: "2026-11-17T05:00:00" }, end: { dateTime: "2026-11-17T06:00:00" } },
-    ]),
-    [[Date.parse("2026-11-17T02:00:00Z"), Date.parse("2026-11-17T03:00:00Z")]],
-  );
 });
 
 test("busy times only ever go back to the app's and the booking site's own pages", () => {

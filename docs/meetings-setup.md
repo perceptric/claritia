@@ -25,8 +25,6 @@ Resend's SMTP relay with the same API key, and its webhook reports their bounces
 2. API permissions (delegated): `offline_access`, `User.Read`, `Calendars.ReadWrite`.
 3. Certificates & secrets → New client secret. Note its end date: a new one is needed before it runs out.
 4. Publisher verification (free, check), so customers don't see "unverified".
-5. Show my calendar on booking pages: add the redirect URI `https://app.tryclaritia.com/api/book/overlay/callback`
-   and the delegated permission `Calendars.ReadBasic` (guests consent for themselves).
 
 ## 3. Zoom
 
