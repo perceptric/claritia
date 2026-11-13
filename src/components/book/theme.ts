@@ -8,7 +8,8 @@ const INTER = "Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-
 /** Claritia's signal color, for the open-day dots when the kit doesn't pick an accent. */
 const SIGNAL = "#059669";
 
-export type Theme = { vars: Record<string, string>; dark: boolean; fontUrl: string };
+/** `auto`: Claritia's own look (no kit), which follows the guest's light or dark setting. */
+export type Theme = { vars: Record<string, string>; dark: boolean; fontUrl: string; auto?: boolean };
 
 export function themeOf(raw: Record<string, unknown> | null | undefined): Theme {
   const given = raw && typeof raw === "object" ? raw : {};
@@ -24,5 +25,5 @@ export function themeOf(raw: Record<string, unknown> | null | undefined): Theme 
   vars["--cb-dot"] = typeof given.accent === "string" && given.accent ? (vars["--clr-accent"] ?? SIGNAL) : SIGNAL;
   // Dark when light text reads better on the background than dark text does.
   const dark = contrast("#ffffff", fixed.background.slice(0, 7)) > contrast("#000000", fixed.background.slice(0, 7));
-  return { vars, dark, fontUrl: fixed.fontUrl };
+  return { vars, dark, fontUrl: fixed.fontUrl, ...(Object.keys(given).length ? {} : { auto: true }) };
 }

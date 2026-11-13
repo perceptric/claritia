@@ -24,6 +24,12 @@ export const cleanDescription = (v: unknown): string =>
         .slice(0, 2000)
         .trim()
     : "";
+/** Short lines (an agenda, a prep list): trimmed, empty ones out, at most 8 of 120 characters. */
+export const cleanLines = (v: unknown): string[] =>
+  (Array.isArray(v) ? v : [])
+    .map((x) => (typeof x === "string" ? x.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 120) : ""))
+    .filter(Boolean)
+    .slice(0, 8);
 const int = (v: unknown, min: number, max: number, dflt: number) => {
   const n = Math.round(Number(v));
   return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : dflt;
@@ -150,6 +156,8 @@ export function checkSettings(raw: unknown, kind: Kind): { settings: TypeSetting
     noShowFollowUp: r.noShowFollowUp !== false,
     confirmation,
     ...(cleanDescription(r.description) ? { description: cleanDescription(r.description) } : {}),
+    ...(cleanLines(r.agenda).length ? { agenda: cleanLines(r.agenda) } : {}),
+    ...(cleanLines(r.prep).length ? { prep: cleanLines(r.prep) } : {}),
     ...(price ? { price } : {}),
     ...(str(r.schedule, 60) ? { schedule: str(r.schedule, 60) } : {}),
     ...((kind === "round_robin" || kind === "owner_first") && typeof r.team === "string" && /^[a-z0-9_-]{1,40}$/i.test(r.team) ? { team: r.team } : {}),

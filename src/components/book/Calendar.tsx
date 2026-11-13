@@ -3,14 +3,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ArrowLeft, Check, ChevronRight, Clock, Dollar, Globe, Users, Video } from "@/components/Icons";
-import { byDay, LOCATION_LABEL, lengthLabel, priceLabel, type BookReply, type GuestSlot, type GuestType, type Question } from "@/lib/meetings/guest";
+import { byDay, LOCATION_LABEL, lengthLabel, priceLabel, type BookReply, type GuestHost, type GuestSlot, type GuestType, type Question } from "@/lib/meetings/guest";
 import { addDays, dateIn, dayOf } from "@/lib/meetings/time";
-import { calendarLinks, partsOfDay, soonest } from "@/lib/meetings/guestTimes";
+import { calendarLinks, partsOfDay, soonest, startsIn } from "@/lib/meetings/guestTimes";
 import { use12h, useMounted, useSundayFirst, useZone } from "./browser";
 import { Avatar, hostLine, LocationIcon } from "./parts";
 import { ZonePicker } from "./ZonePicker";
 import { countryNames } from "@/lib/forms/countries";
 import { checkAnswer } from "@/lib/meetings/questions";
+import { canQuickBook } from "@/lib/meetings/known";
+import { parseWhen, slotsIn, type WhenRange } from "@/lib/meetings/when";
+import { clashes, cleanBusy, type Busy } from "@/lib/meetings/overlay";
 
 // The booking calendar (docs/meetings-scheduler.md 1.8 and 1.8b): the type on the left, a month in the middle, the
 // day's times on the right; stacked on phones. The soonest times sit on top, a day's times are grouped by part of
@@ -44,6 +47,14 @@ export type BookingCalendarProps = {
   banner?: React.ReactNode;
   /** Shown in place of the times until it's done (a Dynamic meeting's questions). */
   before?: React.ReactNode;
+  /** The meeting's questions the guest already answered (a form fill); with their name and email, a time books in one click. */
+  known?: Record<string, string>;
+  /** Offer "Show my calendar" (a live booking page; not previews or the guest's own reschedule). */
+  overlay?: boolean;
+  /** Read a phrase the page couldn't ("the week after Thanksgiving") on the server; null when nothing fits. */
+  askWhen?: (text: string, today: string) => Promise<WhenRange | null>;
+  /** Keep a picked time for this guest; false when someone else has it (src/lib/meetings/holds.ts). */
+  hold?: (start: number) => Promise<boolean>;
   /** The Styling preview: open on a step (details or the thank-you) with a time already picked. Nothing is sent. */
   preview?: { step?: "details" | "done"; time?: number; done?: Booked };
 };
@@ -142,6 +153,23 @@ export function Calendar(p: BookingCalendarProps) {
   const timesRef = useRef<HTMLDivElement>(null);
   // The email the guest booked with, for the confirmation line.
   const [doneEmail, setDoneEmail] = useState("");
+  // Who's booking, when the page knows: the link's name and email, else this browser's last booking.
+  const remembered = useMemo(() => (mounted && p.book && !p.preview ? rememberedGuest() : {}), [mounted, p.book, p.preview]);
+  const who = p.prefill?.email ? p.prefill : remembered;
+  const known = useMemo(() => p.known ?? {}, [p.known]);
+  const [edit, setEdit] = useState(false);
+  const [quickErr, setQuickErr] = useState<{ error: string; field?: string } | null>(null);
+  const quick = !!p.book && !p.move && !p.preview && !edit && canQuickBook({ name: who.name, email: who.email, questions: p.type.questions, known, location: p.type.location, paid: !!p.type.price });
+  const [tsMount, tsToken] = useTurnstile(quick ? p.turnstileKey : null);
+  const [booking, setBooking] = useState(false);
+  // Month (a month, then the day's times) or Week (seven days side by side, every time showing).
+  const [view, setView] = useState<"month" | "week">("month");
+  const [weekPick, setWeek] = useState<string | null>(null);
+  // The plain-words box: the times its range keeps, or a line when none do.
+  const [found, setFound] = useState<{ text: string; starts: GuestSlot[] } | null>(null);
+  // The guest's own busy times, read once from their calendar and kept only on this page.
+  const [mine, setMine] = useState<{ busy: Busy[]; provider: string } | null>(null);
+  const busyAt = (start: number) => !!mine && clashes(mine.busy, start, length);
 
   const { load } = p;
   const has = loaded.key === key && loaded.slots !== null;
@@ -185,6 +213,19 @@ export function Calendar(p: BookingCalendarProps) {
     });
   };
 
+  /** Pick a time and keep it for this guest; when someone else is booking it, the list is read again. */
+  const pickTime = (start: number) => {
+    setTime(start);
+    setNotice(null);
+    p.hold?.(start).then((ok) => {
+      if (!ok) {
+        setTime((t) => (t === start ? null : t));
+        setNotice("Someone is booking that time. Pick another.");
+        setReload((n) => n + 1);
+      }
+    });
+  };
+
   const afterTaken = useCallback(
     (msg: string, fresh?: GuestSlot[]) => {
       if (fresh) setLoaded({ key, slots: fresh });
@@ -195,9 +236,53 @@ export function Calendar(p: BookingCalendarProps) {
     [key],
   );
 
+  /** Book with the guest's details: from the details step, or straight from the time when the page knows them. */
+  const finish = async (g: GuestForm, at: number): Promise<{ ok: true } | { ok: false; error: string; field?: string }> => {
+    const r = await p.book!({ start: at, length, tz, ...g });
+    if (r.ok) {
+      if (r.checkout) {
+        go(r.checkout, p.embedded);
+        return { ok: true };
+      }
+      p.onBooked?.(r);
+      if (r.confirmation.kind === "redirect") {
+        go(r.confirmation.url, p.embedded);
+        return { ok: true };
+      }
+      setDoneEmail(g.email);
+      rememberGuest(g.name, g.email);
+      setDone(r);
+      setStep("done");
+      return { ok: true };
+    }
+    if (["slot_taken", "not_offered", "full"].includes(r.code)) {
+      afterTaken(r.error, r.slots);
+      return { ok: true };
+    }
+    return { ok: false, error: r.error, field: (r as { field?: string }).field };
+  };
+
   const next = async () => {
     if (time === null) return;
     setNotice(null);
+    if (quick) {
+      // Turnstile still working: the details step shows it and waits for it.
+      if (p.turnstileKey && !tsToken) return setStep("details");
+      setBooking(true);
+      try {
+        const r = await finish({ name: who.name!.trim(), email: who.email!.trim(), answers: known, ...(tsToken ? { turnstile: tsToken } : {}) }, time);
+        if (!r.ok) {
+          setQuickErr(r);
+          setEdit(true);
+          setStep("details");
+        }
+      } catch {
+        setNotice("Try again in a moment.");
+      } finally {
+        setBooking(false);
+      }
+      return;
+    }
     if (!p.move) return setStep("details");
     setMoving(true);
     try {
@@ -215,6 +300,18 @@ export function Calendar(p: BookingCalendarProps) {
   const monthHas = dayList.some((d) => monthOf(d) === shownMonth);
   const nextAvail = dayList.find((d) => monthOf(d) > shownMonth) ?? null;
   const soon = mounted && slots !== null ? soonest(days, 3) : [];
+  const findWhen = async (text: string, sundayFirst: boolean) => {
+    if (!text.trim() || !today || slots === null) return;
+    const range = parseWhen(text, today, sundayFirst) ?? (p.askWhen ? await p.askWhen(text, today) : null);
+    const hits = range ? slotsIn(slots, range, tz) : [];
+    setFound({ text, starts: hits });
+    if (hits.length) {
+      const d = dateIn(hits[0]!.start, tz);
+      pickDay(d);
+      setWeek(d);
+    }
+  };
+  const chips: [string, GuestSlot][] = found ? found.starts.slice(0, 6).map((s) => [dateIn(s.start, tz), s]) : soon;
   const lengths = !p.move && p.type.lengths.length > 1 ? p.type.lengths : null;
 
   return (
@@ -231,34 +328,13 @@ export function Calendar(p: BookingCalendarProps) {
             length={length}
             tz={tz}
             hour12={hour12}
-            prefill={p.prefill ?? (p.book && !p.preview ? rememberedGuest() : undefined)}
+            prefill={p.prefill ?? (p.book && !p.preview ? remembered : undefined)}
             turnstileKey={p.turnstileKey}
             preview={!p.book}
             onBack={() => setStep("pick")}
-            submit={async (g) => {
-              const r = await p.book!({ start: time, length, tz, ...g });
-              if (r.ok) {
-                if (r.checkout) {
-                  go(r.checkout, p.embedded);
-                  return { ok: true };
-                }
-                p.onBooked?.(r);
-                if (r.confirmation.kind === "redirect") {
-                  go(r.confirmation.url, p.embedded);
-                  return { ok: true };
-                }
-                setDoneEmail(g.email);
-                rememberGuest(g.name, g.email);
-                setDone(r);
-                setStep("done");
-                return { ok: true };
-              }
-              if (["slot_taken", "not_offered", "full"].includes(r.code)) {
-                afterTaken(r.error, r.slots);
-                return { ok: true };
-              }
-              return { ok: false, error: r.error, field: (r as { field?: string }).field };
-            }}
+            known={known}
+            firstError={quickErr}
+            submit={(g) => finish(g, time)}
           />
         ) : (
           <div className={`cb-step ${back ? "cb-rev" : ""}`} key="pick" ref={pickRef}>
@@ -268,7 +344,7 @@ export function Calendar(p: BookingCalendarProps) {
                 {notice}
               </div>
             )}
-            <div className={`cb-pick ${day ? "cb-open" : ""}`}>
+            <div className={`cb-pick ${day && view === "month" ? "cb-open" : ""}`}>
               <div>
                 <div className="cb-phead">
                   <h2 className="cb-h" style={{ fontSize: "1.15em" }}>
@@ -283,19 +359,32 @@ export function Calendar(p: BookingCalendarProps) {
                       ))}
                     </div>
                   )}
+                  <div className="cb-pills" role="radiogroup" aria-label="View">
+                    {(["month", "week"] as const).map((v) => (
+                      <button key={v} type="button" role="radio" className="cb-pill" aria-checked={view === v} onClick={() => setView(v)}>
+                        {v === "month" ? "Month" : "Week"}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                {soon.length > 1 && (
-                  <div className="cb-soon">
-                    <span className="cb-eyebrow">Soonest</span>
-                    {soon.map(([d, s]) => (
+                {mounted && slots !== null && slots.length > 0 ? <WhenBox onFind={findWhen} onClear={() => setFound(null)} found={found} /> : null}
+                {found && !found.starts.length ? (
+                  <p className="cb-muted cb-small" role="status" style={{ margin: "-8px 0 16px" }}>
+                    No open times match
+                  </p>
+                ) : null}
+                {(found ? chips.length > 0 : soon.length > 1) && (
+                  <div className="cb-soon" data-cb-chips={found ? "found" : "soonest"}>
+                    <span className="cb-eyebrow">{found ? "Matches" : "Soonest"}</span>
+                    {chips.map(([d, s]) => (
                       <button
                         key={s.start}
                         type="button"
                         className="cb-sc"
                         onClick={() => {
                           pickDay(d);
-                          setTime(s.start);
-                          if (!p.move) setStep("details");
+                          pickTime(s.start);
+                          if (!p.move && !quick) setStep("details");
                         }}
                       >
                         <b>{timeIn(s.start, tz, hour12)}</b>
@@ -304,7 +393,36 @@ export function Calendar(p: BookingCalendarProps) {
                     ))}
                   </div>
                 )}
-                <Month
+                {view === "week" ? (
+                  <Week
+                    days={days}
+                    first={weekPick ?? day ?? dayList[0] ?? today}
+                    today={today}
+                    tz={tz}
+                    hour12={hour12}
+                    time={time}
+                    loading={!mounted || slots === null}
+                    lastDay={lastDay}
+                    busyAt={busyAt}
+                    onWeek={setWeek}
+                    onPick={(d, start) => {
+                      setDay(d);
+                      setMonth(monthOf(d));
+                      pickTime(start);
+                    }}
+                  />
+                ) : null}
+                {view === "week" && time !== null && !phone ? (
+                  <div className="cb-wconfirm">
+                    <span className="cb-pbw">
+                      <b>{timeIn(time, tz, hour12)}</b> <span className="cb-muted">{dayShort(day!, today)}</span>
+                    </span>
+                    <button type="button" className="cb-btn" onClick={next} disabled={moving || booking}>
+                      {p.move ? "Move here" : quick ? (booking ? "Booking" : "Confirm") : "Next"}
+                    </button>
+                  </div>
+                ) : null}
+                {view === "month" ? <Month
                   month={shownMonth}
                   today={today}
                   days={days}
@@ -314,8 +432,8 @@ export function Calendar(p: BookingCalendarProps) {
                   canNext={shownMonth < maxMonth}
                   onMonth={(n) => pickMonth(addMonths(shownMonth, n))}
                   onDay={pickDay}
-                />
-                {mounted && slots !== null && !monthHas && (
+                /> : null}
+                {view === "month" && mounted && slots !== null && !monthHas && (
                   <div className="cb-empty">
                     <span className="cb-muted">{loadFailed ? "Times couldn't load." : `No times in ${monthLabel(shownMonth)}`}</span>
                     {nextAvail && (
@@ -333,6 +451,7 @@ export function Calendar(p: BookingCalendarProps) {
                     </button>
                   </div>
                 )}
+                {p.overlay && mounted && slots !== null && slots.length > 0 ? <MyCalendar on={mine} onBusy={setMine} /> : null}
                 <div className="cb-zone">
                   <ZonePicker value={tz} onChange={(z) => (setTz(z), setTime(null))} hour12={hour12} />
                   <div className="cb-pills" role="radiogroup" aria-label="Clock">
@@ -345,11 +464,22 @@ export function Calendar(p: BookingCalendarProps) {
                   </div>
                 </div>
               </div>
-              {day && mounted && (
+              {day && mounted && view === "month" && (
                 <div className="cb-times" ref={timesRef} key={day}>
                   <div className="cb-h" style={{ fontSize: "1em" }}>
                     {dayLong(day)}
                   </div>
+                  {quick ? (
+                    <div className="cb-as" data-cb-as="">
+                      <span>
+                        Booking as <b>{who.name}</b>, {who.email}
+                      </span>
+                      <button type="button" className="cb-link" onClick={() => setEdit(true)}>
+                        Change
+                      </button>
+                    </div>
+                  ) : null}
+                  {quick && p.turnstileKey ? <div ref={tsMount} /> : null}
                   <div className="cb-tlist" role="list">
                     {partsOfDay(daySlots, tz).map(([part, list]) => [
                       <span key={part} className="cb-group" role="presentation">
@@ -362,14 +492,15 @@ export function Calendar(p: BookingCalendarProps) {
                             {timeIn(s.start, tz, hour12)}
                           </button>
                           {phone ? null : (
-                            <button type="button" className="cb-btn" onClick={next} disabled={moving} autoFocus>
-                              {p.move ? "Move here" : "Next"}
+                            <button type="button" className="cb-btn" onClick={next} disabled={moving || booking} autoFocus>
+                              {p.move ? "Move here" : quick ? (booking ? "Booking" : "Confirm") : "Next"}
                             </button>
                           )}
                         </div>
                       ) : (
-                        <button type="button" key={s.start} role="listitem" className="cb-time" onClick={() => setTime(s.start)}>
+                        <button type="button" key={s.start} role="listitem" className={`cb-time ${found?.starts.some((x) => x.start === s.start) ? "cb-match" : ""} ${busyAt(s.start) ? "cb-busy" : ""}`} onClick={() => pickTime(s.start)}>
                           {timeIn(s.start, tz, hour12)}
+                          {busyAt(s.start) ? <span className="cb-seats">You&apos;re busy</span> : null}
                           {s.seats !== undefined && p.type.seats !== null && <span className="cb-seats">{s.seats === 1 ? "1 seat left" : `${s.seats} seats left`}</span>}
                         </button>
                       ),
@@ -385,8 +516,8 @@ export function Calendar(p: BookingCalendarProps) {
                   <b>{timeIn(time, tz, hour12)}</b>
                   <span className="cb-muted cb-small">{dayShort(day!, today)}</span>
                 </span>
-                <button type="button" className="cb-btn" onClick={next} disabled={moving}>
-                  {p.move ? "Move here" : "Next"}
+                <button type="button" className="cb-btn" onClick={next} disabled={moving || booking}>
+                  {p.move ? "Move here" : quick ? (booking ? "Booking" : "Confirm") : "Next"}
                 </button>
               </PhoneBar>
             ) : null}
@@ -407,7 +538,7 @@ function PhoneBar({ from, children }: { from: React.RefObject<HTMLElement | null
     // Read the root's look once it's on the page (a frame later, after it drew).
     const t = requestAnimationFrame(() => {
       const r = from.current?.closest<HTMLElement>(".cb-root");
-      if (r) setRoot({ cls: [...r.classList].filter((c) => c === "cb-root" || c === "cb-ds" || c === "cb-brand").join(" "), style: r.getAttribute("style") ?? "", dark: r.hasAttribute("data-dark") });
+      if (r) setRoot({ cls: [...r.classList].filter((c) => c === "cb-root" || c === "cb-ds" || c === "cb-brand" || c === "cb-auto").join(" "), style: r.getAttribute("style") ?? "", dark: r.hasAttribute("data-dark") });
     });
     return () => cancelAnimationFrame(t);
   }, [from]);
@@ -423,12 +554,33 @@ function PhoneBar({ from, children }: { from: React.RefObject<HTMLElement | null
   );
 }
 
+/** The hosts' own clock for a time, when it reads differently from the guest's: "4:30 PM for Vincent". */
+export function hostClock(hosts: GuestHost[], start: number, tz: string, hour12: boolean): string | null {
+  const zones = [...new Set(hosts.map((h) => h.tz).filter((z): z is string => !!z))];
+  if (zones.length !== 1 || hosts.some((h) => !h.tz)) return null;
+  const theirs = timeIn(start, zones[0]!, hour12);
+  if (theirs === timeIn(start, tz, hour12) && dateIn(start, zones[0]!) === dateIn(start, tz)) return null;
+  const who = hosts.length === 1 ? hosts[0]!.name.split(/\s+/)[0] || hosts[0]!.name : "your hosts";
+  const day = dateIn(start, zones[0]!) !== dateIn(start, tz) ? ` ${fmt({ weekday: "short", timeZone: zones[0]! }).format(start)}` : "";
+  return `${theirs}${day} for ${who}`;
+}
+
 function Info({ type, logo, length, picked }: { type: GuestType; logo?: string | null; length: number; picked: { start: number; tz: string; hour12: boolean; length: number } | null }) {
+  const one = type.hosts.length === 1 ? type.hosts[0]! : null;
+  const theirs = picked ? hostClock(type.hosts, picked.start, picked.tz, picked.hour12) : null;
   return (
     <aside className="cb-info">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       {logo && <img className="cb-logo" src={logo} alt="" height={28} decoding="async" referrerPolicy="no-referrer" />}
-      {type.hosts.length > 0 && (
+      {one ? (
+        <div className="cb-hosts cb-host-one">
+          <Avatar host={one} size="md" />
+          <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+            <span className="cb-hn" style={{ fontWeight: 600 }}>{one.name}</span>
+            {one.headline ? <span className="cb-muted cb-small" style={{ overflowWrap: "anywhere" }}>{one.headline}</span> : null}
+          </span>
+        </div>
+      ) : type.hosts.length > 0 ? (
         <div className="cb-hosts">
           <span className="cb-stack">
             {type.hosts.slice(0, 4).map((h, i) => (
@@ -439,9 +591,8 @@ function Info({ type, logo, length, picked }: { type: GuestType; logo?: string |
             {hostLine(type.hosts)}
           </span>
         </div>
-      )}
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <span className="cb-eyebrow">{lengthLabel(length)}</span>
+      ) : null}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <h1 className="cb-two" style={{ fontSize: "1.75em" }}>
           {type.name}
         </h1>
@@ -452,6 +603,10 @@ function Info({ type, logo, length, picked }: { type: GuestType; logo?: string |
         ) : null}
       </div>
       <div className="cb-meta">
+        <div className="cb-row">
+          <Clock size={16} />
+          <span>{lengthLabel(length)}</span>
+        </div>
         <div className="cb-row">
           <LocationIcon kind={type.location.kind} />
           <span>
@@ -471,16 +626,199 @@ function Info({ type, logo, length, picked }: { type: GuestType; logo?: string |
             <span>Up to {type.seats} guests</span>
           </div>
         )}
-        {picked && (
-          <div className="cb-when" key={picked.start} style={{ marginTop: 6, color: "var(--clr-text)" }}>
-            <b>
-              {timeIn(picked.start, picked.tz, picked.hour12)} to {timeIn(picked.start + picked.length * 60_000, picked.tz, picked.hour12)}
-            </b>
-            <span className="cb-muted cb-small">{whenLong(picked.start, picked.tz)}</span>
-          </div>
-        )}
       </div>
+      {type.agenda?.length ? (
+        <div className="cb-host" data-cb-agenda="">
+          <span className="cb-eyebrow">What we&apos;ll cover</span>
+          <ul className="cb-agenda">
+            {type.agenda.map((x, i) => (
+              <li key={i}>
+                <Check size={14} />
+                <span>{x}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {picked && (
+        <div className="cb-when" key={picked.start} style={{ color: "var(--clr-text)" }}>
+          <b>
+            {timeIn(picked.start, picked.tz, picked.hour12)} to {timeIn(picked.start + picked.length * 60_000, picked.tz, picked.hour12)}
+          </b>
+          <span className="cb-muted cb-small">{whenLong(picked.start, picked.tz)}</span>
+          {theirs ? <span className="cb-muted cb-small" data-cb-theirs="">{theirs}</span> : null}
+        </div>
+      )}
     </aside>
+  );
+}
+
+/**
+ * "Show my calendar": the guest signs in to Google or Microsoft in a small window, and the times that clash with their
+ * own day are marked. Only the busy times come back, and they stay on this page (src/lib/meetings/overlay.ts).
+ */
+function MyCalendar({ on, onBusy }: { on: { busy: Busy[]; provider: string } | null; onBusy: (v: { busy: Busy[]; provider: string } | null) => void }) {
+  const [err, setErr] = useState("");
+  const win = useRef<Window | null>(null);
+  useEffect(() => {
+    const got = (e: MessageEvent) => {
+      const d = e.data as { claritia?: string; busy?: unknown; provider?: string; error?: string } | null;
+      if (!d || d.claritia !== "overlay" || !win.current || e.source !== win.current) return;
+      win.current = null;
+      if (d.error) return setErr(d.error === "denied" ? "" : d.error === "off" ? "This isn't set up yet." : "Your calendar couldn't be read.");
+      setErr("");
+      onBusy({ busy: cleanBusy(d.busy), provider: d.provider === "microsoft" ? "Outlook" : "Google" });
+    };
+    window.addEventListener("message", got);
+    return () => window.removeEventListener("message", got);
+  }, [onBusy]);
+  const open = (p: "google" | "microsoft") => {
+    setErr("");
+    const w = 480;
+    const h = 640;
+    win.current = window.open(`/api/book/overlay?${new URLSearchParams({ p, o: location.origin })}`, "claritia-overlay", `popup,width=${w},height=${h},left=${Math.max(0, (screen.width - w) / 2)},top=${Math.max(0, (screen.height - h) / 2)}`);
+  };
+  return (
+    <div className="cb-mine" data-cb-mine="">
+      {on ? (
+        <>
+          <span className="cb-muted">
+            Your {on.provider} calendar is on{on.busy.length ? "" : ", nothing clashes"}
+          </span>
+          <button type="button" className="cb-link" onClick={() => onBusy(null)}>
+            Hide
+          </button>
+        </>
+      ) : (
+        <>
+          <span className="cb-muted">Show my calendar</span>
+          <span className="cb-chips">
+            <button type="button" className="cb-pill cb-findbtn" onClick={() => open("google")}>
+              Google
+            </button>
+            <button type="button" className="cb-pill cb-findbtn" onClick={() => open("microsoft")}>
+              Outlook
+            </button>
+          </span>
+          {err ? (
+            <span className="cb-err" role="alert">
+              {err}
+            </span>
+          ) : null}
+        </>
+      )}
+    </div>
+  );
+}
+
+/** "Next Tuesday afternoon": a phrase in the guest's own words, read on the page and, failing that, on the server. */
+function WhenBox({ onFind, onClear, found }: { onFind: (text: string, sundayFirst: boolean) => Promise<void>; onClear: () => void; found: { text: string } | null }) {
+  const sundayFirst = useSundayFirst();
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const go = async () => {
+    if (!text.trim() || busy) return;
+    setBusy(true);
+    try {
+      await onFind(text.trim(), sundayFirst);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <form
+      className="cb-whenbox"
+      role="search"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void go();
+      }}
+    >
+      <Clock size={15} />
+      <input
+        className="cb-whenin"
+        value={text}
+        maxLength={120}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="Type a time, like next Tuesday afternoon"
+        aria-label="Find a time"
+        enterKeyHint="search"
+      />
+      {found ? (
+        <button
+          type="button"
+          className="cb-link"
+          onClick={() => {
+            setText("");
+            onClear();
+          }}
+        >
+          Clear
+        </button>
+      ) : null}
+      <button type="submit" className="cb-pill cb-findbtn" disabled={!text.trim() || busy}>
+        {busy ? "Finding" : "Find"}
+      </button>
+    </form>
+  );
+}
+
+/** Seven days side by side with every open time, a week at a time. */
+function Week(p: { days: Map<string, GuestSlot[]>; first: string; today: string; tz: string; hour12: boolean; time: number | null; loading: boolean; lastDay: string | null; busyAt: (start: number) => boolean; onWeek: (d: string) => void; onPick: (d: string, start: number) => void }) {
+  const sundayFirst = useSundayFirst();
+  if (!p.first) return <div className="cb-wk" style={{ minHeight: 240 }} />;
+  const lead = (["mon", "tue", "wed", "thu", "fri", "sat", "sun"].indexOf(dayOf(p.first)) + (sundayFirst ? 1 : 0)) % 7;
+  const start = addDays(p.first, -lead);
+  const week = Array.from({ length: 7 }, (_, i) => addDays(start, i));
+  const canBack = !!p.today && start > p.today;
+  const canNext = !!p.lastDay && addDays(start, 7) <= p.lastDay;
+  const label = `${fmt({ month: "short", day: "numeric", timeZone: "UTC" }).format(Date.parse(`${week[0]}T12:00:00Z`))} to ${fmt({ month: "short", day: "numeric", timeZone: "UTC" }).format(Date.parse(`${week[6]}T12:00:00Z`))}`;
+  const empty = !p.loading && week.every((d) => !p.days.get(d)?.length);
+  const nextOpen = [...p.days.keys()].find((d) => d > week[6]!);
+  return (
+    <div data-cb-week="">
+      <div className="cb-mhead">
+        <span style={{ fontWeight: 600 }}>{label}</span>
+        <span className="cb-nav">
+          <button type="button" className="cb-icon" aria-label="Previous week" disabled={!canBack} onClick={() => p.onWeek(addDays(start, -7))}>
+            <span style={{ display: "inline-flex", transform: "rotate(180deg)" }}>
+              <ChevronRight size={16} />
+            </span>
+          </button>
+          <button type="button" className="cb-icon" aria-label="Next week" disabled={!canNext} onClick={() => p.onWeek(addDays(start, 7))}>
+            <ChevronRight size={16} />
+          </button>
+        </span>
+      </div>
+      <div className="cb-wk" aria-busy={p.loading || undefined}>
+        {week.map((d) => {
+          const list = p.days.get(d) ?? [];
+          return (
+            <div key={d} className="cb-wcol" role="group" aria-label={dayLong(d)}>
+              <span className={`cb-wday ${d === p.today ? "cb-wtoday" : ""}`}>
+                <span>{fmt({ weekday: "short", timeZone: "UTC" }).format(Date.parse(`${d}T12:00:00Z`))}</span>
+                <b>{Number(d.slice(8))}</b>
+              </span>
+              {list.map((s) => (
+                <button key={s.start} type="button" className={`cb-wt ${p.time === s.start ? "cb-on" : ""} ${p.busyAt(s.start) ? "cb-busy" : ""}`} aria-pressed={p.time === s.start} aria-description={p.busyAt(s.start) ? "You're busy" : undefined} onClick={() => p.onPick(d, s.start)}>
+                  {timeIn(s.start, p.tz, p.hour12)}
+                </button>
+              ))}
+            </div>
+          );
+        })}
+      </div>
+      {empty ? (
+        <div className="cb-empty">
+          <span className="cb-muted">No times this week</span>
+          {nextOpen ? (
+            <button type="button" className="cb-btn cb-ghost" onClick={() => p.onWeek(nextOpen)}>
+              Next open week <ChevronRight size={15} />
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -606,12 +944,16 @@ function Details(p: {
   turnstileKey?: string | null;
   preview: boolean;
   onBack: () => void;
+  /** Answers already known (a form fill), filled in. */
+  known?: Record<string, string>;
+  /** Why a one-click booking didn't go through, shown on arrival. */
+  firstError?: { error: string; field?: string } | null;
   submit: (g: GuestForm) => Promise<{ ok: true } | { ok: false; error: string; field?: string }>;
 }) {
   const [name, setName] = useState(p.prefill?.name ?? "");
   const [email, setEmail] = useState(p.prefill?.email ?? "");
-  const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [err, setErr] = useState<{ error: string; field?: string } | null>(null);
+  const [answers, setAnswers] = useState<Record<string, string>>(() => ({ ...(p.known ?? {}) }));
+  const [err, setErr] = useState<{ error: string; field?: string } | null>(p.firstError ?? null);
   const [busy, setBusy] = useState(false);
   const [tsMount, tsToken] = useTurnstile(p.preview ? null : p.turnstileKey);
   const set = (id: string, v: string) => setAnswers((a) => ({ ...a, [id]: v }));
@@ -797,6 +1139,14 @@ function Done({ type, reply, tz, hour12, email, preview }: { type: GuestType; re
   const join = type.location.detail && /^https:\/\/\S+$/.test(type.location.detail) ? type.location.detail : null;
   const video = type.location.kind === "google_meet" || type.location.kind === "zoom" || type.location.kind === "teams" || type.location.kind === "webex" || type.location.kind === "whereby";
   const manage = (to: "move" | "cancel") => (preview ? "#" : `${reply.manage}${reply.manage.includes("?") ? "&" : "?"}do=${to}`);
+  // The hosts' zones come from the page's type (the booking's reply names the hosts).
+  const zoned = hosts.map((h) => ({ ...h, tz: h.tz ?? type.hosts.find((x) => x.name === h.name)?.tz }));
+  const theirs = hostClock(zoned, reply.start, tz, hour12);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
   return (
     <div className="cb-done cb-step" role="status">
       {hosts.length ? (
@@ -817,6 +1167,9 @@ function Done({ type, reply, tz, hour12, email, preview }: { type: GuestType; re
         You&apos;re booked
         {email && <span className="cb-gray">The invite is on its way to {email}</span>}
       </h1>
+      <span className="cb-tag cb-ok" data-cb-countdown="" suppressHydrationWarning>
+        <Clock size={13} /> {startsIn(reply.start, now)}
+      </span>
       {reply.confirmation.kind === "message" && reply.confirmation.text ? <p className="cb-muted" style={{ margin: 0, whiteSpace: "pre-line", maxWidth: 460 }}>{reply.confirmation.text}</p> : null}
       <div className="cb-sum">
         <div style={{ fontWeight: 600 }}>{type.name}</div>
@@ -830,6 +1183,7 @@ function Done({ type, reply, tz, hour12, email, preview }: { type: GuestType; re
           <Clock size={16} />
           <span>
             {timeIn(reply.start, tz, hour12)} to {timeIn(reply.end, tz, hour12)}, {whenLong(reply.start, tz)}
+            {theirs ? <span className="cb-small" style={{ display: "block" }}>{theirs}</span> : null}
           </span>
         </div>
         <div className="cb-row cb-muted">
@@ -848,6 +1202,19 @@ function Done({ type, reply, tz, hour12, email, preview }: { type: GuestType; re
           <span className="cb-small cb-muted">The join link is in your invite.</span>
         ) : null}
       </div>
+      {type.prep?.length ? (
+        <div className="cb-host cb-prep" data-cb-prep="">
+          <span className="cb-eyebrow">Before the call</span>
+          <ul className="cb-agenda">
+            {type.prep.map((x, i) => (
+              <li key={i}>
+                <Check size={14} />
+                <span>{x}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       <div className="cb-add">
         <span className="cb-eyebrow">Add to calendar</span>
         <div className="cb-chips">

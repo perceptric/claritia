@@ -38,3 +38,14 @@ export function calendarLinks(o: { title: string; start: number; end: number; de
   const m = new URLSearchParams({ path: "/calendar/action/compose", rru: "addevent", subject: o.title, startdt: new Date(o.start).toISOString(), enddt: new Date(o.end).toISOString(), body: o.details ?? "" });
   return { google: `https://calendar.google.com/calendar/render?${g}`, outlook: `https://outlook.live.com/calendar/0/deeplink/compose?${m}` };
 }
+
+/** How long until a meeting starts, for the confirmed screen: "Starts in 45 minutes", "in 3 hours", "in 2 days". */
+export function startsIn(start: number, now: number): string {
+  const min = Math.round((start - now) / 60_000);
+  if (min <= 0) return "Starting now";
+  if (min < 60) return `Starts in ${min} ${min === 1 ? "minute" : "minutes"}`;
+  const h = Math.round(min / 60);
+  if (min < 36 * 60) return `Starts in ${h} ${h === 1 ? "hour" : "hours"}`;
+  const d = Math.round(min / 1440);
+  return `Starts in ${d} days`;
+}

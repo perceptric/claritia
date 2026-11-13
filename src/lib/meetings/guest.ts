@@ -6,8 +6,9 @@ import { addDays, at, dateIn, validZone } from "./time.ts";
 import type { Location, MeetingType, TypeSettings } from "./types.ts";
 import { checkAnswer } from "./questions.ts";
 
-export type Profile = { user_id: string; slug: string; name: string; headline: string | null; photo_url: string | null };
-export type GuestHost = { name: string; photo: string | null; slug?: string };
+export type Profile = { user_id: string; slug: string; name: string; headline: string | null; photo_url: string | null; tz?: string | null };
+/** A host as guests see them; `tz` gives the guest a second clock, `headline` the line under the name. */
+export type GuestHost = { name: string; photo: string | null; slug?: string; tz?: string; headline?: string };
 export type GuestLocation = { kind: Location["kind"]; detail?: string };
 export type Question = TypeSettings["questions"][number];
 
@@ -16,6 +17,10 @@ export type GuestType = {
   name: string;
   /** The meeting's own words, shown under its name. */
   description: string | null;
+  /** "What we'll cover" lines, under the description. */
+  agenda?: string[];
+  /** "Before the call" lines, on the confirmed screen. */
+  prep?: string[];
   kind: MeetingType["kind"];
   lengths: number[];
   location: GuestLocation;
@@ -51,13 +56,15 @@ export function toGuestType(t: Pick<MeetingType, "slug" | "name" | "kind" | "hos
     slug: t.slug,
     name: t.name,
     description: s.description?.trim() || null,
+    ...(s.agenda?.length ? { agenda: s.agenda.map((x) => x.trim()).filter(Boolean).slice(0, 8) } : {}),
+    ...(s.prep?.length ? { prep: s.prep.map((x) => x.trim()).filter(Boolean).slice(0, 8) } : {}),
     kind: t.kind,
     lengths: [...s.lengths].sort((a, b) => a - b),
     location: guestLocation(s.location),
     questions: (s.questions ?? []).filter((q) => q.label.trim()),
     price,
     seats: t.kind === "group" ? Math.max(1, s.seats) : null,
-    hosts: (t.kind === "group" || t.kind === "one" ? hosts.slice(0, 1) : hosts).map((p) => ({ name: p.name, photo: p.photo_url, slug: p.slug })),
+    hosts: (t.kind === "group" || t.kind === "one" ? hosts.slice(0, 1) : hosts).map((p) => ({ name: p.name, photo: p.photo_url, slug: p.slug, ...(p.tz && validZone(p.tz) ? { tz: p.tz } : {}), ...(p.headline?.trim() ? { headline: p.headline.trim().slice(0, 120) } : {}) })),
   };
 }
 

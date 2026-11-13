@@ -39,6 +39,15 @@ export function zoneName(z: string, now = Date.now()): string {
   }
 }
 
+/** The button's words: the city and its time now, in full ("Ho Chi Minh, 4:41 PM"). */
+export function zoneShort(z: string, hour12: boolean, now = Date.now()): string {
+  try {
+    return `${city(z)}, ${new Intl.DateTimeFormat(undefined, { timeZone: z, hour: "numeric", minute: "2-digit", hour12 }).format(now)}`;
+  } catch {
+    return city(z);
+  }
+}
+
 export function ZonePicker({ value, onChange, hour12 }: { value: string; onChange: (z: string) => void; hour12: boolean }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -80,7 +89,7 @@ export function ZonePicker({ value, onChange, hour12 }: { value: string; onChang
           setOpen((o) => !o);
         }}>
         <Globe size={15} />
-        <span suppressHydrationWarning>{zoneName(value)}</span>
+        <span suppressHydrationWarning title={zoneName(value)}>{zoneShort(value, hour12)}</span>
       </button>
       {open && (
         <div className="cb-menu" role="dialog" aria-label="Time zone">

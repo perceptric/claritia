@@ -345,6 +345,26 @@ export function TypePanel({
             onChange={(e) => setS("description", e.target.value || undefined)}
             className="w-full resize-y rounded-md bg-card shadow-input px-2.5 py-2 text-[13px] leading-[1.5] text-ink outline-none placeholder:text-faint focus:shadow-focus"
           />
+          <Labeled label="What we'll cover">
+            <textarea
+              aria-label="What we'll cover"
+              value={(s.agenda ?? []).join("\n")}
+              rows={3}
+              placeholder={"Your goals\nA quick tour\nNext steps"}
+              onChange={(e) => setS("agenda", e.target.value ? e.target.value.split("\n").slice(0, 8) : undefined)}
+              className="w-full resize-y rounded-md bg-card shadow-input px-2.5 py-2 text-[13px] leading-[1.5] text-ink outline-none placeholder:text-faint focus:shadow-focus"
+            />
+          </Labeled>
+          <Labeled label="Before the call">
+            <textarea
+              aria-label="Before the call"
+              value={(s.prep ?? []).join("\n")}
+              rows={2}
+              placeholder={"Bring your numbers\nInvite your team"}
+              onChange={(e) => setS("prep", e.target.value ? e.target.value.split("\n").slice(0, 8) : undefined)}
+              className="w-full resize-y rounded-md bg-card shadow-input px-2.5 py-2 text-[13px] leading-[1.5] text-ink outline-none placeholder:text-faint focus:shadow-focus"
+            />
+          </Labeled>
         </PanelSection>
 
         <PanelSection icon={<Clock />} title="Duration" summary={lengthWords(s.lengths)} open={open === "len"} onToggle={() => toggle("len")} locked={isLocked("lengths")}>

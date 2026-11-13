@@ -91,6 +91,10 @@ export type TypeSettings = {
    * calendar event and the invite, and in the confirmation email. Plain text, line breaks kept, 2,000 characters.
    */
   description?: string;
+  /** "What we'll cover": short lines on the booking page under the description (at most 8). */
+  agenda?: string[];
+  /** "Before the call": short lines on the confirmed screen (at most 8). */
+  prep?: string[];
   /** Paid types: amount in the smallest unit (cents) and the currency; refunded when the host cancels. */
   /** provider: who takes the payment; Stripe when left out (Next step 12 adds PayPal and Square). */
   price?: { amount: number; currency: string; provider?: "paypal" | "square" };
