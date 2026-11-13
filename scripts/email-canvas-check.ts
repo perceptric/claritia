@@ -134,7 +134,7 @@ try {
   await p.mouse.click(pick0.x + 40, pick0.y + 80);
   const tb = p.locator("[aria-label='Email actions']");
   check(await tb.isVisible(), "a click picks the email and shows the toolbar");
-  check((await tb.textContent())?.includes("Open") && (await tb.textContent())?.includes("Send") ? true : false, "a draft's toolbar has Open, Test and Send");
+  check((await tb.textContent())?.includes("Add to chat") && (await tb.textContent())?.includes("Test") && (await tb.textContent())?.includes("Send") ? true : false, "a draft's toolbar has Add to chat, Test and Send");
   const tbb = (await tb.boundingBox())!;
   check(tbb.y + tbb.height <= pick0.y && tbb.x < pick0.x + pick0.width && tbb.x + tbb.width > pick0.x, "the toolbar sits above the picked email");
   if (shots) await p.screenshot({ path: `${shots}/2-picked.png` });
@@ -149,11 +149,14 @@ try {
   await p.keyboard.press("ArrowRight");
   await p.keyboard.press("Enter");
   check((await p.locator("[data-canvas-tag='pick']").textContent()) === "Section", "Enter steps into the picked email's first section");
+  const zoomBefore = await zoom();
   await p.locator("[data-canvas-item]").filter({ hasText: "Class reminder" }).first().dblclick();
-  const nav = (await calls()).find((c) => c.mode === "navigate");
+  await p.waitForTimeout(450);
   const ids = await p.evaluate(() => (window as unknown as { db: { emails: { id: string; group_position: number; group_id: string | null }[] } }).db.emails.filter((e) => e.group_id).sort((a, b) => a.group_position - b.group_position).map((e) => e.id));
-  check(nav?.body.i === `campaigns/${ids[1]}` && String(nav?.body.q).startsWith("back="), "arrows step through the emails and a double-click on the name opens it, with the way back");
+  check((await zoom()) !== zoomBefore && !(await calls()).some((c) => c.mode === "navigate"), "a double-click on an email's name zooms to it (campaign drafts are edited here)");
   await clear();
+  await p.keyboard.press("Shift+Digit1");
+  await settle();
 
   // 6. Drag to reorder: Escape cancels; a drop saves the order
   await p.keyboard.press("Escape");
@@ -627,6 +630,14 @@ try {
 
   {
   // B4 ----------------------------------------------------------------------------------------------------------------
+  // Each new page starts fresh: the canvas remembers its view and left panel on this computer.
+  await ctx.addInitScript(() => {
+    try {
+      for (const k of Object.keys(localStorage)) if (k.startsWith("claritia:canvas")) localStorage.removeItem(k);
+    } catch {
+      /* no storage */
+    }
+  });
   type W4 = { calls: Call[]; failNext: unknown; db: { emails: { id: string; name: string; status: string; doc: Doc }[] } };
   const g = await ctx.newPage();
   g.on("pageerror", (e) => errors.push(e.message));
@@ -1083,7 +1094,7 @@ try {
   await ad.mouse.click(b55.x + 30, b55.y + b55.h / 2, { button: "right" });
   await ad.waitForTimeout(150);
   const menu55 = ad.getByRole("menu");
-  check((await menu55.getByRole("menuitem").allTextContents()).join("|").startsWith("Copy⌘C|Cut⌘X|Paste⌘V|Duplicate⌘D|Delete⌫"), "right-click opens the menu with Copy, Cut, Paste, Duplicate, Delete");
+  check((await menu55.getByRole("menuitem").allTextContents()).join("|").startsWith("Add to chat⌘L|CommentC|Copy⌘C|Cut⌘X|Paste⌘V|Duplicate⌘D|Delete⌫"), "right-click opens the menu with Add to chat, Comment, Copy, Cut, Paste, Duplicate, Delete");
   await menu55.getByRole("menuitem", { name: /Delete/ }).click();
   await ad.waitForTimeout(1100);
   check(!ids(await adoc("Welcome")).includes(del55), "the menu's Delete removes it");
@@ -1128,6 +1139,241 @@ try {
   const sheet58 = (await pp.locator("aside[aria-label='Add']").boundingBox())!;
   check(sheet58.y > 300 && Math.abs(sheet58.width - 390) < 2, "on a phone the add panel is a sheet from the bottom");
   await ph.close();
+  // B5 ----------------------------------------------------------------------------------------------------------------
+  // 60. Add to chat on a heading, ask: only that heading changes; the email locks while Tia writes
+  const ti = await ctx.newPage();
+  ti.on("pageerror", (e) => errors.push(e.message));
+  await openCanvas(ti);
+  await ti.evaluate(() => ((window as unknown as { chatDelay: number }).chatDelay = 700));
+  const tdoc5 = (name: string) => ti.evaluate((n) => (window as unknown as W4).db.emails.find((e) => e.name === n)!.doc, name);
+  const tcalls5 = () => ti.evaluate(() => (window as unknown as W4).calls);
+  const tbox5 = (i: number, id: string) =>
+    ti.evaluate(
+      ([i, id]) => {
+        const f = document.querySelectorAll<HTMLIFrameElement>("[data-email] iframe")[i as number]!;
+        const el = f.contentDocument!.querySelector<HTMLElement>(`[data-eid="${id}"]`)!;
+        const fr = f.getBoundingClientRect();
+        const z = fr.width / f.offsetWidth;
+        const b = el.getBoundingClientRect();
+        return { x: fr.left + b.left * z, y: fr.top + b.top * z, w: b.width * z, h: b.height * z };
+      },
+      [i, id] as const,
+    );
+  const frameText = (i: number, id: string) => ti.evaluate(([i, id]) => document.querySelectorAll<HTMLIFrameElement>("[data-email] iframe")[i as number]!.contentDocument!.querySelector(`[data-eid="${id}"]`)?.textContent ?? "", [i, id] as const);
+  const w60 = await tdoc5("Welcome");
+  const head60 = w60.sections[1]!.columns[0]!.blocks[1]!.id;
+  const text60 = w60.sections[1]!.columns[0]!.blocks[2]!.id;
+  const before60 = await frameText(0, text60);
+  const hb60 = await tbox5(0, head60);
+  await ti.mouse.click(hb60.x + 30, hb60.y + hb60.h / 2);
+  await ti.keyboard.press("Control+l");
+  await ti.waitForTimeout(150);
+  const chipText = (await ti.locator("[aria-label='Added to chat']").textContent()) ?? "";
+  check((await ti.locator("aside[aria-label='Tia']").isVisible()) && chipText.includes("Welcome › Heading"), `⌘L adds the heading to the chat (${chipText})`);
+  await ti.locator("aside[aria-label='Tia'] textarea").fill("Make it shorter");
+  await ti.keyboard.press("Enter");
+  await ti.waitForTimeout(250);
+  check((await ti.locator("[data-tia-writing]").count()) === 1 && (await ti.locator("aside[aria-label='Element']").textContent())!.includes("Tia is changing this email"), "while Tia writes, the email shows it and its panel is read-only");
+  await ti.waitForTimeout(900);
+  const sent60 = (await tcalls5()).find((c) => c.mode === "chat")?.body as { scope?: { kind: string; ids?: string[] } } | undefined;
+  check(sent60?.scope?.kind === "parts" && sent60.scope.ids?.[0] === head60, "the turn is scoped to the heading");
+  check((await frameText(0, head60)) === "Tia's words" && (await frameText(0, text60)) === before60, "only the heading changed");
+  check((await ti.locator("aside[aria-label='Tia'] button").filter({ hasText: "Changed the heading" }).count()) === 1, "Tia's reply lists the change by email");
+  if (shots) await ti.screenshot({ path: `${shots}/15-b5-tia.png` });
+
+  // 61. A 2-email turn: both lock, both change, one ⌘Z takes back both
+  await ti.locator("aside[aria-label='Tia'] [aria-label^='Remove']").click();
+  await ti.keyboard.press("Escape");
+  await ti.keyboard.press("Escape");
+  const boardName = async (name: string) => (await ti.locator("[data-canvas-item]").filter({ hasText: name }).first().boundingBox())!;
+  for (const name of ["Welcome", "Class reminder"]) {
+    const nb = await boardName(name);
+    await ti.mouse.click(nb.x + 10, nb.y + nb.height / 2);
+    await ti.getByRole("toolbar", { name: "Email actions" }).getByRole("button", { name: /Add to chat/ }).click();
+  }
+  await ti.locator("aside[aria-label='Tia'] textarea").fill("Make the headline warmer");
+  await ti.keyboard.press("Enter");
+  await ti.waitForTimeout(300);
+  const locked61 = await ti.locator("[data-tia-writing]").count();
+  await ti.waitForTimeout(1300);
+  const r61 = await tdoc5("Class reminder");
+  const firstHeading = (d: Doc) => (d.sections.flatMap((x) => x.columns.flatMap((c) => c.blocks)) as unknown as { type: string; text?: string }[]).find((b) => b.type === "heading")?.text;
+  check(locked61 === 2 && firstHeading(r61) === "Tia's words" && firstHeading(await tdoc5("Welcome")) === "Tia's words", `a 2-email turn locks both (${locked61}) and changes both`);
+  await ti.locator("[role='application']").focus();
+  await ti.keyboard.press("Control+z");
+  await ti.waitForTimeout(1300);
+  check(firstHeading(await tdoc5("Class reminder")) !== "Tia's words", "one ⌘Z takes back Tia's turn in both emails");
+
+  // 62. A brand-wide ask: the question with choices; the choice goes back with the yes
+  await ti.locator("aside[aria-label='Tia'] textarea").fill("Bigger headings everywhere");
+  await ti.keyboard.press("Enter");
+  await ti.waitForTimeout(1200);
+  const askCard = ti.locator("aside[aria-label='Tia']").getByRole("button", { name: "Yes, every email" });
+  check(await askCard.isVisible(), "Tia's question comes with its choices");
+  await askCard.click();
+  await ti.waitForTimeout(1200);
+  const lastChat = [...(await tcalls5())].reverse().find((c) => c.mode === "chat")?.body as { confirmed?: boolean } | undefined;
+  check(lastChat?.confirmed === true, "a choice goes back with the person's yes");
+
+  // 63. Many emails from one prompt: a plan card, placeholders, drafts in order; one fails and Try again fills it
+  while ((await ti.locator("aside[aria-label='Tia'] [aria-label^='Remove']").count()) > 0) await ti.locator("aside[aria-label='Tia'] [aria-label^='Remove']").first().click();
+  await ti.locator("[role='application']").focus();
+  await ti.keyboard.press("Escape");
+  await ti.keyboard.press("Escape");
+  await ti.locator("aside[aria-label='Tia'] textarea").fill("Write a 3-email welcome series");
+  await ti.keyboard.press("Enter");
+  await ti.waitForTimeout(800);
+  check((await ti.locator("[data-plan] li").count()) === 3, "with nothing picked, Tia answers with a plan of 3 emails");
+  await ti.evaluate(() => ((window as unknown as { failSeries: number }).failSeries = 1));
+  await ti.locator("[data-plan]").getByRole("button", { name: "Write them" }).click();
+  await ti.waitForTimeout(150);
+  const ph63 = await ti.locator("[data-writing]").count();
+  await ti.waitForTimeout(1800);
+  const failed63 = ti.locator("[data-writing='failed']");
+  check(ph63 === 3 && (await failed63.count()) === 1, `three placeholders show while writing (${ph63}); the failed one stays with Try again`);
+  await failed63.getByRole("button", { name: "Try again" }).click();
+  await ti.waitForTimeout(1500);
+  const order63 = await ti.evaluate(() => (window as unknown as { db: { emails: { name: string; group_id: string | null; group_position: number }[] } }).db.emails.filter((e) => e.group_id).sort((a, b) => a.group_position - b.group_position).map((e) => e.name));
+  check(order63.slice(-3).join(",") === "Series email 1,Series email 2,Series email 3" && (await ti.locator("[data-writing]").count()) === 0, `the new drafts land in the group in the planned order (${order63.join(", ")})`);
+  if (shots) await ti.screenshot({ path: `${shots}/16-b5-series.png` });
+  await ti.close();
+  // 64. A hand edit, then picking another email, saves an "Edited" version
+  const vp = await ctx.newPage();
+  vp.on("pageerror", (e) => errors.push(e.message));
+  await openCanvas(vp);
+  type W5 = W4 & { db: W4["db"] & { email_versions: { ref: string; note: string; doc: Doc }[]; email_comments: unknown[] } };
+  const vdb = () => vp.evaluate(() => (window as unknown as W5).db);
+  const vText = (i: number, id: string) => vp.evaluate(([i, id]) => document.querySelectorAll<HTMLIFrameElement>("[data-email] iframe")[i as number]!.contentDocument!.querySelector(`[data-eid="${id}"]`)?.textContent ?? "", [i, id] as const);
+  const vBox = (i: number, id: string) =>
+    vp.evaluate(
+      ([i, id]) => {
+        const f = document.querySelectorAll<HTMLIFrameElement>("[data-email] iframe")[i as number]!;
+        const el = f.contentDocument!.querySelector<HTMLElement>(`[data-eid="${id}"]`)!;
+        const fr = f.getBoundingClientRect();
+        const z = fr.width / f.offsetWidth;
+        const b = el.getBoundingClientRect();
+        return { x: fr.left + b.left * z, y: fr.top + b.top * z, w: b.width * z, h: b.height * z };
+      },
+      [i, id] as const,
+    );
+  const welcomeV = (await vdb()).emails.find((e) => e.name === "Welcome")!;
+  const hv = welcomeV.doc.sections[1]!.columns[0]!.blocks[1]!.id;
+  const hb64 = await vBox(0, hv);
+  await vp.mouse.click(hb64.x + 30, hb64.y + hb64.h / 2);
+  await vp.keyboard.press("Enter");
+  await vp.keyboard.press("Control+a");
+  await vp.keyboard.type("First edit");
+  await vp.keyboard.press("Escape");
+  await vp.waitForTimeout(1100);
+  const other64 = (await vp.locator("[data-canvas-item]").filter({ hasText: "Class reminder" }).first().boundingBox())!;
+  await vp.mouse.click(other64.x + 10, other64.y + other64.height / 2);
+  await vp.waitForTimeout(1200);
+  const vs64 = (await vdb()).email_versions.filter((v) => v.ref === `em:${welcomeV.id}`);
+  check(vs64.length === 1 && vs64[0]!.note === "Edited" && JSON.stringify(vs64[0]!.doc).includes("First edit"), `a hand edit saves an "Edited" version when the pick leaves (${vs64.length})`);
+
+  // 65. The version pill: hover shows it, Restore brings it back as one step, Back to latest
+  const hb2 = await vBox(0, hv);
+  await vp.mouse.click(hb2.x + 30, hb2.y + hb2.h / 2);
+  await vp.keyboard.press("Enter");
+  await vp.keyboard.press("Control+a");
+  await vp.keyboard.type("Second edit");
+  await vp.keyboard.press("Escape");
+  await vp.waitForTimeout(1100);
+  // Leaving it saves "Second edit" as a version too.
+  await vp.mouse.click(other64.x + 10, other64.y + other64.height / 2);
+  await vp.waitForTimeout(1200);
+  const pill = vp.locator("[data-version-pill]").first();
+  check((await pill.textContent()) === "Latest", "the pill says Latest");
+  await pill.click();
+  const item = vp.getByRole("menu", { name: "Versions" }).getByRole("menuitem").last();
+  await item.hover();
+  await vp.waitForTimeout(200);
+  check((await vText(0, hv)) === "First edit", "hovering a version shows it on the artboard");
+  await item.click();
+  await vp.waitForTimeout(200);
+  check(await vp.locator("[data-version-bar]").isVisible(), "picking a version keeps it showing, with Restore and Back to latest");
+  await vp.locator("[data-version-bar]").getByRole("button", { name: "Back to latest" }).click();
+  await vp.waitForTimeout(200);
+  check((await vText(0, hv)) === "Second edit", "Back to latest shows the latest again");
+  await pill.click();
+  await vp.getByRole("menu", { name: "Versions" }).getByRole("menuitem").last().click();
+  await vp.locator("[data-version-bar]").getByRole("button", { name: "Restore" }).click();
+  await vp.waitForTimeout(1500);
+  const db65 = await vdb();
+  const restored = db65.emails.find((e) => e.id === welcomeV.id)!;
+  check(JSON.stringify(restored.doc).includes("First edit") && db65.email_versions.some((v) => v.ref === `em:${welcomeV.id}` && v.note.startsWith("Restored from")), "Restore brings the version back, saves it, and notes it");
+  await vp.locator("[role='application']").focus();
+  await vp.keyboard.press("Control+z");
+  await vp.waitForTimeout(400);
+  check((await vText(0, hv)) === "Second edit", "Restore is one undo step");
+
+  // 66. Comments: C and a click; the pin; a reply; Resolve hides it; Show resolved; Delete asks first
+  await vp.keyboard.press("c");
+  const tb66 = await vBox(0, welcomeV.doc.sections[1]!.columns[0]!.blocks[2]!.id);
+  await vp.mouse.click(tb66.x + 30, tb66.y + tb66.h / 2);
+  await vp.waitForTimeout(150);
+  await vp.locator("[data-comment-composer] textarea").fill("Shorter?");
+  await vp.locator("[data-comment-composer]").getByRole("button", { name: "Comment" }).click();
+  await vp.waitForTimeout(400);
+  check((await vp.locator("[data-comment-pin]").count()) === 1, "C then a click leaves a comment with a pin");
+  await vp.locator("[data-comment-pin]").click();
+  await vp.locator("[data-comment-thread] textarea").fill("Agreed");
+  await vp.locator("[data-comment-thread]").getByRole("button", { name: "Reply" }).click();
+  await vp.waitForTimeout(400);
+  check((await vp.locator("[data-comment-pin]").textContent()) === "2" && (await vp.locator("[data-comment-thread]").textContent())!.includes("Agreed"), "a reply joins the thread");
+  await vp.locator("[data-comment-thread]").getByRole("button", { name: "Resolve" }).click();
+  await vp.waitForTimeout(400);
+  check((await vp.locator("[data-comment-pin]").count()) === 0, "Resolve hides the thread");
+  const nb66 = (await vp.locator("[data-canvas-item]").filter({ hasText: "Welcome" }).first().boundingBox())!;
+  await vp.mouse.click(nb66.x + 10, nb66.y + nb66.height / 2);
+  await vp.getByRole("toolbar", { name: "Email actions" }).getByRole("button", { name: "More" }).click();
+  await vp.getByRole("menuitem", { name: "Show resolved comments" }).click();
+  await vp.waitForTimeout(300);
+  check((await vp.locator("[data-comment-pin]").count()) === 1, "Show resolved brings it back");
+  await vp.locator("[data-comment-pin]").click();
+  await vp.locator("[data-comment-thread]").getByRole("button", { name: "Delete" }).first().click();
+  check(await vp.getByRole("dialog").isVisible(), "Delete asks first");
+  await vp.getByRole("dialog").getByRole("button", { name: "Delete" }).click();
+  await vp.waitForTimeout(400);
+  check((await vp.locator("[data-comment-pin]").count()) === 0 && (await vdb()).email_comments.length === 0, "deleting the first comment takes the thread");
+  if (shots) await vp.screenshot({ path: `${shots}/17-b5-versions.png` });
+  await vp.close();
+  // 67. Check: the count and the list; a note picks its part
+  const ck = await ctx.newPage();
+  ck.on("pageerror", (e) => errors.push(e.message));
+  await openCanvas(ck);
+  const ckName = (await ck.locator("[data-canvas-item]").filter({ hasText: "Welcome" }).first().boundingBox())!;
+  await ck.mouse.click(ckName.x + 10, ckName.y + ckName.height / 2);
+  const checkBtn = ck.getByRole("toolbar", { name: "Email actions" }).getByRole("button", { name: /^Check/ });
+  const before67 = (await checkBtn.getAttribute("aria-label")) ?? "";
+  await ck.getByRole("button", { name: "Add a block" }).click();
+  await ck.locator("aside[aria-label='Add'] [data-add='image']").click();
+  await ck.waitForTimeout(300);
+  await ck.keyboard.press("Escape");
+  const nb67 = (await ck.locator("[data-canvas-item]").filter({ hasText: "Welcome" }).first().boundingBox())!;
+  await ck.mouse.click(nb67.x + 10, nb67.y + nb67.height / 2);
+  await ck.waitForTimeout(200);
+  const after67 = (await checkBtn.getAttribute("aria-label")) ?? "";
+  const fixes = (l: string) => Number(/(\d+) to fix/.exec(l)?.[1] ?? 0);
+  check(fixes(after67) === fixes(before67) + 1, `Check counts what to fix (${before67} → ${after67})`);
+  await checkBtn.click();
+  await ck.getByRole("menuitem", { name: "An image has no picture yet." }).last().click();
+  await ck.waitForTimeout(150);
+  check((await ck.locator("[data-canvas-tag='pick']").textContent()) === "Image", "a note in Check picks its part");
+
+  // 68. Light and Dark: the picked email shows as dark-mode mail apps show it
+  const bg = () => ck.evaluate(() => {
+    const f = document.querySelectorAll<HTMLIFrameElement>("[data-email] iframe")[0]!;
+    const t = f.contentDocument!.querySelector("[data-eid='email']") as HTMLElement;
+    return getComputedStyle(t).backgroundColor;
+  });
+  const light = await bg();
+  await ck.getByRole("toolbar", { name: "Email actions" }).getByRole("button", { name: "Dark" }).click();
+  await ck.waitForTimeout(300);
+  const dark = await bg();
+  check(light !== dark && (await ck.getByRole("toolbar", { name: "Email actions" }).getByRole("button", { name: "Light" }).getAttribute("aria-pressed")) === "true", `Dark shows the email in dark mode (${light} → ${dark})`);
+  if (shots) await ck.screenshot({ path: `${shots}/18-b5-check.png` });
+  await ck.close();
   }
 
   // 12. A row of 60 emails: only those near the view load

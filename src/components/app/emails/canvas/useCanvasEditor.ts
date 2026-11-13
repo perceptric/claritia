@@ -27,6 +27,8 @@ export type EmailDraft = {
   kit: Kit | null;
   tokens: Partial<Tokens>;
   readOnly: boolean;
+  /** Read-only because Tia is changing it (B5). */
+  locked: boolean;
   /** Changes the email (and its kit's styles). The same `merge` key within a second joins one undo step; a key
    * starting with "~" (a typing run) joins however long the pauses are. */
   apply: (next: Partial<EmailEdit> & { subject?: string }, merge?: string, label?: string) => void;
@@ -47,7 +49,7 @@ export type EmailDraft = {
 
 type EmailState = { id: string; doc: EmailDoc; subject: string; name: string; readOnly: boolean; savedDoc: EmailDoc; savedSubject: string };
 type KitState = { id: string; system: DesignSystem; rev: number; live: DesignSystem };
-type Store = { emails: Record<string, EmailState>; kits: Record<string, KitState>; hist: History; failed: Record<string, { name: string; message: string }> };
+type Store = { emails: Record<string, EmailState>; kits: Record<string, KitState>; hist: History; failed: Record<string, { name: string; message: string }>; locked: string[] };
 export type Change = { emails?: Record<string, { doc?: EmailDoc; subject?: string }>; kits?: Record<string, DesignSystem> };
 export type HistoryResult = { ids: string[]; label: string } | null;
 type RpcResult = { error: { message: string; code?: string } | null; status?: number };
@@ -76,7 +78,7 @@ const kitRead = (k: Kit) => {
 const hiccup = (r: RpcResult) => !r.status || r.status >= 500 || r.status === 429 || r.status === 408 || /timeout|network|fetch|unavailable/i.test(r.error?.message ?? "");
 
 export function useCanvasEditor({ sb, session, ws, rows, kits, onSaved, onNotice }: { sb: SupabaseClient; session: Session; ws: string; rows: CanvasRow[]; kits: Kit[]; onSaved?: (id: string, doc: EmailDoc, subject: string, name: string) => void; onNotice?: (text: string) => void }) {
-  const [store, setStore] = useState<Store>(() => ({ emails: {}, kits: {}, hist: emptyHistory(), failed: {} }));
+  const [store, setStore] = useState<Store>(() => ({ emails: {}, kits: {}, hist: emptyHistory(), failed: {}, locked: [] }));
   const [busy, setBusy] = useState(false);
   const s = useRef(store);
   const rowsRef = useRef(rows);
@@ -310,7 +312,7 @@ export function useCanvasEditor({ sb, session, ws, rows, kits, onSaved, onNotice
     const nextKits = { ...s.current.kits };
     for (const [id, n] of Object.entries(c.emails ?? {})) {
       const st = emailNow(id);
-      if (!st || st.readOnly) continue;
+      if (!st || st.readOnly || s.current.locked.includes(id)) continue;
       const after = { doc: n.doc ?? st.doc, subject: n.subject ?? st.subject };
       if (after.doc === st.doc && after.subject === st.subject) continue;
       emails[id] = { before: { doc: st.doc, subject: st.subject }, after };
@@ -340,7 +342,7 @@ export function useCanvasEditor({ sb, session, ws, rows, kits, onSaved, onNotice
     for (const [id, snap] of Object.entries(r.restore.emails)) {
       const st = emailNow(id);
       if (!st) continue;
-      if (st.readOnly) {
+      if (st.readOnly || s.current.locked.includes(id)) {
         skipped.push(st.name);
         continue;
       }
@@ -440,7 +442,8 @@ export function useCanvasEditor({ sb, session, ws, rows, kits, onSaved, onNotice
       system: state?.system ?? fallbackSystem,
       kit,
       tokens: tokensOf(kitId, kits),
-      readOnly: e?.readOnly ?? true,
+      readOnly: (e?.readOnly ?? true) || (!!id && store.locked.includes(id)),
+      locked: !!id && store.locked.includes(id),
       apply: (next, merge, label = "Change") => {
         if (!id) return;
         const cur = emailNow(id);
@@ -478,7 +481,10 @@ export function useCanvasEditor({ sb, session, ws, rows, kits, onSaved, onNotice
       const kitId = kitIdOf(doc, kitsRef.current);
       return { kitId, system: kitId ? (kitNow(kitId)?.system ?? fallbackSystem) : fallbackSystem, tokens: tokensOf(kitId, kitsRef.current) };
     },
-    readOnly: (id: string) => emailNow(id)?.readOnly ?? true,
+    readOnly: (id: string) => (emailNow(id)?.readOnly ?? true) || s.current.locked.includes(id),
+    /** Emails Tia is changing can't be edited meanwhile (docs/email-canvas-b5.md section 2.4). */
+    lock: (ids: string[], on: boolean) => commit((x) => ({ ...x, locked: on ? [...new Set([...x.locked, ...ids])] : x.locked.filter((y) => !ids.includes(y)) })),
+    locked: store.locked,
     nameOf: (id: string) => emailNow(id)?.name ?? "",
     change,
     undo,

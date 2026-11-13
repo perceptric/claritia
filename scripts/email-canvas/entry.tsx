@@ -28,9 +28,16 @@ const K2 = "aaaaaaaa-0000-4000-8000-000000000002";
 const LOGO = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='40'%3E%3Crect width='120' height='40' fill='%23888'/%3E%3C/svg%3E";
 const K1_DESIGN = { email: { globals: {}, classes: [{ id: "big1", name: "Big", styles: {} }], components: [{ id: "cmp1", name: "Footer block", stackOnPhone: true, columns: [{ id: "kcol1", width: 100, blocks: [{ id: "kblk1", type: "text", html: "<p>Thanks for reading.</p>" }] }] }] } };
 const K2_DESIGN = { email: { globals: {}, classes: [{ id: "kid1", name: "Playful", styles: {} }] } };
+// "Welcome" has a dark-mode background, so the canvas's Dark switch shows a difference (B5e).
+const withDark = (r: Row): Row => {
+  const d = r.doc as { styles?: Record<string, Record<string, unknown>> };
+  return { ...r, doc: { ...d, styles: { ...(d.styles ?? {}), email: { ...(d.styles?.email ?? {}), content: { ...((d.styles?.email?.content as object) ?? {}), "base:dark": { "background-color": "#1f1f1f" } } } } } };
+};
 const db: Record<string, Row[]> = {
   email_groups: [{ id: G, workspace_id: "ws1", name: "Welcome series", created_at: new Date(now - 86400000).toISOString() }, { id: "22222222-2222-4222-8222-222222222222", workspace_id: "ws1", name: "Holiday promo", created_at: new Date(now).toISOString() }],
-  emails: [email("Welcome", 0, G, 0), email("Class reminder", 3, G, 1), { ...email("Monthly news", 6, G, 2), doc: { ...EMAIL_TEMPLATES[6]!.make(), kitId: K2 } }, email("Spring workshop", 9, null, 0)],
+  emails: [withDark(email("Welcome", 0, G, 0)), email("Class reminder", 3, G, 1), { ...email("Monthly news", 6, G, 2), doc: { ...EMAIL_TEMPLATES[6]!.make(), kitId: K2 } }, email("Spring workshop", 9, null, 0)],
+  email_versions: [],
+  email_comments: [],
   brand_kits: [{ id: K1, workspace_id: "ws1", name: "Juniper", design: K1_DESIGN, design_live: K1_DESIGN, tokens: {}, logo_url: LOGO, design_rev: 0, created_at: new Date(now - 86400000).toISOString() },
     { id: K2, workspace_id: "ws1", name: "Juniper Kids", tokens: {}, logo_url: LOGO, design: K2_DESIGN, design_live: K2_DESIGN, design_rev: 0, created_at: new Date(now - 3600000).toISOString() }],
 };
@@ -47,6 +54,32 @@ window.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     calls.push({ mode: "design_save", body });
     return new Response(JSON.stringify({ rev: k.design_rev }), { status: 200, headers: { "content-type": "application/json" } });
   }
+  // B5: Tia's stand-in. A turn rewrites the first heading in its scope (or the email); "everywhere" asks first. A plan
+  // is 3 emails; a build is a template with the planned subject. window.failSeries makes one build fail once.
+  if (String(input).includes("/api/email/chat")) {
+    const body = JSON.parse(String(init?.body ?? "{}")) as { doc: { sections: { columns: { blocks: { id: string; type: string; text?: string }[] }[] }[] }; subject: string; message: string; scope?: { kind: string; ids?: string[] }; confirmed?: boolean };
+    calls.push({ mode: "chat", body });
+    await new Promise((r) => setTimeout(r, Number((window as unknown as { chatDelay?: number }).chatDelay ?? 400)));
+    if (/everywhere/.test(body.message) && !body.confirmed)
+      return new Response(JSON.stringify({ doc: body.doc, system: null, subject: body.subject, reply: "", lines: [], ask: { question: "This changes every email on the brand. Go ahead?", choices: ["Yes, every email", "Only this one"] } }), { status: 200 });
+    const doc = JSON.parse(JSON.stringify(body.doc)) as typeof body.doc;
+    const blocks = doc.sections.flatMap((x) => x.columns.flatMap((c) => c.blocks));
+    const target = body.scope?.kind === "parts" ? blocks.find((b) => body.scope!.ids!.includes(b.id) && b.type === "heading") : blocks.find((b) => b.type === "heading");
+    if (target) target.text = "Tia's words";
+    return new Response(JSON.stringify({ doc, system: null, subject: body.subject, reply: "Done.", lines: target ? ["Changed the heading"] : [], ask: null }), { status: 200 });
+  }
+  if (String(input).includes("/api/email/series")) {
+    const body = JSON.parse(String(init?.body ?? "{}")) as { step: string; index?: number; items?: { name: string; subject: string }[] };
+    calls.push({ mode: `series:${body.step}`, body });
+    await new Promise((r) => setTimeout(r, 300));
+    if (body.step === "plan") return new Response(JSON.stringify({ reply: "", plan: [1, 2, 3].map((n) => ({ name: `Series email ${n}`, subject: `Series subject ${n}`, brief: `What email ${n} says.` })) }), { status: 200 });
+    const w = window as unknown as { failSeries?: number | null };
+    if (w.failSeries === body.index) {
+      w.failSeries = null;
+      return new Response(JSON.stringify({ error: "The AI didn't answer: overloaded" }), { status: 502 });
+    }
+    return new Response(JSON.stringify({ doc: { ...EMAIL_TEMPLATES[1]!.make(), settings: { width: 600, align: "center", darkMode: "auto", preheader: "Preview", lang: "en" } }, subject: body.items![body.index!]!.subject }), { status: 200 });
+  }
   return realFetch(input, init);
 }) as typeof window.fetch;
 
@@ -59,6 +92,7 @@ function query(table: string) {
     select: () => q,
     eq: (k: string, v: unknown) => (filters.push((r) => r[k] === v), q),
     neq: (k: string, v: unknown) => (filters.push((r) => r[k] !== v), q),
+    in: (k: string, vs: unknown[]) => (filters.push((r) => vs.includes(r[k])), q),
     is: (k: string, v: unknown) => (filters.push((r) => (r[k] ?? null) === v), q),
     order: (k: string, o?: { ascending?: boolean }) => ((orders = [...orders, [k, o?.ascending !== false]]), q),
     limit: (n: number) => ((max = n), q),
@@ -105,6 +139,33 @@ const rpc = async (fn: string, a: Row) => {
     if (old !== a.p_group) regroup(old);
     return { data: true, error: null };
   }
+  // B5: versions and comments.
+  if (fn === "email_version_save") {
+    const e = db.emails!.find((x) => x.id === a.p_email)!;
+    const ref = `em:${e.id}`;
+    const last = db.email_versions!.filter((v) => v.ref === ref).sort((x, y) => String(y.created_at).localeCompare(String(x.created_at)))[0];
+    if (last && JSON.stringify(last.doc) === JSON.stringify(e.doc)) return { data: null, error: null };
+    const v = { id: `v${db.email_versions!.length + 1}`, workspace_id: "ws1", ref, doc: JSON.parse(JSON.stringify(e.doc)), subject: e.subject, note: a.p_note || "Edited", by_ai: false, created_at: new Date(Date.now() + db.email_versions!.length).toISOString() };
+    db.email_versions!.push(v);
+    return { data: v.id, error: null };
+  }
+  if (fn === "email_comment_add") {
+    const id = `c${db.email_comments!.length + 1}aaaa`;
+    const thread = (a.p_thread as string | null) ?? id;
+    const el = a.p_thread ? (db.email_comments!.find((c) => c.id === a.p_thread)!.element_id as string | null) : ((a.p_element as string | null) || null);
+    db.email_comments!.push({ id, workspace_id: "ws1", email_id: a.p_email, element_id: el, thread_id: thread, author: "u1", body: String(a.p_body).trim(), created_at: new Date(Date.now() + db.email_comments!.length).toISOString(), resolved_at: null });
+    return { data: id, error: null };
+  }
+  if (fn === "email_comment_resolve") {
+    for (const c of db.email_comments!) if (c.thread_id === a.p_thread) c.resolved_at = a.p_resolved ? new Date().toISOString() : null;
+    return { data: true, error: null };
+  }
+  if (fn === "email_comment_delete") {
+    const c = db.email_comments!.find((x) => x.id === a.p_id);
+    if (!c) return { data: false, error: null };
+    db.email_comments = db.email_comments!.filter((x) => (c.id === c.thread_id ? x.thread_id !== c.id : x.id !== c.id));
+    return { data: true, error: null };
+  }
   if (fn === "brand_kit_design_publish") {
     const k = db.brand_kits!.find((x) => x.id === a.p_id)!;
     k.design_live = k.design;
@@ -138,7 +199,7 @@ const rpc = async (fn: string, a: Row) => {
 const sb = { from: query, rpc } as never;
 const props = {
   sb,
-  session: { access_token: "t" } as never,
+  session: { access_token: "t", user: { id: "u1" } } as never,
   ws: { id: "ws1", name: "Juniper", features: [] },
   role: "owner" as const,
   id: "",

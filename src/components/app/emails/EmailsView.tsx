@@ -6,15 +6,13 @@
 // from). New email opens the Email Studio (Part 3): the email builder on Tia's tab, saved as a campaign draft.
 // Sending campaigns and results by meetings and forms come in later parts.
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { newBlock, newSection, readEmailDoc, type EmailDoc } from "@/lib/design/email/doc";
 import { emailsPage, EMAILS_TABS } from "@/lib/nav";
 import { Branch, Plus, Trash } from "../../Icons";
 import { askConfirm, askText, tell } from "../Dialogs";
 import { Select } from "../Select";
 import { Sheet } from "../Sheet";
-import { EmailBuilder } from "../email/EmailBuilder";
-import { SendPanel } from "./SendPanel";
 import { StatCards } from "../StatCards";
 import { AiMark } from "../Ai";
 import { ToolIntro } from "../ToolIntro";
@@ -22,11 +20,11 @@ import { BrandSettings } from "../views/BrandSettings";
 import { TemplateGallery } from "./TemplateGallery";
 import { FillsFrom, ImportHistory } from "./AudienceParts";
 import { ImportSheet } from "./ImportSheet";
-import { EmailCanvasPage } from "./canvas/EmailCanvasPage";
+import { EmailCanvasPage, UNGROUPED } from "./canvas/EmailCanvasPage";
 import { GroupCards } from "./canvas/GroupCards";
 import { WorkflowsView } from "../workflows/WorkflowsView";
 import { isRoleAddress } from "@/lib/emails/role";
-import { Badge, Button, ErrorNote, errorText, IconButton, invalidate, Loading, must, Page, postJson, Section, Td, Th, timeAgo, useQuery, type Tone, type ViewProps } from "../ui";
+import { Badge, Button, ErrorNote, errorText, IconButton, invalidate, Loading, must, Page, postJson, Section, Segmented, Td, Th, timeAgo, useQuery, type Tone, type ViewProps } from "../ui";
 
 export function EmailsView(props: ViewProps) {
   const p = emailsPage(props.id);
@@ -67,8 +65,35 @@ const whenWords = (iso: string) => new Date(iso).toLocaleString("en-US", { month
 /** A new email: only the footer, so Tia can start it from any template without asking first. */
 const blankDoc = (): EmailDoc => ({ ...readEmailDoc({}), sections: [newSection([newBlock("footer")])] });
 
-function Campaigns({ sb, ws, navigate }: ViewProps) {
+const VIEW_KEY = "claritia:campaigns-view";
+
+function Campaigns({ sb, session, ws, navigate }: ViewProps) {
   const list = useQuery(`email_campaigns:${ws.id}`, async () => (must(await sb.rpc("email_campaigns", { p_ws: ws.id })) ?? []) as Campaign[]);
+  // Groups (cards) or List (every campaign), remembered on this computer (docs/email-canvas-b5.md section 6.1).
+  const [view, setViewRaw] = useState<"groups" | "list">(() => {
+    try {
+      return typeof window !== "undefined" && window.localStorage.getItem(VIEW_KEY) === "list" ? "list" : "groups";
+    } catch {
+      return "groups";
+    }
+  });
+  const setView = (v: "groups" | "list") => {
+    setViewRaw(v);
+    try {
+      window.localStorage.setItem(VIEW_KEY, v);
+    } catch {
+      /* private window: just not remembered */
+    }
+  };
+  // Each campaign's group, for the List's Group column.
+  const placed = useQuery(view === "list" ? `email_group_of:${ws.id}` : null, async () => {
+    const [es, gs] = await Promise.all([
+      sb.from("emails").select("id, group_id").eq("workspace_id", ws.id).eq("kind", "broadcast").not("group_id", "is", null),
+      sb.from("email_groups").select("id, name").eq("workspace_id", ws.id),
+    ]);
+    const names = new Map(((must(gs) ?? []) as { id: string; name: string }[]).map((g) => [g.id, g.name]));
+    return Object.fromEntries(((must(es) ?? []) as { id: string; group_id: string }[]).map((e) => [e.id, names.get(e.group_id) ?? ""]));
+  });
   const groups = useQuery(`email_groups_count:${ws.id}`, async () => (must(await sb.from("email_groups").select("id").eq("workspace_id", ws.id).limit(1)) ?? []) as { id: string }[]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -116,6 +141,18 @@ function Campaigns({ sb, ws, navigate }: ViewProps) {
   };
   const add = (
     <span className="flex flex-wrap items-center gap-2">
+      {list.data?.length ? (
+        <Segmented<"groups" | "list">
+          value={view}
+          onChange={setView}
+          label="View"
+          size="sm"
+          options={[
+            { value: "groups", label: "Groups" },
+            { value: "list", label: "List" },
+          ]}
+        />
+      ) : null}
       <Button variant="ghost" onClick={() => void newGroup()}>
         New group
       </Button>
@@ -148,12 +185,13 @@ function Campaigns({ sb, ws, navigate }: ViewProps) {
   return (
     <Page title="Campaigns" actions={add}>
       <ErrorNote message={error} />
-      <GroupCards sb={sb} ws={ws.id} onOpen={(id) => navigate("emails", `campaigns/group/${id}`)} />
-      <div className={`overflow-x-auto rounded-lg bg-card shadow-rest ${list.data.length ? "" : "hidden"}`}>
+      {view === "groups" ? <GroupCards sb={sb} ws={ws.id} me={session.user?.id ?? ""} onOpen={(id) => navigate("emails", `campaigns/group/${id}`)} /> : null}
+      <div className={`overflow-x-auto rounded-lg bg-card shadow-rest ${list.data.length && view === "list" ? "" : "hidden"}`}>
         <table className="w-full min-w-[900px] border-collapse [&_tbody_tr:last-child_td]:border-b-0">
           <thead>
             <tr>
               <Th className="pl-5">Email</Th>
+              <Th>Group</Th>
               <Th>Status</Th>
               <Th>Sent</Th>
               <Th>Opened</Th>
@@ -185,6 +223,7 @@ function Campaigns({ sb, ws, navigate }: ViewProps) {
                     {c.subject ? <span className="text-[12px] break-words text-muted">{c.subject}</span> : null}
                   </span>
                 </Td>
+                <Td className="text-muted">{placed.data?.[c.id] || "Ungrouped"}</Td>
                 <Td>
                   <span className="flex flex-col gap-0.5">
                     <Badge tone={CAMPAIGN_TONE[c.status] ?? "gray"} dot>
@@ -240,116 +279,15 @@ function CampaignStudio(props: ViewProps & { emailId: string }) {
   if (!row.loaded) return <Loading />;
   const d = row.data;
   if (d && d.status !== "draft") return <Results {...props} />;
+  // A campaign draft opens on its group's canvas (or Ungrouped), picked (docs/email-canvas-b5.md section 6.2).
+  if (d) return <EmailCanvasPage key={emailId} {...props} groupId={d.group_id ?? UNGROUPED} pick={emailId} />;
   if (!d)
     return (
       <Page title="Campaigns" back={{ label: "Campaigns", onClick: () => navigate("emails") }}>
         <ErrorNote message="This email is gone." />
       </Page>
     );
-  return <DraftEditor {...props} draft={d} />;
-}
-
-function DraftEditor({ sb, session, ws, navigate, emailId, draft }: ViewProps & { emailId: string; draft: Draft }) {
-  const [state, setState] = useState(() => ({ name: draft.name, subject: draft.subject, doc: draft.doc ? readEmailDoc(draft.doc, { allowHtml: true }) : blankDoc() }));
-  const [fresh] = useState(() => !state.doc.sections.some((x) => x.columns.some((c) => c.blocks.some((b) => b.type !== "footer"))));
-  const [error, setError] = useState("");
-  const [sending, setSending] = useState(false);
-  const dirty = useRef(false);
-  const latest = useRef(state);
-  const save = async () => {
-    const s = latest.current;
-    if (!dirty.current) return;
-    dirty.current = false;
-    const name = s.name === "Untitled email" && s.subject.trim() ? s.subject.trim().slice(0, 200) : s.name;
-    const { error: e } = await sb.rpc("email_draft_save", { p_ws: ws.id, p_id: emailId, p_name: name, p_subject: s.subject, p_preheader: s.doc.settings.preheader ?? "", p_doc: s.doc });
-    if (e) {
-      dirty.current = true;
-      setError(e.message);
-      return;
-    }
-    setError("");
-    if (name !== s.name) setState((x) => ({ ...x, name }));
-    invalidate(`email_campaigns:${ws.id}`);
-  };
-  const saveRef = useRef(save);
-  useEffect(() => {
-    latest.current = state;
-    saveRef.current = save;
-  });
-  useEffect(() => {
-    if (!dirty.current) return;
-    const t = setTimeout(() => void saveRef.current(), 800);
-    return () => clearTimeout(t);
-  }, [state]);
-  // Leaving the studio saves what hasn't been saved yet.
-  useEffect(() => () => void saveRef.current(), []);
-  const change = (p: Partial<{ subject: string; doc: EmailDoc }>) => {
-    dirty.current = true;
-    setState((x) => ({ ...x, ...p }));
-  };
-  return (
-    <>
-      {error ? (
-        <div className="fixed inset-x-0 bottom-4 z-[90] flex justify-center px-4">
-          <div className="max-w-md rounded-lg bg-card p-1 shadow-menu">
-            <ErrorNote message={error} />
-          </div>
-        </div>
-      ) : null}
-      <EmailBuilder
-        session={session}
-        sb={sb}
-        workspaceId={ws.id}
-        subject={state.subject}
-        doc={state.doc}
-        versionRef={`em:${emailId}`}
-        startOn={fresh ? "ai" : "settings"}
-        title={state.name}
-        onSubject={(subject) => change({ subject })}
-        actions={
-          <Button
-            onClick={async () => {
-              await saveRef.current();
-              setSending(true);
-            }}
-          >
-            Send
-          </Button>
-        }
-        onChange={(doc, subject) => change({ doc, ...(subject ? { subject } : {}) })}
-        onClose={() => {
-          void saveRef.current();
-          // Back to the canvas it was opened from (?back=<group> or ungrouped), with this email picked.
-          const from = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("back");
-          const to = from && /^([0-9a-f-]{36}|ungrouped)$/.test(from) ? from : draft.group_id;
-          navigate("emails", to ? `campaigns/group/${to}` : "", to ? `pick=${emailId}` : undefined);
-        }}
-      />
-      {sending ? (
-        <SendPanel
-          sb={sb}
-          session={session}
-          ws={ws.id}
-          emailId={emailId}
-          subject={state.subject}
-          preheader={state.doc.settings.preheader ?? ""}
-          doc={state.doc}
-          onSubject={(subject) => change({ subject })}
-          onPreheader={(preheader) => change({ doc: { ...state.doc, settings: { ...state.doc.settings, preheader } } })}
-          beforeSend={async () => {
-            await saveRef.current();
-            if (dirty.current) throw new Error("The draft didn't save. Try again.");
-          }}
-          onClose={() => setSending(false)}
-          onSent={() => {
-            invalidate(`email_campaigns:${ws.id}`);
-            invalidate(`email_groups:${ws.id}`);
-            navigate("emails", draft.group_id ? `campaigns/group/${draft.group_id}` : "");
-          }}
-        />
-      ) : null}
-    </>
-  );
+  return null;
 }
 
 // Results (Part 7): the counts, who booked or filled a form after clicking, and people per link.

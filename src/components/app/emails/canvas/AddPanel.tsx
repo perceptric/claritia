@@ -1,11 +1,11 @@
 "use client";
 
-// The + panel (docs/email-canvas-b4.md section 7): every block, column layouts and the brand's components as tiles.
-// A click (or Enter) adds one where the page says; pressing and dragging a tile drops it on any email. Docked on the
-// left of the canvas, a sheet from the bottom under 1,024 px.
+// The + panel's tiles (docs/email-canvas-b4.md section 7): every block, column layouts and the brand's components. A
+// click (or Enter) adds one where the page says; pressing and dragging a tile drops it on any email. They sit in the
+// Add tab of the canvas's left panel (LeftPanel.tsx).
 
 import type { BlockType } from "@/lib/design/email/parts";
-import { AlignLeft, CalendarIcon, CircleDot, Code, Columns, Footer, Globe, ImageIcon, Layers, ListIcon, LogoIcon, Minus, QuoteIcon, Spacer, Star, TypeIcon, User, Video, X } from "../../../Icons";
+import { AlignLeft, CalendarIcon, CircleDot, Code, Columns, Footer, Globe, ImageIcon, Layers, ListIcon, LogoIcon, Minus, QuoteIcon, Spacer, Star, TypeIcon, User, Video } from "../../../Icons";
 
 export type AddItem =
   | { kind: "block"; key: string; label: string; type: BlockType }
@@ -42,7 +42,8 @@ const ICON: Record<string, Icon> = {
   html: Code,
 };
 
-export function AddPanel({ components, onClose, onAdd, onPress }: { components: { id: string; name: string }[]; onClose: () => void; onAdd: (item: AddItem) => void; onPress: (item: AddItem, e: React.PointerEvent) => void }) {
+/** The tiles of the Add tab (docs/email-canvas-b4.md section 7). */
+export function AddTiles({ components, onAdd, onPress }: { components: { id: string; name: string }[]; onAdd: (item: AddItem) => void; onPress: (item: AddItem, e: React.PointerEvent) => void }) {
   const group = (title: string, items: AddItem[]) => (
     <section className="flex flex-col gap-2">
       <h3 className="text-[12px] text-muted">{title}</h3>
@@ -71,28 +72,11 @@ export function AddPanel({ components, onClose, onAdd, onPress }: { components: 
     </section>
   );
   return (
-    <aside
-      data-canvas-ui=""
-      aria-label="Add"
-      onKeyDown={(e) => {
-        if (e.key !== "Escape") return;
-        e.stopPropagation();
-        onClose();
-      }}
-      className="z-[6] flex min-h-0 shrink-0 flex-col bg-card max-lg:absolute max-lg:inset-x-0 max-lg:bottom-0 max-lg:max-h-[55%] max-lg:rounded-t-2xl max-lg:shadow-float lg:order-first lg:w-[264px] lg:shadow-[1px_0_0_var(--color-line)]"
-    >
-      <div className="flex shrink-0 items-center gap-1 px-3 pt-3 pb-2">
-        <h2 className="flex-1 text-[14px] font-semibold text-ink">Add</h2>
-        <button type="button" aria-label="Close the add panel" title="Close" onClick={onClose} className="flex size-7 items-center justify-center rounded-full text-muted hover:bg-hover hover:text-ink">
-          <X size={14} />
-        </button>
-      </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-3 pb-4">
-        {group("Basics", BASICS)}
-        {group("Columns", COLUMNS)}
-        {group("More", MORE)}
-        {components.length ? group("Components", components.map((c) => ({ kind: "component" as const, key: `cmp:${c.id}`, label: c.name, componentId: c.id }))) : null}
-      </div>
-    </aside>
+    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-3 pb-4">
+      {group("Basics", BASICS)}
+      {group("Columns", COLUMNS)}
+      {group("More", MORE)}
+      {components.length ? group("Components", components.map((c) => ({ kind: "component" as const, key: `cmp:${c.id}`, label: c.name, componentId: c.id }))) : null}
+    </div>
   );
 }
