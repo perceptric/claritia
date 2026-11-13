@@ -45,3 +45,26 @@ test("meetings follow the page's order; the rest by name", () => {
   assert.deepEqual(ordered(types, [B]).map((t) => t.name), ["Demo", "Audit", "Coffee"]);
   assert.deepEqual(ordered(types, []).map((t) => t.name), ["Audit", "Coffee", "Demo"]);
 });
+
+test("a design dresses a page without a kit; the kit wins when there is one; Claritia's default is unchanged", async () => {
+  const { DESIGNS, DESIGN_LIST } = await import("../src/lib/meetings/designs.ts");
+  const { cleanTokens, cleanFontUrl } = await import("../src/lib/forms/brand.ts");
+  assert.equal(cleanLook({ design: "nope" }).design, undefined);
+  assert.equal(cleanLook({ design: "claritia" }).design, undefined, "Claritia is the default, not saved");
+  assert.equal(cleanLook({ design: "midnight" }).design, "midnight");
+  const d = lookTokens(cleanLook({ look: "claritia", design: "midnight" }), { background: "#101010" });
+  assert.equal(d.tokens.background, DESIGNS.midnight.tokens.background);
+  assert.equal(d.vars["--cb-page-bg"], "#0a0f1f");
+  const kitWins = lookTokens(cleanLook({ design: "midnight" }), { background: "#101010" });
+  assert.equal(kitWins.tokens.background, "#101010", "an unset look with a kit uses the kit");
+  const plain = lookTokens(cleanLook({ look: "claritia" }), null);
+  assert.deepEqual(plain.tokens, {});
+  assert.equal(plain.vars["--cb-page-bg"], undefined, "Claritia's look sets no design variables");
+  assert.equal(lookWords(cleanLook({ design: "paper" }), false), "Paper");
+  for (const x of DESIGN_LIST) {
+    if (x.id === "claritia") continue;
+    assert.deepEqual(cleanTokens(x.tokens).dropped, [], `${x.id}: every token is valid`);
+    assert.ok(cleanFontUrl(x.tokens.fontUrl), `${x.id}: fonts from Google Fonts`);
+    assert.ok(x.vars["--cb-page-bg"], `${x.id}: has a page color`);
+  }
+});

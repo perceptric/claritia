@@ -3,9 +3,10 @@
 // Inbound › Meetings › Meetings (once Calendar › Meeting types): one card per meeting, in an even grid, with its
 // length and video tool, what books it ("Used by": the forms whose Routing picks it, which open on On Submission, and
 // routing steps that name it in the live router) and whether it's Individual (one host) or Dynamic (reps and rules).
-// Clicking a card opens its panel on the right (/scheduling/types/<id>); New meeting opens the same panel
-// (/scheduling/types/new). Copy link, single-use links, times for an email, on and off, Use in a form, duplicate, all
-// settings and delete sit in each card's more menu.
+// Clicking a card opens its panel on the right (/scheduling/types/<id>); New meeting type opens the template picker
+// (Start blank or a template from src/lib/meetings/templates.ts), then the same panel (/scheduling/types/new). Copy
+// link, single-use links, times for an email, on and off, Use in a form, duplicate, all settings and delete sit in
+// each card's more menu.
 
 import { useMemo, useState } from "react";
 import type { Availability } from "@/lib/meetings/types";
@@ -19,7 +20,8 @@ import { LinkDialog } from "../meetings/LinkDialog";
 import { ShareMeeting, type Pane as SharePane } from "./ShareMeeting";
 import { AvatarStack, copyText, meetingsApi, Modal, ownZone, usePeople, useWorkspaceSlug } from "../meetings/parts";
 import { ShareMenu } from "../meetings/Share";
-import { DEFAULT_SETTINGS } from "@/lib/meetings/types";
+import { templateById, templateSettings } from "@/lib/meetings/templates";
+import { FeaturedTemplates, TemplatePicker } from "./Templates";
 import { TAB_X } from "./frame";
 import { count, MEMBER } from "@/lib/words";
 import { TYPE_COLS, useMeetingTypes, type TypeRow } from "../meetings/TypesList";
@@ -30,20 +32,15 @@ import { newDraft, placeIcon, TypePanel, type HostStatus, type Named, type Panel
 import { KindTip } from "../meetings/KindTip";
 import { bookingBase } from "@/lib/meetings/handles";
 
-/** One-click starters: a meeting type already set up, opened in the new panel to check and save. */
-type Starter = "intro" | "demo" | "team";
-const STARTERS: { key: Starter; label: string; note: string }[] = [
-  { key: "intro", label: "Intro call", note: "30 min" },
-  { key: "demo", label: "Demo", note: "45 min" },
-  { key: "team", label: "Team round robin", note: "30 min" },
-];
-
-export function starterDraft(k: Starter | null, me: string, team: string[]) {
+/** A new meeting from a template (src/lib/meetings/templates.ts), or blank with no id, opened in the new panel to check and save. */
+export function starterDraft(id: string | null, me: string, team: string[]) {
   const base = newDraft(me, false);
-  if (k === "intro") return { ...base, name: "Intro call", slug: "intro-call", settings: { ...DEFAULT_SETTINGS, lengths: [30] } };
-  if (k === "demo") return { ...base, name: "Demo", slug: "demo", settings: { ...DEFAULT_SETTINGS, lengths: [45] } };
-  if (k === "team") return { ...base, name: "Team call", slug: "team-call", kind: "round_robin" as const, owner_user_id: null, hosts: [...new Set([me, ...team])].map((user_id) => ({ user_id })), settings: { ...DEFAULT_SETTINGS, lengths: [30] } };
-  return base;
+  const t = templateById(id);
+  if (!t) return base;
+  const settings = templateSettings(t);
+  // Shared kinds: the whole team hosts, with no owner, as before.
+  if (t.kind === "round_robin") return { ...base, name: t.name, slug: t.slug, kind: t.kind, owner_user_id: null, hosts: [...new Set([me, ...team])].map((user_id) => ({ user_id })), settings };
+  return { ...base, name: t.name, slug: t.slug, kind: t.kind, settings };
 }
 
 /** Yours: types you own, and one-person types with no owner that you host. */
@@ -84,10 +81,12 @@ export function TypesPage(props: ViewProps & { open: string }) {
   // The forms that book each meeting on submission.
   const forms = useQuery(`meeting_types:${ws.id}:forms`, async () => (must(await sb.from("forms").select("id, name, status, meeting:draft->after->schedule->>meetingTypeId, routes:draft->after->schedule->routes").eq("workspace_id", ws.id).order("name")) ?? []) as { id: string; name: string; status: string; meeting: string | null; routes: { meet: string }[] | null }[]);
   const [useFor, setUseFor] = useState<string | null>(null);
-  // A starter picked from the empty page or the New tile: the new panel opens already filled in.
-  const [starter, setStarter] = useState<Starter | null>(null);
-  const startWith = (k: Starter | null) => {
-    setStarter(k);
+  // A template picked from the empty page or the picker: the new panel opens already filled in.
+  const [starter, setStarter] = useState<string | null>(null);
+  const [picking, setPicking] = useState(false);
+  const startWith = (id: string | null) => {
+    setPicking(false);
+    setStarter(id);
     navigate("scheduling", "types/new");
   };
   const data = { data: list.data && extra.data ? { ...extra.data, types: list.data } : null, error: list.error || extra.error };
@@ -167,22 +166,12 @@ export function TypesPage(props: ViewProps & { open: string }) {
     ) : null;
 
   const actions = (
-    <Button onClick={() => startWith(null)}>
+    <Button onClick={() => setPicking(true)}>
       <Plus size={14} />
       New meeting type
     </Button>
   );
-  const starters = (
-    <span className="flex flex-wrap justify-center gap-2">
-      {STARTERS.map((st) => (
-        <button key={st.key} type="button" onClick={() => startWith(st.key)} className="press inline-flex h-9 items-center gap-2 rounded-full bg-card shadow-outline px-3.5 text-[13px] font-medium text-ink hover:shadow-input-hover">
-          {st.label}
-          <span className="text-muted">{st.note}</span>
-        </button>
-      ))}
-    </span>
-  );
-
+  const picker = picking ? <TemplatePicker onPick={startWith} onClose={() => setPicking(false)} /> : null;
   if (types && !types.length)
     return (
       <Page title="Meeting types" actions={actions} flush>
@@ -191,16 +180,9 @@ export function TypesPage(props: ViewProps & { open: string }) {
             sketch="calendar"
             title={"Share one link\nand let leads pick a time"}
             lead="A meeting sets who hosts, how long, when and where. Share it as a page, a one-time link or times in an email; every booking lands on the lead."
-            action={
-              <span className="flex flex-col items-center gap-3">
-                {starters}
-                <Button variant="ghost" onClick={() => startWith(null)}>
-                  <Plus size={14} />
-                  Start blank
-                </Button>
-              </span>
-            }
+            action={<FeaturedTemplates onPick={startWith} onAll={() => setPicking(true)} />}
           />
+          {picker}
           {panel}
         </div>
       </Page>
@@ -208,6 +190,7 @@ export function TypesPage(props: ViewProps & { open: string }) {
 
   return (
     <Page title="Meeting types" actions={actions} flush>
+      {picker}
       {useFor ? (
         <Modal title="Use in a form" onClose={() => setUseFor(null)}>
           <div className="flex flex-col">
@@ -320,16 +303,17 @@ export function TypesPage(props: ViewProps & { open: string }) {
                   );
                 })}
                 <div className="flex min-h-[148px] flex-col items-center justify-center gap-2.5 rounded-[10px] border border-dashed border-line-strong p-4 text-muted">
-                  <button type="button" onClick={() => startWith(null)} className="press inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[13px] font-medium hover:text-ink">
+                  <button type="button" onClick={() => setPicking(true)} className="press inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[13px] font-medium hover:text-ink">
                     <Plus size={15} />
                     New meeting type
                   </button>
                   <span className="flex flex-wrap justify-center gap-1.5">
-                    {STARTERS.map((st) => (
-                      <button key={st.key} type="button" onClick={() => startWith(st.key)} className="press inline-flex h-7 items-center rounded-full border border-line px-2.5 text-[12px] text-body hover:border-line-strong hover:text-ink">
-                        {st.label}
-                      </button>
-                    ))}
+                    <button type="button" onClick={() => setPicking(true)} className="press inline-flex h-7 items-center rounded-full border border-line px-2.5 text-[12px] text-body hover:border-line-strong hover:text-ink">
+                      From a template
+                    </button>
+                    <button type="button" onClick={() => startWith(null)} className="press inline-flex h-7 items-center rounded-full border border-line px-2.5 text-[12px] text-body hover:border-line-strong hover:text-ink">
+                      Start blank
+                    </button>
                   </span>
                 </div>
               </div>

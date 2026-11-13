@@ -13,6 +13,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { toGuestType, type Profile as GuestProfile } from "@/lib/meetings/guest";
 import { bookingOrigin, bookingUrl, cleanHandle, handleProblem } from "@/lib/meetings/handles";
 import { cleanLook, lookTokens, lookWords, ordered, usesKit, type PageLook } from "@/lib/meetings/look";
+import { DESIGN_FONTS, DESIGN_LIST, type Design } from "@/lib/meetings/designs";
 import { sampleSlots } from "@/lib/meetings/guest";
 import { Calendar } from "@/components/book/Calendar";
 import { bookBrandCss, brandPlan } from "@/lib/meetings/brandPage";
@@ -20,7 +21,6 @@ import { AiMark } from "../Ai";
 import { readLines } from "../streamLines";
 import { Check, ChevronDown, ExternalLink, Grid, Grip, Link as LinkIcon, Message, Monitor, Palette, Phone, Plus, Upload, User } from "../../Icons";
 import { BookShell } from "@/components/book/BookShell";
-import { Mark } from "@/components/Logo";
 import { PageHead, TypeCards } from "@/components/book/TypeCards";
 import { askConfirm } from "../Dialogs";
 import { Badge, Button, ErrorNote, errorText, Input, invalidate, Loading, Page, postJson, Segmented, setLeaveGuard, Toggle, useQuery, type ViewProps } from "../ui";
@@ -408,6 +408,7 @@ export function BookingPage(props: ViewProps) {
                 brands={withLook}
                 home={home}
                 picked={usesKit(shown, !!kit) ? (kit?.id ?? null) : null}
+                design={shown.design ?? "claritia"}
                 badge={shown.badge}
                 paid={paid}
                 needsLook={!!kit?.source_url && !kitCss}
@@ -563,7 +564,7 @@ async function squareJpeg(file: File, size: number): Promise<Blob> {
  * Studio under Other brands, closed until clicked and searchable past 6. On Free: Claritia, your brand locked, and one
  * line with Upgrade. The brand sets its own colors and corners, so there's nothing else to pick.
  */
-function Styling(p: { brands: BrandRow[]; home: string | null; picked: string | null; badge: boolean; paid: boolean; needsLook: boolean; reading: boolean; owner: boolean; disabled: boolean; onChange: (p: Partial<PageLook>) => void; onRead: () => void; onUpgrade: () => void; onImport: () => void }) {
+function Styling(p: { brands: BrandRow[]; home: string | null; picked: string | null; design: Design["id"]; badge: boolean; paid: boolean; needsLook: boolean; reading: boolean; owner: boolean; disabled: boolean; onChange: (p: Partial<PageLook>) => void; onRead: () => void; onUpgrade: () => void; onImport: () => void }) {
   const { brands, picked, paid, disabled, onChange } = p;
   const yours = brands.find((b) => b.id === p.home) ?? brands[0] ?? null;
   const others = brands.filter((b) => b.id !== yours?.id);
@@ -589,13 +590,14 @@ function Styling(p: { brands: BrandRow[]; home: string | null; picked: string | 
   };
   return (
     <>
-      <div className="grid grid-cols-2 gap-2">
-        <button type="button" disabled={disabled} aria-pressed={picked === null} onClick={() => onChange({ look: "claritia" })} className={tile(picked === null)}>
-          <Mark size={32} className="shrink-0" />
-          <span className="min-w-0 truncate text-[13px] font-medium text-ink">Claritia</span>
-        </button>
-        {yours ? brandTile(yours, "Your brand") : null}
-      </div>
+      <span className="text-[12px] font-medium text-muted">Design</span>
+      <Designs picked={picked === null ? p.design : null} disabled={disabled} onPick={(id) => onChange({ look: "claritia", design: id === "claritia" ? undefined : id })} />
+      <span className="mt-1 text-[12px] font-medium text-muted">Brand</span>
+      {yours ? (
+        <div className="grid grid-cols-2 gap-2">{brandTile(yours, "Your brand")}</div>
+      ) : paid ? (
+        <span className="text-[12.5px] text-muted">No brands yet</span>
+      ) : null}
       {!paid ? (
         <span className="flex items-center gap-2">
           <span className="min-w-0 flex-1 text-[12.5px] text-body">Your brands on booking pages</span>
@@ -643,6 +645,53 @@ function Styling(p: { brands: BrandRow[]; home: string | null; picked: string | 
         <Toggle label="Show Built by Claritia" on={p.badge} disabled={disabled || !paid} onChange={(badge) => onChange({ badge })} />
       </span>
     </>
+  );
+}
+
+/** The design gallery: a small live preview of each design's page, card, type, open days and button. */
+function Designs({ picked, disabled, onPick }: { picked: Design["id"] | null; disabled: boolean; onPick: (id: Design["id"]) => void }) {
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      {DESIGN_FONTS.map((href) => (
+        <link key={href} rel="stylesheet" href={href} precedence="default" />
+      ))}
+      {DESIGN_LIST.map((d) => {
+        const on = picked === d.id;
+        const w = d.swatch;
+        return (
+          <button
+            key={d.id}
+            type="button"
+            disabled={disabled}
+            aria-pressed={on}
+            aria-label={d.name}
+            onClick={() => onPick(d.id)}
+            className={`press group flex min-w-0 flex-col gap-1.5 rounded-[12px] p-1.5 text-left disabled:cursor-default ${on ? "shadow-[0_0_0_2px_var(--color-ink)]" : "shadow-outline hover:shadow-input-hover"}`}
+          >
+            <span className="relative flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded-[8px]" style={{ background: w.page, backgroundImage: w.pattern, backgroundSize: w.patternSize }} aria-hidden="true">
+              <span
+                className="flex w-[72%] flex-col gap-[5px] px-2.5 py-2 transition-transform duration-[200ms] ease-out group-hover:-translate-y-0.5"
+                style={{ background: w.card, color: w.text, borderRadius: Math.min(10, w.radius * 0.6 + 2), border: w.border, boxShadow: w.shadow ?? "0 6px 14px -8px rgba(0,0,0,0.35)" }}
+              >
+                <span className="text-[17px] leading-none" style={{ fontFamily: w.font, fontWeight: w.weight, letterSpacing: "-0.02em" }}>
+                  Aa
+                </span>
+                <span className="flex gap-[3px]">
+                  {[0, 1, 2, 3, 4].map((i) => (
+                    <span key={i} className="size-[7px] rounded-full" style={{ background: i === 2 ? w.accent : `color-mix(in srgb, ${w.text} 14%, ${w.card})` }} />
+                  ))}
+                </span>
+                <span className="h-[9px] w-[60%]" style={{ background: w.button, borderRadius: Math.min(w.buttonRadius, 5) }} />
+              </span>
+            </span>
+            <span className="flex min-w-0 items-center gap-1.5 px-0.5">
+              <span className="min-w-0 flex-1 text-[12.5px] font-medium text-ink">{d.name}</span>
+              {on ? <Check size={12} className="shrink-0 text-ink" /> : null}
+            </span>
+          </button>
+        );
+      })}
+    </div>
   );
 }
 

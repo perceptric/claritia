@@ -2,6 +2,9 @@
 // button shape, the welcome line, whether "Built by Claritia" shows, and the order of the meetings. Saved on the
 // person's booking profile (booking_profiles.page) or on the workspace for the team page (workspaces.booking_page).
 // Every value is cleaned here before it is saved or drawn. Runs in the browser and on the server.
+// A page without a brand kit can wear one of the designs (src/lib/meetings/designs.ts); Claritia's own is the default.
+
+import { DESIGNS, isDesign, type DesignId } from "./designs.ts";
 
 export type Accent = "ink" | "emerald" | "sky" | "lilac" | "rose" | "butter";
 
@@ -13,6 +16,8 @@ export type PageLook = {
   look?: "claritia" | "brand";
   /** The imported brand this page uses (a brand kit id). Unset: the workspace's brand. */
   brand?: string;
+  /** A design from the gallery, when the page doesn't use a brand kit. Unset: Claritia's own look. */
+  design?: Exclude<DesignId, "claritia">;
   accent: Accent;
   /** Unset: the look's own (pills for Claritia, the kit's corners for a kit). */
   buttons?: "round" | "soft";
@@ -31,6 +36,7 @@ export function cleanLook(raw: unknown): PageLook {
   return {
     ...(r.look === "claritia" || r.look === "brand" ? { look: r.look } : {}),
     ...(typeof r.brand === "string" && UUID.test(r.brand) ? { brand: r.brand } : {}),
+    ...(isDesign(r.design) && r.design !== "claritia" ? { design: r.design } : {}),
     accent: typeof r.accent === "string" && r.accent in ACCENTS ? (r.accent as Accent) : DEFAULT_LOOK.accent,
     ...(r.buttons === "round" || r.buttons === "soft" ? { buttons: r.buttons } : {}),
     welcome: typeof r.welcome === "string" ? r.welcome.replace(/\s+/g, " ").trim().slice(0, 140) : "",
@@ -46,6 +52,12 @@ export const usesKit = (l: PageLook, hasKit: boolean) => (l.look ? l.look === "b
 export function lookTokens(l: PageLook, kit: Record<string, unknown> | null): { tokens: Record<string, unknown>; vars: Record<string, string> } {
   const kitOn = usesKit(l, !!kit && Object.keys(kit).length > 0);
   const vars: Record<string, string> = {};
+  // A design brings its own colors, fonts and corners; only a picked button shape goes on top.
+  if (!kitOn && l.design) {
+    const d = DESIGNS[l.design];
+    if (l.buttons) vars["--clr-btn-radius"] = l.buttons === "round" ? "999px" : "10px";
+    return { tokens: { ...d.tokens }, vars: { ...d.vars, ...vars } };
+  }
   if (!kitOn || l.accent !== DEFAULT_LOOK.accent) vars["--cb-dot"] = ACCENTS[l.accent];
   if (l.buttons) vars["--clr-btn-radius"] = l.buttons === "round" ? "999px" : "10px";
   return { tokens: kitOn ? kit! : {}, vars };
@@ -57,7 +69,7 @@ export function ordered<T extends { id: string; name: string }>(types: T[], orde
   return [...types].sort((a, b) => (at.get(a.id) ?? 1e6) - (at.get(b.id) ?? 1e6) || a.name.localeCompare(b.name));
 }
 
-/** Styling's summary line: the brand's name, or Claritia. */
+/** Styling's summary line: the brand's name, the design's, or Claritia. */
 export function lookWords(l: PageLook, hasKit: boolean, brandName?: string | null): string {
-  return usesKit(l, hasKit) ? brandName || "Your brand" : "Claritia";
+  return usesKit(l, hasKit) ? brandName || "Your brand" : l.design ? DESIGNS[l.design].name : "Claritia";
 }
