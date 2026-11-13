@@ -1,14 +1,14 @@
 "use client";
 
 // The side rail (docs/app-structure.md Part 1, docs/email-canvas-plan.md Part A): Create, Search, then Forms and each
-// page of Meetings and Emails from src/lib/nav.ts, under a small label for each, and Settings at the very bottom above
+// page of Meetings and Emails from src/lib/nav.ts, each under a row that opens and folds like Forms' folders, and Settings at the very bottom above
 // the account row. Folded to icons, a thin line stands in for each label. Items can show a count. The
 // open item is a white chip on a ring shadow with a green icon. Folds to icons between 768 and 1,280 px, and on wider
 // screens when the person folds it (kept on this computer) or while Form Studio is open (docs/studio-v2-plan.md,
 // Part 1: the Studio sends "claritia:studio"; leaving it puts the sidebar back the way it was).
 
 import { useEffect, useState } from "react";
-import { activeItem, NAV, SECTION_LABEL, type NavItem, type Route as NavRoute } from "@/lib/nav";
+import { activeItem, NAV, SECTION_LABEL, type NavItem, type NavSection, type Route as NavRoute } from "@/lib/nav";
 import {
   Box,
   Branch,
@@ -89,6 +89,27 @@ function useRail(): [boolean, () => void] {
   return [rail, toggle];
 }
 
+const SECTIONS_KEY = "claritia:nav-closed";
+
+/** Which of Meetings and Emails are folded on the wide sidebar (kept on this computer). */
+function useSections(): [Partial<Record<NavSection, boolean>>, (s: NavSection) => void] {
+  const [closed, setClosed] = useState<Partial<Record<NavSection, boolean>>>(() => {
+    try {
+      return typeof window !== "undefined" ? JSON.parse(localStorage.getItem(SECTIONS_KEY) || "{}") : {};
+    } catch {
+      return {};
+    }
+  });
+  const toggle = (sec: NavSection) => {
+    const next = { ...closed, [sec]: !closed[sec] };
+    setClosed(next);
+    try {
+      localStorage.setItem(SECTIONS_KEY, JSON.stringify(next));
+    } catch {}
+  };
+  return [closed, toggle];
+}
+
 export type CreateItem = { group: string; label: string; run: () => void };
 /** A workspace this person is in (133_signup.sql). */
 export type WorkspaceChoice = { id: string; name: string; role: string };
@@ -121,6 +142,7 @@ export type SidebarProps = {
 export function Sidebar(p: SidebarProps) {
   const active = activeItem(p.route as NavRoute, p.id);
   const [rail, toggleRail] = useRail();
+  const [closed, toggleSection] = useSections();
   // Wide-screen classes apply only when the sidebar isn't folded to icons.
   const xl = (c: string) => (rail ? "" : c);
 
@@ -147,25 +169,50 @@ export function Sidebar(p: SidebarProps) {
         <kbd className={`text-[12px] text-faint md:hidden ${xl("xl:inline")}`}>⌘K</kbd>
       </button>
       <nav aria-label="Main" className="-mx-1 flex gap-1 overflow-x-auto px-1 md:mt-3 md:min-h-0 md:flex-1 md:flex-col md:gap-0.5 md:overflow-y-auto md:overflow-x-hidden">
-        {NAV.map((n, i) => (
-          // Settings sits at the bottom of the sidebar on wider screens; on phones it stays in the row.
-          <span key={n.key} className={n.group === "settings" ? "contents md:hidden" : "contents"}>
-            {n.section && NAV[i - 1]?.section !== n.section ? (
+        {NAV.filter((n) => !n.section || NAV.find((m) => m.section === n.section) === n).map((n) => {
+          // Forms and Settings are single items; Meetings and Emails open and fold like Forms' folders.
+          const items = n.section ? NAV.filter((m) => m.section === n.section) : [n];
+          const link = (m: NavItem) => <NavLink key={m.key} n={m} on={active?.key === m.key} count={p.counts[m.key]} dot={!!p.dots?.[m.key]} navigate={p.navigate} preload={p.onPreload} rail={rail} />;
+          if (!n.section)
+            return (
+              // Settings sits at the bottom of the sidebar on wider screens; on phones it stays in the row.
+              <span key={n.key} className={n.group === "settings" ? "contents md:hidden" : "contents"}>
+                {link(n)}
+                {p.under?.[n.key] && !rail ? <span className="hidden xl:contents">{p.under[n.key]}</span> : null}
+              </span>
+            );
+          const sec = n.section;
+          const shut = !rail && closed[sec];
+          const inside = items.some((m) => m.key === active?.key);
+          return (
+            <span key={sec} className="contents">
               <span className="hidden md:contents">
                 {rail ? (
                   <span aria-hidden="true" className="mx-2 my-2 h-px shrink-0 bg-line" />
                 ) : (
                   <>
                     <span aria-hidden="true" className="mx-2 my-2 h-px shrink-0 bg-line xl:hidden" />
-                    <span className="hidden px-2 pt-3 pb-1 text-[11.5px] font-medium text-faint xl:block">{SECTION_LABEL[n.section]}</span>
+                    <button
+                      type="button"
+                      aria-expanded={!shut}
+                      onClick={() => toggleSection(sec)}
+                      className="hidden h-8 shrink-0 items-center gap-2.5 rounded-md px-2 text-[13.5px] text-body transition-[background-color,color] duration-[150ms] hover:bg-hover hover:text-ink xl:flex"
+                    >
+                      <span aria-hidden="true" className={`flex size-5 shrink-0 items-center justify-center ${shut && inside ? "text-signal" : "text-muted"}`}>
+                        {sec === "meetings" ? <CalendarIcon size={14} /> : <Mail size={14} />}
+                      </span>
+                      <span className="whitespace-nowrap">{SECTION_LABEL[sec]}</span>
+                      <span aria-hidden="true" className={`ml-auto text-faint transition-transform duration-[150ms] ${shut ? "-rotate-90" : ""}`}>
+                        <ChevronDown size={13} />
+                      </span>
+                    </button>
                   </>
                 )}
               </span>
-            ) : null}
-            <NavLink n={n} on={active?.key === n.key} count={p.counts[n.key]} dot={!!p.dots?.[n.key]} navigate={p.navigate} preload={p.onPreload} rail={rail} />
-            {p.under?.[n.key] && !rail ? <span className="hidden xl:contents">{p.under[n.key]}</span> : null}
-          </span>
-        ))}
+              <span className={rail ? "contents" : `contents xl:ml-[18px] xl:flex xl:flex-col xl:gap-[1px] xl:border-l xl:border-line xl:pl-[6px] ${shut ? "xl:hidden" : ""}`}>{items.map(link)}</span>
+            </span>
+          );
+        })}
       </nav>
       {p.start}
       <div className="hidden flex-col gap-0.5 md:flex">
