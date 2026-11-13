@@ -87,8 +87,10 @@ export function stepDetail(s: Step, n: Names = {}): string {
     case "wait": {
       const parts = [s.days ? plural(s.days, "day") : "", s.hours ? plural(s.hours, "hour") : ""].filter(Boolean);
       if (s.before === "meeting") return `${parts.join(" and ") || "The time"} before meeting`;
-      const days = s.weekday?.length ? (s.weekday.length === 5 && !s.weekday.includes(0) && !s.weekday.includes(6) ? ", weekdays" : ", allowed days") : "";
-      return `${parts.join(" and ") || "A moment"}${days}${s.at ? ` at ${clockLabel(s.at, true)}` : ""}`;
+      // "2 days, then Tue or Thu at 9:00 AM" (docs/email-unify-plan.md, E4).
+      const names = (s.weekday ?? []).map((d) => DAY_SHORT[d]).filter(Boolean);
+      const days = names.length ? (names.length === 5 && !s.weekday!.includes(0) && !s.weekday!.includes(6) ? ", then a weekday" : `, then ${names.length > 1 ? `${names.slice(0, -1).join(", ")} or ${names.at(-1)}` : names[0]}`) : "";
+      return `${parts.join(" and ") || "A moment"}${days}${s.at ? `${days ? "" : ", then"} at ${clockLabel(s.at, true)}` : ""}`;
     }
     case "wait_until":
       return `Up to ${plural(s.days, "day")} for ${EVENT_WORDS[s.event] ?? s.event}`;
@@ -115,6 +117,7 @@ export function stepDetail(s: Step, n: Names = {}): string {
   }
 }
 
+const DAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const EVENT_WORDS: Record<string, string> = { "meeting.booked": "a booked meeting", "email.clicked": "a click on an email", "form.submitted": "a form" };
 
 export function waitWords(s: Extract<Step, { kind: "wait" }>): string {

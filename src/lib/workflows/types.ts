@@ -83,6 +83,23 @@ export const LIMITS = { steps: 50, depth: 3, workflows: 100, runsPerContact: 20 
 
 export const emptyEmail = (): EmailBody => ({ subject: "", preheader: "", paragraphs: [""], cta_label: "", cta_url: "" });
 
+/** One line about each kind: under it in the add menu and under its title in the panel. */
+export const STEP_LINE: Record<StepKind, string> = {
+  email: "Send an email, edited on Emails",
+  wait: "Wait a while, or until a day and time",
+  wait_until: "Wait until they book, click or fill a form",
+  branch: "Two paths by what's true about them",
+  split: "Send part one way and part the other",
+  route: "Give the lead to the right person",
+  slack: "Post a message in Slack",
+  webhook: "Send the data to another tool",
+  sms: "Text their mobile, with their consent",
+  whatsapp: "Send an approved WhatsApp template",
+  chat: "Post in Teams or Discord",
+  event: "Send an event to your analytics",
+  exit: "Stop here",
+};
+
 export const emptyBody = (): Body => ({ trigger: { kind: "form", forms: [] }, steps: [], goals: [], entry: { mode: "once", gapDays: 30 } });
 
 export function newStepId(): string {

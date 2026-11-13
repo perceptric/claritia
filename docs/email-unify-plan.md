@@ -1,6 +1,6 @@
 # Email, round 3: one place for every email
 
-Plan, 13 November 2026. E1, E2 and E3 built the same day (see "As built" at the end). Today Emails has two halves that don't talk: Campaigns (the canvas, B1 to B5) and Automations
+Plan, 13 November 2026. E1 to E4 built the same day (see "As built" at the end). Today Emails has two halves that don't talk: Campaigns (the canvas, B1 to B5) and Automations
 (the workflow editor, `src/components/app/workflows/`), where an email step is a subject and a text box in a side
 panel. This plan fixes what's broken on those screens, gives Audiences real columns, turns Automations into a
 Zapier-style editor, and makes every email, sent once or by an automation, live on the Emails canvas.
@@ -210,3 +210,31 @@ inside each workflow, so the rows move rather than grow.
   `tests/pg/automationEmails.pg.ts`, `scripts/email-canvas-check.ts` check 69, `scripts/emails-check.ts` (the editor's
   side).
 - **Cost:** $0 a month at Beta and Growth beyond Tia's use, already counted in the plan.
+
+## As built: E4
+
+- **Canvas:** the flow sits on the Emails canvas's surface (`src/components/app/workflows/FlowCanvas.tsx`): two-finger
+  scroll pans, pinch or ⌘ + scroll zooms, Space or the Hand pans, Shift+1 fits, Shift+0 is 100%, the zoom control sits
+  at the bottom right. It opens as wide as fits from the top (`columnView`); the view is kept per automation on this
+  computer. (The plan said ⌘0 to fit; the canvas keeps the Emails canvas's keys, so both canvases work alike.)
+- **Paths:** a Branch, Split or Event wait draws its paths side by side, each at least 400 px wide, with their names.
+- **Cards:** one line of every setting ("2 days, then Tue or Thu at 9:00 AM"), the first problem in words, Approved and
+  Changed since publish, and a small picture of each email in its brand kit.
+- **Add a step:** the + opens a menu with a search box, the groups and one line per kind (`STEP_LINE`); Enter adds the
+  first match.
+- **Move and copy:** drag a card onto a + (a green line shows where it lands); ⌘D copies the picked step; Delete
+  removes it (asking first when it has steps inside); Escape goes back to the trigger; ⌘Z and ⇧⌘Z as before. The side
+  buttons (move up and down, copy, delete) stay for the keyboard and screen readers.
+- **Panel:** Settings and Test at the top. The trigger is a set of cards with icons; each step shows its one line
+  under its title. **Insert data** on the email subject, Slack, Text and Teams or Discord messages puts in a merge
+  field (`{{first_name|}}`, with an empty fallback): the person's first and last name, company and job title, and the
+  meeting's time, link and reschedule link. Form answers aren't offered: the engine doesn't fill them yet. Fields show
+  the merge field as text, not as a chip.
+- **Test:** pick a person (search by name or email) and see what the picked step would do if they entered now: the
+  email as they'd get it, built in the brand kit with their merge fields, the path a Branch, Split or Event wait sends
+  them down, when a Delay ends in their time zone, or that they don't reach it. `/api/workflows/try` now answers each
+  Delay's end and each email's built HTML. Nothing is sent. Typing sample values instead of picking a person isn't
+  built. The page's own Test (the whole path) stays.
+- **Proof:** `tests/automationEditor.test.ts`; `scripts/automation-check.ts` (23 browser checks on the real editor over
+  a stand-in database, including a real mouse drag).
+- **Cost:** $0 a month at Beta and Growth.

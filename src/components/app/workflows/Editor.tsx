@@ -11,11 +11,14 @@ import { newStep, type Body, type Step, type StepKind } from "@/lib/workflows/ty
 import { Redo, Trash, Undo } from "../../Icons";
 import { askConfirm } from "../Dialogs";
 import { toast } from "../routing/Toast";
-import { Badge, Button, ErrorNote, IconButton, invalidate, Page, setLeaveGuard, type Tone, type ViewProps } from "../ui";
+import { Badge, Button, ErrorNote, IconButton, invalidate, Page, Segmented, setLeaveGuard, useQuery, type Tone, type ViewProps } from "../ui";
 import type { Loaded, Version } from "./data";
 import { Flow, type Sel } from "./Flow";
 import { StepPanel, TriggerPanel } from "./Inspector";
-import { addStep, byId, duplicateStep, editorReducer, nudge, patchStep, removeStep, startEditor } from "./model";
+import { addStep, byId, duplicateStep, editorReducer, moveStep, nudge, patchStep, removeStep, startEditor } from "./model";
+import { FlowCanvas } from "./FlowCanvas";
+import { StepTest } from "./StepTest";
+import { previewHtml, type CanvasKit } from "../emails/canvas/preview";
 import { HistoryDrawer, PublishDialog, TryPanel, VersionsDrawer } from "./Panels";
 import { useEmailCopies } from "./emailCopies";
 import { designOf, emailSteps, sameEmail } from "@/lib/workflows/stepEmails";
@@ -58,6 +61,8 @@ export function WorkflowEditor({
   const [panel, setPanel] = useState<"try" | "history" | "versions" | "publish" | null>(null);
   const [lit, setLit] = useState<Set<string> | null>(null);
   const [viewing, setViewing] = useState<Version | null>(null);
+  // The panel shows the picked node's settings or what it would do for one person (docs/email-unify-plan.md, E4).
+  const [tab, setTab] = useState<"settings" | "test">("settings");
 
   const body = st.body;
   const gone = useMemo(() => goneProblems(body, data.words), [body, data.words]);
@@ -66,6 +71,14 @@ export function WorkflowEditor({
   const sync = useCallback((fn: (b: Body) => Body) => dispatch({ type: "sync", fn }), []);
   // Each email step's editing copy on the Emails canvas (docs/email-unify-plan.md, E3).
   const mail = useEmailCopies({ sb, ws: ws.id, id, body, sync, readOnly: false });
+  // Small pictures of the emails on their cards, in the brand kit they use.
+  const kits = useQuery(`email_canvas_kits:${ws.id}`, async () => ((await sb.from("brand_kits").select("id, tokens, logo_url, design").eq("workspace_id", ws.id).order("created_at")).data ?? []) as CanvasKit[]);
+  const thumbs = useMemo(() => {
+    const out: Record<string, string> = {};
+    if (!kits.data) return out;
+    for (const s of emailSteps(body)) if (s.email.doc) out[s.id] = previewHtml({ doc: s.email.doc, status: "draft", html: "" }, kits.data);
+    return out;
+  }, [body, kits.data]);
   // Emails whose words differ from the live version's.
   const changedSinceLive = useMemo(() => {
     if (!data.live) return new Set<string>();
@@ -192,6 +205,15 @@ export function WorkflowEditor({
     const r = duplicateStep(body, sid);
     edit(r.body);
     if (r.id) setSel(r.id);
+  };
+  /** Keys on the canvas: Delete removes the picked step, ⌘D copies it, Escape goes back to the trigger. */
+  const canvasKey = (e: KeyboardEvent) => {
+    if (viewing) return false;
+    const step = sel && sel !== "trigger" ? sel : null;
+    if (step && (e.key === "Delete" || e.key === "Backspace")) return (e.preventDefault(), void onRemove(step), true);
+    if (step && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "d") return (e.preventDefault(), onCopy(step), true);
+    if (e.key === "Escape" && step) return (setSel("trigger"), true);
+    return false;
   };
 
   // Status ------------------------------------------------------------------------------------------------------------
@@ -377,7 +399,8 @@ export function WorkflowEditor({
         ) : null}
 
         <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_400px]">
-          <div className="flow-dots min-h-0 overflow-y-auto px-4 pt-8 md:px-14">
+          <div className="relative flex min-h-[480px] min-w-0 flex-col lg:min-h-0">
+            <FlowCanvas storageKey={`claritia:flow-canvas:${id}`} onKey={canvasKey}>
             <Flow
               body={shown}
               names={data.words}
@@ -393,10 +416,29 @@ export function WorkflowEditor({
               entered={data.stats.entered}
               lit={lit}
               readOnly={!!viewing}
+              onMove={(sid, at) => edit(moveStep(body, sid, at))}
+              thumbs={thumbs}
             />
+            </FlowCanvas>
           </div>
           <aside className="min-h-[480px] overflow-y-auto border-t border-line p-5 lg:min-h-0 lg:border-t-0 lg:border-l">
-            {viewing ? null : selStep ? (
+            {viewing ? null : (
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                <Segmented<"settings" | "test">
+                  value={tab}
+                  onChange={setTab}
+                  label="Panel"
+                  size="sm"
+                  options={[
+                    { value: "settings", label: "Settings" },
+                    { value: "test", label: "Test" },
+                  ]}
+                />
+              </div>
+            )}
+            {viewing ? null : tab === "test" ? (
+              <StepTest sb={sb} session={session} ws={ws.id} body={body} sel={sel ?? "trigger"} names={data.words} />
+            ) : selStep ? (
               <StepPanel
                 key={selStep.id}
                 step={selStep}
