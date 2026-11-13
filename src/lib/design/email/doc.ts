@@ -24,10 +24,10 @@ export const SOCIAL_KINDS: SocialKind[] = ["linkedin", "x", "facebook", "instagr
 
 export type Block = Base &
   (
-    | { type: "heading"; text: string; level: 1 | 2 | 3 }
+    | { type: "heading"; text: string; level: 1 | 2 | 3 | 4 | 5 | 6 }
     | { type: "text"; html: string }
     | { type: "button"; label: string; url: string; align: Align; full?: boolean }
-    | { type: "image"; src: string; alt: string; url?: string; width?: number; align: Align }
+    | { type: "image"; src: string; alt: string; url?: string; width?: number; align: Align; loading?: "lazy" | "eager" }
     | { type: "logo"; src?: string; alt: string; url?: string; width: number; align: Align }
     | { type: "divider" }
     | { type: "spacer"; height: number }
@@ -111,7 +111,7 @@ export function readBlock(raw: unknown, seen: Set<string>, allowHtml: boolean): 
   const align = pick(r.align, ALIGNS, "left");
   switch (type) {
     case "heading":
-      return { ...base, type, text: line(r.text, 500), level: pick(r.level, [1, 2, 3] as const, 2) };
+      return { ...base, type, text: line(r.text, 500), level: pick(r.level, [1, 2, 3, 4, 5, 6] as const, 2) };
     case "text":
       return { ...base, type, html: cleanHtml(str(r.html, EMAIL_LIMITS.text), "rich") };
     case "button":
@@ -119,7 +119,8 @@ export function readBlock(raw: unknown, seen: Set<string>, allowHtml: boolean): 
     case "image": {
       const url = href(r.url);
       const width = r.width === undefined ? undefined : num(r.width, 20, 1400, 600);
-      return { ...base, type, src: img(r.src), alt: line(r.alt, 300), align, ...(url ? { url } : {}), ...(width ? { width } : {}) };
+      const loading = r.loading === "lazy" || r.loading === "eager" ? r.loading : undefined;
+      return { ...base, type, src: img(r.src), alt: line(r.alt, 300), align, ...(url ? { url } : {}), ...(width ? { width } : {}), ...(loading ? { loading } : {}) };
     }
     case "logo": {
       const url = href(r.url);

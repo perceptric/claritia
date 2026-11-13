@@ -60,29 +60,7 @@ export function EmailStylePanel({
   if (!hasKit || (level.kind === "class" && !on.includes(level.id))) level = { kind: "element" };
   const setLevel = (l: Level) => setPicked({ id, level: l });
   const e: EmailEdit = { system, doc };
-  const resolved = resolveEmail(system, doc, { id, part: p }, bp, state);
-  const levelKey = level.kind === "class" ? `c${level.id}` : level.kind;
-  const ctx: StyleCtx = {
-    email: true,
-    vars: allVariables(system, tokens),
-    resolved,
-    own: (x) => emailOwnValue(e, level, id, p, bp, state, x),
-    origin: (x) => emailOrigin(e, level, id, p, bp, state, x),
-    source: (x) => {
-      const r = resolved[x];
-      if (!r) return undefined;
-      if (r.source.level === "class") return sourceText(r.source, { ...system, classes: classes.map((c) => ({ ...c, styles: {} })) });
-      return sourceText(r.source, system).replace("Form default", "Email default");
-    },
-    setsAny: (ps) => emailSetsAny(e, level, id, p, bp, state, ps),
-    write: (ps, value, merge) => {
-      let next: EmailEdit | null = e;
-      for (const x of ps) next = next && setEmailProp(next, tokens, level, id, p, bp, state, x, value);
-      if (!next) return false;
-      onEdit(next, merge ? `${id}:${p}:${ps.join()}:${levelKey}:${bp}:${state ?? ""}` : undefined);
-      return true;
-    },
-  };
+  const ctx = emailStyleCtx({ system, doc, tokens, level, id, part: p, bp, state, onEdit });
   const add = async () => {
     const name = await askText("Add a class", { placeholder: "Class name", ok: "Add" });
     if (!name?.trim()) return;
@@ -161,4 +139,36 @@ export function EmailStylePanel({
       <Sections ctx={ctx} />
     </div>
   );
+}
+
+/**
+ * The style sections' context for one email part at one level, breakpoint and state: shared by this panel and the
+ * canvas's Element panel (docs/email-canvas-b2.md section 3).
+ */
+export function emailStyleCtx({ system, doc, tokens, level, id, part, bp, state, onEdit }: { system: DesignSystem; doc: EmailDoc; tokens: Partial<Tokens>; level: Level; id: string; part: EmailPartKey; bp: EmailBp; state?: EmailState; onEdit: (e: EmailEdit, merge?: string) => void }): StyleCtx {
+  const e: EmailEdit = { system, doc };
+  const resolved = resolveEmail(system, doc, { id, part }, bp, state);
+  const classes = system.email?.classes ?? [];
+  const levelKey = level.kind === "class" ? `c${level.id}` : level.kind;
+  return {
+    email: true,
+    vars: allVariables(system, tokens),
+    resolved,
+    own: (x) => emailOwnValue(e, level, id, part, bp, state, x),
+    origin: (x) => emailOrigin(e, level, id, part, bp, state, x),
+    source: (x) => {
+      const r = resolved[x];
+      if (!r) return undefined;
+      if (r.source.level === "class") return sourceText(r.source, { ...system, classes: classes.map((c) => ({ ...c, styles: {} })) });
+      return sourceText(r.source, system).replace("Form default", "Email default");
+    },
+    setsAny: (ps) => emailSetsAny(e, level, id, part, bp, state, ps),
+    write: (ps, value, merge) => {
+      let next: EmailEdit | null = e;
+      for (const x of ps) next = next && setEmailProp(next, tokens, level, id, part, bp, state, x, value);
+      if (!next) return false;
+      onEdit(next, merge ? `${id}:${part}:${ps.join()}:${levelKey}:${bp}:${state ?? ""}` : undefined);
+      return true;
+    },
+  };
 }

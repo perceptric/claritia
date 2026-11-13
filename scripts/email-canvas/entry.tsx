@@ -1,7 +1,8 @@
 // The Email Canvas with a stand-in database (scripts/email-canvas-check.ts): the real page (EmailCanvasPage), an
 // in-memory `emails`, `email_groups` and `brand_kits`, and the calls it makes (email_group_place, email_draft_save,
 // email_draft_delete, email_group_save, email_campaigns). Real templates are the emails, so the build is real.
-// ?group=<id>&n=<count> picks the canvas; window.calls records every write.
+// ?group=<id>&n=<count> picks the canvas; window.calls records every write. B2: one brand kit, whose design draft saves
+// through a stand-in /api/design/save and publishes through brand_kit_design_publish.
 import { createRoot } from "react-dom/client";
 import { EMAIL_TEMPLATES } from "../../src/lib/design/email/library.ts";
 import { DialogHost } from "../../src/components/app/Dialogs.tsx";
@@ -24,10 +25,23 @@ const email = (name: string, t: number, group: string | null, pos: number, statu
 const db: Record<string, Row[]> = {
   email_groups: [{ id: G, workspace_id: "ws1", name: "Welcome series", created_at: new Date(now - 86400000).toISOString() }, { id: "22222222-2222-4222-8222-222222222222", workspace_id: "ws1", name: "Holiday promo", created_at: new Date(now).toISOString() }],
   emails: [email("Welcome", 0, G, 0), email("Class reminder", 3, G, 1), email("Monthly news", 6, G, 2), email("Spring workshop", 9, null, 0)],
-  brand_kits: [],
+  brand_kits: [{ id: "k1", workspace_id: "ws1", name: "Juniper", tokens: {}, logo_url: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='40'%3E%3Crect width='120' height='40' fill='%23888'/%3E%3C/svg%3E", design: null, design_live: null, design_rev: 0, created_at: new Date(now - 86400000).toISOString() }],
 };
 for (let i = 0; i < many; i++) db.emails!.push(email(`Weekly note #${i + 1}`, 1, null, 0, "sent"));
 w.db = db;
+// The design draft's save (src/components/app/forms/useDesignDraft.ts) goes to the stand-in kit.
+const realFetch = window.fetch.bind(window);
+window.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+  if (String(input).includes("/api/design/save")) {
+    const body = JSON.parse(String(init?.body ?? "{}")) as { kitId: string; design: unknown };
+    const k = db.brand_kits!.find((x) => x.id === body.kitId)!;
+    k.design = body.design;
+    k.design_rev = Number(k.design_rev) + 1;
+    calls.push({ mode: "design_save", body });
+    return new Response(JSON.stringify({ rev: k.design_rev }), { status: 200, headers: { "content-type": "application/json" } });
+  }
+  return realFetch(input, init);
+}) as typeof window.fetch;
 
 function query(table: string) {
   const filters: ((r: Row) => boolean)[] = [];
@@ -71,6 +85,11 @@ const rpc = async (fn: string, a: Row) => {
     if (old !== a.p_group) regroup(old);
     return { data: true, error: null };
   }
+  if (fn === "brand_kit_design_publish") {
+    const k = db.brand_kits!.find((x) => x.id === a.p_id)!;
+    k.design_live = k.design;
+    return { data: true, error: null };
+  }
   if (fn === "email_draft_save") {
     if (!a.p_id) {
       const r: Row = { ...email(String(a.p_name), 0, null, 0), subject: a.p_subject, doc: a.p_doc, updated_at: new Date().toISOString() };
@@ -78,6 +97,7 @@ const rpc = async (fn: string, a: Row) => {
       return { data: r.id, error: null };
     }
     const r = db.emails!.find((x) => x.id === a.p_id)!;
+    if (r.status !== "draft") return { data: null, error: { message: "This email is not a draft" } };
     Object.assign(r, { name: a.p_name, subject: a.p_subject, doc: a.p_doc });
     return { data: r.id, error: null };
   }

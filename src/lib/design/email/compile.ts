@@ -175,14 +175,14 @@ function button(ctx: Ctx, id: string, label: string, url: string, where: string,
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="${where}"${full ? ' width="100%"' : ""} style="margin:0${where === "center" ? " auto" : ""}"><tr><td align="center" style="border-radius:${radius}px;background-color:${escapeAttr(bg)}">${vml}${link}</td></tr></table>`;
 }
 
-function image(ctx: Ctx, id: string, src: string, alt: string, width: number, url?: string, where = "center", part: EmailPartKey = "image"): string {
+function image(ctx: Ctx, id: string, src: string, alt: string, width: number, url?: string, where = "center", part: EmailPartKey = "image", loading?: "lazy" | "eager"): string {
   if (!src) {
     ctx.notes.push({ level: "warn", text: "An image has no picture yet.", id });
     return "";
   }
   if (!alt) ctx.notes.push({ level: "warn", text: "An image has no alt text.", id });
   const s = style(ctx, id, part, isMargin);
-  const tag = `<img src="${escapeAttr(src)}" alt="${escapeAttr(alt)}" width="${width}"${attrClass(s.className)} style="display:block;width:100%;max-width:${width}px;height:auto;border:0;outline:none;text-decoration:none;${where === "center" ? "margin:0 auto;" : where === "right" ? "margin-left:auto;" : ""}${escapeAttr(s.inline)}">`;
+  const tag = `<img src="${escapeAttr(src)}" alt="${escapeAttr(alt)}" width="${width}"${loading ? ` loading="${loading}"` : ""}${attrClass(s.className)} style="display:block;width:100%;max-width:${width}px;height:auto;border:0;outline:none;text-decoration:none;${where === "center" ? "margin:0 auto;" : where === "right" ? "margin-left:auto;" : ""}${escapeAttr(s.inline)}">`;
   return url ? `<a href="${escapeAttr(url)}" style="text-decoration:none">${tag}</a>` : tag;
 }
 
@@ -205,7 +205,7 @@ function blockHtml(ctx: Ctx, b: Block, width: number): string {
       return button(ctx, b.id, b.label, b.url, align(b.align), b.type === "button" && b.full);
     }
     case "image":
-      return image(ctx, b.id, b.src, b.alt, Math.min(b.width ?? width, width), b.url, align(b.align));
+      return image(ctx, b.id, b.src, b.alt, Math.min(b.width ?? width, width), b.url, align(b.align), "image", b.loading);
     case "logo":
       return image(ctx, b.id, b.src ?? ctx.opts.logo ?? "", b.alt, Math.min(b.width, width), b.url, align(b.align));
     case "divider": {
