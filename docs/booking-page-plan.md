@@ -59,13 +59,14 @@ the form-to-booked edge, then the guest's own calendar and a box for plain words
 
 ## Part 6. Show my calendar
 
-- Under the calendar: **Show my calendar** with Google and Outlook. A small window signs the guest in with the
-  narrowest read (Google `calendar.freebusy`, Microsoft `Calendars.ReadBasic`), reads the next 62 days' busy times
+- Under the calendar: **Show my calendar** with Google. A small window signs the guest in with the narrowest read
+  (Google `calendar.freebusy`), reads the next 62 days' busy times
   once, hands them to the page that opened it and closes. No token or time is stored.
 - Times that clash with the guest's day show dashed with "You're busy"; they can still be picked. **Hide** turns it off.
 - The busy times only go to Claritia's own booking addresses: the app, the site, a workspace subdomain or an active
   custom domain. The page only takes them from the window it opened.
-- Setup: the redirect URI and scope in `docs/meetings-setup.md` (sections 1 and 2, step 5). Until then the button
+- Google only: there's no Microsoft app to sign in with. Setup: the redirect URI and scope in
+  `docs/meetings-setup.md` (section 1, step 5). Until then the button
   says "This isn't set up yet."
 
 ## Proof
@@ -82,6 +83,6 @@ the form-to-booked edge, then the guest's own calendar and a box for plain words
 |---|---|---|
 | Fixes, host card, week view, confirmed screen, dark, form answers, one click | $0 | $0 |
 | Holds (one small table, rows live 5 minutes) | $0 | $0 |
-| Show my calendar (Google and Microsoft calendar reads are free) | $0 | $0 |
+| Show my calendar (Google calendar reads are free) | $0 | $0 |
 | Plain words: Haiku only for phrases the page can't read, cached per day | about $2 (check) | about $20 (check) |
 | **Total a month** | **about $2 (check)** | **about $20 (check)** |

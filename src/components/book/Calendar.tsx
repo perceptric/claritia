@@ -654,7 +654,7 @@ function Info({ type, logo, length, picked }: { type: GuestType; logo?: string |
 }
 
 /**
- * "Show my calendar": the guest signs in to Google or Microsoft in a small window, and the times that clash with their
+ * "Show my calendar": the guest signs in to Google in a small window, and the times that clash with their
  * own day are marked. Only the busy times come back, and they stay on this page (src/lib/meetings/overlay.ts).
  */
 function MyCalendar({ on, onBusy }: { on: { busy: Busy[]; provider: string } | null; onBusy: (v: { busy: Busy[]; provider: string } | null) => void }) {
@@ -667,12 +667,12 @@ function MyCalendar({ on, onBusy }: { on: { busy: Busy[]; provider: string } | n
       win.current = null;
       if (d.error) return setErr(d.error === "denied" ? "" : d.error === "off" ? "This isn't set up yet." : "Your calendar couldn't be read.");
       setErr("");
-      onBusy({ busy: cleanBusy(d.busy), provider: d.provider === "microsoft" ? "Outlook" : "Google" });
+      onBusy({ busy: cleanBusy(d.busy), provider: "Google" });
     };
     window.addEventListener("message", got);
     return () => window.removeEventListener("message", got);
   }, [onBusy]);
-  const open = (p: "google" | "microsoft") => {
+  const open = (p: "google") => {
     setErr("");
     const w = 480;
     const h = 640;
@@ -695,9 +695,6 @@ function MyCalendar({ on, onBusy }: { on: { busy: Busy[]; provider: string } | n
           <span className="cb-chips">
             <button type="button" className="cb-pill cb-findbtn" onClick={() => open("google")}>
               Google
-            </button>
-            <button type="button" className="cb-pill cb-findbtn" onClick={() => open("microsoft")}>
-              Outlook
             </button>
           </span>
           {err ? (
