@@ -779,6 +779,11 @@ export type StudioApi = {
   /** Workflows that start on this form. */
   followUps(formId: string): Promise<{ id: string; name: string; status: string }[]>;
   newFollowUp(formId: string, when: "sent" | "not_booked"): void;
+  /** Add to a list (list_forms, 157): the lists this form's fills join, every list, and changing one. */
+  formLists(formId: string): Promise<{ id: string; name: string }[]>;
+  allLists(): Promise<{ id: string; name: string }[]>;
+  setFormList(listId: string, formId: string, on: boolean): Promise<void>;
+  newList(): Promise<{ id: string; name: string } | null>;
   openWorkflow(id: string): void;
   /** The people who take meetings, by name (the Team member field). */
   people?(): Promise<string[]>;
@@ -3368,14 +3373,14 @@ ${CAL_CSS}
 
   // Always do: what every send does, whatever it books. Email and Slack ride on the form; Send to and Follow-ups are
   // the form's destinations and workflows, so they need the form saved once.
-  let extra = { form: "", sends: null, tools: null, flows: null, busy: false };
+  let extra = { form: "", sends: null, tools: null, flows: null, lists: null, allLists: null, busy: false };
   async function loadExtra(force) {
     const id = cur?.formId || "";
     if (!force && extra.form === id && extra.sends) return;
-    extra = { form: id, sends: id ? null : [], tools: extra.tools, flows: id ? null : [], busy: true };
-    const [sends, tools, flows] = await Promise.all([id ? api.sends(id).catch(() => []) : [], extra.tools || api.tools().catch(() => []), id ? api.followUps(id).catch(() => []) : []]);
+    extra = { form: id, sends: id ? null : [], tools: extra.tools, flows: id ? null : [], lists: id ? null : [], allLists: null, busy: true };
+    const [sends, tools, flows, lists, allLists] = await Promise.all([id ? api.sends(id).catch(() => []) : [], extra.tools || api.tools().catch(() => []), id ? api.followUps(id).catch(() => []) : [], id ? api.formLists(id).catch(() => []) : [], api.allLists().catch(() => [])]);
     if (!alive || extra.form !== id) return;
-    extra = { ...extra, sends, tools, flows, busy: false };
+    extra = { ...extra, sends, tools, flows, lists, allLists, busy: false };
     endUi();
   }
   async function ensureForm() {
@@ -3399,13 +3404,14 @@ ${CAL_CSS}
     const setA = (p) => set({ always: { email: !!al.email, to: al.to || [], slack: !!al.slack, ...p } });
     if (!extra.busy && ((cur?.formId || "") !== extra.form || !extra.sends)) void loadExtra(true);
     // One dropdown picks which notification to set; its settings sit under it.
-    const sends = extra.sends || [], flows = extra.flows || [];
+    const sends = extra.sends || [], flows = extra.flows || [], lists = extra.lists || [];
     const count = (n) => (n ? String(n) : "");
     const kinds = [
       { v: "email", t: "Email the team", icon: SVG('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>', 16), st: al.email ? "On" : "" },
       { v: "slack", t: "Post to Slack", icon: logoImg("slack.com"), st: al.slack ? "On" : "" },
       { v: "send", t: "Send to a tool", icon: SVG('<path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4"/>', 16), st: count(sends.length) },
       { v: "follow", t: "Follow-up", icon: SVG('<circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M6 8.5v3a3 3 0 0 0 3 3h6.5"/><path d="M13 12l2.5 2.5L13 17"/>', 16), st: count(flows.length) },
+      { v: "list", t: "Add to a list", icon: SVG('<path d="M4 6h11M4 12h11M4 18h7"/><path d="M18 15v6M15 18h6"/>', 16), st: count(lists.length) },
     ];
     const now = kinds.some((k) => k.v === S.notif) ? S.notif : "email";
     const card = h("div", { class: "sec" }, h("h4", { text: "Notification" }), logoPick("Notification", kinds, now, (v) => { S.notif = v; endUi(); }));
@@ -3424,6 +3430,15 @@ ${CAL_CSS}
       const have = new Set(sends.map((d) => d.name));
       list.append(menuPill("Add", [...(extra.tools || []).filter((t) => !have.has(t.name)).map((t) => [t.name, () => addSend(t)]), ...((extra.tools || []).length ? ["sep"] : []), ["Webhook", () => addSend("webhook")]], "Send to"));
       body0.append(list);
+    } else if (now === "list") {
+      // Add to a list: each fill joins these lists in Emails › Audiences (list_forms, 157).
+      const row = h("div", { class: "arow" });
+      const setList = async (l, on) => { const id = await ensureForm(); if (!id) return; try { await api.setFormList(l.id, id, on); void loadExtra(true); } catch (e) { toast(e?.message || "Couldn't change it. Try again."); } };
+      for (const l of lists) row.append(h("span", { class: "pill" }, h("span", { text: l.name }), h("button", { class: "ib sm", "aria-label": `Stop adding fills to ${l.name}`, html: SVG(P.x, 12), onclick: () => setList(l, false) })));
+      const have = new Set(lists.map((l) => l.id));
+      const newList = async () => { const l = await api.newList(); if (l) await setList(l, true); };
+      row.append(menuPill("Add", [...(extra.allLists || []).filter((l) => !have.has(l.id)).map((l) => [l.name, () => setList(l, true)]), ...((extra.allLists || []).some((l) => !have.has(l.id)) ? ["sep"] : []), ["New list", newList]], "Add to a list"));
+      body0.append(row);
     } else {
       // Follow-ups: workflows that start on this form.
       const list = h("div", { class: "arow" });
