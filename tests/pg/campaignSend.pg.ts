@@ -87,6 +87,50 @@ test("the preview's ready count is what goes; the audience freezes; a repeat and
   assert.equal((await campaign(s)).status, "sent");
 });
 
+test("each person's name fills in; the From name, address and reply-to are the ones picked; other domains are refused", async () => {
+  sent = [];
+  const s = await setup();
+  const dom = `w${s.ws.slice(0, 8)}.acme.com`;
+  await doSend(s, { lists: [s.list], subject: "Hi {{first_name|there}}", from_name: "Juniper Team", from_email: `Hello@${dom}`, reply_to: "studio@juniper.com" });
+  await runSend(s.ws);
+  const got = mine(s.ws).sort((a, b) => a.to.localeCompare(b.to));
+  assert.deepEqual(got.map((m) => m.subject), ["Hi ana", "Hi ben", "Hi cy"], "until 156 every campaign said Hi there");
+  assert.ok(got.every((m) => m.from.includes("Juniper Team") && m.from.includes(`hello@${dom}`)), got[0]!.from);
+  assert.ok(got.every((m) => m.replyTo === "studio@juniper.com"));
+  const other = await setup();
+  await assert.rejects(doSend(other, { lists: [other.list], from_email: "news@gmail.com" }), /Pick a verified domain/);
+  await assert.rejects(doSend(other, { lists: [other.list], reply_to: "not an address" }), /reply-to/);
+  const opts = (await one<{ o: { from_email: string; domains: { domain: string; left_today: number | null }[] } }>(`select set_config('request.jwt.claim.sub', $1, true), email_sender_options($2) o`, [other.user, other.ws])).o;
+  assert.equal(opts.from_email, `news@w${other.ws.slice(0, 8)}.acme.com`);
+  assert.deepEqual(opts.domains.map((d) => d.domain), [`w${other.ws.slice(0, 8)}.acme.com`]);
+});
+
+test("Gradual Send spaces the messages evenly over the hours; Pause and Resume keep it gradual", async () => {
+  sent = [];
+  const s = await setup();
+  await doSend(s, { everyone: true, spread_hours: 2 });
+  const times = async () => (await q(`select extract(epoch from send_after)::float8 t from email_messages where email_id = $1 and status = 'queued' order by send_after`, [s.draft])).map((r) => r.t as number);
+  const t = await times();
+  const gaps = t.slice(1).map((x, i) => x - t[i]!);
+  assert.equal(t.length, 7);
+  assert.ok(gaps.every((g) => Math.abs(g - 7200 / 7) < 1), JSON.stringify(gaps));
+  await runSend(s.ws);
+  assert.ok(mine(s.ws).length <= 1, "only the first is due now");
+  const c = await pool.connect();
+  try {
+    await c.query(`select set_config('request.jwt.claim.sub', $1, false)`, [s.user]);
+    await c.query(`select email_campaign_pause($1, $2, true)`, [s.ws, s.draft]);
+    await c.query(`select email_campaign_pause($1, $2, false)`, [s.ws, s.draft]);
+  } finally {
+    await c.query(`select set_config('request.jwt.claim.sub', '', false)`);
+    c.release();
+  }
+  const r = await times();
+  const rg = r.slice(1).map((x, i) => x - r[i]!);
+  assert.ok(r.length >= 5 && rg.every((g) => g > 60 && Math.abs(g - rg[0]!) < 1), JSON.stringify(rg));
+  assert.ok(r[0]! <= Date.now() / 1000 + 1, "the first of the rest goes at once");
+});
+
 test("someone who unsubscribes after the send but before it goes gets nothing", async () => {
   sent = [];
   const s = await setup();
