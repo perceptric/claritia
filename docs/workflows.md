@@ -23,6 +23,14 @@ Journeys, Emails, Library and Brand tabs are gone, and the senders stay in Setti
 - With no workflows yet, an owner sees the build screen that writes the lifecycle journeys.
 - Emails' old addresses open here (`resolveRoute` in `src/lib/nav.ts`).
 
+## Emails in an automation
+
+Each email step has an editing copy on the Emails page (docs/email-unify-plan.md, E3): the automation is a group there,
+tagged Automation, and **Edit email** in the step's panel opens the email on the canvas. The step's panel keeps From,
+Write with AI, templates, Approve and **Open in the classic editor**. Words changed on the canvas come into the draft
+the next time the automation opens, and ask for approval again; Publish refuses while a copy and the draft differ. An
+email edited since the live version shows **Changed since publish** on its card and on the canvas.
+
 ## The starting set
 
 Every workspace gets two folders the first time anyone opens Workflows (`workflow_defaults`,

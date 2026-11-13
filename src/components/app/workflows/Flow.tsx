@@ -39,6 +39,8 @@ export function Flow(p: {
   names: WordNames;
   /** What's wrong with the trigger (a deleted form), in words on its card. */
   triggerProblems?: string[];
+  /** Email steps whose words differ from the live version's. */
+  changedSinceLive?: Set<string>;
   sel: Sel | null;
   onSelect: (s: Sel) => void;
   onAdd: (at: At, kind: StepKind) => void;
@@ -135,6 +137,7 @@ function Card(p: ListProps & { step: Step; first: boolean; last: boolean }) {
           ) : null}
         </span>
         {s.kind === "email" && s.ai ? <Badge tone="violet">AI</Badge> : null}
+        {s.kind === "email" && p.changedSinceLive?.has(s.id) ? <Badge tone="violet">Changed since publish</Badge> : null}
         {s.kind === "email" && s.approved ? <Badge tone="green">Approved</Badge> : null}
       </button>
       {!p.readOnly ? (

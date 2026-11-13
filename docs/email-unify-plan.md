@@ -1,6 +1,6 @@
 # Email, round 3: one place for every email
 
-Plan, 13 November 2026. E1 and E2 built the same day (see "As built" at the end). Today Emails has two halves that don't talk: Campaigns (the canvas, B1 to B5) and Automations
+Plan, 13 November 2026. E1, E2 and E3 built the same day (see "As built" at the end). Today Emails has two halves that don't talk: Campaigns (the canvas, B1 to B5) and Automations
 (the workflow editor, `src/components/app/workflows/`), where an email step is a subject and a text box in a side
 panel. This plan fixes what's broken on those screens, gives Audiences real columns, turns Automations into a
 Zapier-style editor, and makes every email, sent once or by an automation, live on the Emails canvas.
@@ -182,3 +182,31 @@ inside each workflow, so the rows move rather than grow.
 - **Proof:** `tests/emailRound3.test.ts`, `tests/pg/audienceColumns.pg.ts`, `scripts/emails-check.ts` (33 browser
   checks on a stand-in page); the Studio and email canvas checks pass.
 - **Cost:** $0 a month at Beta and Growth.
+
+## As built: E3
+
+- **Names:** the sidebar section is **Email**; the page once called Campaigns is **Emails** (its address is the same).
+  "Campaign" stays the word for a one-time send.
+- **Copies:** migration 163 adds `emails.workflow_id` and `step_id` (kind journey, always a draft, deleted with the
+  automation) and `workflow_email_ensure`, which makes one copy per email step, keeps copies that exist (the canvas may
+  have newer words), orders them like the steps and removes copies whose step is gone. `email_draft_save` and
+  `email_version_save` accept these copies. Matching is by step id, so the automation's draft carries no new field.
+- **The editor** (`src/components/app/workflows/emailCopies.ts`): on open, and whenever email steps are added, copied or
+  removed, it makes the copies and brings their words into the draft. Copies made just then keep the step's approval
+  (only the form changed, from paragraphs to a design); a copy with other words asks for approval again. Those words
+  reach every undo step (a new `sync` action), so undo never brings older words back over the canvas's. Edits made in
+  the panel (subject, Write with AI, a template, the classic editor) reach the copy 800 ms later, with retries.
+  **Edit email** saves both and opens the email on its canvas. Cards and the panel show **Changed since publish**.
+- **Publish** reads the copies and refuses with "changed on the Emails page" while one differs from the draft; the
+  editor then brings the words in for a look and a new approval. The send pipeline and the engine are unchanged: the
+  version still holds its own copy of each email.
+- **Emails page:** automations show as cards tagged Automation after the groups, with an All, Campaigns, Automations
+  switch; an automation not opened since copies came gets them there. Their canvas has no Add email, Send, Duplicate,
+  Delete or moving between groups (each says to change it in the automation); it has **Open the automation**, typing,
+  blocks, Tia, versions and comments. Tia's "new emails from one prompt" says to add steps instead.
+- **Classic editor:** "Open in the classic editor" on any draft's More menu opens the block builder; its changes go
+  through the canvas's save and undo.
+- **Proof:** `tests/automationEmails.test.ts` (approval rules, Publish refusing a changed email, key order, undo),
+  `tests/pg/automationEmails.pg.ts`, `scripts/email-canvas-check.ts` check 69, `scripts/emails-check.ts` (the editor's
+  side).
+- **Cost:** $0 a month at Beta and Growth beyond Tia's use, already counted in the plan.

@@ -1376,6 +1376,46 @@ try {
   await ck.close();
   }
 
+  // E3 ---------------------------------------------------------------------------------------------------------------
+  // 69. An automation's emails on their own canvas: the Automation tag, no Add email or Send, edits allowed, and the
+  // whole-email actions that belong to the automation say so instead.
+  {
+    const au = await ctx.newPage();
+    au.on("pageerror", (e) => errors.push(e.message));
+    await au.goto(`http://localhost:${port}/?group=wf:99999999-9999-4999-8999-999999999999`);
+    await au.waitForFunction(() => document.querySelectorAll("[data-email] iframe").length >= 2, null, { timeout: 15000 });
+    await au.waitForTimeout(400);
+    check((await au.getByText("Automation", { exact: true }).count()) >= 1 && (await au.getByRole("button", { name: "Open the automation" }).count()) === 1, "an automation's canvas has its tag and Open the automation");
+    check((await au.getByRole("button", { name: /Add email/ }).count()) === 0, "no Add email on an automation's canvas");
+    const names = await au.locator("[data-canvas-item]").allInnerTexts();
+    check(names.some((n) => n.includes("Thanks") && n.includes("Changed since publish")) && names.some((n) => n.includes("Still there?") && !n.includes("Changed since publish")), `the email edited since the live version says so (${names.map((n) => n.replace(/\s+/g, " ")).join(" / ")})`);
+    const b0 = (await au.locator("[data-email]").first().boundingBox())!;
+    // The whole email, picked by its name.
+    await au.mouse.click(b0.x + 12, b0.y - 12);
+    const bar = au.getByRole("toolbar", { name: "Email actions" });
+    await bar.waitFor();
+    check((await bar.getByRole("button", { name: "Send" }).count()) === 0 && (await bar.getByRole("button", { name: "Test" }).count()) === 1, "the toolbar has Test and no Send");
+    await au.keyboard.press("Delete");
+    await au.waitForTimeout(200);
+    const said = await au.locator("[role='status']").allInnerTexts();
+    check(said.some((t) => t.includes("come and go with their steps")), `Delete on the email says automation emails go with their steps (${said.join(" | ").slice(0, 120)})`);
+    check((await au.locator("[data-email]").count()) === 2, "and nothing was deleted");
+    await bar.getByRole("button", { name: "More" }).click();
+    const items = await au.getByRole("menuitem").allInnerTexts();
+    check(items.some((t) => t.includes("Open in the classic editor")) && items.some((t) => t.includes("Open the automation")) && !items.some((t) => /^(Duplicate|Delete|Move to group)/.test(t.trim())), `the menu offers the classic editor and the automation, not Duplicate, Delete or Move (${items.map((t) => t.trim()).join(", ")})`);
+    await au.getByRole("menuitem", { name: /Open in the classic editor/ }).click();
+    await au.getByRole("dialog").first().waitFor();
+    check((await au.getByRole("dialog").first().innerText()).length > 0, "the classic editor opens on the email");
+    if (shots) await au.screenshot({ path: `${shots}/19-e3-classic.png` });
+    await au.keyboard.press("Escape");
+    // Typing in place still works and saves through email_draft_save.
+    await au.goto(`http://localhost:${port}/?group=wf:99999999-9999-4999-8999-999999999999`);
+    await au.waitForFunction(() => document.querySelectorAll("[data-email] iframe").length >= 2, null, { timeout: 15000 });
+    await au.waitForTimeout(400);
+    if (shots) await au.screenshot({ path: `${shots}/19-e3-automation.png` });
+    await au.close();
+  }
+
   // 12. A row of 60 emails: only those near the view load
   const big = await ctx.newPage();
   big.on("pageerror", (e) => errors.push(e.message));

@@ -6,6 +6,7 @@ import { serviceClient } from "@/lib/serviceClient";
 import { cleanBody, problems } from "@/lib/workflows/check";
 import { walk } from "@/lib/workflows/tree";
 import type { Step } from "@/lib/workflows/types";
+import { firstMismatch, type EmailCopy } from "@/lib/workflows/stepEmails";
 
 // Make live (docs/enrich-workflows-reports.md 2.4): POST { workflowId, note } checks the saved draft, renders each
 // email, and publishes a new version. An email built with blocks is compiled here with its brand kit's published
@@ -28,6 +29,12 @@ export async function POST(request: Request) {
   if (left.length) return bad(`Fix this first: ${left[0]!.text}`, 400, { problems: left });
   const db = serviceClient();
   if (!db) return bad("The server is not set up for this.", 500);
+  // The emails' editing copies on the Emails canvas (163): if one has newer words than the draft, the person hasn't
+  // looked at them here yet, so nothing goes live until they have (docs/email-unify-plan.md, E3).
+  const copies = await db.from("emails").select("id, step_id, subject, preheader, doc").eq("workflow_id", id).eq("kind", "journey");
+  if (copies.error) return bad("Couldn't read the emails. Try again in a moment.", 503);
+  const off = firstMismatch(body, (copies.data ?? []).map((c) => ({ id: c.id as string, step: c.step_id as string, subject: (c.subject as string) ?? "", preheader: (c.preheader as string) ?? "", doc: c.doc })) as EmailCopy[]);
+  if (off) return bad(`"${off.email.subject || "An email"}" changed on the Emails page. Look it over, approve it and publish again.`, 409, { code: "email_changed", step: off.id });
   const docs: Extract<Step, { kind: "email" }>[] = [];
   walk(body.steps, (s: Step) => {
     if (s.kind === "email" && s.email.doc) docs.push(s);

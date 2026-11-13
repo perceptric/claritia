@@ -42,6 +42,14 @@ const db: Record<string, Row[]> = {
     { id: K2, workspace_id: "ws1", name: "Juniper Kids", tokens: {}, logo_url: LOGO, design: K2_DESIGN, design_live: K2_DESIGN, design_rev: 0, created_at: new Date(now - 3600000).toISOString() }],
 };
 for (let i = 0; i < many; i++) db.emails!.push(email(`Weekly note #${i + 1}`, 1, null, 0, "sent"));
+// E3: an automation with two emails. Its live version sent "Thanks" with older words, so that email shows "Changed
+// since publish"; the second is new since then.
+const WF = "99999999-9999-4999-8999-999999999999";
+const thanks: Row = { ...email("Thanks", 1, null, 0), kind: "journey", workflow_id: WF, step_id: "s1", group_position: 0, subject: "Thanks for reaching out" };
+const later: Row = { ...email("Still there?", 3, null, 1), kind: "journey", workflow_id: WF, step_id: "s2", group_position: 1, subject: "Still there?" };
+db.emails!.push(thanks, later);
+db.workflows = [{ id: WF, workspace_id: "ws1", name: "Demo follow-up", live_version: 1 }];
+db.workflow_versions = [{ workflow_id: WF, version: 1, body: { trigger: { kind: "form", forms: [] }, goals: [], entry: { mode: "once", gapDays: 30 }, steps: [{ id: "s1", kind: "email", from: "team", approved: true, email: { subject: "Thanks", preheader: "", paragraphs: [], cta_label: "", cta_url: "", doc: thanks.doc } }] } }];
 w.db = db;
 // The design draft's save (src/components/app/forms/useDesignDraft.ts) goes to the stand-in kit.
 const realFetch = window.fetch.bind(window);

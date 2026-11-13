@@ -22,10 +22,10 @@ test("the sidebar is Forms, Meetings, Emails and Workflows, with Settings at the
     ["main", "settings"],
   );
   const by = (g: string) => NAV.filter((n) => n.group === g).map((n) => n.label);
-  assert.deepEqual(NAV.map((n) => n.label), ["Forms", "Meeting types", "Upcoming", "Availability", "Booking page", "Links and polls", "Meeting settings", "Campaigns", "Automations", "Audiences", "Templates", "Brand", "Settings"]);
+  assert.deepEqual(NAV.map((n) => n.label), ["Forms", "Meeting types", "Upcoming", "Availability", "Booking page", "Links and polls", "Meeting settings", "Emails", "Automations", "Audiences", "Templates", "Brand", "Settings"]);
   assert.deepEqual(NAV.filter((n) => n.section === "meetings").map((n) => n.page), SCHEDULING_TABS.map((t) => t.value), "every Meetings page is an item");
   assert.deepEqual(NAV.filter((n) => n.section === "emails").map((n) => n.page || "campaigns"), EMAILS_TABS.map((t) => t.value), "every Emails page is an item");
-  assert.deepEqual(EMAILS_TABS.map((t) => t.label), ["Campaigns", "Automations", "Audiences", "Templates", "Brand"]);
+  assert.deepEqual(EMAILS_TABS.map((t) => t.label), ["Emails", "Automations", "Audiences", "Templates", "Brand"]);
   assert.deepEqual(by("settings"), ["Settings"]);
   // The CRM, Enrichment, Scoring, Segments and Visitors are gone: their addresses open Forms.
   for (const gone of ["contacts", "companies", "opportunities", "objects", "enrichment", "scoring", "segments", "visitors", "signals", "leads", "people", "accounts"])
@@ -195,8 +195,8 @@ test("every page lights its one sidebar item", () => {
   assert.equal(activeItem("scheduling", "availability/team")?.label, "Availability");
   assert.equal(activeItem("scheduling", "settings/webhooks")?.label, "Meeting settings");
   assert.equal(activeItem("scheduling", "links")?.label, "Links and polls");
-  assert.equal(activeItem("emails", "")?.label, "Campaigns");
-  assert.equal(activeItem("emails", "campaigns/group/11111111-1111-4111-8111-111111111111")?.label, "Campaigns");
+  assert.equal(activeItem("emails", "")?.label, "Emails");
+  assert.equal(activeItem("emails", "campaigns/group/11111111-1111-4111-8111-111111111111")?.label, "Emails");
   assert.equal(activeItem("emails", "automations/11111111-1111-4111-8111-111111111111")?.label, "Automations");
   assert.equal(activeItem("emails", "audiences")?.label, "Audiences");
   assert.equal(activeItem("workflows")?.label, "Automations", "a workflow lights Automations");

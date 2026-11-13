@@ -22,7 +22,7 @@ import { FillsFrom, ImportHistory } from "./AudienceParts";
 import { ImportSheet } from "./ImportSheet";
 import { ColumnsMenu, EditCell, PersonSheet, useColumns, type EditField, type PersonRow } from "./AudienceTable";
 import { EmailCanvasPage, UNGROUPED } from "./canvas/EmailCanvasPage";
-import { GroupCards } from "./canvas/GroupCards";
+import { GroupCards, type GroupShow } from "./canvas/GroupCards";
 import { WorkflowsView } from "../workflows/WorkflowsView";
 import { isRoleAddress } from "@/lib/emails/role";
 import { Badge, Button, Checkbox, ErrorNote, errorText, IconButton, invalidate, Loading, must, Page, postJson, Section, Segmented, Td, Th, timeAgo, useQuery, type Tone, type ViewProps } from "../ui";
@@ -95,6 +95,8 @@ function Campaigns({ sb, session, ws, navigate }: ViewProps) {
     const names = new Map(((must(gs) ?? []) as { id: string; name: string }[]).map((g) => [g.id, g.name]));
     return Object.fromEntries(((must(es) ?? []) as { id: string; group_id: string }[]).map((e) => [e.id, names.get(e.group_id) ?? ""]));
   });
+  // All, Campaigns or Automations (docs/email-unify-plan.md, E3).
+  const [show, setShow] = useState<GroupShow>("all");
   const groups = useQuery(`email_groups_count:${ws.id}`, async () => (must(await sb.from("email_groups").select("id").eq("workspace_id", ws.id).limit(1)) ?? []) as { id: string }[]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -166,7 +168,7 @@ function Campaigns({ sb, session, ws, navigate }: ViewProps) {
   if (!list.data) return <Loading />;
   if (!list.data.length && !groups.data?.length)
     return (
-      <Page title="Campaigns">
+      <Page title="Emails">
         <ErrorNote message={error} />
         <ToolIntro
           sketch="envelopes"
@@ -184,9 +186,26 @@ function Campaigns({ sb, session, ws, navigate }: ViewProps) {
       </Page>
     );
   return (
-    <Page title="Campaigns" actions={add}>
+    <Page title="Emails" actions={add}>
       <ErrorNote message={error} />
-      {view === "groups" ? <GroupCards sb={sb} ws={ws.id} me={session.user?.id ?? ""} onOpen={(id) => navigate("emails", `campaigns/group/${id}`)} /> : null}
+      {view === "groups" ? (
+        <>
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <Segmented<GroupShow>
+              value={show}
+              onChange={setShow}
+              label="Show"
+              size="sm"
+              options={[
+                { value: "all", label: "All" },
+                { value: "campaigns", label: "Campaigns" },
+                { value: "automations", label: "Automations" },
+              ]}
+            />
+          </div>
+          <GroupCards sb={sb} ws={ws.id} me={session.user?.id ?? ""} show={show} onOpen={(id) => navigate("emails", `campaigns/group/${id}`)} />
+        </>
+      ) : null}
       <div className={`overflow-x-auto rounded-lg bg-card shadow-rest ${list.data.length && view === "list" ? "" : "hidden"}`}>
         <table className="w-full min-w-[900px] border-collapse [&_tbody_tr:last-child_td]:border-b-0">
           <thead>
@@ -284,7 +303,7 @@ function CampaignStudio(props: ViewProps & { emailId: string }) {
   if (d) return <EmailCanvasPage key={emailId} {...props} groupId={d.group_id ?? UNGROUPED} pick={emailId} />;
   if (!d)
     return (
-      <Page title="Campaigns" back={{ label: "Campaigns", onClick: () => navigate("emails") }}>
+      <Page title="Emails" back={{ label: "Emails", onClick: () => navigate("emails") }}>
         <ErrorNote message="This email is gone." />
       </Page>
     );
@@ -298,14 +317,14 @@ type ResultData = { counts: Campaign | null; booked: ResultPerson[]; filled: Res
 
 function Results({ sb, ws, navigate, emailId }: ViewProps & { emailId: string }) {
   const r = useQuery(`email_results:${emailId}`, async () => must(await sb.rpc("email_campaign_results", { p_ws: ws.id, p_email: emailId })) as ResultData, { staleMs: 30_000 });
-  const back = { label: "Campaigns", onClick: () => navigate("emails") };
+  const back = { label: "Emails", onClick: () => navigate("emails") };
   if (r.error) return <ErrorNote message={r.error} />;
   if (!r.loaded) return <Loading />;
   const d = r.data;
   const c = d?.counts;
   if (!d || !c)
     return (
-      <Page title="Campaigns" back={back}>
+      <Page title="Emails" back={back}>
         <ErrorNote message="This email is gone." />
       </Page>
     );

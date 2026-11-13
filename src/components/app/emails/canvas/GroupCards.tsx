@@ -1,26 +1,31 @@
 "use client";
 
-// The groups on Campaigns (docs/email-canvas-b1.md section 10): Ungrouped first, always there, then each group, as a
+// The groups on Emails (docs/email-canvas-b1.md section 10): Ungrouped first, always there, then each group, as a
 // card with a small fanned stack of its first emails, its name, how many emails it holds and when it was last edited.
-// A card opens its canvas.
+// Then each automation with emails, tagged Automation (docs/email-unify-plan.md, E3); an automation whose emails have
+// no copies yet (not opened since copies came) gets them here. A card opens its canvas.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useMemo } from "react";
-import { must, timeAgo, useQuery } from "../../ui";
+import { Badge, must, timeAgo, useQuery } from "../../ui";
+import { cleanBody } from "@/lib/workflows/check";
+import { emailSteps, ensurePayload, type EmailCopy } from "@/lib/workflows/stepEmails";
 import { previewHtml, type CanvasKit } from "./preview";
 
 type Mini = { id: string; status: string; doc: unknown; html: string; updated_at: string; updated_by?: string | null };
-type Card = { id: string; name: string; count: number; edited: string | null; by: string | null; minis: Mini[] };
+type Card = { id: string; name: string; count: number; edited: string | null; by: string | null; minis: Mini[]; auto?: boolean };
+export type GroupShow = "all" | "campaigns" | "automations";
 const n = (x: number) => x.toLocaleString("en-US");
 
-export function GroupCards({ sb, ws, me, onOpen }: { sb: SupabaseClient; ws: string; me: string; onOpen: (id: string) => void }) {
+export function GroupCards({ sb, ws, me, onOpen, show = "all" }: { sb: SupabaseClient; ws: string; me: string; onOpen: (id: string) => void; show?: GroupShow }) {
   const kits = useQuery(`email_canvas_kits:${ws}`, async () => (must(await sb.from("brand_kits").select("id, tokens, logo_url, design").eq("workspace_id", ws).order("created_at")) ?? []) as CanvasKit[]);
   const cards = useQuery(`email_groups:${ws}`, async () => {
     const cols = "id, status, doc, html, updated_at, updated_by";
-    const [groups, loose, looseCount] = await Promise.all([
+    const [groups, loose, looseCount, flows] = await Promise.all([
       sb.from("email_groups").select(`id, name, created_at, emails(${cols}, group_position)`).eq("workspace_id", ws).order("created_at"),
       sb.from("emails").select(cols).eq("workspace_id", ws).eq("kind", "broadcast").is("group_id", null).neq("status", "archived").order("updated_at", { ascending: false }).limit(3),
       sb.from("emails").select("id", { count: "exact", head: true }).eq("workspace_id", ws).eq("kind", "broadcast").is("group_id", null).neq("status", "archived"),
+      sb.from("workflows").select(`id, name, created_at, draft, emails!emails_workflow_id_fkey(${cols}, group_position, step_id)`).eq("workspace_id", ws).order("created_at"),
     ]);
     const gs = (must(groups) ?? []) as { id: string; name: string; created_at: string; emails: (Mini & { group_position: number })[] }[];
     const ls = (must(loose) ?? []) as Mini[];
@@ -32,12 +37,26 @@ export function GroupCards({ sb, ws, me, onOpen }: { sb: SupabaseClient; ws: str
       const sorted = [...g.emails].sort((a, b) => a.group_position - b.group_position);
       out.push({ id: g.id, name: g.name, count: g.emails.length, edited: latest(g.emails, g.created_at), by: by(g.emails), minis: sorted.slice(0, 3) });
     }
+    // Automations: their emails' copies, made now for any email step without one. A copy that can't be made leaves
+    // that automation's card out until next time; it never stops the page.
+    const fs = (flows.error ? [] : (flows.data ?? [])) as { id: string; name: string; created_at: string; draft: unknown; emails: (Mini & { group_position: number; step_id: string })[] }[];
+    for (const f of fs) {
+      const body = cleanBody(f.draft);
+      let ms = [...(f.emails ?? [])].sort((a, b) => a.group_position - b.group_position);
+      const need = emailSteps(body).map((s) => s.id);
+      if (need.some((id) => !ms.some((m) => m.step_id === id))) {
+        const r = await sb.rpc("workflow_email_ensure", { p_ws: ws, p_wf: f.id, p_steps: ensurePayload(body) });
+        if (r.error) continue;
+        ms = ((r.data ?? []) as EmailCopy[]).map((c, i) => ({ id: c.id, status: "draft", doc: c.doc, html: "", updated_at: (c as EmailCopy & { updated_at?: string }).updated_at ?? f.created_at, updated_by: null, group_position: i, step_id: c.step }));
+      }
+      if (ms.length) out.push({ id: `wf:${f.id}`, name: f.name, count: ms.length, edited: latest(ms, f.created_at), by: by(ms), minis: ms.slice(0, 3), auto: true });
+    }
     return out;
   });
   if (!cards.data) return null;
   return (
     <ul aria-label="Groups" className="mb-5 grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-3">
-      {cards.data.map((c) => (
+      {cards.data.filter((c) => show === "all" || (show === "automations" ? c.auto : !c.auto)).map((c) => (
         <li key={c.id}>
           <a
             href={`/emails/campaigns/group/${c.id}`}
@@ -49,7 +68,10 @@ export function GroupCards({ sb, ws, me, onOpen }: { sb: SupabaseClient; ws: str
           >
             <Stack minis={c.minis} kits={kits.data ?? []} />
             <span className="flex flex-col gap-0.5 px-0.5">
-              <span className="font-medium break-words text-ink">{c.name}</span>
+              <span className="flex flex-wrap items-center gap-1.5">
+                <span className="min-w-0 font-medium break-words text-ink">{c.name}</span>
+                {c.auto ? <Badge tone="violet">Automation</Badge> : null}
+              </span>
               <span className="text-[12.5px] text-muted">
                 {n(c.count)} {c.count === 1 ? "email" : "emails"}
                 {c.edited ? `, edited ${timeAgo(c.edited)}${c.by ? (c.by === me ? " by you" : " by a teammate") : ""}` : ""}

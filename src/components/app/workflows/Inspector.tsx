@@ -13,7 +13,7 @@ import { stepProblems } from "@/lib/workflows/check";
 import { MERGE_KEYS } from "@/lib/workflows/merge";
 import { segments, STOP_LINE } from "@/lib/texts/words";
 import { STEP_KINDS, TRIGGERS, type Body, type EmailBody, type Goal, type Step, type Trigger, type TriggerKind } from "@/lib/workflows/types";
-import { Copy, Plus, Trash, Warn, X } from "../../Icons";
+import { Copy, Mail, Plus, Trash, Warn, X } from "../../Icons";
 import { AiMark } from "../Ai";
 import { askLines } from "../Dialogs";
 import { Select } from "../Select";
@@ -270,8 +270,8 @@ export function EmailForm({ email, onChange, readOnly, builder }: { email: Email
       <div className="flex flex-col gap-4">
         {subject}
         <div className="flex items-center gap-2">
-          <Button disabled={readOnly || !builder} onClick={() => setOpen(true)}>
-            Open the builder
+          <Button variant="ghost" disabled={readOnly || !builder} onClick={() => setOpen(true)}>
+            Open in the classic editor
           </Button>
           <span className="text-[12.5px] text-muted">{email.doc.sections.reduce((n, s) => n + s.columns.reduce((m, c) => m + c.blocks.length, 0), 0)} blocks</span>
         </div>
@@ -413,6 +413,10 @@ export function StepPanel(p: {
   sb?: SupabaseClient;
   workflowId: string | null;
   onRemove: () => void;
+  /** Open the email on the Emails canvas (docs/email-unify-plan.md, E3); left out until its copy is linked. */
+  onEditEmail?: () => void;
+  /** The email's words differ from the live version's. */
+  changedSinceLive?: boolean;
 }) {
   const s = p.step;
   const [error, setError] = useState("");
@@ -469,6 +473,14 @@ export function StepPanel(p: {
 
       {s.kind === "email" ? (
         <>
+          <div className="flex flex-wrap items-center gap-2">
+            {p.onEditEmail ? (
+              <Button variant="ghost" onClick={p.onEditEmail}>
+                <Mail size={13} /> Edit email
+              </Button>
+            ) : null}
+            {p.changedSinceLive ? <Badge tone="violet">Changed since publish</Badge> : null}
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             <Segmented value={s.from} options={[{ value: "team", label: "Team" }, { value: "owner", label: "Owner" }]} onChange={(from) => p.onPatch({ from } as Partial<Step>)} />
             {!p.readOnly ? (

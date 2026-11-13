@@ -58,6 +58,9 @@ import { useCanvasClipboard } from "./useCanvasClipboard";
 import { FormatBar } from "./FormatBar";
 import { useTyping } from "./useTyping";
 import { typable } from "@/lib/design/email/typing";
+import { cleanBody } from "@/lib/workflows/check";
+import { emailSteps, sameEmail } from "@/lib/workflows/stepEmails";
+import { EmailBuilder } from "../../email/EmailBuilder";
 
 export const UNGROUPED = "ungrouped";
 const PHONE = 390;
@@ -82,16 +85,48 @@ const sameBox = (a: LocalBox | null, b: LocalBox | null) => (!a || !b ? a === b 
 
 export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick }: ViewProps & { groupId: string; pick?: string | null }) {
   const ungrouped = groupId === UNGROUPED;
-  const group = useQuery(`email_group:${groupId}`, async () => (ungrouped ? { id: UNGROUPED, name: "Ungrouped" } : (must(await sb.from("email_groups").select("id, name").eq("id", groupId).eq("workspace_id", ws.id).maybeSingle()) as { id: string; name: string } | null)), { staleMs: 0 });
+  // An automation's emails (docs/email-unify-plan.md, E3): "wf:<workflow id>". They come and go with their steps and
+  // are sent by the automation, so this canvas has no Send, Add email, Duplicate, Delete or moving between groups.
+  const wfId = groupId.startsWith("wf:") ? groupId.slice(3) : null;
+  const auto = !!wfId;
+  const group = useQuery(
+    `email_group:${groupId}`,
+    async () =>
+      ungrouped
+        ? { id: UNGROUPED, name: "Ungrouped" }
+        : wfId
+          ? await (async () => {
+              const w = must(await sb.from("workflows").select("id, name").eq("id", wfId).eq("workspace_id", ws.id).maybeSingle()) as { id: string; name: string } | null;
+              return w ? { id: groupId, name: w.name } : null;
+            })()
+          : (must(await sb.from("email_groups").select("id, name").eq("id", groupId).eq("workspace_id", ws.id).maybeSingle()) as { id: string; name: string } | null),
+    { staleMs: 0 },
+  );
   const rows = useQuery(
     `email_canvas:${groupId}`,
     async () => {
-      const q = sb.from("emails").select("id, name, subject, preheader, status, doc, html, group_id, group_position, updated_at").eq("workspace_id", ws.id).eq("kind", "broadcast").neq("status", "archived");
-      const r = ungrouped ? await q.is("group_id", null).order("updated_at", { ascending: false }).limit(300) : await q.eq("group_id", groupId).order("group_position").order("created_at");
+      const q = sb.from("emails").select("id, name, subject, preheader, status, doc, html, group_id, group_position, updated_at, step_id").eq("workspace_id", ws.id);
+      const r = wfId
+        ? await q.eq("kind", "journey").eq("workflow_id", wfId).order("group_position")
+        : ungrouped
+          ? await q.eq("kind", "broadcast").neq("status", "archived").is("group_id", null).order("updated_at", { ascending: false }).limit(300)
+          : await q.eq("kind", "broadcast").neq("status", "archived").eq("group_id", groupId).order("group_position").order("created_at");
       return (must(r) ?? []) as CanvasRow[];
     },
     { staleMs: 0 },
   );
+  // What the automation's live version sends, to mark emails edited since it was published.
+  const liveBody = useQuery(wfId ? `wf_live:${wfId}` : null, async () => {
+    const w = must(await sb.from("workflows").select("live_version").eq("id", wfId!).maybeSingle()) as { live_version: number | null } | null;
+    if (!w?.live_version) return null;
+    const v = must(await sb.from("workflow_versions").select("body").eq("workflow_id", wfId!).eq("version", w.live_version).maybeSingle()) as { body: unknown } | null;
+    return v ? cleanBody(v.body) : null;
+  });
+  const changedSinceLive = (r: CanvasRow) => {
+    if (!liveBody.data || !r.step_id) return false;
+    const was = emailSteps(liveBody.data).find((s) => s.id === r.step_id);
+    return !!was && !sameEmail(was.email, { subject: r.subject, doc: r.doc });
+  };
   // The state people see (Paused, Sent once everything went) comes from email_campaigns.
   const states = useQuery(`email_campaigns:${ws.id}`, async () => (must(await sb.rpc("email_campaigns", { p_ws: ws.id })) ?? []) as { id: string; status: string }[]);
   const kits = useQuery(`email_canvas_kits:${ws.id}`, async () =>
@@ -112,6 +147,8 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
   const [menu, setMenu] = useState<Menu>(null);
   const [sending, setSending] = useState<CanvasRow | null>(null);
   const [code, setCode] = useState<{ html: string; name: string } | null>(null);
+  // The classic editor (the block builder) open on one email.
+  const [classic, setClassic] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [tbw, setTbw] = useState(260);
@@ -670,7 +707,7 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
     if (e.button !== 0) return;
     e.stopPropagation();
     setEl(null);
-    if (ungrouped) return setPicked((p) => (e.shiftKey ? (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]) : [id]));
+    if (ungrouped || auto) return setPicked((p) => (e.shiftKey ? (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]) : [id]));
     setDrag({ id, x0: e.clientX, y0: e.clientY, on: false, dx: 0, dy: 0, slot: 0, shift: {}, lineX: 0 });
   };
   useEffect(() => {
@@ -757,6 +794,7 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
   const saved = async (id: string) => (draftRef.current.id === id ? void (await draftRef.current.flush()) : undefined);
   const duplicate = (id: string) =>
     run(async () => {
+      if (auto) return say("Automation emails come and go with their steps. Change them in the automation.");
       await saved(id);
       const r = rowsNow().find((x) => x.id === id);
       if (!r) return;
@@ -780,6 +818,7 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
     });
   const remove = (ids: string[]) =>
     run(async () => {
+      if (auto) return say("Automation emails come and go with their steps. Change them in the automation.");
       const drafts = ids.map(rowOf).filter((r): r is CanvasRow => !!r && status(r) === "draft");
       if (!drafts.length) return say("Sent emails stay; only drafts can be deleted");
       const title = drafts.length === 1 ? `Delete ${drafts[0]!.name}?` : `Delete ${drafts.length} drafts?`;
@@ -790,6 +829,7 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
     });
   const moveTo = (ids: string[], gid: string | null) =>
     run(async () => {
+      if (auto) return say("Automation emails come and go with their steps. Change them in the automation.");
       for (const id of ids) await place(id, gid, null);
       setPicked([]);
       reload();
@@ -844,15 +884,23 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
     const draft = status(r) === "draft";
     setMenu({
       anchor,
-      items: [
-        ...(draft ? [{ label: "Rename", run: () => void rename(id) }] : []),
-        { label: "Duplicate", hint: "⌘D", run: () => void duplicate(id) },
-        { label: "Code", run: () => setCode({ html: sourceHtml(r, kits.data ?? []), name: r.name }) },
-        { label: showResolved ? "Hide resolved comments" : "Show resolved comments", run: () => setShowResolved((v) => !v) },
-        { label: "Move to group", run: () => moveMenu(anchor, [id]) },
-        ...(ungrouped ? [] : [{ label: "Take out of the group", run: () => void moveTo([id], null) }]),
-        ...(draft ? [{ label: "Delete", hint: "⌫", danger: true, run: () => void remove([id]) }] : []),
-      ],
+      items: auto
+        ? [
+            { label: "Open in the classic editor", run: () => void saved(id).then(() => setClassic(id)) },
+            { label: "Code", run: () => setCode({ html: sourceHtml(r, kits.data ?? []), name: r.name }) },
+            { label: showResolved ? "Hide resolved comments" : "Show resolved comments", run: () => setShowResolved((v) => !v) },
+            { label: "Open the automation", run: () => navigate("emails", `automations/${wfId}`) },
+          ]
+        : [
+            ...(draft ? [{ label: "Rename", run: () => void rename(id) }] : []),
+            ...(draft && r.doc ? [{ label: "Open in the classic editor", run: () => void saved(id).then(() => setClassic(id)) }] : []),
+            { label: "Duplicate", hint: "⌘D", run: () => void duplicate(id) },
+            { label: "Code", run: () => setCode({ html: sourceHtml(r, kits.data ?? []), name: r.name }) },
+            { label: showResolved ? "Hide resolved comments" : "Show resolved comments", run: () => setShowResolved((v) => !v) },
+            { label: "Move to group", run: () => moveMenu(anchor, [id]) },
+            ...(ungrouped ? [] : [{ label: "Take out of the group", run: () => void moveTo([id], null) }]),
+            ...(draft ? [{ label: "Delete", hint: "⌫", danger: true, run: () => void remove([id]) }] : []),
+          ],
     });
   };
 
@@ -1233,7 +1281,7 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
   if (!group.loaded || !rows.data || !kits.data) return <Loading />;
   if (!group.data)
     return (
-      <Page title="Campaigns" back={{ label: "Campaigns", onClick: back }}>
+      <Page title="Emails" back={{ label: "Emails", onClick: back }}>
         <ErrorNote message="This group is gone." />
       </Page>
     );
@@ -1264,7 +1312,7 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
                   style={{ left: a.x, top: a.y, width: r.w * z, transform: "translateY(-100%)" }}
                 >
                   <span className="min-w-0 break-words">{row.name}</span>
-                  <Badge tone={TONE[st] ?? "gray"}>{LABEL[st] ?? st}</Badge>
+                  {auto ? (changedSinceLive(row) ? <Badge tone="violet">Changed since publish</Badge> : null) : <Badge tone={TONE[st] ?? "gray"}>{LABEL[st] ?? st}</Badge>}
                   {row.doc ? <VersionPill sb={sb} ws={ws.id} email={r.id} viewing={viewing?.email === r.id ? viewing.v : null} onHover={(v) => hoverVersion(r.id, v)} onPick={(v) => pickVersion(r.id, v)} /> : null}
                   {openCount(r.id) ? (
                     <span className="inline-flex h-5 shrink-0 items-center gap-1 rounded-full bg-paper-deep px-1.5 text-[11.5px] text-muted">
@@ -1430,13 +1478,17 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
         {many ? (
           <>
             <span className="px-2.5 text-[13px] font-medium text-ink">{picked.length} emails</span>
-            <span className="mx-0.5 h-4 w-px bg-line" />
-            <Button size="sm" variant="plain" onClick={(e) => moveMenu(e.currentTarget, picked)}>
-              Move to group
-            </Button>
-            <Button size="sm" variant="plain" onClick={() => void remove(picked)}>
-              Delete
-            </Button>
+            {auto ? null : (
+              <>
+                <span className="mx-0.5 h-4 w-px bg-line" />
+                <Button size="sm" variant="plain" onClick={(e) => moveMenu(e.currentTarget, picked)}>
+                  Move to group
+                </Button>
+                <Button size="sm" variant="plain" onClick={() => void remove(picked)}>
+                  Delete
+                </Button>
+              </>
+            )}
           </>
         ) : draft ? (
           <>
@@ -1458,9 +1510,11 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
             <Button size="sm" variant="plain" onClick={() => void test(r!.id)}>
               Test
             </Button>
-            <Button size="sm" onClick={() => void run(async () => (await saved(r!.id), setSending(rowsNow().find((x) => x.id === r!.id) ?? r!)))}>
-              <Send size={13} /> Send
-            </Button>
+            {auto ? null : (
+              <Button size="sm" onClick={() => void run(async () => (await saved(r!.id), setSending(rowsNow().find((x) => x.id === r!.id) ?? r!)))}>
+                <Send size={13} /> Send
+              </Button>
+            )}
             <span className="mx-0.5 h-4 w-px bg-line" />
             <button type="button" aria-label="More" title="More" onClick={(e) => moreMenu(e.currentTarget, r!.id)} className="flex size-7 items-center justify-center rounded-full text-muted hover:bg-hover hover:text-ink">
               <MoreHorizontal size={15} />
@@ -1539,8 +1593,8 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
       title={g.name}
       count={list.length}
       flush
-      back={{ label: "Campaigns", onClick: back }}
-      onRename={ungrouped ? undefined : (name) => void run(async () => (must(await sb.rpc("email_group_save", { p_ws: ws.id, p_id: groupId, p_name: name })), void group.reload(), invalidate(`email_groups:${ws.id}`), void groups.reload()))}
+      back={{ label: "Emails", onClick: back }}
+      onRename={ungrouped || auto ? undefined : (name) => void run(async () => (must(await sb.rpc("email_group_save", { p_ws: ws.id, p_id: groupId, p_name: name })), void group.reload(), invalidate(`email_groups:${ws.id}`), void groups.reload()))}
       actions={
         <span className="flex min-w-0 flex-wrap items-center gap-2">
           {editor.saving ? <span className="text-[12.5px] text-muted">Saving…</span> : null}
@@ -1577,9 +1631,18 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
               </button>
             ))}
           </div>
-          <Button onClick={(e) => addMenu(e.currentTarget)}>
-            Add email <ChevronDown size={13} />
-          </Button>
+          {auto ? (
+            <>
+              <Badge tone="violet">Automation</Badge>
+              <Button variant="ghost" onClick={() => navigate("emails", `automations/${wfId}`)}>
+                Open the automation
+              </Button>
+            </>
+          ) : (
+            <Button onClick={(e) => addMenu(e.currentTarget)}>
+              Add email <ChevronDown size={13} />
+            </Button>
+          )}
         </span>
       }
     >
@@ -1623,7 +1686,7 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
                   panTo(email);
                 }}
                 onFlash={flashEmails}
-                onWrite={writeSeries}
+                onWrite={auto ? () => say("New emails in an automation are new steps. Add them in the automation.") : writeSeries}
               />
             )}
           </LeftPanel>
@@ -1822,6 +1885,27 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
         />
       ) : null}
       {code ? <CodeView html={code.html} name={code.name} onClose={() => setCode(null)} /> : null}
+      {classic
+        ? (() => {
+            const r = rowOf(classic);
+            const d = editor.latest(classic);
+            if (!r || !d) return null;
+            // Its changes go through the canvas's own save and undo, like any edit here.
+            return (
+              <EmailBuilder
+                session={session}
+                sb={sb}
+                workspaceId={ws.id}
+                subject={r.subject}
+                doc={d}
+                title={`${r.name} in the classic editor`}
+                versionRef={`em:${r.id}`}
+                onChange={(doc, subject) => editor.change({ emails: { [r.id]: { doc, ...(subject ? { subject } : {}) } } }, { label: "Classic editor", merge: `classic:${r.id}` })}
+                onClose={() => setClassic(null)}
+              />
+            );
+          })()
+        : null}
     </Page>
   );
 }

@@ -17,6 +17,8 @@ import { Flow, type Sel } from "./Flow";
 import { StepPanel, TriggerPanel } from "./Inspector";
 import { addStep, byId, duplicateStep, editorReducer, nudge, patchStep, removeStep, startEditor } from "./model";
 import { HistoryDrawer, PublishDialog, TryPanel, VersionsDrawer } from "./Panels";
+import { useEmailCopies } from "./emailCopies";
+import { designOf, emailSteps, sameEmail } from "@/lib/workflows/stepEmails";
 
 type SaveState = "idle" | "saving" | "saved" | "retry" | "conflict";
 const STATUS: Record<"draft" | "live" | "paused", [string, Tone]> = {
@@ -61,6 +63,15 @@ export function WorkflowEditor({
   const gone = useMemo(() => goneProblems(body, data.words), [body, data.words]);
   const probs = useMemo(() => [...checkProblems(body), ...gone], [body, gone]);
   const edit = useCallback((b: Body, key?: string) => dispatch({ type: "set", body: b, key }), []);
+  const sync = useCallback((fn: (b: Body) => Body) => dispatch({ type: "sync", fn }), []);
+  // Each email step's editing copy on the Emails canvas (docs/email-unify-plan.md, E3).
+  const mail = useEmailCopies({ sb, ws: ws.id, id, body, sync, readOnly: false });
+  // Emails whose words differ from the live version's.
+  const changedSinceLive = useMemo(() => {
+    if (!data.live) return new Set<string>();
+    const was = new Map(emailSteps(data.live).map((s) => [s.id, s]));
+    return new Set(emailSteps(body).filter((s) => was.has(s.id) && !sameEmail(was.get(s.id)!.email, { subject: s.email.subject, doc: designOf(s.email) })).map((s) => s.id));
+  }, [data.live, body]);
 
   // Autosave --------------------------------------------------------------------------------------------------------
   const n = st.n + nameN;
@@ -225,6 +236,19 @@ export function WorkflowEditor({
     if (!(await save())) return setError("Not saved. Try again.");
     setPanel("publish");
   };
+  /** Open the email on the Emails canvas, once the draft and the copy have both saved. */
+  const editEmail = async (stepId: string) => {
+    setError("");
+    try {
+      if (!(await save())) return setError("Not saved. Try again.");
+      await mail.flush();
+    } catch {
+      return setError("The email couldn't be saved. Try again.");
+    }
+    const c = mail.copies.get(stepId);
+    if (!c) return setError("The email is still being linked to the Emails page. Try again in a moment.");
+    navigate("emails", `campaigns/group/wf:${id}`, `pick=${c.id}`);
+  };
   const onPublished = async (v: number) => {
     setPanel(null);
     toast({ text: `Published v${v}` });
@@ -344,7 +368,7 @@ export function WorkflowEditor({
         {error ? (
           <div className="flex items-center gap-2 px-4 pt-3 md:px-6">
             <div className="flex-1">
-              <ErrorNote message={error} />
+              <ErrorNote message={error || mail.error} />
             </div>
             <Button variant="plain" size="sm" onClick={() => setError("")}>
               Dismiss
@@ -358,6 +382,7 @@ export function WorkflowEditor({
               body={shown}
               names={data.words}
               triggerProblems={viewing ? [] : gone.map((x) => x.text)}
+              changedSinceLive={viewing ? undefined : changedSinceLive}
               sel={viewing ? null : sel}
               onSelect={(s) => !viewing && setSel(s)}
               onAdd={onAdd}
@@ -383,6 +408,8 @@ export function WorkflowEditor({
                 sb={sb}
                 workflowId={id}
                 onRemove={() => void onRemove(selStep.id)}
+                onEditEmail={mail.copies.has(selStep.id) ? () => void editEmail(selStep.id) : undefined}
+                changedSinceLive={changedSinceLive.has(selStep.id)}
               />
             ) : (
               <TriggerPanel body={body} names={data.names} problems={gone.map((x) => x.text)} onChange={(b, key) => edit(b, key ? `trigger:${key}` : undefined)} readOnly={false} />
@@ -406,7 +433,7 @@ export function WorkflowEditor({
           />
         ) : null}
         {panel === "publish" ? (
-          <PublishDialog session={session} id={id} live={live} draft={body} names={data.words} next={next} onDone={(v) => void onPublished(v)} onClose={() => setPanel(null)} />
+          <PublishDialog session={session} id={id} live={live} draft={body} names={data.words} next={next} onDone={(v) => void onPublished(v)} onFailed={() => void mail.resync().catch(() => undefined)} onClose={() => setPanel(null)} />
         ) : null}
       </div>
     </Page>

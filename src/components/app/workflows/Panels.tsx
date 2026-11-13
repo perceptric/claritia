@@ -305,7 +305,7 @@ export function VersionsDrawer({ versions, live, people, onOpen, onCopy, onClose
 
 // Publish -----------------------------------------------------------------------------------------------------------
 
-export function PublishDialog({ session, id, live, draft, names, next, onDone, onClose }: { session: Session; id: string; live: Body | null; draft: Body; names: WordNames; next: number; onDone: (v: number) => void; onClose: () => void }) {
+export function PublishDialog({ session, id, live, draft, names, next, onDone, onFailed, onClose }: { session: Session; id: string; live: Body | null; draft: Body; names: WordNames; next: number; onDone: (v: number) => void; onFailed?: () => void; onClose: () => void }) {
   const changes = useMemo(() => diffWords(live, draft, names), [live, draft, names]);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -318,6 +318,8 @@ export function PublishDialog({ session, id, live, draft, names, next, onDone, o
       onDone(r.version);
     } catch (e) {
       setError(errorText(e));
+      // An email changed on the Emails page: its words come into the draft, for a look and a new approval.
+      onFailed?.();
     } finally {
       setBusy(false);
     }
