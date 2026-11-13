@@ -23,6 +23,13 @@ Journeys, Emails, Library and Brand tabs are gone, and the senders stay in Setti
 - With no workflows yet, an owner sees the build screen that writes the lifecycle journeys.
 - Emails' old addresses open here (`resolveRoute` in `src/lib/nav.ts`).
 
+## The editor
+
+The flow is on a canvas that pans and zooms like the Emails canvas (docs/email-unify-plan.md, E4). Cards say every
+setting in one line; the + between them adds a step from a menu you can search; drag a card onto a + to move it, ⌘D
+copies the picked step and Delete removes it. The panel has Settings (the trigger as cards, each step's fields, Insert
+data on messages) and Test (pick a person and see what the step would do for them; nothing is sent).
+
 ## Emails in an automation
 
 Each email step has an editing copy on the Emails page (docs/email-unify-plan.md, E3): the automation is a group there,

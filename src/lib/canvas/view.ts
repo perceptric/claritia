@@ -145,3 +145,13 @@ export function between(from: Camera, to: Camera, t: number): Camera {
   const k = 1 - Math.pow(1 - Math.max(0, Math.min(1, t)), 3);
   return { x: from.x + (to.x - from.x) * k, y: from.y + (to.y - from.y) * k, z: Math.exp(Math.log(from.z) + (Math.log(to.z) - Math.log(from.z)) * k) };
 }
+
+/**
+ * The first view of a tall column (an automation's flow, docs/email-unify-plan.md E4): as wide as fits, never past
+ * 100% or under 40%, centred, from the top. Long flows scroll down from there.
+ */
+export function columnView(b: Box, view: Size): Camera {
+  const bw = Math.max(1, b.r - b.x);
+  const z = Math.max(0.4, clampZ(Math.min(1, (view.w - PAD * 2) / bw)));
+  return { z, x: (view.w - bw * z) / 2 - b.x * z, y: PAD - b.y * z };
+}

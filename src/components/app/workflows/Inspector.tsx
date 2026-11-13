@@ -12,8 +12,9 @@ import { OPS, type Cond } from "@/lib/router/types";
 import { stepProblems } from "@/lib/workflows/check";
 import { MERGE_KEYS } from "@/lib/workflows/merge";
 import { segments, STOP_LINE } from "@/lib/texts/words";
-import { STEP_KINDS, TRIGGERS, type Body, type EmailBody, type Goal, type Step, type Trigger, type TriggerKind } from "@/lib/workflows/types";
-import { Copy, Mail, Plus, Trash, Warn, X } from "../../Icons";
+import { STEP_KINDS, STEP_LINE, TRIGGERS, type Body, type EmailBody, type Goal, type Step, type Trigger, type TriggerKind } from "@/lib/workflows/types";
+import { CalendarIcon, Clock, Copy, FormIcon, ListIcon, Mail, Plus, Signpost, Trash, Warn, X } from "../../Icons";
+import { Popover } from "../FilterBar";
 import { AiMark } from "../Ai";
 import { askLines } from "../Dialogs";
 import { Select } from "../Select";
@@ -43,6 +44,51 @@ function Group({ name, children }: { name: string; children: React.ReactNode }) 
   );
 }
 
+/** What a message can put in from the person and their meeting (src/lib/workflows/merge.ts MERGE_KEYS). */
+const DATA: { group: string; keys: [string, string][] }[] = [
+  { group: "Person", keys: [["first_name", "First name"], ["last_name", "Last name"], ["company", "Company"], ["title", "Job title"]] },
+  { group: "Meeting", keys: [["meeting_time", "Meeting time"], ["meeting_link", "Meeting link"], ["reschedule_link", "Reschedule link"]] },
+];
+
+/** Insert data: a merge field at the end of a message, with an empty fallback so a blank never leaves a gap. */
+function InsertData({ onInsert, disabled }: { onInsert: (tag: string) => void; disabled?: boolean }) {
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+  return (
+    <>
+      <Button size="sm" variant="ghost" disabled={disabled} aria-haspopup="menu" onClick={(e) => setAnchor(anchor ? null : e.currentTarget)}>
+        Insert data
+      </Button>
+      {anchor ? (
+        <Popover anchor={anchor} onClose={() => setAnchor(null)} width={220}>
+          <div role="menu" aria-label="Insert data" className="flex flex-col p-1.5">
+            {DATA.map((g) => (
+              <div key={g.group} className="flex flex-col">
+                <span className="px-2.5 pt-2 pb-1 text-[11.5px] font-medium text-faint">{g.group}</span>
+                {g.keys.map(([k, label]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setAnchor(null);
+                      onInsert(`{{${k}|}}`);
+                    }}
+                    className="flex h-8 items-center justify-between gap-3 rounded-md px-2.5 text-left text-[13px] text-ink hover:bg-hover"
+                  >
+                    {label}
+                    <span className="font-mono text-[11px] text-faint">{k}</span>
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+        </Popover>
+      ) : null}
+    </>
+  );
+}
+const withTag = (text: string, tag: string) => `${text}${text && !/\s$/.test(text) ? " " : ""}${tag}`;
+
 /** A set of pill toggles; none picked means any. */
 function Pills({ options, value, onChange, disabled }: { options: { value: string; label: string }[]; value: string[]; onChange: (v: string[]) => void; disabled?: boolean }) {
   return (
@@ -67,6 +113,8 @@ function Pills({ options, value, onChange, disabled }: { options: { value: strin
 }
 
 // Trigger ----------------------------------------------------------------------------------------------------------
+
+const TRIGGER_ICON: Partial<Record<TriggerKind, (p: { size?: number }) => React.ReactNode>> = { form: FormIcon, meeting: CalendarIcon, not_booked: Clock, routed: Signpost, clicked: Mail, list: ListIcon };
 
 function blankTrigger(kind: TriggerKind): Trigger {
   switch (kind) {
@@ -97,9 +145,30 @@ export function TriggerPanel({ body, names, onChange, readOnly, problems = [] }:
           <span className="min-w-0">{problems[0]}</span>
         </p>
       ) : null}
-      <Row name="Trigger">
-        <Select value={t.kind} options={TRIGGERS.map((x) => ({ value: x.kind, label: x.label }))} onChange={(k) => onChange({ ...body, trigger: blankTrigger(k) })} ariaLabel="Trigger" className="h-9 w-full" disabled={readOnly} />
-      </Row>
+      <Group name="Starts when">
+        <div role="radiogroup" aria-label="Trigger" className="grid grid-cols-2 gap-1.5">
+          {TRIGGERS.map((x) => {
+            const Icon = TRIGGER_ICON[x.kind] ?? Clock;
+            const on = t.kind === x.kind;
+            return (
+              <button
+                key={x.kind}
+                type="button"
+                role="radio"
+                aria-checked={on}
+                disabled={readOnly}
+                onClick={() => !on && onChange({ ...body, trigger: blankTrigger(x.kind) })}
+                className={`flex min-h-[58px] flex-col items-start gap-1.5 rounded-[10px] px-2.5 py-2 text-left text-[12.5px] font-medium transition-[box-shadow,background-color] duration-[140ms] ${on ? "bg-signal-pale text-ink shadow-[0_0_0_1.5px_var(--color-signal)]" : "bg-card text-ink shadow-chip hover:bg-hover"}`}
+              >
+                <span className={on ? "text-signal" : "text-muted"}>
+                  <Icon size={14} />
+                </span>
+                <span className="break-words">{x.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </Group>
       {t.kind === "form" || t.kind === "not_booked" ? (
         <Group name="Forms">
           <div className="flex flex-wrap gap-1.5">
@@ -248,9 +317,12 @@ export type BuilderCtx = { session: Session; sb: SupabaseClient; ws: string; /**
 export function EmailForm({ email, onChange, readOnly, builder }: { email: EmailBody; onChange: (e: EmailBody, key?: string) => void; readOnly: boolean; builder?: BuilderCtx }) {
   const [open, setOpen] = useState(false);
   const subject = (
-    <Row name="Subject">
-      <Input value={email.subject} onChange={(e) => onChange({ ...email, subject: e.target.value }, "subject")} className="h-9" disabled={readOnly} />
-    </Row>
+    <Group name="Subject">
+      <div className="flex min-w-0 items-center gap-2">
+        <Input aria-label="Subject" value={email.subject} onChange={(e) => onChange({ ...email, subject: e.target.value }, "subject")} className="h-9 min-w-0 flex-1" disabled={readOnly} />
+        <InsertData disabled={readOnly} onInsert={(t) => onChange({ ...email, subject: withTag(email.subject, t) })} />
+      </div>
+    </Group>
   );
   const built = open && builder && email.doc ? (
     <EmailBuilder
@@ -394,9 +466,12 @@ function ChatStep(p: { step: Extract<Step, { kind: "chat" }>; names: Names; sess
           />
         </Row>
       ) : null}
-      <Row name="Message">
-        <textarea value={s.text} onChange={(e) => p.onPatch({ text: e.target.value } as Partial<Step>, "text")} className={area} disabled={p.readOnly} />
-      </Row>
+      <Group name="Message">
+        <textarea aria-label="Message" value={s.text} onChange={(e) => p.onPatch({ text: e.target.value } as Partial<Step>, "text")} className={area} disabled={p.readOnly} />
+        <div className="flex flex-wrap justify-end">
+          <InsertData disabled={p.readOnly} onInsert={(t) => p.onPatch({ text: withTag(s.text, t) } as Partial<Step>)} />
+        </div>
+      </Group>
       <ErrorNote message={error} />
     </>
   );
@@ -461,6 +536,7 @@ export function StepPanel(p: {
           </IconButton>
         ) : null}
       </div>
+      <p className="-mt-3 text-[12.5px] text-muted">{STEP_LINE[s.kind]}</p>
       {probs.length ? (
         <ul className="flex flex-col gap-1">
           {probs.map((x) => (
@@ -603,17 +679,23 @@ export function StepPanel(p: {
           <Row name="To">
             <Select value={s.to} options={people} onChange={(to) => p.onPatch({ to } as Partial<Step>)} ariaLabel="To" className="h-9 w-full" disabled={p.readOnly} />
           </Row>
-          <Row name="Message">
-            <textarea value={s.text} onChange={(e) => p.onPatch({ text: e.target.value } as Partial<Step>, "text")} className={area} disabled={p.readOnly} />
-          </Row>
+          <Group name="Message">
+            <textarea aria-label="Message" value={s.text} onChange={(e) => p.onPatch({ text: e.target.value } as Partial<Step>, "text")} className={area} disabled={p.readOnly} />
+            <div className="flex flex-wrap justify-end">
+              <InsertData disabled={p.readOnly} onInsert={(t) => p.onPatch({ text: withTag(s.text, t) } as Partial<Step>)} />
+            </div>
+          </Group>
         </>
       ) : null}
 
       {s.kind === "sms" ? (
         <>
-          <Row name="Text">
-            <textarea value={s.text} onChange={(e) => p.onPatch({ text: e.target.value } as Partial<Step>, "text")} className={area} disabled={p.readOnly} />
-          </Row>
+          <Group name="Text">
+            <textarea aria-label="Text" value={s.text} onChange={(e) => p.onPatch({ text: e.target.value } as Partial<Step>, "text")} className={area} disabled={p.readOnly} />
+            <div className="flex flex-wrap justify-end">
+              <InsertData disabled={p.readOnly} onInsert={(t) => p.onPatch({ text: withTag(s.text, t) } as Partial<Step>)} />
+            </div>
+          </Group>
           <p className="m-0 text-[12px] text-muted">
             {((n) => `${n.count} ${n.count === 1 ? "message" : "messages"}`)(segments(/\bSTOP\b/.test(s.text) ? s.text : `${s.text}\n${STOP_LINE}`))}
           </p>
