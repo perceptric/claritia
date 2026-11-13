@@ -11,7 +11,6 @@ import { useRef, useState } from "react";
 import type { EmailDoc } from "@/lib/design/email/doc";
 import type { DesignSystem } from "@/lib/design/model";
 import { changedMeanwhile, turnTargets, type Chip, type Target } from "@/lib/design/email/turn";
-import { Sketch } from "../../../sketches/Sketch";
 import { X } from "../../../Icons";
 import { AiAvatar, AiMark, AiTag, Dots } from "../../Ai";
 import { Button } from "../../ui";
@@ -184,7 +183,6 @@ export function CanvasChat({
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-3 pb-3">
         {!log.length ? (
           <div className="flex flex-col items-center gap-3 pt-4 text-center">
-            <Sketch name="envelopes" size={150} />
             <p className="text-[13px] text-body">Ask Tia to write or change emails in this group</p>
             <div className="flex w-full flex-col gap-1.5">
               {EXAMPLES.map((x) => (

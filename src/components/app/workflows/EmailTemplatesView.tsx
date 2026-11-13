@@ -91,6 +91,12 @@ export function EmailTemplatesView({ sb, ws, session, above }: ViewProps & { abo
       <ErrorNote message={error || list.error} />
       {!list.data ? (
         <Loading />
+      ) : !list.data.length && above ? (
+        // Under the library the page isn't empty: a line and the button, no drawing (drawings are for empty screens).
+        <div className="flex flex-wrap items-center gap-3 rounded-xl bg-card px-4 py-3.5 shadow-rest">
+          <span className="min-w-0 flex-1 text-[13px] text-muted">No templates yet</span>
+          {add}
+        </div>
       ) : !list.data.length ? (
         <ToolIntro sketch="envelopes" action={add} title={"Write an email once,\nuse it everywhere"} lead="Save emails your team sends often. Any workflow step or broadcast can start from one, with merge fields like {{first_name|there}} filled in for each contact." />
       ) : (

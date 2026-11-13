@@ -113,7 +113,7 @@ export function TeamsTab({ session, ws, navigate, screen, teamId, pick }: ViewPr
       <div className={`flex w-full flex-col gap-3.5 text-[13px] ${pick ? "" : "mx-auto max-w-[1120px] px-4 py-5 md:px-6"}`}>
         <ErrorNote message={error} />
         {!team ? (
-          <Empty sketch={<RouteSketch size={120} />} title="Add your first team">
+          <Empty sketch={pick ? undefined : <RouteSketch size={120} />} title="Add your first team">
             Teams share leads in turn.
           </Empty>
         ) : (
