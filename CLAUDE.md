@@ -18,6 +18,7 @@ Everything runs on the Hostinger VPS: the web app (`claritia-web`), the runner (
 
 ## Rule: no browser pop-ups or browser dropdowns
 - Never use `<select>`, `window.prompt`, `window.confirm` or `window.alert`. Use the app's own `Select` and dialog helpers (same pattern as Omniscient).
+- No browser checkboxes, number spinners or time boxes on the app's screens: use `Checkbox`, `NumberField` (in `src/components/app/ui.tsx`) and `Select`.
 
 ## Rule: nothing spills out of its box
 - No text or button ever runs past the edge of its card, panel or row, at any width. Rows of buttons wrap (`flex-wrap`, `min-w-0`). `tests/overflow.test.ts` fails on a button row that can't wrap.

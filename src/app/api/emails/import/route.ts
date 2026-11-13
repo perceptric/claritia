@@ -18,7 +18,7 @@ const BATCH = 1000;
 const bad = (error: string, status = 400) => Response.json({ error }, { status });
 type Db = NonNullable<ReturnType<typeof serviceClient>>;
 
-async function addPeople(db: Db, ws: string, list: string, rows: Pasted[], consent: boolean): Promise<{ added: number; created: number } | { error: string }> {
+async function addPeople(db: Db, ws: string, list: string | null, rows: Pasted[], consent: boolean): Promise<{ added: number; created: number } | { error: string }> {
   let added = 0;
   let created = 0;
   for (let i = 0; i < rows.length; i += BATCH) {
@@ -26,7 +26,7 @@ async function addPeople(db: Db, ws: string, list: string, rows: Pasted[], conse
     const { data, error } = await db.rpc("contacts_upsert", { p_ws: ws, p_source: "import", p_rows: part.map((r) => (consent ? { ...r, basis: "opt_in" } : r)) });
     if (error) return { error: added ? `Added ${added.toLocaleString("en-US")}, then: ${error.message}` : error.message };
     const ids = ((data as { ids?: string[] } | null)?.ids ?? []).filter((x) => UUID.test(x));
-    if (ids.length) {
+    if (ids.length && list) {
       const { error: e2 } = await db.from("list_members").upsert(ids.map((contact_id) => ({ list_id: list, contact_id, workspace_id: ws })), { onConflict: "list_id,contact_id", ignoreDuplicates: true });
       if (e2) return { error: e2.message };
     }
@@ -74,17 +74,20 @@ export async function POST(request: Request) {
   }
 
   const list = typeof b.listId === "string" && UUID.test(b.listId) ? b.listId : null;
-  if (!list) return bad("List not found.", 404);
+  // Audiences' Add person (docs/email-unify-plan.md, E2): one person, on a list or on no list at all.
+  const one = Array.isArray(b.rows) && b.rows.length === 1;
+  if (!list && !one) return bad("List not found.", 404);
   const fileName = typeof b.fileName === "string" ? b.fileName.trim().slice(0, 200) : "";
   const given = Array.isArray(b.rows) ? (b.rows as Given[]) : null;
   if (given && given.length > MAX) return bad("Import up to 5,000 people at a time.");
   const { rows, skipped, disposable, role: shared } = given ? cleanPeople(given.filter((g) => g && typeof g === "object")) : parsePeople(typeof b.text === "string" ? b.text.slice(0, 1_000_000) : "");
   if (!rows.length) return bad(disposable ? "Those are all throwaway addresses." : given ? "No emails in that column. Check which column holds the email." : "Add one email a line.");
   if (rows.length > MAX) return bad("Import up to 5,000 people at a time.");
-  const owns = await db.from("lists").select("id, name").eq("id", list).eq("workspace_id", ws).maybeSingle();
-  if (!owns.data) return bad("List not found.", 404);
-  const listName = (owns.data as { name: string }).name;
+  const owns = list ? await db.from("lists").select("id, name").eq("id", list).eq("workspace_id", ws).maybeSingle() : null;
+  if (list && !owns?.data) return bad("List not found.", 404);
+  const listName = (owns?.data as { name: string } | undefined)?.name ?? "";
   const consent = b.consent === true;
+  if (!list && !consent && role !== "owner") return bad("Tick that they agreed to get email, or ask an owner to add them.", 403);
   const rowsIn = given?.length ?? rows.length + skipped + disposable;
   if (!consent && role !== "owner") {
     const { error } = await db.from("contact_imports").insert({ workspace_id: ws, list_id: list, people: rows, file_name: fileName, created_by: auth.user.id });

@@ -10,7 +10,7 @@ import { stepProblems } from "@/lib/workflows/check";
 import { STEP_TITLE, stepDetail, triggerDetail, triggerTitle, type Names as WordNames } from "@/lib/workflows/explain";
 import { pathsOf, type At, type PathName } from "@/lib/workflows/tree";
 import { STEP_KINDS, type Body, type Step, type StepKind } from "@/lib/workflows/types";
-import { ArrowDown, ArrowUp, Bell, Branch, Chat, Clock, Code, Copy, Flag, Mail, Message, Plus, Shuffle, Signpost, Trash } from "../../Icons";
+import { ArrowDown, ArrowUp, Bell, Branch, Chat, Clock, Code, Copy, Flag, Mail, Message, Plus, Shuffle, Signpost, Trash, Warn } from "../../Icons";
 import { Popover } from "../FilterBar";
 import { Badge } from "../ui";
 
@@ -37,6 +37,8 @@ const PATH_WORDS: Record<PathName, string> = { yes: "If yes", no: "If no", a: "A
 export function Flow(p: {
   body: Body;
   names: WordNames;
+  /** What's wrong with the trigger (a deleted form), in words on its card. */
+  triggerProblems?: string[];
   sel: Sel | null;
   onSelect: (s: Sel) => void;
   onAdd: (at: At, kind: StepKind) => void;
@@ -58,7 +60,14 @@ export function Flow(p: {
         <span className="label-mono">Trigger</span>
         <span className="mt-1 block text-[14px] font-medium text-ink">{triggerTitle(p.body.trigger)}</span>
         <span className="mt-0.5 block text-[13px] text-body [overflow-wrap:anywhere]">{triggerDetail(p.body.trigger, p.names)}</span>
-        <span className="mt-1 block text-[12px] text-muted tabular-nums">{p.entered ? `${p.entered.toLocaleString("en-US")} entered in 7 days` : "No one yet"}</span>
+        {p.triggerProblems?.length ? (
+          <span className="mt-1 flex items-start gap-1.5 text-[12.5px] text-butter">
+            <Warn size={13} className="mt-0.5 shrink-0" />
+            <span className="min-w-0">{p.triggerProblems[0]}</span>
+          </span>
+        ) : (
+          <span className="mt-1 block text-[12px] text-muted tabular-nums">{p.entered ? `${p.entered.toLocaleString("en-US")} entered in 7 days` : "No one yet"}</span>
+        )}
       </button>
       <List {...p} steps={p.body.steps} parent={null} path={undefined} />
     </div>
@@ -118,14 +127,15 @@ function Card(p: ListProps & { step: Step; first: boolean; last: boolean }) {
             <span className="min-w-0 [overflow-wrap:anywhere]">{detail}</span>
             {p.counts[s.id] ? <span className="text-muted">{p.counts[s.id]!.toLocaleString("en-US")} in 7 days</span> : null}
           </span>
+          {probs.length ? (
+            <span className="mt-0.5 flex items-start gap-1.5 text-[12.5px] text-butter">
+              <Warn size={13} className="mt-0.5 shrink-0" />
+              <span className="min-w-0">{probs[0]}</span>
+            </span>
+          ) : null}
         </span>
         {s.kind === "email" && s.ai ? <Badge tone="violet">AI</Badge> : null}
         {s.kind === "email" && s.approved ? <Badge tone="green">Approved</Badge> : null}
-        {probs.length ? (
-          <Badge tone="amber" dot>
-            {probs.length}
-          </Badge>
-        ) : null}
       </button>
       {!p.readOnly ? (
         <span className="absolute top-1/2 -right-11 hidden -translate-y-1/2 flex-col rounded-full bg-card shadow-chip shadow-soft group-hover:flex group-focus-within:flex">

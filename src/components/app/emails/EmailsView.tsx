@@ -20,11 +20,12 @@ import { BrandSettings } from "../views/BrandSettings";
 import { TemplateGallery } from "./TemplateGallery";
 import { FillsFrom, ImportHistory } from "./AudienceParts";
 import { ImportSheet } from "./ImportSheet";
+import { ColumnsMenu, EditCell, PersonSheet, useColumns, type EditField, type PersonRow } from "./AudienceTable";
 import { EmailCanvasPage, UNGROUPED } from "./canvas/EmailCanvasPage";
 import { GroupCards } from "./canvas/GroupCards";
 import { WorkflowsView } from "../workflows/WorkflowsView";
 import { isRoleAddress } from "@/lib/emails/role";
-import { Badge, Button, ErrorNote, errorText, IconButton, invalidate, Loading, must, Page, postJson, Section, Segmented, Td, Th, timeAgo, useQuery, type Tone, type ViewProps } from "../ui";
+import { Badge, Button, Checkbox, ErrorNote, errorText, IconButton, invalidate, Loading, must, Page, postJson, Section, Segmented, Td, Th, timeAgo, useQuery, type Tone, type ViewProps } from "../ui";
 
 export function EmailsView(props: ViewProps) {
   const p = emailsPage(props.id);
@@ -440,7 +441,8 @@ function Describe({ sb, session, ws, navigate, onDone }: Pick<ViewProps, "sb" | 
 
 // Audiences ---------------------------------------------------------------------------------------------------------
 
-type Person = { id: string; email: string; first_name: string | null; last_name: string | null; source: string; created_at: string; status: string; last_sent: string | null };
+type Person = PersonRow & { lists: string[]; source: string; created_at: string; status: string; last_sent: string | null };
+type SortKey = "first" | "last" | "email" | "phone" | "title" | "country" | "status" | "from" | "added" | "last_email";
 const STATUS_TONE: Record<string, Tone> = { subscribed: "green", unsubscribed: "gray", bounced: "amber", complained: "red", "no consent": "gray" };
 const STATUS_LABEL: Record<string, string> = { subscribed: "Subscribed", unsubscribed: "Unsubscribed", bounced: "Bounced", complained: "Marked as spam", "no consent": "No consent" };
 const SOURCE_LABEL: Record<string, string> = { form: "Form", import: "Import", manual: "Added by hand", api: "API", hubspot: "HubSpot", salesforce: "Salesforce", omniscient: "Omniscient" };
@@ -454,11 +456,27 @@ function Audiences({ sb, session, ws, role }: ViewProps) {
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState("");
+  const [sort, setSort] = useState<{ key: SortKey; desc: boolean }>({ key: "added", desc: true });
+  const [cols, toggleCol] = useColumns();
+  const [sheet, setSheet] = useState<{ person: Person | null } | null>(null);
+  const [flash, setFlash] = useState("");
   const term = q.trim();
   const listId = view === "everyone" ? null : view;
   const total = useQuery(`audience_count:${ws.id}`, async () => must(await sb.rpc("audience_count", { p_ws: ws.id })) as number);
   const lists = useQuery(`lists:${ws.id}`, async () => (must(await sb.rpc("lists_overview", { p_ws: ws.id })) ?? []) as ListRow[]);
-  const people = useQuery(`audience_people:${ws.id}:${view}:${term}:${limit}`, async () => (must(await sb.rpc("audience_people", { p_ws: ws.id, p_q: term || null, p_limit: limit, p_list: listId })) ?? []) as Person[]);
+  const people = useQuery(`audience_people:${ws.id}:${view}:${term}:${limit}:${sort.key}:${sort.desc}`, async () => (must(await sb.rpc("audience_people", { p_ws: ws.id, p_q: term || null, p_limit: limit, p_list: listId, p_sort: sort.key, p_desc: sort.desc })) ?? []) as Person[]);
+  /** Click a header: sort by it (names A to Z first, dates newest first); click again to turn it around. */
+  const sortBy = (key: SortKey) => setSort((s) => (s.key === key ? { key, desc: !s.desc } : { key, desc: key === "added" || key === "last_email" }));
+  const saveField = async (p: Person, field: EditField, v: string) => {
+    setError("");
+    try {
+      must(await sb.rpc("audience_person_update", { p_ws: ws.id, p_id: p.id, p_patch: { [field]: v } }));
+      void people.reload();
+    } catch (e) {
+      setError(errorText(e));
+      throw e;
+    }
+  };
   const list = (lists.data ?? []).find((l) => l.id === listId) ?? null;
   const held = useQuery(`contact_imports:${ws.id}`, async () => (must(await sb.from("contact_imports").select("id, list_id, people, created_at").eq("workspace_id", ws.id).order("created_at")) ?? []) as HeldImport[]);
   const answer = (h: HeldImport, action: "add" | "discard") =>
@@ -539,6 +557,62 @@ function Audiences({ sb, session, ws, role }: ViewProps) {
     );
   const name = (p: Person) => [p.first_name, p.last_name].filter(Boolean).join(" ");
   const all = people.data.length > 0 && people.data.every((p) => picked.has(p.id));
+  const shown: { key: SortKey | "lists"; label: string }[] = [
+    { key: "first", label: "First name" },
+    { key: "last", label: "Last name" },
+    { key: "email", label: "Email" },
+    ...(cols.has("phone") ? [{ key: "phone" as const, label: "Phone" }] : []),
+    ...(cols.has("title") ? [{ key: "title" as const, label: "Title" }] : []),
+    ...(cols.has("country") ? [{ key: "country" as const, label: "Country" }] : []),
+    { key: "status", label: "Email status" },
+    { key: "from", label: "Came from" },
+    ...(cols.has("lists") ? [{ key: "lists" as const, label: "Lists" }] : []),
+    ...(cols.has("added") ? [{ key: "added" as const, label: "Added" }] : []),
+    ...(cols.has("last_email") ? [{ key: "last_email" as const, label: "Last email" }] : []),
+  ];
+  const cell = (p: Person, key: SortKey | "lists") => {
+    switch (key) {
+      case "first":
+        return <EditCell value={p.first_name} field="first_name" label="First name" onSave={(v) => saveField(p, "first_name", v)} />;
+      case "last":
+        return <EditCell value={p.last_name} field="last_name" label="Last name" onSave={(v) => saveField(p, "last_name", v)} />;
+      case "email":
+        return (
+          <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+            <button type="button" onClick={() => setSheet({ person: p })} className="min-w-0 text-left wrap-anywhere text-ink hover:underline">
+              {p.email}
+            </button>
+            {isRoleAddress(p.email) ? <Badge tone="gray">Shared inbox</Badge> : null}
+          </span>
+        );
+      case "phone":
+        return <EditCell value={p.phone} field="phone" label="Phone" onSave={(v) => saveField(p, "phone", v)} />;
+      case "title":
+        return <EditCell value={p.title} field="title" label="Title" onSave={(v) => saveField(p, "title", v)} />;
+      case "country":
+        return <EditCell value={p.country} field="country" label="Country" onSave={(v) => saveField(p, "country", v)} />;
+      case "status":
+        return <Badge tone={STATUS_TONE[p.status] ?? "gray"}>{STATUS_LABEL[p.status] ?? p.status}</Badge>;
+      case "from":
+        return SOURCE_LABEL[p.source] ?? p.source;
+      case "lists":
+        return p.lists.length ? (
+          <span className="flex flex-wrap gap-1">
+            {p.lists.map((l) => (
+              <Badge key={l} tone="gray">
+                {l}
+              </Badge>
+            ))}
+          </span>
+        ) : (
+          <span className="text-faint">None</span>
+        );
+      case "added":
+        return timeAgo(p.created_at);
+      case "last_email":
+        return p.last_sent ? timeAgo(p.last_sent) : "None yet";
+    }
+  };
   const toggle = (id: string) => setPicked((s) => {
     const x = new Set(s);
     if (x.has(id)) x.delete(id);
@@ -550,12 +624,22 @@ function Audiences({ sb, session, ws, role }: ViewProps) {
       title="Audiences"
       count={total.data}
       actions={
-        <Button variant="ghost" onClick={() => void newList()}>
-          <Plus size={14} /> New list
-        </Button>
+        <span className="flex flex-wrap items-center gap-2">
+          <Button variant="ghost" onClick={() => setSheet({ person: null })}>
+            <Plus size={14} /> Add person
+          </Button>
+          <Button variant="ghost" onClick={() => void newList()}>
+            <Plus size={14} /> New list
+          </Button>
+        </span>
       }
     >
       <ErrorNote message={error} />
+      {flash ? (
+        <p role="status" className="mb-3 rounded-lg bg-signal-pale px-3.5 py-2 text-[13px] text-signal-text">
+          {flash}
+        </p>
+      ) : null}
       {role === "owner" && held.data?.length ? (
         <ul aria-label="Imports waiting for an owner" className="mb-3 flex flex-col gap-2">
           {held.data.map((h) => (
@@ -588,8 +672,9 @@ function Audiences({ sb, session, ws, role }: ViewProps) {
           menuWidth={260}
           className="h-8 min-w-[200px] rounded-full bg-card px-3.5 text-[12.5px] font-medium text-ink shadow-chip"
         />
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name or email" aria-label="Search people" className="h-8 w-full max-w-xs min-w-0 rounded-md bg-card px-3 text-[13px] text-ink shadow-input outline-none focus:shadow-focus" />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name, email or phone" aria-label="Search people" className="h-8 w-full max-w-xs min-w-0 rounded-md bg-card px-3 text-[13px] text-ink shadow-input outline-none focus:shadow-focus" />
         <span className="flex-1" />
+        <ColumnsMenu on={cols} toggle={toggleCol} />
         {list ? (
           <span className="flex flex-wrap items-center gap-1">
             <Button size="sm" variant="ghost" onClick={() => setImporting(true)}>
@@ -632,45 +717,42 @@ function Audiences({ sb, session, ws, role }: ViewProps) {
         </div>
       ) : null}
       <div className="overflow-x-auto rounded-lg bg-card shadow-rest">
-        <table className="w-full min-w-[760px] border-collapse [&_tbody_tr:last-child_td]:border-b-0">
+        <table className="w-full min-w-[860px] border-collapse [&_tbody_tr:last-child_td]:border-b-0">
           <thead>
             <tr>
               <Th className="w-10 pl-4">
-                <input type="checkbox" checked={all} aria-label="Pick everyone shown" onChange={() => setPicked(all ? new Set() : new Set(people.data!.map((p) => p.id)))} className="size-4 accent-[var(--color-signal)]" />
+                <Checkbox on={all} label="Pick everyone shown" onChange={() => setPicked(all ? new Set() : new Set(people.data!.map((p) => p.id)))} />
               </Th>
-              <Th>Person</Th>
-              <Th>Email status</Th>
-              <Th>Came from</Th>
-              <Th>Added</Th>
-              <Th>Last email</Th>
+              {shown.map((c) => (
+                <Th key={c.key}>
+                  {c.key === "lists" ? (
+                    <span className="whitespace-nowrap">{c.label}</span>
+                  ) : (
+                    <button type="button" onClick={() => sortBy(c.key as SortKey)} aria-sort={sort.key === c.key ? (sort.desc ? "descending" : "ascending") : undefined} className="inline-flex items-center gap-1 whitespace-nowrap hover:text-ink">
+                      {c.label}
+                      {sort.key === c.key ? <span aria-hidden="true" className="text-faint">{sort.desc ? "↓" : "↑"}</span> : null}
+                    </button>
+                  )}
+                </Th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {people.data.map((p) => (
-              <tr key={p.id}>
+              <tr key={p.id} data-person={p.email}>
                 <Td className="pl-4">
-                  <input type="checkbox" checked={picked.has(p.id)} aria-label={`Pick ${name(p) || p.email}`} onChange={() => toggle(p.id)} className="size-4 accent-[var(--color-signal)]" />
+                  <Checkbox on={picked.has(p.id)} label={`Pick ${name(p) || p.email}`} onChange={() => toggle(p.id)} />
                 </Td>
-                <Td>
-                  <span className="flex min-w-0 flex-col py-1">
-                    {name(p) ? <span className="font-medium break-words text-ink">{name(p)}</span> : null}
-                    <span className="flex min-w-0 flex-wrap items-center gap-1.5">
-                      <span className={`${name(p) ? "text-[12px] text-muted" : "font-medium text-ink"} min-w-0 wrap-anywhere`}>{p.email}</span>
-                      {isRoleAddress(p.email) ? <Badge tone="gray">Shared inbox</Badge> : null}
-                    </span>
-                  </span>
-                </Td>
-                <Td>
-                  <Badge tone={STATUS_TONE[p.status] ?? "gray"}>{STATUS_LABEL[p.status] ?? p.status}</Badge>
-                </Td>
-                <Td className="text-muted">{SOURCE_LABEL[p.source] ?? p.source}</Td>
-                <Td className="text-muted">{timeAgo(p.created_at)}</Td>
-                <Td className="text-muted">{p.last_sent ? timeAgo(p.last_sent) : "None yet"}</Td>
+                {shown.map((c) => (
+                  <Td key={c.key} className={c.key === "added" || c.key === "last_email" || c.key === "from" ? "text-muted" : ""}>
+                    {cell(p, c.key)}
+                  </Td>
+                ))}
               </tr>
             ))}
             {!people.data.length ? (
               <tr>
-                <td colSpan={6} className="px-5 py-6 text-center text-[13px] text-muted">
+                <td colSpan={shown.length + 1} className="px-5 py-6 text-center text-[13px] text-muted">
                   {list && !term ? (
                     <Button size="sm" variant="ghost" onClick={() => setImporting(true)}>
                       Import people
@@ -692,6 +774,23 @@ function Audiences({ sb, session, ws, role }: ViewProps) {
         </div>
       ) : null}
       <ImportHistory sb={sb} ws={ws.id} />
+      {sheet ? (
+        <PersonSheet
+          sb={sb}
+          session={session}
+          ws={ws.id}
+          person={sheet.person}
+          list={sheet.person ? null : list}
+          onClose={() => setSheet(null)}
+          onSaved={(msg) => {
+            setSheet(null);
+            setFlash(msg);
+            setTimeout(() => setFlash(""), 2400);
+            refresh();
+            void held.reload();
+          }}
+        />
+      ) : null}
       {importing && list ? <ImportSheet session={session} ws={ws.id} list={list} onClose={() => setImporting(false)} onDone={() => (setImporting(false), refresh(), invalidate(`contact_import_log:${ws.id}`), void held.reload())} /> : null}
     </Page>
   );

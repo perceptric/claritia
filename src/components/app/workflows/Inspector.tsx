@@ -13,11 +13,12 @@ import { stepProblems } from "@/lib/workflows/check";
 import { MERGE_KEYS } from "@/lib/workflows/merge";
 import { segments, STOP_LINE } from "@/lib/texts/words";
 import { STEP_KINDS, TRIGGERS, type Body, type EmailBody, type Goal, type Step, type Trigger, type TriggerKind } from "@/lib/workflows/types";
-import { Copy, Plus, Trash } from "../../Icons";
+import { Copy, Plus, Trash, Warn, X } from "../../Icons";
 import { AiMark } from "../Ai";
 import { askLines } from "../Dialogs";
 import { Select } from "../Select";
-import { Badge, Button, ErrorNote, errorText, IconButton, Input, postJson, Segmented, Toggle } from "../ui";
+import { Badge, Button, ErrorNote, errorText, IconButton, Input, NumberField, postJson, Segmented, Toggle } from "../ui";
+import { timeOptions, uses12h } from "@/lib/workflows/times";
 import type { Names } from "./model";
 
 const label = "text-[12px] font-medium text-muted";
@@ -29,6 +30,16 @@ function Row({ name, children }: { name: string; children: React.ReactNode }) {
       <span className={label}>{name}</span>
       {children}
     </label>
+  );
+}
+
+/** A row for a control that holds several buttons (a <label> would press the first one when its words are clicked). */
+function Group({ name, children }: { name: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className={label}>{name}</span>
+      {children}
+    </div>
   );
 }
 
@@ -73,24 +84,43 @@ function blankTrigger(kind: TriggerKind): Trigger {
   }
 }
 
-export function TriggerPanel({ body, names, onChange, readOnly }: { body: Body; names: Names; onChange: (b: Body, key?: string) => void; readOnly: boolean }) {
+export function TriggerPanel({ body, names, onChange, readOnly, problems = [] }: { body: Body; names: Names; onChange: (b: Body, key?: string) => void; readOnly: boolean; problems?: string[] }) {
   const t = body.trigger;
   const set = (patch: Partial<Trigger>) => onChange({ ...body, trigger: { ...t, ...patch } as Trigger });
   const goal = (kind: Goal["kind"]) => body.goals.find((g) => g.kind === kind);
   const setGoal = (kind: Goal["kind"], g: Goal | null) => onChange({ ...body, goals: [...body.goals.filter((x) => x.kind !== kind), ...(g ? [g] : [])] });
   return (
     <div className="flex flex-col gap-5">
+      {problems.length ? (
+        <p role="alert" className="flex items-start gap-2 rounded-lg bg-butter-wash px-3 py-2.5 text-[12.5px] text-butter">
+          <Warn size={14} className="mt-px shrink-0" />
+          <span className="min-w-0">{problems[0]}</span>
+        </p>
+      ) : null}
       <Row name="Trigger">
         <Select value={t.kind} options={TRIGGERS.map((x) => ({ value: x.kind, label: x.label }))} onChange={(k) => onChange({ ...body, trigger: blankTrigger(k) })} ariaLabel="Trigger" className="h-9 w-full" disabled={readOnly} />
       </Row>
       {t.kind === "form" || t.kind === "not_booked" ? (
-        <Row name="Forms">
-          <Pills options={names.forms.map((f) => ({ value: f.id, label: f.name }))} value={t.forms} onChange={(forms) => set({ forms })} disabled={readOnly} />
-        </Row>
+        <Group name="Forms">
+          <div className="flex flex-wrap gap-1.5">
+            {/* A deleted form stays visible until it's removed, so the trigger never quietly points at nothing. */}
+            {t.forms
+              .filter((id) => !names.forms.some((f) => f.id === id))
+              .map((id) => (
+                <span key={id} className="inline-flex h-7 items-center gap-1 rounded-full bg-butter-wash pr-1 pl-2.5 text-[12px] font-medium text-butter">
+                  Deleted form
+                  <button type="button" aria-label="Remove the deleted form" disabled={readOnly} onClick={() => set({ forms: t.forms.filter((x) => x !== id) })} className="flex size-5 items-center justify-center rounded-full hover:bg-hover">
+                    <X size={11} />
+                  </button>
+                </span>
+              ))}
+          </div>
+          <Pills options={names.forms.map((f) => ({ value: f.id, label: f.name }))} value={t.forms.filter((id) => names.forms.some((f) => f.id === id))} onChange={(forms) => set({ forms })} disabled={readOnly} />
+        </Group>
       ) : null}
       {t.kind === "meeting" ? (
         <>
-          <Row name="Status">
+          <Group name="Status">
             <Pills
               options={[
                 { value: "booked", label: "Booked" },
@@ -102,10 +132,15 @@ export function TriggerPanel({ body, names, onChange, readOnly }: { body: Body; 
               onChange={(events) => set({ events: events as typeof t.events })}
               disabled={readOnly}
             />
-          </Row>
-          <Row name="Meeting types">
-            <Pills options={names.types.map((x) => ({ value: x.id, label: x.name }))} value={t.types} onChange={(types) => set({ types })} disabled={readOnly} />
-          </Row>
+          </Group>
+          <Group name="Meeting types">
+            {t.types.some((id) => !names.types.some((x) => x.id === id)) ? (
+              <button type="button" disabled={readOnly} onClick={() => set({ types: t.types.filter((id) => names.types.some((x) => x.id === id)) })} className="inline-flex h-7 items-center gap-1 self-start rounded-full bg-butter-wash px-2.5 text-[12px] font-medium text-butter">
+                Deleted meeting type <X size={11} />
+              </button>
+            ) : null}
+            <Pills options={names.types.map((x) => ({ value: x.id, label: x.name }))} value={t.types.filter((id) => names.types.some((x) => x.id === id))} onChange={(types) => set({ types })} disabled={readOnly} />
+          </Group>
         </>
       ) : null}
       {t.kind === "list" ? (
@@ -121,9 +156,9 @@ export function TriggerPanel({ body, names, onChange, readOnly }: { body: Body; 
         </Row>
       ) : null}
       {t.kind === "routed" ? (
-        <Row name="Result">
+        <Group name="Result">
           <Segmented value={t.result} options={[{ value: "routed", label: "Assigned" }, { value: "unassigned", label: "Unassigned" }, { value: "any", label: "Either" }]} onChange={(result) => set({ result })} />
-        </Row>
+        </Group>
       ) : null}
 
       <div className="flex flex-col gap-3 border-t border-line pt-4">
@@ -137,9 +172,9 @@ export function TriggerPanel({ body, names, onChange, readOnly }: { body: Body; 
           onChange={(mode) => onChange({ ...body, entry: { ...body.entry, mode } })}
         />
         {body.entry.mode === "repeat" ? (
-          <Row name="Re-entry delay (days)">
-            <Input type="number" min={1} value={body.entry.gapDays} onChange={(e) => onChange({ ...body, entry: { ...body.entry, gapDays: Math.max(1, Math.round(Number(e.target.value) || 1)) } }, "gap")} className="h-9 w-28" disabled={readOnly} />
-          </Row>
+          <Group name="Days before they can enter again">
+            <NumberField label="Days" value={body.entry.gapDays} min={1} max={365} onChange={(gapDays) => onChange({ ...body, entry: { ...body.entry, gapDays } }, "gap")} className="w-36" disabled={readOnly} />
+          </Group>
         ) : null}
       </div>
 
@@ -500,21 +535,28 @@ export function StepPanel(p: {
             onChange={(v) => p.onPatch((v === "meeting" ? { before: "meeting", weekday: undefined, at: undefined } : { before: undefined }) as Partial<Step>)}
           />
           <div className="grid grid-cols-2 gap-3">
-            <Row name="Days">
-              <Input type="number" min={0} value={s.days} onChange={(e) => p.onPatch({ days: Math.max(0, Math.round(Number(e.target.value) || 0)) } as Partial<Step>, "days")} className="h-9" disabled={p.readOnly} />
-            </Row>
-            <Row name="Hours">
-              <Input type="number" min={0} max={23} value={s.hours} onChange={(e) => p.onPatch({ hours: Math.min(23, Math.max(0, Math.round(Number(e.target.value) || 0))) } as Partial<Step>, "hours")} className="h-9" disabled={p.readOnly} />
-            </Row>
+            <Group name="Days">
+              <NumberField label="Days" value={s.days} min={0} max={365} onChange={(days) => p.onPatch({ days } as Partial<Step>, "days")} disabled={p.readOnly} />
+            </Group>
+            <Group name="Hours">
+              <NumberField label="Hours" value={s.hours} min={0} max={23} onChange={(hours) => p.onPatch({ hours } as Partial<Step>, "hours")} disabled={p.readOnly} />
+            </Group>
           </div>
           {s.before === "meeting" ? null : (
             <>
-              <Row name="Then on">
+              <Group name="Then on">
                 <Pills options={WEEK} value={(s.weekday ?? []).map(String)} onChange={(v) => p.onPatch({ weekday: v.length ? v.map(Number).sort() : undefined } as Partial<Step>)} disabled={p.readOnly} />
-              </Row>
-              <Row name="At">
-                <Input type="time" value={s.at ?? ""} onChange={(e) => p.onPatch({ at: e.target.value || undefined } as Partial<Step>)} className="h-9 w-32" disabled={p.readOnly} />
-              </Row>
+              </Group>
+              <Group name="At">
+                <Select
+                  value={s.at ?? ""}
+                  options={[{ value: "", label: "Any time" }, ...timeOptions(uses12h(), s.at)]}
+                  onChange={(at) => p.onPatch({ at: at || undefined } as Partial<Step>)}
+                  ariaLabel="At"
+                  className="h-9 w-40"
+                  disabled={p.readOnly}
+                />
+              </Group>
             </>
           )}
         </>
@@ -525,9 +567,9 @@ export function StepPanel(p: {
           <Row name="Until">
             <Select value={s.event} options={EVENTS} onChange={(event) => p.onPatch({ event } as Partial<Step>)} ariaLabel="Until" className="h-9 w-full" disabled={p.readOnly} />
           </Row>
-          <Row name="At most, days">
-            <Input type="number" min={1} value={s.days} onChange={(e) => p.onPatch({ days: Math.max(1, Math.round(Number(e.target.value) || 1)) } as Partial<Step>, "days")} className="h-9 w-28" disabled={p.readOnly} />
-          </Row>
+          <Group name="At most, days">
+            <NumberField label="Days" value={s.days} min={1} max={365} onChange={(days) => p.onPatch({ days } as Partial<Step>, "days")} className="w-36" disabled={p.readOnly} />
+          </Group>
         </>
       ) : null}
 
@@ -539,9 +581,9 @@ export function StepPanel(p: {
       ) : null}
 
       {s.kind === "split" ? (
-        <Row name="Share on A, %">
-          <Input type="number" min={1} max={99} value={s.percent} onChange={(e) => p.onPatch({ percent: Math.min(99, Math.max(1, Math.round(Number(e.target.value) || 50))) } as Partial<Step>, "pct")} className="h-9 w-28" disabled={p.readOnly} />
-        </Row>
+        <Group name="Share on A, %">
+          <NumberField label="Percent" value={s.percent} min={1} max={99} onChange={(percent) => p.onPatch({ percent } as Partial<Step>, "pct")} className="w-36" disabled={p.readOnly} />
+        </Group>
       ) : null}
 
       {s.kind === "slack" ? (

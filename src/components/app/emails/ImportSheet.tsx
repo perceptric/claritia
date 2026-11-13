@@ -12,7 +12,7 @@ import { Upload } from "../../Icons";
 import { tell } from "../Dialogs";
 import { Select } from "../Select";
 import { Sheet } from "../Sheet";
-import { Button, ErrorNote, errorText, postJson } from "../ui";
+import { Button, Checkbox, ErrorNote, errorText, postJson } from "../ui";
 
 type Result = { added: number; held: number; skipped: number; disposable: number; shared: number };
 const n = (x: number) => x.toLocaleString("en-US");
@@ -92,7 +92,7 @@ export function ImportSheet({ session, ws, list, onClose, onDone }: { session: S
         </div>
       }
     >
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4 p-5">
         {mode === "paste" ? (
           <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder={"ana@example.com, Ana, Diaz\nben@example.com, Ben"} aria-label="People, one a line" rows={12} className="w-full rounded-lg bg-card p-3 font-mono text-[12.5px] text-ink shadow-input outline-none focus:shadow-focus" />
         ) : !file ? (
@@ -149,10 +149,9 @@ export function ImportSheet({ session, ws, list, onClose, onDone }: { session: S
             </div>
           </>
         )}
-        <label className="flex items-start gap-2 text-[13px] text-ink">
-          <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5 size-4 accent-[var(--color-signal)]" />
+        <Checkbox on={consent} onChange={setConsent}>
           They agreed to get email from us
-        </label>
+        </Checkbox>
         <ErrorNote message={error || (mode === "file" && noEmail ? "Pick which column holds the email." : mode === "file" && tooMany ? `This file has ${n(file!.csv.rows.length)} rows. Import up to 5,000 at a time.` : "")} />
       </div>
     </Sheet>
