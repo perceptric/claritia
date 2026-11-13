@@ -63,7 +63,7 @@ export function docProblems(doc: EmailDoc): string[] {
     if ((b.type === "button" || b.type === "meeting" || b.type === "product" || b.type === "event") && !https(b.url)) out.push(`The ${b.type === "meeting" ? "meeting" : "button"} needs an https:// link`);
     if ((b.type === "image" || b.type === "video") && !(b.type === "image" ? b.src : b.thumb)) out.push("Add the image or remove its block");
   }
-  if (!blocks.some((b) => b.type === "footer")) out.push("Add the Footer block");
+  // The Footer block is added for you when there's none (withFooter in stepEmails.ts).
   return [...new Set(out)];
 }
 
@@ -80,7 +80,7 @@ export function stepProblems(s: Step): string[] {
       }
       const gaps = [e.subject, e.preheader, ...(e.doc ? [e.doc.settings.preheader, emailText(e.doc)] : [...e.paragraphs, e.cta_label])].flatMap(mergeGaps).filter((g) => !/\{\{\s*(unsubscribe_url|company_address)\s*\}\}/.test(g));
       if (gaps.length) out.push(`Give ${gaps[0]} a fallback, like {{first_name|there}}`);
-      if (!s.approved) out.push("Approve the email");
+      // No Approve: Publish shows every email once, and that's the look before anything goes.
       break;
     }
     case "wait":

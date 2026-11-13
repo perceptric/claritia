@@ -4,7 +4,7 @@
 // (and asks for approval again); edits made in the editor go to the copy; Publish refuses while the two differ, so
 // what goes live is always what was looked at. Runs in the browser and on the server.
 
-import { docFromBody, readEmailDoc, type EmailDoc } from "../design/email/doc.ts";
+import { docFromBody, newEmailId, readEmailDoc, type EmailDoc } from "../design/email/doc.ts";
 import { walk } from "./tree.ts";
 import type { Body, EmailBody, Step } from "./types.ts";
 
@@ -70,4 +70,13 @@ export function mergeCopies(body: Body, copies: EmailCopy[]): { body: Body; chan
 export function firstMismatch(body: Body, copies: EmailCopy[]): EmailStep | null {
   const by = new Map(copies.map((c) => [c.step, c]));
   return emailSteps(body).find((s) => by.has(s.id) && !sameEmail(s.email, by.get(s.id)!)) ?? null;
+}
+
+/**
+ * The email with a Footer block (the sender's address and the unsubscribe link) at the end, added for you when it
+ * has none: the panel shows it and Publish builds with it, so no email goes out without one.
+ */
+export function withFooter(doc: EmailDoc): EmailDoc {
+  if (doc.sections.some((s) => s.columns.some((c) => c.blocks.some((b) => b.type === "footer")))) return doc;
+  return { ...doc, sections: [...doc.sections, { id: `ft${newEmailId().slice(0, 6)}`, stackOnPhone: true, columns: [{ id: `fc${newEmailId().slice(0, 6)}`, width: 100, blocks: [{ id: `fb${newEmailId().slice(0, 6)}`, type: "footer" }] }] }] };
 }

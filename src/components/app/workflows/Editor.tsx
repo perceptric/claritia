@@ -21,7 +21,7 @@ import { StepTest } from "./StepTest";
 import { previewHtml, type CanvasKit } from "../emails/canvas/preview";
 import { HistoryDrawer, PublishDialog, TryPanel, VersionsDrawer } from "./Panels";
 import { useEmailCopies } from "./emailCopies";
-import { designOf, emailSteps, sameEmail } from "@/lib/workflows/stepEmails";
+import { designOf, emailSteps, sameEmail, withFooter } from "@/lib/workflows/stepEmails";
 
 type SaveState = "idle" | "saving" | "saved" | "retry" | "conflict";
 const STATUS: Record<"draft" | "live" | "paused", [string, Tone]> = {
@@ -76,7 +76,7 @@ export function WorkflowEditor({
   const thumbs = useMemo(() => {
     const out: Record<string, string> = {};
     if (!kits.data) return out;
-    for (const s of emailSteps(body)) if (s.email.doc) out[s.id] = previewHtml({ doc: s.email.doc, status: "draft", html: "" }, kits.data);
+    for (const s of emailSteps(body)) if (s.email.doc) out[s.id] = previewHtml({ doc: withFooter(s.email.doc), status: "draft", html: "" }, kits.data);
     return out;
   }, [body, kits.data]);
   // Emails whose words differ from the live version's.
@@ -452,6 +452,7 @@ export function WorkflowEditor({
                 onRemove={() => void onRemove(selStep.id)}
                 onEditEmail={mail.copies.has(selStep.id) ? () => void editEmail(selStep.id) : undefined}
                 changedSinceLive={changedSinceLive.has(selStep.id)}
+                kits={kits.data ?? undefined}
               />
             ) : (
               <TriggerPanel body={body} names={data.names} problems={gone.map((x) => x.text)} onChange={(b, key) => edit(b, key ? `trigger:${key}` : undefined)} readOnly={false} />
@@ -475,7 +476,7 @@ export function WorkflowEditor({
           />
         ) : null}
         {panel === "publish" ? (
-          <PublishDialog session={session} id={id} live={live} draft={body} names={data.words} next={next} onDone={(v) => void onPublished(v)} onFailed={() => void mail.resync().catch(() => undefined)} onClose={() => setPanel(null)} />
+          <PublishDialog session={session} id={id} live={live} draft={body} names={data.words} next={next} thumbs={thumbs} onDone={(v) => void onPublished(v)} onFailed={() => void mail.resync().catch(() => undefined)} onClose={() => setPanel(null)} />
         ) : null}
       </div>
     </Page>

@@ -15,7 +15,7 @@ const later = { subject: "Still want to talk?", preheader: "", paragraphs: ["Pic
 const draft: Body = {
   trigger: { kind: "form", forms: ["f1"] },
   steps: [
-    { id: "m1", kind: "email", email: { ...thanks, doc: docFromBody(thanks) }, from: "team", approved: true } as Step,
+    { id: "m1", kind: "email", email: { ...thanks, doc: docFromBody(thanks) }, from: "team", approved: false } as Step,
     { id: "w1", kind: "wait", days: 2, hours: 0, weekday: [2, 4], at: "09:00" } as Step,
     {
       id: "b1",

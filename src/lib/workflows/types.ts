@@ -85,7 +85,7 @@ export const emptyEmail = (): EmailBody => ({ subject: "", preheader: "", paragr
 
 /** One line about each kind: under it in the add menu and under its title in the panel. */
 export const STEP_LINE: Record<StepKind, string> = {
-  email: "Send an email, edited on Emails",
+  email: "Send an email",
   wait: "Wait a while, or until a day and time",
   wait_until: "Wait until they book, click or fill a form",
   branch: "Two paths by what's true about them",

@@ -1385,7 +1385,7 @@ try {
     await au.goto(`http://localhost:${port}/?group=wf:99999999-9999-4999-8999-999999999999`);
     await au.waitForFunction(() => document.querySelectorAll("[data-email] iframe").length >= 2, null, { timeout: 15000 });
     await au.waitForTimeout(400);
-    check((await au.getByText("Automation", { exact: true }).count()) >= 1 && (await au.getByRole("button", { name: "Open the automation" }).count()) === 1, "an automation's canvas has its tag and Open the automation");
+    check((await au.getByText("Automation", { exact: true }).count()) >= 1 && (await au.getByRole("button", { name: "Back to automation" }).count()) === 1, "an automation's canvas has its tag and Back to automation");
     check((await au.getByRole("button", { name: /Add email/ }).count()) === 0, "no Add email on an automation's canvas");
     const names = await au.locator("[data-canvas-item]").allInnerTexts();
     check(names.some((n) => n.includes("Thanks") && n.includes("Changed since publish")) && names.some((n) => n.includes("Still there?") && !n.includes("Changed since publish")), `the email edited since the live version says so (${names.map((n) => n.replace(/\s+/g, " ")).join(" / ")})`);

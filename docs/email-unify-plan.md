@@ -238,3 +238,11 @@ inside each workflow, so the rows move rather than grow.
 - **Proof:** `tests/automationEditor.test.ts`; `scripts/automation-check.ts` (23 browser checks on the real editor over
   a stand-in database, including a real mouse drag).
 - **Cost:** $0 a month at Beta and Growth.
+
+
+## After E4: one email per step
+
+People found two places and an Approve step confusing. Now each email step is one email, edited in place in its panel
+or through Open full editor on the canvas, with no Approve and the Footer block added for you; Publish shows every email
+once and reads the copies, so it never refuses (docs/workflows.md, "Emails in an automation"). Cost: $0 at Beta and at
+Growth.
