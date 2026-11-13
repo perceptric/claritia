@@ -301,7 +301,14 @@ function DraftEditor({ sb, session, ws, navigate, emailId, draft }: ViewProps & 
           ws={ws.id}
           emailId={emailId}
           subject={state.subject}
+          preheader={state.doc.settings.preheader ?? ""}
           doc={state.doc}
+          onSubject={(subject) => change({ subject })}
+          onPreheader={(preheader) => change({ doc: { ...state.doc, settings: { ...state.doc.settings, preheader } } })}
+          beforeSend={async () => {
+            await saveRef.current();
+            if (dirty.current) throw new Error("The draft didn't save. Try again.");
+          }}
           onClose={() => setSending(false)}
           onSent={() => {
             invalidate(`email_campaigns:${ws.id}`);

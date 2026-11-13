@@ -469,6 +469,22 @@ passes. Tests: `tests/emailsMcp.test.ts`, `tests/emailsGuard.test.ts` and `tests
 | Beta: 50 teams × about 5,000 a month = 250,000 | Scale plan about $90 for 100,000, more above that (check) | about $25 at $0.10 per 1,000 |
 | Growth: 500 teams × about 5,000 = 2,500,000 | Custom price (check) | about $250 |
 
+## After Part 10: what Brew does that we didn't (13 November 2026)
+
+Demo: https://claude.ai/artifact/XsYmLtATFuauKPPvgNgcnq. Four steps, each its own PR with no new services ($0 a month
+at Beta and Growth):
+
+1. **Send panel** (built, migration 156): the domain (any verified one, with what's left today while it warms up),
+   From name, From address, reply-to, subject and preview text with a merge-value picker, how it shows in an inbox, and
+   Send now, Schedule or Gradual Send (spread evenly over 2 to 72 hours; Pause and Resume keep it spread). The From
+   address must be on a verified domain (`email_campaign_send` checks). Each campaign message now carries the person's
+   first name, last name, company and title: before 156 campaigns had no merge values, so `{{first_name|there}}`
+   always read "there". Tests: `tests/pg/campaignSend.pg.ts`.
+2. **Lists that fill from forms** ("Add to a list" in On Submission) and **CSV upload** with column matching and an
+   import history.
+3. **Email groups on one canvas**, and a code view of the whole email.
+4. **Intelligent Send**: each person at the hour they usually open, within 24 hours.
+
 ## Build order
 
 | Milestone | What ships | Depends on |
