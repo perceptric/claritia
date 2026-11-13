@@ -480,8 +480,14 @@ at Beta and Growth):
    address must be on a verified domain (`email_campaign_send` checks). Each campaign message now carries the person's
    first name, last name, company and title: before 156 campaigns had no merge values, so `{{first_name|there}}`
    always read "there". Tests: `tests/pg/campaignSend.pg.ts`.
-2. **Lists that fill from forms** ("Add to a list" in On Submission) and **CSV upload** with column matching and an
-   import history.
+2. **Lists that fill from forms and CSV upload** (built, migration 157). A list fills from forms (`list_forms`): each
+   fill that isn't spam or a test joins it, which also starts "Joined a list" automations; a held fill joins once it's
+   released. Set it on the list in Audiences ("Fills from", Add a form) or in the form's On Submission (Notification ›
+   Add to a list); both change the same rows. Import CSV reads the file in the browser (`src/lib/emails/csv.ts`:
+   commas, semicolons or tabs, quoted values, Excel's mark), matches each column to Email, First name, Last name, Full
+   name, Phone, a custom field or Leave out by its header, and every match can be changed. Up to 5,000 people a file,
+   added in batches of 1,000; paste still works. Every import lands in `contact_import_log`, shown under Imports in
+   Audiences. Tests: `tests/pg/listForms.pg.ts`, `tests/csvImport.test.ts`, `scripts/studio-check.ts`.
 3. **Email groups on one canvas**, and a code view of the whole email.
 4. **Intelligent Send**: each person at the hour they usually open, within 24 hours.
 

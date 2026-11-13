@@ -309,6 +309,22 @@ export function Studio({ sb, session, ws, navigate, formId = "", chatId = "", fr
         const res = await sb.from("workflows").select("id, name, status").eq("workspace_id", ws.id).contains("draft", { trigger: { forms: [id] } }).order("created_at");
         return ((must(res) ?? []) as { id: string; name: string; status: string }[]).map((x) => ({ id: x.id, name: x.name, status: x.status }));
       },
+      formLists: async (id) => {
+        const res = await sb.from("list_forms").select("list_id, lists(name)").eq("form_id", id);
+        return ((must(res) ?? []) as unknown as { list_id: string; lists: { name: string } | null }[]).map((x) => ({ id: x.list_id, name: x.lists?.name ?? "List" }));
+      },
+      allLists: async () => ((must(await sb.from("lists").select("id, name").eq("workspace_id", ws.id).order("name")) ?? []) as { id: string; name: string }[]),
+      setFormList: async (listId, formId, on) => {
+        must(await sb.rpc("list_form_set", { p_ws: ws.id, p_list: listId, p_form: formId, p_on: on }));
+        invalidate(`list_forms:${listId}`);
+      },
+      newList: async () => {
+        const name = (await askText("Name the list", { placeholder: "Workshop waitlist", ok: "Create" }))?.trim();
+        if (!name) return null;
+        const id = must(await sb.rpc("list_save", { p_ws: ws.id, p_id: null, p_name: name })) as string;
+        invalidate(`lists:${ws.id}`);
+        return { id, name };
+      },
       newFollowUp: (id, when) => navRef.current("workflows", "new", `template=${when === "not_booked" ? "not_booked" : "form_followup"}&form=${id}`),
       openWorkflow: (id) => navRef.current("workflows", id),
       // Loaded only when an empty canvas shows them, so the catalog stays out of the Studio's first load.

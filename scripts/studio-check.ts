@@ -693,6 +693,11 @@ try {
   await $("#pscroll [aria-label='New follow-up']").click();
   await $(".menu .mi").filter({ hasText: "When they don't book" }).click();
   check((await calls()).some((c) => c.mode === "newFollowUp" && (c.body as { when: string }).when === "not_booked"), "New follow-up starts a workflow on this form");
+  await notif("Add to a list");
+  await $("#pscroll .pill").filter({ hasText: "Workshop waitlist" }).waitFor();
+  await $("#pscroll [aria-label='Add to a list']").click();
+  await $(".menu .mi").filter({ hasText: "Newsletter" }).click();
+  check((await calls()).some((c) => c.mode === "setFormList" && (c.body as { listId: string; on: boolean }).listId === "list-2" && (c.body as { on: boolean }).on), "Add to a list links the form to a list");
   if (shots) await p.screenshot({ path: `${shots}/4b-after.png` });
   const kept = Object.values(await p.evaluate(() => (window as unknown as { saved: Record<string, { body: { after: { always?: { to?: string[]; slack?: boolean } } } }> }).saved));
   check(kept.some((c) => c.body.after.always?.to?.[0] === "coach@finch.care" && c.body.after.always.slack === true), "Notification is kept on the chat");

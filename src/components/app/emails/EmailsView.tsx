@@ -20,6 +20,8 @@ import { AiMark } from "../Ai";
 import { ToolIntro } from "../ToolIntro";
 import { BrandSettings } from "../views/BrandSettings";
 import { TemplateGallery } from "./TemplateGallery";
+import { FillsFrom, ImportHistory } from "./AudienceParts";
+import { ImportSheet } from "./ImportSheet";
 import { isRoleAddress } from "@/lib/emails/role";
 import { Badge, Button, ErrorNote, errorText, IconButton, invalidate, Loading, must, Page, postJson, Section, Td, Th, timeAgo, useQuery, type Tone, type ViewProps } from "../ui";
 
@@ -556,6 +558,7 @@ function Audiences({ sb, session, ws, role }: ViewProps) {
     run(async () => {
       await postJson(session, "/api/emails/import", { workspaceId: ws.id, importId: h.id, action });
       void held.reload();
+      invalidate(`contact_import_log:${ws.id}`);
       refresh();
     });
   const refresh = () => {
@@ -683,7 +686,7 @@ function Audiences({ sb, session, ws, role }: ViewProps) {
         {list ? (
           <span className="flex flex-wrap items-center gap-1">
             <Button size="sm" variant="ghost" onClick={() => setImporting(true)}>
-              Import
+              Import CSV
             </Button>
             <Button size="sm" variant="ghost" onClick={() => void rename(list)}>
               Rename
@@ -694,6 +697,7 @@ function Audiences({ sb, session, ws, role }: ViewProps) {
           </span>
         ) : null}
       </div>
+      {list ? <FillsFrom key={list.id} sb={sb} ws={ws.id} list={list} /> : null}
       {picked.size ? (
         <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg bg-card px-3 py-2 shadow-rest">
           <span className="text-[13px] font-medium text-ink tabular-nums">{n(picked.size)} picked</span>
@@ -780,63 +784,13 @@ function Audiences({ sb, session, ws, role }: ViewProps) {
           </Button>
         </div>
       ) : null}
-      {importing && list ? <ImportSheet session={session} ws={ws.id} list={list} onClose={() => setImporting(false)} onDone={() => (setImporting(false), refresh())} /> : null}
+      <ImportHistory sb={sb} ws={ws.id} />
+      {importing && list ? <ImportSheet session={session} ws={ws.id} list={list} onClose={() => setImporting(false)} onDone={() => (setImporting(false), refresh(), invalidate(`contact_import_log:${ws.id}`), void held.reload())} /> : null}
     </Page>
   );
 }
 
 type HeldImport = { id: string; list_id: string; people: { email: string }[]; created_at: string };
-
-/** Paste people into a list: one a line, with whether they agreed to get email. */
-function ImportSheet({ session, ws, list, onClose, onDone }: { session: ViewProps["session"]; ws: string; list: ListRow; onClose: () => void; onDone: () => void }) {
-  const [text, setText] = useState("");
-  const [consent, setConsent] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const go = async () => {
-    setBusy(true);
-    setError("");
-    try {
-      const r = await postJson<{ added: number; held: number; skipped: number; disposable: number; shared: number }>(session, "/api/emails/import", { workspaceId: ws, listId: list.id, text, consent });
-      const notes = [
-        r.held ? `${n(r.held)} ${r.held === 1 ? "person waits" : "people wait"} for an owner to add them, since they didn't agree to get email.` : "",
-        r.skipped ? `${n(r.skipped)} ${r.skipped === 1 ? "line wasn't an email or was a repeat" : "lines weren't emails or were repeats"}.` : "",
-        r.disposable ? `${n(r.disposable)} throwaway ${r.disposable === 1 ? "address was" : "addresses were"} left out.` : "",
-        r.shared ? `${n(r.shared)} ${r.shared === 1 ? "is a shared inbox" : "are shared inboxes"}, like info@.` : "",
-      ].filter(Boolean);
-      if (notes.length) await tell(r.held ? "Waiting for an owner" : `Added ${n(r.added)}`, notes.join(" "));
-      onDone();
-    } catch (e) {
-      setError(errorText(e));
-      setBusy(false);
-    }
-  };
-  return (
-    <Sheet
-      title={`Import to ${list.name}`}
-      onClose={onClose}
-      footer={
-        <div className="flex flex-wrap justify-end gap-2">
-          <Button variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button onClick={() => void go()} disabled={busy || !text.trim()}>
-            {busy ? "Importing…" : "Import"}
-          </Button>
-        </div>
-      }
-    >
-      <div className="flex flex-col gap-3">
-        <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder={"ana@example.com, Ana, Diaz\nben@example.com, Ben"} aria-label="People, one a line" rows={12} className="w-full rounded-lg bg-card p-3 font-mono text-[12.5px] text-ink shadow-input outline-none focus:shadow-focus" />
-        <label className="flex items-start gap-2 text-[13px] text-ink">
-          <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5 size-4 accent-[var(--color-signal)]" />
-          They agreed to get email from us
-        </label>
-        <ErrorNote message={error} />
-      </div>
-    </Sheet>
-  );
-}
 
 // Brand -------------------------------------------------------------------------------------------------------------
 

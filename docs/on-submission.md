@@ -130,7 +130,8 @@ the form picks the meeting type, the meeting picks the person.
   Enrichment's qualify rules don't offer them, since only routing reads them.
 - **Always do**, on every send whatever it books: **Email the team** and **Post to Slack** (the form's team alert,
   `form.notify`); **Send to** a connected CRM or a webhook (the form's destinations); **Follow-up** workflows that
-  start on this form (**New follow-up**: when they send it, or when they don't book). Send to and New follow-up save
+  start on this form (**New follow-up**: when they send it, or when they don't book); **Add to a list** in Emails › Audiences (each
+  fill joins it, `list_forms`, 157). Send to and New follow-up save
   the form once as a draft first, since they need its id. Email the team and Post to Slack are the same team alert as
   the form's Settings, so the last place it changed wins (`teamAlert` in `src/lib/studio/page.ts`), the alert's subject
   stays, and a chat opened after a Settings change shows the alert as it is now. A form with no Always do keeps the

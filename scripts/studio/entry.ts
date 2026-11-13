@@ -147,6 +147,10 @@ const api: StudioApi = {
   },
   followUps: async () => [{ id: "wf-1", name: "Form follow-up", status: "draft" }],
   newFollowUp: (id, when) => void calls.push({ mode: "newFollowUp", body: { id, when } }),
+  formLists: async () => [{ id: "list-1", name: "Workshop waitlist" }],
+  allLists: async () => [{ id: "list-1", name: "Workshop waitlist" }, { id: "list-2", name: "Newsletter" }],
+  setFormList: async (listId, formId, on) => void calls.push({ mode: "setFormList", body: { listId, formId, on } }),
+  newList: async () => ({ id: "list-3", name: "New list" }),
   openWorkflow: (id) => void calls.push({ mode: "openWorkflow", body: id }),
   onState: (st) => {
     w.studioState = st;
