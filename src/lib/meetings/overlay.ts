@@ -1,4 +1,4 @@
-// A guest's own calendar on a booking page (docs/booking-page-plan.md, Part 6): after they sign in with Google in a
+// A guest's own calendar on a booking page (docs/booking-page-plan.md, Part 5): after they sign in with Google in a
 // small window, their busy times for the next weeks are read once and handed to the page that opened
 // the window, so the times that clash with their day are marked. Nothing is stored: no token, no times.
 

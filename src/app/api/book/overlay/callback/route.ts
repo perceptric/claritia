@@ -4,7 +4,7 @@ import { originAllowed } from "../origin";
 import { oauthExchange, readState } from "@/lib/sources/oauth";
 import { overlayPage } from "../html";
 
-// The guest's sign-in comes back here (docs/booking-page-plan.md, Part 6): the code becomes a token, the token reads
+// The guest's sign-in comes back here (docs/booking-page-plan.md, Part 5): the code becomes a token, the token reads
 // the next weeks' busy times once, and both are dropped. The page that opened the window gets the times.
 
 const DAY = 86_400_000;

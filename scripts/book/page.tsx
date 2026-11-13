@@ -1,7 +1,7 @@
 // The booking page as a guest sees it, with stand-in times and a stand-in booking, for scripts/booking-page-check.ts
 // (docs/booking-page-plan.md). ?who=known starts as a guest the page already knows (a form fill or an earlier
 // booking); ?q=1 adds a required question and ?known=1 answers it from a "form fill"; ?taken=1 makes every hold
-// fail (someone else is booking it); the plain-words box's server fallback answers null.
+// fail (someone else is booking it).
 
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -41,7 +41,6 @@ function App() {
                 (window as unknown as { holds: number[] }).holds.push(start);
                 return !sp.get("taken");
               }}
-              askWhen={async () => null}
               overlay
               load={async (l) => sampleSlots(l, "UTC", now, 21)}
               book={async (r) => {

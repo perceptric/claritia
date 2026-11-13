@@ -14,7 +14,7 @@ Resend's SMTP relay with the same API key, and its webhook reports their bounces
    `https://app.tryclaritia.com/api/calendar/callback`.
 4. At Growth, ask for a higher Calendar API quota (free, check): the 10-minute refresh is about 360,000 free/busy
    calls a day at 2,500 connected people.
-5. Show my calendar on booking pages (docs/booking-page-plan.md, Part 6): add the redirect URI
+5. Show my calendar on booking pages (docs/booking-page-plan.md, Part 5): add the redirect URI
    `https://app.tryclaritia.com/api/book/overlay/callback` to the same client, and the scope `calendar.freebusy` to
    the consent screen (sensitive, in the same review, check). Until then the button says it isn't set up yet.
 

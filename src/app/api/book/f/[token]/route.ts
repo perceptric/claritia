@@ -1,6 +1,5 @@
 import { cors } from "@/lib/forms/server";
 import { fillCtx, readBooking } from "@/lib/forms/booking";
-import { whenAnswer } from "@/lib/meetings/whenServer";
 import { heldByOthers, holds, holdToken, releaseHold, takeHold, withoutHeld } from "@/lib/meetings/holds";
 import { claimBook, claimSlots } from "@/lib/forms/bookPage";
 import { bookingTextConsent } from "@/lib/texts/booking";
@@ -28,10 +27,6 @@ export async function GET(request: Request, ctx: Ctx) {
     const x = await claimOf(ctx);
     if ("error" in x) return x.error;
     const sp = new URL(request.url).searchParams;
-    if (sp.has("when")) {
-      const f = await fillCtx(x.rpc, x.c.submission, x.c.type).catch(() => null);
-      return json({ when: f ? await whenAnswer(x.rpc, f.workspace_id, sp.get("when") ?? "", sp.get("today") ?? "") : null }, 200, { "Cache-Control": "no-store" });
-    }
     const len = Number(sp.get("len"));
     // Times other guests hold leave the list (only types that hold have any, src/lib/meetings/holds.ts).
     const [r, held] = await Promise.all([claimSlots(x.rpc, x.token, x.c, Number.isInteger(len) ? len : undefined), heldByOthers(x.rpc, x.c.type, holdToken(sp.get("hold")))]);

@@ -8,7 +8,6 @@ import { readBookRef } from "@/lib/meetings/links";
 import { answersOf, routedType } from "@/lib/meetings/dynamicServer";
 import { bookType, loadTarget, loadTargetCached, preferredSlots } from "@/lib/meetings/public";
 import { stripeClient } from "@/lib/billing";
-import { whenAnswer } from "@/lib/meetings/whenServer";
 import { heldByOthers, holds, holdToken, releaseHold, takeHold, withoutHeld } from "@/lib/meetings/holds";
 import { base, booked, failed, json, limited, liveFor, readBody, rpcOrNull, spamOk, startOf } from "../../../_shared";
 
@@ -38,8 +37,6 @@ export async function GET(request: Request, ctx: Ctx) {
     const x = await target(ctx, request, false);
     if ("error" in x) return x.error;
     const sp = new URL(request.url).searchParams;
-    // ?when=<words>&today=<date>: the plain-words box's range (src/lib/meetings/whenServer.ts).
-    if (sp.has("when")) return json({ when: await whenAnswer(x.rpc, x.t.ws.id, sp.get("when") ?? "", sp.get("today") ?? "") }, 200, { "Cache-Control": "no-store" });
     const len = Number(sp.get("len") ?? x.type.settings.lengths[0]);
     const from = sp.get("from") ? Number(sp.get("from")) : undefined;
     const to = sp.get("to") ? Number(sp.get("to")) : undefined;

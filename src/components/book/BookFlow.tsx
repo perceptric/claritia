@@ -3,7 +3,6 @@
 import { useCallback, useRef, useState } from "react";
 import type { RouteQuestion } from "@/lib/meetings/dynamic";
 import type { BookReply, GuestSlot, GuestType } from "@/lib/meetings/guest";
-import type { WhenRange } from "@/lib/meetings/when";
 import { postToParent } from "./browser";
 import { Calendar, type BookRequest } from "./Calendar";
 import { RouteQuestions } from "./RouteQuestions";
@@ -54,18 +53,6 @@ export function BookFlow(p: {
     },
     [endpoint, host, route, waiting, holdId],
   );
-  // The plain-words box's fallback: what the page couldn't read, read on the server.
-  const askWhen = useCallback(
-    async (text: string, today: string) => {
-      try {
-        const res = await fetch(`${endpoint}?${new URLSearchParams({ when: text, today })}`, { cache: "no-store" });
-        return res.ok ? (((await res.json()) as { when?: WhenRange | null }).when ?? null) : null;
-      } catch {
-        return null;
-      }
-    },
-    [endpoint],
-  );
   // A hold that can't be asked lets the guest carry on: the booking's own checks stay in charge.
   const hold = useCallback(
     async (start: number) => {
@@ -99,7 +86,6 @@ export function BookFlow(p: {
       initialSlots={asks ? undefined : p.initialSlots}
       book={book}
       hold={hold}
-      askWhen={p.preview ? undefined : askWhen}
       overlay={!p.preview}
       known={p.known}
       before={waiting ? <RouteQuestions questions={p.questions!} initial={last} onDone={(a) => (setLast(a), setRoute(a))} /> : undefined}
