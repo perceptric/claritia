@@ -7,6 +7,7 @@ import { createRoot } from "react-dom/client";
 import { EMAIL_TEMPLATES } from "../../src/lib/design/email/library.ts";
 import { DialogHost } from "../../src/components/app/Dialogs.tsx";
 import { EmailCanvasPage } from "../../src/components/app/emails/canvas/EmailCanvasPage.tsx";
+import { SYSTEM_KEYS, SYSTEM_META, systemDefault } from "../../src/lib/meetings/systemEmails.ts";
 
 type Row = Record<string, unknown>;
 const calls: { mode: string; body: unknown }[] = [];
@@ -50,6 +51,11 @@ const later: Row = { ...email("Still there?", 3, null, 1), kind: "journey", work
 db.emails!.push(thanks, later);
 db.workflows = [{ id: WF, workspace_id: "ws1", name: "Demo follow-up", live_version: 1 }];
 db.workflow_versions = [{ workflow_id: WF, version: 1, body: { trigger: { kind: "form", forms: [] }, goals: [], entry: { mode: "once", gapDays: 30 }, steps: [{ id: "s1", kind: "email", from: "team", approved: true, email: { subject: "Thanks", preheader: "", paragraphs: [], cta_label: "", cta_url: "", doc: thanks.doc } }] } }];
+// System emails (docs/system-emails.md): one of each, as a workspace gets them; "Pick a time" is off.
+SYSTEM_KEYS.forEach((key, i) => {
+  const d = systemDefault(key);
+  db.emails!.push({ ...email(SYSTEM_META[key].name, 0, null, i), kind: "system", system_key: key, subject: d.subject, doc: d.doc, group_position: i, paused_at: key === "book_later" ? new Date().toISOString() : null });
+});
 w.db = db;
 // The design draft's save (src/components/app/forms/useDesignDraft.ts) goes to the stand-in kit.
 const realFetch = window.fetch.bind(window);
@@ -196,6 +202,11 @@ const rpc = async (fn: string, a: Row) => {
     db.emails!.splice(i, 1);
     regroup(g);
     return { data: true, error: null };
+  }
+  if (fn === "system_email_turn") {
+    const r = db.emails!.find((x) => x.id === a.p_id)!;
+    r.paused_at = a.p_on ? null : new Date().toISOString();
+    return { data: a.p_on, error: null };
   }
   if (fn === "email_group_save") {
     if (a.p_id) (db.email_groups!.find((g) => g.id === a.p_id)!.name = a.p_name);

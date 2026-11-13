@@ -1416,6 +1416,48 @@ try {
     await au.close();
   }
 
+  // System emails (docs/system-emails.md) ---------------------------------------------------------------------------
+  // 70. The System emails' canvas: one of each with On, Off or Always on; sample values in place of merge fields; no
+  // Add email, Send or Delete; Turn off and on; Insert offers the meeting's fields.
+  {
+    const se = await ctx.newPage();
+    se.on("pageerror", (e) => errors.push(e.message));
+    await se.goto(`http://localhost:${port}/?group=system`);
+    await se.waitForFunction(() => document.querySelectorAll("[data-email] iframe").length >= 2, null, { timeout: 15000 });
+    await se.waitForTimeout(500);
+    check((await se.locator("[data-email]").count()) === 10, "the System emails' canvas shows all ten");
+    check((await se.getByText("System", { exact: true }).count()) >= 1 && (await se.getByRole("button", { name: /Add email/ }).count()) === 0, "it has the System tag and no Add email");
+    const names = (await se.locator("[data-canvas-item]").allInnerTexts()).map((n) => n.replace(/\s+/g, " "));
+    check(names.some((n) => n.includes("Booking confirmed") && n.includes("Always on")) && names.some((n) => n.includes("Reminder") && n.includes("On")) && names.some((n) => n.includes("Pick a time") && n.includes("Off")), `each email says On, Off or Always on (${names.slice(0, 6).join(" / ")})`);
+    const first = await se.locator("[data-email] iframe").first().evaluate((f) => (f as HTMLIFrameElement).contentDocument?.body.innerText ?? "");
+    check(first.includes("Intro call with Alex Kim") && !first.includes("{{"), `the canvas shows a sample meeting in place of merge fields (${first.slice(0, 80).replace(/\s+/g, " ")})`);
+    // The Reminder, picked by its name: Turn off, no Send.
+    const boards = se.locator("[data-email]");
+    const rb = (await boards.nth(3).boundingBox())!;
+    await se.mouse.click(rb.x + 12, rb.y - 12);
+    const bar = se.getByRole("toolbar", { name: "Email actions" });
+    await bar.waitFor();
+    check((await bar.getByRole("button", { name: "Send" }).count()) === 0 && (await bar.getByRole("button", { name: "Turn off" }).count()) === 1, "a System email's toolbar has Turn off and no Send");
+    await bar.getByRole("button", { name: "Turn off" }).click();
+    await se.waitForTimeout(200);
+    const turned = await se.evaluate(() => (window as unknown as { calls: { mode: string; body: { p_on?: boolean } }[] }).calls.filter((c) => c.mode === "system_email_turn"));
+    check(turned.length === 1 && turned[0]!.body.p_on === false && (await se.locator("[data-canvas-item]").nth(3).innerText()).includes("Off"), "Turn off turns it off and says so");
+    await se.keyboard.press("Delete");
+    await se.waitForTimeout(200);
+    check((await se.locator("[data-email]").count()) === 10 && (await se.locator("[role='status']").allInnerTexts()).some((t) => t.includes("one of each")), "Delete leaves it and says why");
+    // The confirmation always goes: no Turn off.
+    const cb = (await boards.first().boundingBox())!;
+    await se.mouse.click(cb.x + 12, cb.y - 12);
+    await se.waitForTimeout(150);
+    check((await bar.getByRole("button", { name: "Turn off" }).count()) === 0, "the confirmation has no Turn off");
+    await bar.getByRole("button", { name: "More" }).click();
+    const items = (await se.getByRole("menuitem").allInnerTexts()).map((t) => t.trim());
+    check(items.includes("Start over") && !items.some((t) => /^(Duplicate|Delete|Move to group|Turn off)/.test(t)), `its menu has Start over and none of Duplicate, Delete, Move or Turn off (${items.join(", ")})`);
+    await se.keyboard.press("Escape");
+    if (shots) await se.screenshot({ path: `${shots}/20-system.png` });
+    await se.close();
+  }
+
   // 12. A row of 60 emails: only those near the view load
   const big = await ctx.newPage();
   big.on("pageerror", (e) => errors.push(e.message));

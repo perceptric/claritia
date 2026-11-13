@@ -13,7 +13,10 @@ export const EMAIL_LIMITS = { sections: 40, columns: 4, blocks: 200, text: 20_00
 
 /** The contact fields a condition can test: what the send knows about each person. */
 export const COND_FIELDS = ["first_name", "last_name", "company", "title"] as const;
-export type CondField = (typeof COND_FIELDS)[number];
+/** What a meeting's System email knows (src/lib/meetings/systemEmails.ts): its parts can show only when one is known. */
+export const MEETING_COND_FIELDS = ["meeting_link", "reschedule_link", "about", "answers", "old_time", "cancel_reason", "book_link", "open_times"] as const;
+export type CondField = (typeof COND_FIELDS)[number] | (typeof MEETING_COND_FIELDS)[number];
+const ALL_COND_FIELDS: readonly CondField[] = [...COND_FIELDS, ...MEETING_COND_FIELDS];
 export type EmailCond = { field: CondField; op: "is" | "is_not" | "contains" | "is_set" | "is_not_set"; value?: string };
 export const COND_OPS: EmailCond["op"][] = ["is", "is_not", "contains", "is_set", "is_not_set"];
 
@@ -83,7 +86,7 @@ const ALIGNS = ["left", "center", "right"] as const;
 function readCond(raw: unknown): EmailCond | undefined {
   const r = obj(raw);
   if (!r) return undefined;
-  const field = pick(r.field, COND_FIELDS, "" as CondField);
+  const field = pick(r.field, ALL_COND_FIELDS, "" as CondField);
   const op = pick(r.op, COND_OPS, "" as EmailCond["op"]);
   if (!field || !op) return undefined;
   const value = line(r.value, 200);
@@ -159,7 +162,8 @@ export function readBlock(raw: unknown, seen: Set<string>, allowHtml: boolean): 
     }
     case "event": {
       const where = line(r.where, 200);
-      return { ...base, type, title: line(r.title, 120), when: line(r.when, 120), url: href(r.url), button: line(r.button, 60) || "Save my seat", ...(where ? { where } : {}) };
+      // An empty button (set on purpose) leaves the card without one, as on a meeting's System email.
+      return { ...base, type, title: line(r.title, 120), when: line(r.when, 120), url: href(r.url), button: r.button === "" ? "" : line(r.button, 60) || "Save my seat", ...(where ? { where } : {}) };
     }
     case "meeting":
       return { ...base, type, label: line(r.label, 80) || "Book a time", url: href(r.url), align };

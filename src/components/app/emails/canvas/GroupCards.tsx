@@ -3,17 +3,19 @@
 // The groups on Emails (docs/email-canvas-b1.md section 10): Ungrouped first, always there, then each group, as a
 // card with a small fanned stack of its first emails, its name, how many emails it holds and when it was last edited.
 // Then each automation with emails, tagged Automation (docs/email-unify-plan.md, E3); an automation whose emails have
-// no copies yet (not opened since copies came) gets them here. A card opens its canvas.
+// no copies yet (not opened since copies came) gets them here. The System emails (docs/system-emails.md) come right
+// after Ungrouped, tagged System; a workspace without them gets them here. A card opens its canvas.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useMemo } from "react";
 import { Badge, must, timeAgo, useQuery } from "../../ui";
 import { cleanBody } from "@/lib/workflows/check";
 import { emailSteps, ensurePayload, type EmailCopy } from "@/lib/workflows/stepEmails";
+import { SYSTEM_KEYS, systemEnsurePayload } from "@/lib/meetings/systemEmails";
 import { previewHtml, type CanvasKit } from "./preview";
 
-type Mini = { id: string; status: string; doc: unknown; html: string; updated_at: string; updated_by?: string | null };
-type Card = { id: string; name: string; count: number; edited: string | null; by: string | null; minis: Mini[]; auto?: boolean };
+type Mini = { id: string; status: string; doc: unknown; html: string; updated_at: string; updated_by?: string | null; system_key?: string | null };
+type Card = { id: string; name: string; count: number; edited: string | null; by: string | null; minis: Mini[]; auto?: boolean; system?: boolean };
 export type GroupShow = "all" | "campaigns" | "automations";
 const n = (x: number) => x.toLocaleString("en-US");
 
@@ -21,11 +23,12 @@ export function GroupCards({ sb, ws, me, onOpen, show = "all" }: { sb: SupabaseC
   const kits = useQuery(`email_canvas_kits:${ws}`, async () => (must(await sb.from("brand_kits").select("id, tokens, logo_url, design").eq("workspace_id", ws).order("created_at")) ?? []) as CanvasKit[]);
   const cards = useQuery(`email_groups:${ws}`, async () => {
     const cols = "id, status, doc, html, updated_at, updated_by";
-    const [groups, loose, looseCount, flows] = await Promise.all([
+    const [groups, loose, looseCount, flows, system] = await Promise.all([
       sb.from("email_groups").select(`id, name, created_at, emails(${cols}, group_position)`).eq("workspace_id", ws).order("created_at"),
       sb.from("emails").select(cols).eq("workspace_id", ws).eq("kind", "broadcast").is("group_id", null).neq("status", "archived").order("updated_at", { ascending: false }).limit(3),
       sb.from("emails").select("id", { count: "exact", head: true }).eq("workspace_id", ws).eq("kind", "broadcast").is("group_id", null).neq("status", "archived"),
       sb.from("workflows").select(`id, name, created_at, draft, emails!emails_workflow_id_fkey(${cols}, group_position, step_id)`).eq("workspace_id", ws).order("created_at"),
+      sb.from("emails").select(`${cols}, group_position, system_key`).eq("workspace_id", ws).eq("kind", "system").order("group_position"),
     ]);
     const gs = (must(groups) ?? []) as { id: string; name: string; created_at: string; emails: (Mini & { group_position: number })[] }[];
     const ls = (must(loose) ?? []) as Mini[];
@@ -33,6 +36,17 @@ export function GroupCards({ sb, ws, me, onOpen, show = "all" }: { sb: SupabaseC
     // Who saved the most recently edited email (migration 160).
     const by = (ms: Mini[]) => [...ms].sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0]?.updated_by ?? null;
     const out: Card[] = [{ id: "ungrouped", name: "Ungrouped", count: looseCount.count ?? ls.length, edited: latest(ls, null), by: by(ls), minis: ls }];
+    // The System emails, made now for a workspace missing any. One that can't be made (before 164) leaves the card out.
+    let sys = (system.error ? null : (system.data ?? [])) as Mini[] | null;
+    if (sys && sys.length < SYSTEM_KEYS.length) {
+      const r = await sb.rpc("system_email_ensure", { p_ws: ws, p_rows: systemEnsurePayload() });
+      sys = r.error ? (sys.length ? sys : null) : ((r.data ?? []) as { id: string; key: string; doc: unknown; updated_at: string }[]).map((e) => ({ id: e.id, status: "draft", doc: e.doc, html: "", updated_at: e.updated_at, updated_by: null, system_key: e.key }));
+    }
+    if (sys?.length) {
+      // Edited means a person saved it; made-and-never-touched shows no time.
+      const touched = sys.filter((m) => m.updated_by);
+      out.push({ id: "system", name: "System emails", count: sys.length, edited: latest(touched, null), by: by(touched), minis: sys.slice(0, 3), system: true });
+    }
     for (const g of gs) {
       const sorted = [...g.emails].sort((a, b) => a.group_position - b.group_position);
       out.push({ id: g.id, name: g.name, count: g.emails.length, edited: latest(g.emails, g.created_at), by: by(g.emails), minis: sorted.slice(0, 3) });
@@ -56,7 +70,7 @@ export function GroupCards({ sb, ws, me, onOpen, show = "all" }: { sb: SupabaseC
   if (!cards.data) return null;
   return (
     <ul aria-label="Groups" className="mb-5 grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-3">
-      {cards.data.filter((c) => show === "all" || (show === "automations" ? c.auto : !c.auto)).map((c) => (
+      {cards.data.filter((c) => show === "all" || (show === "automations" ? c.auto || c.system : !c.auto && !c.system)).map((c) => (
         <li key={c.id}>
           <a
             href={`/emails/campaigns/group/${c.id}`}
@@ -70,7 +84,7 @@ export function GroupCards({ sb, ws, me, onOpen, show = "all" }: { sb: SupabaseC
             <span className="flex flex-col gap-0.5 px-0.5">
               <span className="flex flex-wrap items-center gap-1.5">
                 <span className="min-w-0 font-medium break-words text-ink">{c.name}</span>
-                {c.auto ? <Badge tone="violet">Automation</Badge> : null}
+                {c.auto ? <Badge tone="violet">Automation</Badge> : c.system ? <Badge tone="sky">System</Badge> : null}
               </span>
               <span className="text-[12.5px] text-muted">
                 {n(c.count)} {c.count === 1 ? "email" : "emails"}

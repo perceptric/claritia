@@ -234,8 +234,7 @@ function blockHtml(ctx: Ctx, b: Block, width: number): string {
         textPart(ctx, b.id, "card-title", escapeText(b.title)),
         b.text ? textPart(ctx, b.id, "text", escapeText(b.text), "div", "padding-top:4px;") : "",
         b.price ? textPart(ctx, b.id, "muted", escapeText(b.price), "div", "padding-top:4px;") : "",
-        '<div style="height:12px;line-height:12px;font-size:1px">&nbsp;</div>',
-        button(ctx, b.id, b.button, b.url, "left"),
+        ...(b.button ? ['<div style="height:12px;line-height:12px;font-size:1px">&nbsp;</div>', button(ctx, b.id, b.button, b.url, "left")] : []),
       ].join("");
       return cardBox(s, inner);
     }
@@ -244,8 +243,7 @@ function blockHtml(ctx: Ctx, b: Block, width: number): string {
       const inner = [
         textPart(ctx, b.id, "card-title", escapeText(b.title)),
         textPart(ctx, b.id, "muted", escapeText([b.when, b.where].filter(Boolean).join(", ")), "div", "padding-top:4px;"),
-        '<div style="height:12px;line-height:12px;font-size:1px">&nbsp;</div>',
-        button(ctx, b.id, b.button, b.url, "left"),
+        ...(b.button ? ['<div style="height:12px;line-height:12px;font-size:1px">&nbsp;</div>', button(ctx, b.id, b.button, b.url, "left")] : []),
       ].join("");
       return cardBox(s, inner);
     }
@@ -402,7 +400,7 @@ export function blockText(b: Block): string {
     case "product":
       return [b.title, b.text, b.price, b.url ? `${b.button}: ${b.url}` : ""].filter(Boolean).join("\n");
     case "event":
-      return [b.title, [b.when, b.where].filter(Boolean).join(", "), b.url ? `${b.button}: ${b.url}` : ""].filter(Boolean).join("\n");
+      return [b.title, [b.when, b.where].filter(Boolean).join(", "), b.url && b.button ? `${b.button}: ${b.url}` : ""].filter(Boolean).join("\n");
     case "signature":
       return [b.name, [b.title, b.company].filter(Boolean).join(", ")].filter(Boolean).join("\n");
     case "footer":
