@@ -20,7 +20,8 @@ import { readSystem, type DesignSystem } from "@/lib/design/model";
 import { CLIENT_LABEL, type Client } from "@/lib/design/props";
 import { Select } from "../Select";
 import { cleanTokens } from "@/lib/forms/brand";
-import { ArrowDown, ArrowUp, Copy, Monitor, Moon, Phone, Redo, Send, Sun, Trash, Undo, X } from "../../Icons";
+import { ArrowDown, ArrowUp, Code, Copy, Monitor, Moon, Phone, Redo, Send, Sun, Trash, Undo, X } from "../../Icons";
+import { CodeView } from "./CodeView";
 import { askLines, tell } from "../Dialogs";
 import { importAny } from "@/lib/design/email/import";
 import { Button, ErrorNote, IconButton, postJson, errorText } from "../ui";
@@ -171,6 +172,7 @@ export function EmailBuilder({
   const [dark, setDark] = useState(false);
   const [client, setClient] = useState<Client | "">("");
   const [selected, setSelected] = useState<string | null>(null);
+  const [code, setCode] = useState(false);
   const [part, setPart] = useState<EmailPartKey | null>(null);
   const [state, setState] = useState<EmailState | undefined>(undefined);
   const sel = selected && findEl(doc, selected) ? selected : null;
@@ -183,6 +185,15 @@ export function EmailBuilder({
       return { html: `<!doctype html><html><body><p>${errorText(e)}</p></body></html>`, text: "", size: 0, notes: [] };
     }
   }, [system, doc, tokens, logo, dark, client]);
+
+  /** The email as it goes out (no editing marks), for the code view. */
+  const sourceHtml = () => {
+    try {
+      return compileEmail(system, doc, { tokens, logo, fontUrl: fontUrl(designFonts(system, doc.styles ?? null)) }).html;
+    } catch (e) {
+      return `<!-- ${errorText(e)} -->`;
+    }
+  };
 
   /** Where a new block goes: after the picked block, at the end of the picked section, or before the footer. */
   const placeFor = (): Place => {
@@ -365,6 +376,9 @@ export function EmailBuilder({
         >
           Import
         </Button>
+        <IconButton label="HTML code" onClick={() => setCode(true)}>
+          <Code size={14} />
+        </IconButton>
         <Button variant="ghost" disabled={sending} onClick={() => void test()}>
           <Send size={13} />
           {sending ? "Sending…" : "Test"}
@@ -374,6 +388,7 @@ export function EmailBuilder({
           Done
         </Button>
       </div>
+      {code ? <CodeView html={sourceHtml()} name={subject || title} onClose={() => setCode(false)} /> : null}
       {error || draft.error || notes.length ? (
         <div className="border-b border-line bg-card px-4 py-2">
           <ErrorNote message={error || draft.error || notes[0]!.text} />
