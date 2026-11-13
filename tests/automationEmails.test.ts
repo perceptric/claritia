@@ -78,7 +78,7 @@ test("words from the copies reach every undo step, and aren't an undo step thems
 test("an automation's emails open as their own group on Emails", () => {
   const id = "11111111-1111-4111-8111-111111111111";
   assert.deepEqual(emailsPage(`campaigns/group/wf:${id}`), { page: "campaigns", id: `campaigns/group/wf:${id}`, group: `wf:${id}` });
-  assert.deepEqual(emailsPage("campaigns/group/wf:nope"), { page: "campaigns", id: "" });
+  assert.deepEqual(emailsPage("campaigns/group/wf:nope"), { page: "automations", id: "automations" });
 });
 
 test("every email gets a Footer block when it has none, and keeps its own when it has one", async () => {

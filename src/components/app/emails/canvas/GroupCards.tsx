@@ -79,7 +79,7 @@ export function GroupCards({ sb, ws, me, onOpen, show = "all" }: { sb: SupabaseC
             <span className="flex flex-col gap-0.5 px-0.5">
               <span className="flex flex-wrap items-center gap-1.5">
                 <span className="min-w-0 font-medium break-words text-ink">{c.name}</span>
-                {c.auto ? <Badge tone="violet">Automation</Badge> : c.system ? <Badge tone="sky">System</Badge> : null}
+                {c.auto ? <Badge tone="violet">Workflow</Badge> : c.system ? <Badge tone="sky">System</Badge> : null}
               </span>
               <span className="text-[12.5px] text-muted">
                 {n(c.count)} {c.count === 1 ? "email" : "emails"}

@@ -24,7 +24,7 @@ export function FlowCanvas({ storageKey, children, onKey }: { storageKey: string
   return (
     <Surface
       storageKey={storageKey}
-      label="Automation"
+      label="Workflow"
       all={all}
       picked={null}
       ready={!!all && all.r > 0}

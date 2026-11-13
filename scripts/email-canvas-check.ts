@@ -1385,7 +1385,7 @@ try {
     await au.goto(`http://localhost:${port}/?group=wf:99999999-9999-4999-8999-999999999999`);
     await au.waitForFunction(() => document.querySelectorAll("[data-email] iframe").length >= 2, null, { timeout: 15000 });
     await au.waitForTimeout(400);
-    check((await au.getByText("Automation", { exact: true }).count()) >= 1 && (await au.getByRole("button", { name: "Back to automation" }).count()) === 1, "an automation's canvas has its tag and Back to automation");
+    check((await au.getByText("Workflow", { exact: true }).count()) >= 1 && (await au.getByRole("button", { name: "Back to workflow" }).count()) === 1, "a workflow's canvas has its tag and Back to workflow");
     check((await au.getByRole("button", { name: /Add email/ }).count()) === 0, "no Add email on an automation's canvas");
     const names = await au.locator("[data-canvas-item]").allInnerTexts();
     check(names.some((n) => n.includes("Thanks") && n.includes("Changed since publish")) && names.some((n) => n.includes("Still there?") && !n.includes("Changed since publish")), `the email edited since the live version says so (${names.map((n) => n.replace(/\s+/g, " ")).join(" / ")})`);
@@ -1402,7 +1402,7 @@ try {
     check((await au.locator("[data-email]").count()) === 2, "and nothing was deleted");
     await bar.getByRole("button", { name: "More" }).click();
     const items = await au.getByRole("menuitem").allInnerTexts();
-    check(items.some((t) => t.includes("Open in the classic editor")) && items.some((t) => t.includes("Open the automation")) && !items.some((t) => /^(Duplicate|Delete|Move to group)/.test(t.trim())), `the menu offers the classic editor and the automation, not Duplicate, Delete or Move (${items.map((t) => t.trim()).join(", ")})`);
+    check(items.some((t) => t.includes("Open in the classic editor")) && items.some((t) => t.includes("Open the workflow")) && !items.some((t) => /^(Duplicate|Delete|Move to group)/.test(t.trim())), `the menu offers the classic editor and the automation, not Duplicate, Delete or Move (${items.map((t) => t.trim()).join(", ")})`);
     await au.getByRole("menuitem", { name: /Open in the classic editor/ }).click();
     await au.getByRole("dialog").first().waitFor();
     check((await au.getByRole("dialog").first().innerText()).length > 0, "the classic editor opens on the email");

@@ -5,6 +5,7 @@ import {
   availabilityPage,
   defaultRoute,
   EMAILS_TABS,
+  emailsPage,
   GROUPS,
   meetingsPage,
   NAV,
@@ -16,16 +17,16 @@ import {
   teamsPage,
 } from "../src/lib/nav.ts";
 
-test("the sidebar is Forms, Meetings, Emails and Workflows, with Settings at the bottom", () => {
+test("the sidebar is Forms, Meetings and Email (Workflows, Audiences, Templates, Brand), with Settings at the bottom", () => {
   assert.deepEqual(
     GROUPS.map((g) => g.key),
     ["main", "settings"],
   );
   const by = (g: string) => NAV.filter((n) => n.group === g).map((n) => n.label);
-  assert.deepEqual(NAV.map((n) => n.label), ["Forms", "Meeting types", "Upcoming", "Availability", "Booking page", "Links and polls", "Meeting settings", "Emails", "Automations", "Audiences", "Templates", "Brand", "Settings"]);
+  assert.deepEqual(NAV.map((n) => n.label), ["Forms", "Meeting types", "Upcoming", "Availability", "Booking page", "Links and polls", "Meeting settings", "Workflows", "Audiences", "Templates", "Brand", "Settings"]);
   assert.deepEqual(NAV.filter((n) => n.section === "meetings").map((n) => n.page), SCHEDULING_TABS.map((t) => t.value), "every Meetings page is an item");
   assert.deepEqual(NAV.filter((n) => n.section === "emails").map((n) => n.page || "campaigns"), EMAILS_TABS.map((t) => t.value), "every Emails page is an item");
-  assert.deepEqual(EMAILS_TABS.map((t) => t.label), ["Emails", "Automations", "Audiences", "Templates", "Brand"]);
+  assert.deepEqual(EMAILS_TABS.map((t) => t.label), ["Workflows", "Audiences", "Templates", "Brand"]);
   assert.deepEqual(by("settings"), ["Settings"]);
   // The CRM, Enrichment, Scoring, Segments and Visitors are gone: their addresses open Forms.
   for (const gone of ["contacts", "companies", "opportunities", "objects", "enrichment", "scoring", "segments", "visitors", "signals", "leads", "people", "accounts"])
@@ -47,15 +48,15 @@ test("old addresses open their new home", () => {
   assert.deepEqual(resolveRoute("emails", "automations/11111111-1111-4111-8111-111111111111"), { route: "emails", id: "automations/11111111-1111-4111-8111-111111111111" });
   assert.deepEqual(resolveRoute("emails", "automations/new"), { route: "emails", id: "automations/new" });
   // Emails is its own section: its tabs by name, the old ones forwarded, one journey as that workflow.
-  assert.deepEqual(resolveRoute("emails", ""), { route: "emails", id: "" });
+  assert.deepEqual(resolveRoute("emails", ""), { route: "emails", id: "automations" });
   assert.deepEqual(resolveRoute("emails", "audiences"), { route: "emails", id: "audiences" });
   assert.deepEqual(resolveRoute("emails", "library"), { route: "emails", id: "templates" });
   assert.deepEqual(resolveRoute("emails", "journeys"), { route: "emails", id: "automations" });
-  assert.deepEqual(resolveRoute("emails", "nope"), { route: "emails", id: "" });
+  assert.deepEqual(resolveRoute("emails", "nope"), { route: "emails", id: "automations" });
   assert.deepEqual(resolveRoute("emails", "campaigns/11111111-1111-4111-8111-111111111111"), { route: "emails", id: "campaigns/11111111-1111-4111-8111-111111111111" });
-  assert.deepEqual(resolveRoute("emails", "campaigns/nope"), { route: "emails", id: "" });
+  assert.deepEqual(resolveRoute("emails", "campaigns/nope"), { route: "emails", id: "automations" });
   assert.deepEqual(resolveRoute("emails", "campaigns/group/11111111-1111-4111-8111-111111111111"), { route: "emails", id: "campaigns/group/11111111-1111-4111-8111-111111111111" });
-  assert.deepEqual(resolveRoute("emails", "campaigns/group/nope"), { route: "emails", id: "" });
+  assert.deepEqual(resolveRoute("emails", "campaigns/group/nope"), { route: "emails", id: "automations" });
   assert.deepEqual(resolveRoute("emails", "campaigns/group/ungrouped"), { route: "emails", id: "campaigns/group/ungrouped" }, "Ungrouped is a canvas too");
   assert.deepEqual(resolveRoute("emails", "journeys/11111111-1111-4111-8111-111111111111"), { route: "emails", id: "automations/11111111-1111-4111-8111-111111111111" });
   // Reports moved into their sections.
@@ -63,8 +64,10 @@ test("old addresses open their new home", () => {
   assert.deepEqual(resolveRoute("reports", "reps"), { route: "forms", id: "" });
   assert.deepEqual(resolveRoute("reports", "speed"), { route: "scheduling", id: "upcoming" });
   assert.deepEqual(resolveRoute("reports", "forms"), { route: "forms", id: "" });
+  // These open Email's first page, which is Workflows (emailsPage("") is Workflows).
   assert.deepEqual(resolveRoute("reports", "email"), { route: "emails", id: "" });
   assert.deepEqual(resolveRoute("analytics", ""), { route: "emails", id: "" });
+  assert.equal(emailsPage("").page, "automations");
   assert.deepEqual(resolveRoute("templates", ""), { route: "emails", id: "templates" });
   // Pages and Ads are gone.
   assert.deepEqual(resolveRoute("pages", ""), { route: "forms", id: "" });
@@ -195,11 +198,13 @@ test("every page lights its one sidebar item", () => {
   assert.equal(activeItem("scheduling", "availability/team")?.label, "Availability");
   assert.equal(activeItem("scheduling", "settings/webhooks")?.label, "Meeting settings");
   assert.equal(activeItem("scheduling", "links")?.label, "Links and polls");
-  assert.equal(activeItem("emails", "")?.label, "Emails");
-  assert.equal(activeItem("emails", "campaigns/group/11111111-1111-4111-8111-111111111111")?.label, "Emails");
-  assert.equal(activeItem("emails", "automations/11111111-1111-4111-8111-111111111111")?.label, "Automations");
+  assert.equal(activeItem("emails", "")?.label, "Workflows", "the old Emails address opens Workflows");
+  assert.equal(activeItem("emails", "campaigns/group/11111111-1111-4111-8111-111111111111")?.label, "Workflows", "an email on the canvas belongs to Workflows");
+  assert.equal(activeItem("emails", "automations/11111111-1111-4111-8111-111111111111")?.label, "Workflows");
+  assert.equal(activeItem("emails", "automations/folder/11111111-1111-4111-8111-111111111111")?.label, "Workflows");
   assert.equal(activeItem("emails", "audiences")?.label, "Audiences");
-  assert.equal(activeItem("workflows")?.label, "Automations", "a workflow lights Automations");
+  assert.equal(activeItem("workflows")?.label, "Workflows", "a workflow lights Workflows");
+  assert.deepEqual(resolveRoute("workflows", "folder/11111111-1111-4111-8111-111111111111"), { route: "emails", id: "automations/folder/11111111-1111-4111-8111-111111111111" }, "a folder's address");
   assert.equal(activeItem("settings", "team")?.label, "Settings");
   assert.equal(activeItem("forms")?.label, "Forms");
 });

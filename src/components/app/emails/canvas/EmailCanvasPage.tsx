@@ -98,7 +98,7 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
   // The System emails (docs/system-emails.md): one of each, sent for every meeting, so none are added or removed here.
   const sys = groupId === SYSTEM_GROUP;
   const fixed = auto || sys;
-  const FIXED_NOTE = sys ? "System emails are one of each. Change their words here, or turn one off." : "Automation emails come and go with their steps. Change them in the automation.";
+  const FIXED_NOTE = sys ? "System emails are one of each. Change their words here, or turn one off." : "Workflow emails come and go with their steps. Change them in the workflow.";
   const group = useQuery(
     `email_group:${groupId}`,
     async () =>
@@ -300,7 +300,8 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
     },
     [rects],
   );
-  const back = () => navigate("emails");
+  // A workflow's emails go back to the workflow; any other group to Workflows.
+  const back = () => (wfId ? navigate("emails", `automations/${wfId}`) : navigate("emails"));
   const say = useCallback((t: string, ms = 2600) => {
     setNotice(t);
     window.setTimeout(() => setNotice((n) => (n === t ? "" : n)), ms);
@@ -947,7 +948,7 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
             { label: "Open in the classic editor", run: () => void saved(id).then(() => setClassic(id)) },
             { label: "Code", run: () => setCode({ html: sourceHtml(r, kits.data ?? []), name: r.name }) },
             { label: showResolved ? "Hide resolved comments" : "Show resolved comments", run: () => setShowResolved((v) => !v) },
-            { label: "Open the automation", run: () => navigate("emails", `automations/${wfId}`) },
+            { label: "Open the workflow", run: () => navigate("emails", `automations/${wfId}`) },
           ]
         : [
             ...(draft ? [{ label: "Rename", run: () => void rename(id) }] : []),
@@ -1339,7 +1340,7 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
   if (!group.loaded || !rows.data || !kits.data) return <Loading />;
   if (!group.data)
     return (
-      <Page title="Emails" back={{ label: "Emails", onClick: back }}>
+      <Page title="Emails" back={{ label: wfId ? "Workflow" : "Workflows", onClick: back }}>
         <ErrorNote message="This group is gone." />
       </Page>
     );
@@ -1662,7 +1663,7 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
       title={g.name}
       count={list.length}
       flush
-      back={{ label: "Emails", onClick: back }}
+      back={{ label: wfId ? "Workflow" : "Workflows", onClick: back }}
       onRename={ungrouped || fixed ? undefined : (name) => void run(async () => (must(await sb.rpc("email_group_save", { p_ws: ws.id, p_id: groupId, p_name: name })), void group.reload(), invalidate(`email_groups:${ws.id}`), void groups.reload()))}
       actions={
         <span className="flex min-w-0 flex-wrap items-center gap-2">
@@ -1704,8 +1705,8 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
             <Badge tone="sky">System</Badge>
           ) : auto ? (
             <>
-              <Badge tone="violet">Automation</Badge>
-              <Button onClick={() => navigate("emails", `automations/${wfId}`)}>Back to automation</Button>
+              <Badge tone="violet">Workflow</Badge>
+              <Button onClick={() => navigate("emails", `automations/${wfId}`)}>Back to workflow</Button>
             </>
           ) : (
             <Button onClick={(e) => addMenu(e.currentTarget)}>
@@ -1755,7 +1756,7 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
                   panTo(email);
                 }}
                 onFlash={flashEmails}
-                onWrite={sys ? () => say(FIXED_NOTE) : auto ? () => say("New emails in an automation are new steps. Add them in the automation.") : writeSeries}
+                onWrite={sys ? () => say(FIXED_NOTE) : auto ? () => say("New emails in a workflow are new steps. Add them in the workflow.") : writeSeries}
               />
             )}
           </LeftPanel>
