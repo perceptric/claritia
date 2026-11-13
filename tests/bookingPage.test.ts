@@ -87,48 +87,6 @@ test("agenda and prep lines are cleaned, and the guest sees hosts' zones and hea
   assert.equal(bad.hosts[0]!.tz, undefined);
 });
 
-// The plain-words box (src/lib/meetings/when.ts). Today is Friday, 13 November 2026.
-import { parseWhen, readWhen, slotsIn } from "../src/lib/meetings/when.ts";
-
-test("common phrases are read without the model", () => {
-  const T = "2026-11-13";
-  assert.deepEqual(parseWhen("next Tuesday afternoon", T), { from: "2026-11-17", to: "2026-11-17", after: 720, before: 1020 });
-  assert.deepEqual(parseWhen("tomorrow morning", T), { from: "2026-11-14", to: "2026-11-14", before: 720 });
-  assert.deepEqual(parseWhen("Friday", T), { from: "2026-11-20", to: "2026-11-20" }, "today's own name is a week out");
-  assert.deepEqual(parseWhen("next week", T), { from: "2026-11-16", to: "2026-11-22" });
-  assert.deepEqual(parseWhen("next week", T, true), { from: "2026-11-15", to: "2026-11-21" });
-  assert.deepEqual(parseWhen("this week after 3pm", T), { from: "2026-11-13", to: "2026-11-15", after: 900 });
-  assert.deepEqual(parseWhen("after 3", T), { from: T, to: "2027-11-13", after: 900 });
-  assert.deepEqual(parseWhen("before 10:30am on Monday", T), { from: "2026-11-16", to: "2026-11-16", before: 630 });
-  assert.deepEqual(parseWhen("Nov 20 around 2pm", T), { from: "2026-11-20", to: "2026-11-20", after: 780, before: 900 });
-  assert.deepEqual(parseWhen("3rd of jan", T), { from: "2027-01-03", to: "2027-01-03" }, "a date gone by this year is next year's");
-  assert.deepEqual(parseWhen("between 9 and 11am tomorrow", T), { from: "2026-11-14", to: "2026-11-14", after: 540, before: 660 });
-  assert.deepEqual(parseWhen("asap", T), { from: T, to: "2027-11-13" });
-  assert.deepEqual(parseWhen("in 2 days", T), { from: "2026-11-15", to: "2026-11-15" });
-  assert.deepEqual(parseWhen("this weekend", T), { from: "2026-11-14", to: "2026-11-15" });
-  // Words this can't read go to the model.
-  assert.equal(parseWhen("the week after thanksgiving", T), null);
-  assert.equal(parseWhen("whenever the moon is full", T), null);
-  assert.equal(parseWhen("", T), null);
-});
-
-test("the model's answer is checked before it's used", () => {
-  const T = "2026-11-13";
-  assert.deepEqual(readWhen({ from: "2026-11-30", to: "2026-12-04", after: 600, before: null }, T), { from: "2026-11-30", to: "2026-12-04", after: 600 });
-  assert.deepEqual(readWhen({ from: "2026-11-01", to: "2026-11-20" }, T), { from: T, to: "2026-11-20" }, "never before today");
-  assert.equal(readWhen({ from: "2026-12-04", to: "2026-11-30" }, T), null);
-  assert.equal(readWhen({ none: true }, T), null);
-  assert.equal(readWhen({ from: "2030-01-01" }, T), null, "too far out");
-  assert.deepEqual(readWhen({ from: T, after: 900, before: 600 }, T), { from: T, to: T, after: 900 }, "a before earlier than after is dropped");
-});
-
-test("a range keeps the times it covers, in the guest's zone", () => {
-  // 9:00, 13:30 and 18:00 in Ho Chi Minh City on 17 November.
-  const s = [{ start: Date.parse("2026-11-17T02:00:00Z") }, { start: Date.parse("2026-11-17T06:30:00Z") }, { start: Date.parse("2026-11-17T11:00:00Z") }, { start: Date.parse("2026-11-18T06:30:00Z") }];
-  assert.deepEqual(slotsIn(s, { from: "2026-11-17", to: "2026-11-17", after: 720, before: 1020 }, "Asia/Ho_Chi_Minh"), [s[1]]);
-  assert.equal(slotsIn(s, { from: "2026-11-17", to: "2026-11-18" }, "Asia/Ho_Chi_Minh").length, 4);
-});
-
 // The guest's own calendar (src/lib/meetings/overlay.ts).
 import { clashes, cleanBusy, googleBusy, overlayOrigins } from "../src/lib/meetings/overlay.ts";
 

@@ -1,6 +1,6 @@
 // The booking page, round 2, in a real browser (docs/booking-page-plan.md; scripts/book/page.tsx): the host card with
 // both clocks, plain Inter labels, the today mark, the picked day under the pointer, the phone's two-column times, a
-// guest the page knows booking from the time itself, filled-in answers, holds, the plain-words box, the week view,
+// guest the page knows booking from the time itself, filled-in answers, holds, the week view,
 // "Show my calendar", the confirmed screen and dark mode.
 //   node scripts/booking-page-check.ts   (SHOTS=<dir> saves screenshots)
 
@@ -62,23 +62,6 @@ try {
   check((await page.evaluate(() => (window as unknown as { holds: number[] }).holds.length)) === 1, "picking a time holds it");
   check((await page.locator(".cb-tpair .cb-btn").innerText()) === "Next", "a guest the page doesn't know goes on to their details");
   if (shots) await page.screenshot({ path: `${shots}/booking-desk.png` });
-
-  // 2. The plain-words box.
-  await page.locator('input[aria-label="Find a time"]').fill("monday morning");
-  await page.locator(".cb-findbtn").first().click();
-  await page.waitForTimeout(200);
-  const chips = page.locator('[data-cb-chips="found"] .cb-sc');
-  const n = await chips.count();
-  check(n > 0 && n <= 6, `"monday morning" lists matching times (${n})`);
-  const firstMatch = n ? await chips.first().innerText() : "";
-  check(/^\d{1,2}:\d{2}\s?AM\s*Mon/.test(firstMatch.replace(/\s+/g, " ")), `the matches are Monday mornings ("${firstMatch.replace(/\s+/g, " ")}")`);
-  check((await page.locator(".cb-time.cb-match").count()) > 0, "matching times are marked in the day's list");
-  await page.locator('input[aria-label="Find a time"]').fill("the week after the eclipse");
-  await page.locator(".cb-findbtn").first().click();
-  await page.waitForTimeout(200);
-  check((await page.getByText("No open times match").count()) === 1, "words nothing reads say so in one line");
-  await page.getByRole("button", { name: "Clear" }).click();
-  check((await page.locator('[data-cb-chips="soonest"]').count()) === 1, "Clear brings back Soonest");
 
   // 3. Week view.
   await page.getByRole("radio", { name: "Week" }).click();

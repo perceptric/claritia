@@ -95,7 +95,7 @@ export const OAUTH: Record<string, OauthCfg> = {
     extra: { prompt: "select_account" },
     refreshScope: true,
   },
-  // A guest's own calendar on a booking page (docs/booking-page-plan.md, Part 6): free and busy only, read once to
+  // A guest's own calendar on a booking page (docs/booking-page-plan.md, Part 5): free and busy only, read once to
   // show which times clash and never kept. The same Google app, with /api/book/overlay/callback added.
   guest_google: {
     env: "GOOGLE",

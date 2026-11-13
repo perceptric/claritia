@@ -12,7 +12,6 @@ import { ZonePicker } from "./ZonePicker";
 import { countryNames } from "@/lib/forms/countries";
 import { checkAnswer } from "@/lib/meetings/questions";
 import { canQuickBook } from "@/lib/meetings/known";
-import { parseWhen, slotsIn, type WhenRange } from "@/lib/meetings/when";
 import { clashes, cleanBusy, type Busy } from "@/lib/meetings/overlay";
 
 // The booking calendar (docs/meetings-scheduler.md 1.8 and 1.8b): the type on the left, a month in the middle, the
@@ -51,8 +50,6 @@ export type BookingCalendarProps = {
   known?: Record<string, string>;
   /** Offer "Show my calendar" (a live booking page; not previews or the guest's own reschedule). */
   overlay?: boolean;
-  /** Read a phrase the page couldn't ("the week after Thanksgiving") on the server; null when nothing fits. */
-  askWhen?: (text: string, today: string) => Promise<WhenRange | null>;
   /** Keep a picked time for this guest; false when someone else has it (src/lib/meetings/holds.ts). */
   hold?: (start: number) => Promise<boolean>;
   /** The Styling preview: open on a step (details or the thank-you) with a time already picked. Nothing is sent. */
@@ -165,8 +162,6 @@ export function Calendar(p: BookingCalendarProps) {
   // Month (a month, then the day's times) or Week (seven days side by side, every time showing).
   const [view, setView] = useState<"month" | "week">("month");
   const [weekPick, setWeek] = useState<string | null>(null);
-  // The plain-words box: the times its range keeps, or a line when none do.
-  const [found, setFound] = useState<{ text: string; starts: GuestSlot[] } | null>(null);
   // The guest's own busy times, read once from their calendar and kept only on this page.
   const [mine, setMine] = useState<{ busy: Busy[]; provider: string } | null>(null);
   const busyAt = (start: number) => !!mine && clashes(mine.busy, start, length);
@@ -300,18 +295,6 @@ export function Calendar(p: BookingCalendarProps) {
   const monthHas = dayList.some((d) => monthOf(d) === shownMonth);
   const nextAvail = dayList.find((d) => monthOf(d) > shownMonth) ?? null;
   const soon = mounted && slots !== null ? soonest(days, 3) : [];
-  const findWhen = async (text: string, sundayFirst: boolean) => {
-    if (!text.trim() || !today || slots === null) return;
-    const range = parseWhen(text, today, sundayFirst) ?? (p.askWhen ? await p.askWhen(text, today) : null);
-    const hits = range ? slotsIn(slots, range, tz) : [];
-    setFound({ text, starts: hits });
-    if (hits.length) {
-      const d = dateIn(hits[0]!.start, tz);
-      pickDay(d);
-      setWeek(d);
-    }
-  };
-  const chips: [string, GuestSlot][] = found ? found.starts.slice(0, 6).map((s) => [dateIn(s.start, tz), s]) : soon;
   const lengths = !p.move && p.type.lengths.length > 1 ? p.type.lengths : null;
 
   return (
@@ -367,16 +350,10 @@ export function Calendar(p: BookingCalendarProps) {
                     ))}
                   </div>
                 </div>
-                {mounted && slots !== null && slots.length > 0 ? <WhenBox onFind={findWhen} onClear={() => setFound(null)} found={found} /> : null}
-                {found && !found.starts.length ? (
-                  <p className="cb-muted cb-small" role="status" style={{ margin: "-8px 0 16px" }}>
-                    No open times match
-                  </p>
-                ) : null}
-                {(found ? chips.length > 0 : soon.length > 1) && (
-                  <div className="cb-soon" data-cb-chips={found ? "found" : "soonest"}>
-                    <span className="cb-eyebrow">{found ? "Matches" : "Soonest"}</span>
-                    {chips.map(([d, s]) => (
+                {soon.length > 1 && (
+                  <div className="cb-soon">
+                    <span className="cb-eyebrow">Soonest</span>
+                    {soon.map(([d, s]) => (
                       <button
                         key={s.start}
                         type="button"
@@ -498,7 +475,7 @@ export function Calendar(p: BookingCalendarProps) {
                           )}
                         </div>
                       ) : (
-                        <button type="button" key={s.start} role="listitem" className={`cb-time ${found?.starts.some((x) => x.start === s.start) ? "cb-match" : ""} ${busyAt(s.start) ? "cb-busy" : ""}`} onClick={() => pickTime(s.start)}>
+                        <button type="button" key={s.start} role="listitem" className={`cb-time ${busyAt(s.start) ? "cb-busy" : ""}`} onClick={() => pickTime(s.start)}>
                           {timeIn(s.start, tz, hour12)}
                           {busyAt(s.start) ? <span className="cb-seats">You&apos;re busy</span> : null}
                           {s.seats !== undefined && p.type.seats !== null && <span className="cb-seats">{s.seats === 1 ? "1 seat left" : `${s.seats} seats left`}</span>}
@@ -693,7 +670,7 @@ function MyCalendar({ on, onBusy }: { on: { busy: Busy[]; provider: string } | n
         <>
           <span className="cb-muted">Show my calendar</span>
           <span className="cb-chips">
-            <button type="button" className="cb-pill cb-findbtn" onClick={() => open("google")}>
+            <button type="button" className="cb-pill cb-softbtn" onClick={() => open("google")}>
               Google
             </button>
           </span>
@@ -705,58 +682,6 @@ function MyCalendar({ on, onBusy }: { on: { busy: Busy[]; provider: string } | n
         </>
       )}
     </div>
-  );
-}
-
-/** "Next Tuesday afternoon": a phrase in the guest's own words, read on the page and, failing that, on the server. */
-function WhenBox({ onFind, onClear, found }: { onFind: (text: string, sundayFirst: boolean) => Promise<void>; onClear: () => void; found: { text: string } | null }) {
-  const sundayFirst = useSundayFirst();
-  const [text, setText] = useState("");
-  const [busy, setBusy] = useState(false);
-  const go = async () => {
-    if (!text.trim() || busy) return;
-    setBusy(true);
-    try {
-      await onFind(text.trim(), sundayFirst);
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <form
-      className="cb-whenbox"
-      role="search"
-      onSubmit={(e) => {
-        e.preventDefault();
-        void go();
-      }}
-    >
-      <Clock size={15} />
-      <input
-        className="cb-whenin"
-        value={text}
-        maxLength={120}
-        onChange={(e) => setText(e.target.value)}
-        placeholder="Type a time, like next Tuesday afternoon"
-        aria-label="Find a time"
-        enterKeyHint="search"
-      />
-      {found ? (
-        <button
-          type="button"
-          className="cb-link"
-          onClick={() => {
-            setText("");
-            onClear();
-          }}
-        >
-          Clear
-        </button>
-      ) : null}
-      <button type="submit" className="cb-pill cb-findbtn" disabled={!text.trim() || busy}>
-        {busy ? "Finding" : "Find"}
-      </button>
-    </form>
   );
 }
 

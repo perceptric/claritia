@@ -2,8 +2,8 @@
 
 Built 13 November 2026. The guest's booking page (`/booking/<handle>/<type>`, `/book/<workspace>/<type>`, the page
 inside a form `/book/f/<token>` and embeds) next to Calendly, Cal.com, SavvyCal and Chili Piper: fixes first, then
-the form-to-booked edge, then the guest's own calendar and a box for plain words. Code: `src/components/book/`,
-`src/lib/meetings/{known,holds,when,overlay}.ts`, `supabase/migrations/161_booking_page.sql`.
+the form-to-booked edge, then the guest's own calendar. Code: `src/components/book/`,
+`src/lib/meetings/{known,holds,overlay}.ts`, `supabase/migrations/161_booking_page.sql`.
 
 ## Part 1. Fixes
 
@@ -48,16 +48,7 @@ the form-to-booked edge, then the guest's own calendar and a box for plain words
   from a form is no slower. There's no loading spinner. The guest's zone is still worked out in the browser (the
   times draw once it's known).
 
-## Part 5. Plain words
-
-- A box above the calendar: "Type a time, like next Tuesday afternoon". The page reads common phrases itself
-  (today, tomorrow, weekdays, next week, this weekend, in 2 days, dates, after 3pm, before 10:30am, between 9 and 11,
-  morning, afternoon, evening, lunch, asap). Matching times show as chips (up to 6) and are marked in the day's list;
-  the first matching day opens. "No open times match" when none do.
-- Only phrases the page can't read go to Claude Haiku through the step cache (`book_when`, keyed by the words and the
-  guest's date, no credits taken from the workspace). The answer is checked (`readWhen`) before it's used.
-
-## Part 6. Show my calendar
+## Part 5. Show my calendar
 
 - Under the calendar: **Show my calendar** with Google. A small window signs the guest in with the narrowest read
   (Google `calendar.freebusy`), reads the next 62 days' busy times
@@ -84,5 +75,6 @@ the form-to-booked edge, then the guest's own calendar and a box for plain words
 | Fixes, host card, week view, confirmed screen, dark, form answers, one click | $0 | $0 |
 | Holds (one small table, rows live 5 minutes) | $0 | $0 |
 | Show my calendar (Google calendar reads are free) | $0 | $0 |
-| Plain words: Haiku only for phrases the page can't read, cached per day | about $2 (check) | about $20 (check) |
-| **Total a month** | **about $2 (check)** | **about $20 (check)** |
+| **Total a month** | **$0** | **$0** |
+
+A box for plain words ("next Tuesday afternoon") was built and then taken out: it made the page feel crowded.
