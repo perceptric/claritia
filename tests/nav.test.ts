@@ -51,6 +51,8 @@ test("old addresses open their new home", () => {
   assert.deepEqual(resolveRoute("emails", "nope"), { route: "emails", id: "" });
   assert.deepEqual(resolveRoute("emails", "campaigns/11111111-1111-4111-8111-111111111111"), { route: "emails", id: "campaigns/11111111-1111-4111-8111-111111111111" });
   assert.deepEqual(resolveRoute("emails", "campaigns/nope"), { route: "emails", id: "" });
+  assert.deepEqual(resolveRoute("emails", "campaigns/group/11111111-1111-4111-8111-111111111111"), { route: "emails", id: "campaigns/group/11111111-1111-4111-8111-111111111111" });
+  assert.deepEqual(resolveRoute("emails", "campaigns/group/nope"), { route: "emails", id: "" });
   assert.deepEqual(resolveRoute("emails", "journeys/11111111-1111-4111-8111-111111111111"), { route: "workflows", id: "11111111-1111-4111-8111-111111111111" });
   // Reports moved into their sections.
   assert.deepEqual(resolveRoute("reports", ""), { route: "forms", id: "" });

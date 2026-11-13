@@ -22,6 +22,7 @@ import { BrandSettings } from "../views/BrandSettings";
 import { TemplateGallery } from "./TemplateGallery";
 import { FillsFrom, ImportHistory } from "./AudienceParts";
 import { ImportSheet } from "./ImportSheet";
+import { EmailGroup } from "./EmailGroup";
 import { isRoleAddress } from "@/lib/emails/role";
 import { Badge, Button, ErrorNote, errorText, IconButton, invalidate, Loading, must, Page, postJson, Section, Td, Th, timeAgo, useQuery, type Tone, type ViewProps } from "../ui";
 
@@ -38,6 +39,8 @@ export function EmailsView(props: ViewProps) {
         <TemplateGallery {...props} />
       ) : p.page === "brand" ? (
         <Brand {...props} />
+      ) : p.group ? (
+        <EmailGroup key={p.group} {...props} groupId={p.group} />
       ) : p.open ? (
         <CampaignStudio key={p.open} {...props} emailId={p.open} />
       ) : (
@@ -60,8 +63,11 @@ const whenWords = (iso: string) => new Date(iso).toLocaleString("en-US", { month
 /** A new email: only the footer, so Tia can start it from any template without asking first. */
 const blankDoc = (): EmailDoc => ({ ...readEmailDoc({}), sections: [newSection([newBlock("footer")])] });
 
+type Group = { id: string; name: string; emails: { id: string; status: string }[] };
+
 function Campaigns({ sb, ws, navigate }: ViewProps) {
   const list = useQuery(`email_campaigns:${ws.id}`, async () => (must(await sb.rpc("email_campaigns", { p_ws: ws.id })) ?? []) as Campaign[]);
+  const groups = useQuery(`email_groups:${ws.id}`, async () => (must(await sb.from("email_groups").select("id, name, emails(id, status)").eq("workspace_id", ws.id).order("created_at")) ?? []) as Group[]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const create = async () => {
@@ -94,14 +100,31 @@ function Campaigns({ sb, ws, navigate }: ViewProps) {
     if (r.error) setError(r.error.message);
     void list.reload();
   };
+  const newGroup = async () => {
+    setError("");
+    try {
+      const name = (await askText("Name the group", { placeholder: "Welcome series", ok: "Create" }))?.trim();
+      if (!name) return;
+      const id = must(await sb.rpc("email_group_save", { p_ws: ws.id, p_id: null, p_name: name })) as string;
+      invalidate(`email_groups:${ws.id}`);
+      navigate("emails", `campaigns/group/${id}`);
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
   const add = (
-    <Button onClick={() => void create()} disabled={busy}>
-      <Plus size={14} /> New email
-    </Button>
+    <span className="flex flex-wrap items-center gap-2">
+      <Button variant="ghost" onClick={() => void newGroup()}>
+        New group
+      </Button>
+      <Button onClick={() => void create()} disabled={busy}>
+        <Plus size={14} /> New email
+      </Button>
+    </span>
   );
   if (list.error) return <ErrorNote message={list.error} />;
   if (!list.data) return <Loading />;
-  if (!list.data.length)
+  if (!list.data.length && !groups.data?.length)
     return (
       <Page title="Campaigns">
         <ErrorNote message={error} />
@@ -123,7 +146,29 @@ function Campaigns({ sb, ws, navigate }: ViewProps) {
   return (
     <Page title="Campaigns" actions={add}>
       <ErrorNote message={error} />
-      <div className="overflow-x-auto rounded-lg bg-card shadow-rest">
+      {groups.data?.length ? (
+        <ul aria-label="Groups" className="mb-4 grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3">
+          {groups.data.map((g) => (
+            <li key={g.id}>
+              <a
+                href={`/emails/campaigns/group/${g.id}`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigate("emails", `campaigns/group/${g.id}`);
+                }}
+                className="flex h-full flex-col gap-1 rounded-[10px] bg-card px-4 py-3 shadow-rest transition-[box-shadow,transform] duration-[150ms] ease-out hover:-translate-y-0.5 hover:shadow-hover motion-reduce:transform-none"
+              >
+                <span className="font-medium break-words text-ink">{g.name}</span>
+                <span className="text-[12.5px] text-muted">
+                  {n(g.emails.length)} {g.emails.length === 1 ? "email" : "emails"}
+                  {g.emails.some((e) => e.status !== "draft") ? `, ${n(g.emails.filter((e) => e.status !== "draft").length)} sent or sending` : ""}
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <div className={`overflow-x-auto rounded-lg bg-card shadow-rest ${list.data.length ? "" : "hidden"}`}>
         <table className="w-full min-w-[900px] border-collapse [&_tbody_tr:last-child_td]:border-b-0">
           <thead>
             <tr>
@@ -205,11 +250,11 @@ function Campaigns({ sb, ws, navigate }: ViewProps) {
 // The Email Studio (Part 3): one draft in the email builder, opening on Tia's tab. Changes save 800 ms after the last
 // one; leaving saves what's left. The draft's name follows its subject until it has one of its own.
 
-type Draft = { id: string; name: string; subject: string; preheader: string | null; doc: unknown; status: string };
+type Draft = { id: string; name: string; subject: string; preheader: string | null; doc: unknown; status: string; group_id: string | null };
 
 function CampaignStudio(props: ViewProps & { emailId: string }) {
   const { sb, ws, navigate, emailId } = props;
-  const row = useQuery(`email_draft:${emailId}`, async () => must(await sb.from("emails").select("id, name, subject, preheader, doc, status").eq("id", emailId).eq("workspace_id", ws.id).maybeSingle()) as Draft | null, { staleMs: 0 });
+  const row = useQuery(`email_draft:${emailId}`, async () => must(await sb.from("emails").select("id, name, subject, preheader, doc, status, group_id").eq("id", emailId).eq("workspace_id", ws.id).maybeSingle()) as Draft | null, { staleMs: 0 });
   if (row.error) return <ErrorNote message={row.error} />;
   if (!row.loaded) return <Loading />;
   const d = row.data;
@@ -293,7 +338,7 @@ function DraftEditor({ sb, session, ws, navigate, emailId, draft }: ViewProps & 
         onChange={(doc, subject) => change({ doc, ...(subject ? { subject } : {}) })}
         onClose={() => {
           void saveRef.current();
-          navigate("emails");
+          navigate("emails", draft.group_id ? `campaigns/group/${draft.group_id}` : "");
         }}
       />
       {sending ? (
@@ -314,7 +359,8 @@ function DraftEditor({ sb, session, ws, navigate, emailId, draft }: ViewProps & 
           onClose={() => setSending(false)}
           onSent={() => {
             invalidate(`email_campaigns:${ws.id}`);
-            navigate("emails");
+            invalidate(`email_groups:${ws.id}`);
+            navigate("emails", draft.group_id ? `campaigns/group/${draft.group_id}` : "");
           }}
         />
       ) : null}

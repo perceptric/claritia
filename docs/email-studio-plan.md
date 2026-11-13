@@ -488,7 +488,13 @@ at Beta and Growth):
    name, Phone, a custom field or Leave out by its header, and every match can be changed. Up to 5,000 people a file,
    added in batches of 1,000; paste still works. Every import lands in `contact_import_log`, shown under Imports in
    Audiences. Tests: `tests/pg/listForms.pg.ts`, `tests/csvImport.test.ts`, `scripts/studio-check.ts`.
-3. **Email groups on one canvas**, and a code view of the whole email.
+3. **Email groups on one canvas and a code view** (built, migration 158). Campaigns lists its groups above the
+   emails; New group makes one. A group (`campaigns/group/<id>`) shows its emails side by side as they'd arrive in the
+   brand (desktop or phone width), in order: open one in the Email Studio (Done comes back to the group), move it
+   left or right, or take it out. Add email makes a new draft in the group or brings one in from Campaigns. Each email
+   is still its own campaign; deleting a group keeps its emails. The Email Studio's `<>` button shows the whole email
+   as HTML, the same build that goes out, with Copy and Download. Tests: `tests/pg/emailGroups.pg.ts`,
+   `tests/nav.test.ts`.
 4. **Intelligent Send**: each person at the hour they usually open, within 24 hours.
 
 ## Build order
