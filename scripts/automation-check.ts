@@ -68,14 +68,14 @@ try {
   await p.locator('[data-node="m1"]').scrollIntoViewIfNeeded();
   await p.getByRole("button", { name: "Add a step" }).first().click();
   const menu = p.getByRole("menu", { name: "Add a step" });
-  check((await menu.getByRole("menuitem").count()) >= 10 && (await menu.innerText()).includes("Post a message in Slack"), "the add menu lists every step with one line each");
+  check((await menu.getByRole("menuitem").count()) >= 10 && (await menu.innerText()).includes("Post to Slack"), "the add menu lists every step with one line each");
   await menu.getByLabel("Search steps").fill("slack");
   check((await menu.getByRole("menuitem").count()) === 1, "typing narrows the menu");
   await p.keyboard.press("Enter");
   await p.waitForTimeout(300);
   const added = await order();
   check(added[1] !== "m1" && added.filter((x) => x !== "trigger").length === 7, `Enter adds the step there (${added.join(",")})`);
-  check((await p.getByRole("heading", { name: "Slack message" }).count()) + (await p.locator("aside").getByText("Slack message", { exact: true }).count()) >= 1 && (await p.locator("aside").innerText()).includes("Post a message in Slack"), "the panel shows the new step with its one line");
+  check((await p.getByRole("heading", { name: "Slack message" }).count()) + (await p.locator("aside").getByText("Slack message", { exact: true }).count()) >= 1 && (await p.locator("aside").innerText()).includes("Post to Slack"), "the panel shows the new step with its one line");
 
   // Insert data in the Slack message.
   await p.locator("aside").getByRole("button", { name: "Insert data" }).click();
@@ -120,6 +120,7 @@ try {
   await p.keyboard.press("Shift+Digit1");
   await p.waitForTimeout(400);
   await p.locator('[data-node="trigger"]').click();
+  if (shots) await p.screenshot({ path: `${shots}/automation-trigger.png` });
   const radios = p.locator("aside").getByRole("radiogroup", { name: "Trigger" }).getByRole("radio");
   check((await radios.count()) === 6 && (await p.locator("aside").getByRole("radio", { name: "Form submitted" }).getAttribute("aria-checked")) === "true", "the trigger is a set of cards with the current one picked");
 

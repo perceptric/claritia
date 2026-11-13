@@ -8,7 +8,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "r
 import { cleanBody, goneProblems, problems as checkProblems } from "@/lib/workflows/check";
 import { find } from "@/lib/workflows/tree";
 import { newStep, type Body, type Step, type StepKind } from "@/lib/workflows/types";
-import { Redo, Trash, Undo } from "../../Icons";
+import { History, ListIcon, Play, Redo, Trash, Undo } from "../../Icons";
 import { askConfirm } from "../Dialogs";
 import { toast } from "../routing/Toast";
 import { Badge, Button, ErrorNote, IconButton, invalidate, Page, Segmented, setLeaveGuard, useQuery, type Tone, type ViewProps } from "../ui";
@@ -304,7 +304,7 @@ export function WorkflowEditor({
       </Badge>
       {live && changed ? (
         <Badge tone="amber" dot>
-          Changes not live yet
+          Unpublished changes
         </Badge>
       ) : null}
       {saveState === "retry" ? (
@@ -324,17 +324,17 @@ export function WorkflowEditor({
           <Redo size={14} />
         </IconButton>
       </span>
-      <IconButton label="Delete workflow" onClick={() => void del()}>
+      <IconButton label="Delete automation" onClick={() => void del()}>
         <Trash size={14} />
       </IconButton>
-      <Button variant="ghost" size="sm" onClick={() => setPanel("history")}>
-        Run history
-      </Button>
-      <Button variant="ghost" size="sm" onClick={() => setPanel("versions")}>
-        Versions
-      </Button>
+      <IconButton label="Run history" onClick={() => setPanel("history")}>
+        <ListIcon size={14} />
+      </IconButton>
+      <IconButton label="Versions" onClick={() => setPanel("versions")}>
+        <History size={14} />
+      </IconButton>
       <Button variant="ghost" size="sm" aria-pressed={panel === "try"} onClick={() => setPanel("try")}>
-        Test
+        <Play size={12} /> Test
       </Button>
       {status === "live" ? (
         <Button variant="ghost" size="sm" onClick={() => void setStatus("paused")}>
@@ -355,7 +355,7 @@ export function WorkflowEditor({
 
   return (
     <Page
-      title={name || "Untitled workflow"}
+      title={name || "Untitled automation"}
       onRename={(v: string) => {
         setName(v);
         setNameN((x) => x + 1);

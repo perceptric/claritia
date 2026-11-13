@@ -2,7 +2,7 @@
 
 // The workflow as a column of cards (docs/enrich-workflows-reports.md 2.4), drawn on a canvas that pans and zooms
 // (docs/email-unify-plan.md, E4): the trigger at the top, then each step with its one-line summary and its 7-day count,
-// joined by words ("then", "if yes", "if no"). Branch, Split and Wait until draw their paths side by side, each as wide
+// joined by lines with a + to add a step; paths are named Yes and No, or Path A and Path B. Branch, Split and Wait until draw their paths side by side, each as wide
 // as it needs. A + between cards adds a step there from a menu you can search; dragging a card onto a + moves it.
 
 import { useMemo, useState } from "react";
@@ -10,7 +10,7 @@ import { stepProblems } from "@/lib/workflows/check";
 import { STEP_TITLE, stepDetail, triggerDetail, triggerTitle, type Names as WordNames } from "@/lib/workflows/explain";
 import { pathsOf, type At, type PathName } from "@/lib/workflows/tree";
 import { STEP_KINDS, STEP_LINE, type Body, type Step, type StepKind } from "@/lib/workflows/types";
-import { ArrowDown, ArrowUp, Bell, Branch, Chat, Clock, Code, Copy, Flag, Mail, Message, Plus, Shuffle, Signpost, Trash, Warn } from "../../Icons";
+import { ArrowDown, ArrowUp, Bell, Bolt, Branch, Chat, Clock, Code, Copy, Flag, Mail, Message, Plus, Shuffle, Signpost, Trash, Warn } from "../../Icons";
 import { Popover } from "../FilterBar";
 import { Badge } from "../ui";
 
@@ -32,7 +32,7 @@ const ICON: Record<StepKind, (p: { size?: number }) => React.ReactNode> = {
   exit: Flag,
 };
 
-const PATH_WORDS: Record<PathName, string> = { yes: "If yes", no: "If no", a: "A", b: "B" };
+const PATH_WORDS: Record<PathName, string> = { yes: "Yes", no: "No", a: "Path A", b: "Path B" };
 /** The card being dragged, so a + can light up and take it. */
 let dragging: string | null = null;
 
@@ -67,7 +67,9 @@ export function Flow(p: {
         onClick={() => p.onSelect("trigger")}
         className={`anim-rise-sm w-[380px] max-w-full rounded-2xl border bg-card px-4 py-3.5 text-left transition-[transform,box-shadow] duration-[140ms] ${p.sel === "trigger" ? "border-ink" : "border-line hover:-translate-y-px hover:shadow-soft"}`}
       >
-        <span className="label-mono">Trigger</span>
+        <span className="flex items-center gap-1.5 text-[12px] font-medium text-signal">
+          <Bolt size={12} /> Trigger
+        </span>
         <span className="mt-1 block text-[14px] font-medium text-ink">{triggerTitle(p.body.trigger)}</span>
         <span className="mt-0.5 block text-[13px] text-body [overflow-wrap:anywhere]">{triggerDetail(p.body.trigger, p.names)}</span>
         {p.triggerProblems?.length ? (
@@ -76,7 +78,7 @@ export function Flow(p: {
             <span className="min-w-0">{p.triggerProblems[0]}</span>
           </span>
         ) : (
-          <span className="mt-1 block text-[12px] text-muted tabular-nums">{p.entered ? `${p.entered.toLocaleString("en-US")} entered in 7 days` : "No one yet"}</span>
+          p.entered ? <span className="mt-1 block text-[12px] text-muted tabular-nums">{p.entered.toLocaleString("en-US")} enrolled this week</span> : null
         )}
       </button>
       <List {...p} steps={p.body.steps} parent={null} path={undefined} />
@@ -91,7 +93,7 @@ function List(p: ListProps) {
     <div className="flex w-full flex-col items-center">
       {p.steps.map((s, i) => (
         <div key={s.id} className="flex w-full flex-col items-center">
-          <Joint words={i === 0 && p.parent ? null : "then"} readOnly={p.readOnly} onAdd={(k) => p.onAdd({ parent: p.parent, path: p.path, index: i }, k)} onDrop={p.onMove ? (id) => p.onMove!(id, { parent: p.parent, path: p.path, index: i }) : undefined} />
+          <Joint words={null} readOnly={p.readOnly} onAdd={(k) => p.onAdd({ parent: p.parent, path: p.path, index: i }, k)} onDrop={p.onMove ? (id) => p.onMove!(id, { parent: p.parent, path: p.path, index: i }) : undefined} />
           <Card {...p} step={s} first={i === 0} last={i === p.steps.length - 1} />
           {pathsOf(s).length ? (
             <div className="mt-2 flex items-start gap-6">
@@ -99,7 +101,7 @@ function List(p: ListProps) {
                 <div key={name} data-path={name} className={`flex min-w-[400px] flex-col items-center rounded-2xl border border-dashed px-3 py-3 ${list.length || !p.readOnly ? "border-line" : "border-transparent"}`}>
                   <span className="label-mono">
                     {PATH_WORDS[name]}
-                    {s.kind === "split" ? ` · ${name === "a" ? s.percent : 100 - s.percent}%` : ""}
+                    {s.kind === "split" ? `, ${name === "a" ? s.percent : 100 - s.percent}%` : ""}
                   </span>
                   <List {...p} steps={list} parent={s.id} path={name} />
                 </div>
@@ -108,7 +110,7 @@ function List(p: ListProps) {
           ) : null}
         </div>
       ))}
-      <Joint words={p.steps.length ? "then" : null} end readOnly={p.readOnly} onAdd={(k) => p.onAdd({ parent: p.parent, path: p.path, index: p.steps.length }, k)} onDrop={p.onMove ? (id) => p.onMove!(id, { parent: p.parent, path: p.path, index: p.steps.length }) : undefined} />
+      <Joint words={null} end readOnly={p.readOnly} onAdd={(k) => p.onAdd({ parent: p.parent, path: p.path, index: p.steps.length }, k)} onDrop={p.onMove ? (id) => p.onMove!(id, { parent: p.parent, path: p.path, index: p.steps.length }) : undefined} />
     </div>
   );
 }
@@ -144,7 +146,7 @@ function Card(p: ListProps & { step: Step; first: boolean; last: boolean }) {
           <span className="text-[13.5px] font-medium text-ink">{title}</span>
           <span className="flex flex-wrap items-center gap-x-2 text-[12.5px] text-body tabular-nums">
             <span className="min-w-0 [overflow-wrap:anywhere]">{detail}</span>
-            {p.counts[s.id] ? <span className="text-muted">{p.counts[s.id]!.toLocaleString("en-US")} in 7 days</span> : null}
+            {p.counts[s.id] ? <span className="text-muted">{p.counts[s.id]!.toLocaleString("en-US")} this week</span> : null}
           </span>
           {probs.length ? (
             <span className="mt-0.5 flex items-start gap-1.5 text-[12.5px] text-butter">

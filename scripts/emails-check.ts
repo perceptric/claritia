@@ -171,15 +171,15 @@ try {
   const m1 = (await steps()).find((s) => s.id === "m1")!;
   check(m1.email!.subject === "From the canvas" && !!m1.email!.doc, `the canvas's newer words come into the draft (${m1.email!.subject})`);
   await p.locator("button", { hasText: "From the canvas" }).first().click();
-  check((await p.getByRole("button", { name: "Edit email" }).count()) === 1, "the email step has Edit email");
-  const subj = p.getByRole("textbox").first();
+  check((await p.getByRole("button", { name: "Open full editor" }).count()) === 1, "the email step has Open full editor");
+  const subj = p.locator("aside").getByRole("textbox", { name: "Subject" });
   await subj.fill("Thanks again");
   await p.waitForTimeout(1300);
   const saves = (await p.evaluate(() => (window as unknown as { calls: { fn: string; body: Record<string, unknown> }[] }).calls)).filter((c) => c.fn === "email_draft_save");
   check(saves.some((c) => c.body.p_id === "copy-m1" && c.body.p_subject === "Thanks again"), "a subject typed here reaches the copy");
-  await p.getByRole("button", { name: "Edit email" }).click();
+  await p.getByRole("button", { name: "Open full editor" }).click();
   const edit = (await p.evaluate(() => (window as unknown as { calls: { fn: string; body: Record<string, unknown> }[] }).calls)).find((c) => c.fn === "edit_email");
-  check(edit?.body.copy === "copy-m1", "Edit email opens that email's copy");
+  check(edit?.body.copy === "copy-m1", "Open full editor opens that email's copy");
   await p.close();
 } finally {
   await browser.close();
