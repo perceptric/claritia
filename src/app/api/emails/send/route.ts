@@ -5,8 +5,8 @@ import { requireUser, roleIn } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 
 // Send or schedule a campaign draft (docs/email-studio-plan.md Part 5): POST { workspaceId, emailId, lists, everyone,
-// topicId, sendAt, fromName, fromEmail, replyTo, spreadHours }. The From address must be on one of the workspace's
-// verified domains (156); spreadHours is Gradual Send. The draft's blocks are made into HTML here (the same draft styles the builder showed), sending is
+// topicId, sendAt, fromName, fromEmail, replyTo, spreadHours, smart }. The From address must be on one of the workspace's
+// verified domains (156); spreadHours is Gradual Send and smart is Intelligent Send (159). The draft's blocks are made into HTML here (the same draft styles the builder showed), sending is
 // checked ready, and email_campaign_send (151) freezes the audience and queues it in one transaction. A repeat of the
 // same send answers what the first queued.
 
@@ -16,7 +16,7 @@ const bad = (error: string, status = 400) => Response.json({ error }, { status }
 export async function POST(request: Request) {
   const auth = await requireUser(request);
   if ("denied" in auth) return auth.denied;
-  const b = (await request.json().catch(() => ({}))) as { workspaceId?: unknown; emailId?: unknown; lists?: unknown; everyone?: unknown; topicId?: unknown; sendAt?: unknown; fromName?: unknown; fromEmail?: unknown; replyTo?: unknown; spreadHours?: unknown };
+  const b = (await request.json().catch(() => ({}))) as { workspaceId?: unknown; emailId?: unknown; lists?: unknown; everyone?: unknown; topicId?: unknown; sendAt?: unknown; fromName?: unknown; fromEmail?: unknown; replyTo?: unknown; spreadHours?: unknown; smart?: unknown };
   const ws = typeof b.workspaceId === "string" && UUID.test(b.workspaceId) ? b.workspaceId : null;
   const id = typeof b.emailId === "string" && UUID.test(b.emailId) ? b.emailId : null;
   if (!ws || !id) return bad("Email not found.", 404);
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
   if (at && Date.parse(at) < Date.now() - 60_000) return bad("Pick a time in the future.");
   const text = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
   const spread = typeof b.spreadHours === "number" && Number.isInteger(b.spreadHours) && b.spreadHours >= 1 && b.spreadHours <= 72 ? b.spreadHours : null;
-  const sender = { from_name: text(b.fromName, 80), from_email: text(b.fromEmail, 254), reply_to: text(b.replyTo, 254), spread_hours: spread };
+  const sender = { from_name: text(b.fromName, 80), from_email: text(b.fromEmail, 254), reply_to: text(b.replyTo, 254), spread_hours: spread, smart: b.smart === true };
 
   const [row, ready] = await Promise.all([db.from("emails").select("id, subject, doc, status").eq("id", id).eq("workspace_id", ws).eq("kind", "broadcast").maybeSingle(), sendReady(db, ws)]);
   if (row.error) return bad(row.error.message, 500);
@@ -48,7 +48,7 @@ export async function POST(request: Request) {
     p_values: { subject: row.data.subject, preheader: built.preheader, html: built.html, text: built.text, links: built.links, lists, everyone, topic_id: topic, send_at: at, ...sender },
   });
   if (error) {
-    const known = /Add a subject|The email is empty|Pick who gets it|Pick a time|Topic not found|List not found|Nobody is in that audience|Pick a verified domain|Keep the From name under 80 characters|Check the reply-to address|Spread it over 1 to 72 hours/.exec(error.message);
+    const known = /Add a subject|The email is empty|Pick who gets it|Pick a time|Topic not found|List not found|Nobody is in that audience|Pick a verified domain|Keep the From name under 80 characters|Check the reply-to address|Spread it over 1 to 72 hours|Pick Intelligent Send or Gradual Send/.exec(error.message);
     return bad(known ? `${known[0]}.` : error.message, known ? 400 : 500);
   }
   return Response.json(data);

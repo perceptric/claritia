@@ -495,7 +495,12 @@ at Beta and Growth):
    is still its own campaign; deleting a group keeps its emails. The Email Studio's `<>` button shows the whole email
    as HTML, the same build that goes out, with Copy and Download. Tests: `tests/pg/emailGroups.pg.ts`,
    `tests/nav.test.ts`.
-4. **Intelligent Send**: each person at the hour they usually open, within 24 hours.
+4. **Intelligent Send** (built, migration 159): each person gets the campaign within 24 hours of the start, at their
+   own hour (`audience_send_hours`): the hour of their opens and clicks in the last 180 days (a click counts 3, an open
+   1, since some mail apps open every email as it lands), else 10 AM in their time zone, else the hour the workspace's
+   emails are opened most, else right away. Each hour is spread over its minutes by person (`smart_time`). The Send
+   panel shows how many get each kind; Resume after a Pause works the hours out again from then. Not with Gradual
+   Send. Tests: `tests/pg/campaignSend.pg.ts`.
 
 ## Build order
 
