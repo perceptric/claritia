@@ -6,7 +6,7 @@
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { cleanBody, goneProblems, problems as checkProblems } from "@/lib/workflows/check";
-import { find } from "@/lib/workflows/tree";
+import { find, walk } from "@/lib/workflows/tree";
 import { newStep, type Body, type Step, type StepKind } from "@/lib/workflows/types";
 import { History, ListIcon, Play, Redo, Trash, Undo } from "../../Icons";
 import { askConfirm } from "../Dialogs";
@@ -22,6 +22,8 @@ import { previewHtml, type CanvasKit } from "../emails/canvas/preview";
 import { HistoryDrawer, PublishDialog, TryPanel, VersionsDrawer } from "./Panels";
 import { useEmailCopies } from "./emailCopies";
 import { designOf, emailSteps, sameEmail, withFooter } from "@/lib/workflows/stepEmails";
+import { flowKeys, isRequiredFlow, lockedStep } from "@/lib/workflows/meetingFlows";
+import { MeetingEmailPanel, type SystemRow } from "./MeetingEmailPanel";
 
 type SaveState = "idle" | "saving" | "saved" | "retry" | "conflict";
 const STATUS: Record<"draft" | "live" | "paused", [string, Tone]> = {
@@ -73,12 +75,26 @@ export function WorkflowEditor({
   const mail = useEmailCopies({ sb, ws: ws.id, id, body, sync, readOnly: false });
   // Small pictures of the emails on their cards, in the brand kit they use.
   const kits = useQuery(`email_canvas_kits:${ws.id}`, async () => ((await sb.from("brand_kits").select("id, tokens, logo_url, design").eq("workspace_id", ws.id).order("created_at")).data ?? []) as CanvasKit[]);
+  // A meeting workflow's emails: the workspace's System emails (164), by key.
+  const hasMeetingMail = flowKeys(body).length > 0;
+  const systemRows = useQuery(hasMeetingMail ? `system_emails:${ws.id}` : null, async () => ((await sb.from("emails").select("id, name, system_key, subject, preheader, doc").eq("workspace_id", ws.id).eq("kind", "system")).data ?? []) as SystemRow[], { staleMs: 0 });
+  const meetingSteps = useMemo(() => {
+    const out: Extract<Step, { kind: "meeting_email" }>[] = [];
+    walk(body.steps, (x: Step) => {
+      if (x.kind === "meeting_email") out.push(x);
+    });
+    return out;
+  }, [body]);
   const thumbs = useMemo(() => {
     const out: Record<string, string> = {};
     if (!kits.data) return out;
     for (const s of emailSteps(body)) if (s.email.doc) out[s.id] = previewHtml({ doc: withFooter(s.email.doc), status: "draft", html: "" }, kits.data);
+    for (const s of meetingSteps) {
+      const r = systemRows.data?.find((x) => x.system_key === s.key);
+      if (r?.doc) out[s.id] = previewHtml({ doc: r.doc, status: "draft", html: "", system_key: r.system_key }, kits.data);
+    }
     return out;
-  }, [body, kits.data]);
+  }, [body, kits.data, meetingSteps, systemRows.data]);
   // Emails whose words differ from the live version's.
   const changedSinceLive = useMemo(() => {
     if (!data.live) return new Set<string>();
@@ -189,6 +205,8 @@ export function WorkflowEditor({
   };
   const onRemove = async (sid: string) => {
     const w = find(body.steps, sid);
+    // The guest's meeting emails carry the calendar invite (src/lib/workflows/meetingFlows.ts).
+    if (w && lockedStep(w.step)) return setError("This email sends the calendar invite, so it stays.");
     const inside = w && "yes" in w.step ? w.step.yes.length + w.step.no.length : w && "a" in w.step ? w.step.a.length + w.step.b.length : 0;
     if (
       inside &&
@@ -202,6 +220,7 @@ export function WorkflowEditor({
     if (sel === sid) setSel("trigger");
   };
   const onCopy = (sid: string) => {
+    if (find(body.steps, sid)?.step.kind === "meeting_email") return setError("Each meeting email goes once per meeting, so it can't be copied.");
     const r = duplicateStep(body, sid);
     edit(r.body);
     if (r.id) setSel(r.id);
@@ -293,6 +312,8 @@ export function WorkflowEditor({
   const changed = !live || JSON.stringify(live) !== JSON.stringify(body);
   const dirty = n !== savedN;
   const status = data.wf.status;
+  // Booking confirmed, Meeting moved and Meeting canceled carry the calendar invite: no Pause, no Delete (165).
+  const required = isRequiredFlow(data.wf.meeting_kind);
   const next = Math.max(0, ...data.versions.map((v) => v.version)) + 1;
   const shown = viewing ? cleanBody(viewing.body) : body;
   const selStep: Step | null = sel && sel !== "trigger" && !viewing ? (find(body.steps, sel)?.step ?? null) : null;
@@ -324,9 +345,11 @@ export function WorkflowEditor({
           <Redo size={14} />
         </IconButton>
       </span>
-      <IconButton label="Delete automation" onClick={() => void del()}>
-        <Trash size={14} />
-      </IconButton>
+      {required ? null : (
+        <IconButton label="Delete automation" onClick={() => void del()}>
+          <Trash size={14} />
+        </IconButton>
+      )}
       <IconButton label="Run history" onClick={() => setPanel("history")}>
         <ListIcon size={14} />
       </IconButton>
@@ -336,7 +359,7 @@ export function WorkflowEditor({
       <Button variant="ghost" size="sm" aria-pressed={panel === "try"} onClick={() => setPanel("try")}>
         <Play size={12} /> Test
       </Button>
-      {status === "live" ? (
+      {status === "live" && !required ? (
         <Button variant="ghost" size="sm" onClick={() => void setStatus("paused")}>
           Pause
         </Button>
@@ -438,6 +461,22 @@ export function WorkflowEditor({
             )}
             {viewing ? null : tab === "test" ? (
               <StepTest sb={sb} session={session} ws={ws.id} body={body} sel={sel ?? "trigger"} names={data.words} />
+            ) : selStep?.kind === "meeting_email" ? (
+              <MeetingEmailPanel
+                key={`${selStep.id}:${systemRows.data?.find((r) => r.system_key === selStep.key)?.id ?? ""}`}
+                sb={sb}
+                ws={ws.id}
+                keyName={selStep.key}
+                row={systemRows.data?.find((r) => r.system_key === selStep.key)}
+                kits={kits.data ?? undefined}
+                readOnly={false}
+                onRemove={lockedStep(selStep) ? undefined : () => void onRemove(selStep.id)}
+                onOpenFull={() => {
+                  const r = systemRows.data?.find((x) => x.system_key === selStep.key);
+                  if (r) navigate("emails", `campaigns/group/wf:${id}`, `pick=${r.id}`);
+                }}
+                onSaved={(r) => systemRows.set((rows) => (rows ?? []).map((x) => (x.id === r.id ? r : x)))}
+              />
             ) : selStep ? (
               <StepPanel
                 key={selStep.id}

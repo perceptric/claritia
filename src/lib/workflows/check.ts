@@ -1,6 +1,7 @@
 // What stops a workflow from going live, in words (like src/lib/router/check.ts). The editor shows these as you
 // build; Make live refuses while any is left. `cleanBody` makes stored or sent JSON safe to use.
 
+import { isSystemKey } from "../meetings/systemEmails.ts";
 import { mergeGaps } from "./merge.ts";
 import { isContentSid, TEXT_MAX } from "../texts/words.ts";
 import { emailText } from "../design/email/compile.ts";
@@ -160,7 +161,7 @@ function cleanTrigger(t: Record<string, unknown>): Body["trigger"] | null {
     case "form":
       return { kind: "form", forms: ids(t.forms) };
     case "meeting":
-      return { kind: "meeting", events: ids(t.events).filter((e) => ["booked", "canceled", "held", "no_show"].includes(e)) as ("booked" | "canceled" | "held" | "no_show")[], types: ids(t.types) };
+      return { kind: "meeting", events: ids(t.events).filter((e) => ["booked", "canceled", "held", "no_show", "rescheduled"].includes(e)) as ("booked" | "canceled" | "held" | "no_show" | "rescheduled")[], types: ids(t.types) };
     case "not_booked":
       return { kind: "not_booked", forms: ids(t.forms) };
     case "routed":
@@ -175,7 +176,7 @@ function cleanTrigger(t: Record<string, unknown>): Body["trigger"] | null {
 }
 
 // Steps of removed parts (Enrich, Qualify, Update field, Add to list, Create task, Push to CRM) are dropped.
-const KINDS = new Set(["email", "wait", "wait_until", "branch", "split", "route", "slack", "webhook", "sms", "whatsapp", "chat", "event", "exit"]);
+const KINDS = new Set(["email", "meeting_email", "wait", "wait_until", "branch", "split", "route", "slack", "webhook", "sms", "whatsapp", "chat", "event", "exit"]);
 const WAIT_EVENTS = new Set(["meeting.booked", "email.clicked", "form.submitted"]);
 
 function cleanSteps(raw: unknown, depth: number): Step[] {
@@ -244,6 +245,9 @@ function cleanStep(x: unknown, depth: number): Step | null {
     }
     case "whatsapp":
       return { id, kind: "whatsapp", template: str(s.template, 40).trim(), vars: (Array.isArray(s.vars) ? s.vars : []).slice(0, 10).map((v) => str(v, 300)) };
+    case "meeting_email":
+      // A meeting's own email (165): kept only with a key it knows.
+      return isSystemKey(s.key) ? { id, kind: "meeting_email", key: s.key } : null;
     default:
       return { id, kind: s.kind } as Step;
   }

@@ -7,11 +7,12 @@ import { readEmailDoc } from "../design/email/doc.ts";
 import { compileWithKit, type KitRow } from "../design/email/server.ts";
 import { MERGE } from "../workflows/merge.ts";
 import { addToCalendar, fmtDay, fmtRange, fmtShort, fmtWhen, names, type MailParts, type MeetingView, type TimesView } from "./emails.ts";
+import { keyOn, type FlowState } from "../workflows/meetingFlows.ts";
 import { HTML_FIELDS, isSystemKey, SYSTEM_FIELDS, SYSTEM_META, type SystemField, type SystemKey } from "./systemEmails.ts";
 
 /** A workspace's System emails as meeting_system_emails gives them, with its brand kits. */
 export type SystemRow = { key: string; subject: string; preheader: string; doc: unknown; off: boolean };
-export type SystemSet = { emails: SystemRow[]; kits: KitRow[] };
+export type SystemSet = { emails: SystemRow[]; kits: KitRow[]; /** The meeting workflows (165): which emails are on, and when reminders go. */ flows?: FlowState[] };
 /** Each field's value as typed (subject, plain text, conditions) and, for the HTML fields, as HTML. */
 export type Vars = { text: Partial<Record<SystemField, string | null>>; html: Partial<Record<SystemField, string>> };
 
@@ -21,18 +22,24 @@ const FIELDS = new Set(Object.keys(SYSTEM_FIELDS));
 
 /** Reads what the database gave; anything else is no set (the built-in emails go). */
 export function readSystemSet(raw: unknown): SystemSet | null {
-  const r = raw && typeof raw === "object" ? (raw as { emails?: unknown; kits?: unknown }) : null;
+  const r = raw && typeof raw === "object" ? (raw as { emails?: unknown; kits?: unknown; flows?: unknown }) : null;
   if (!r || !Array.isArray(r.emails)) return null;
   const emails = r.emails
     .filter((e): e is Record<string, unknown> => !!e && typeof e === "object" && isSystemKey((e as { key?: unknown }).key))
     .map((e) => ({ key: String(e.key), subject: typeof e.subject === "string" ? e.subject : "", preheader: typeof e.preheader === "string" ? e.preheader : "", doc: e.doc, off: e.off === true }));
-  return { emails, kits: (Array.isArray(r.kits) ? r.kits : []) as KitRow[] };
+  const flows = (Array.isArray(r.flows) ? r.flows : [])
+    .filter((f): f is Record<string, unknown> => !!f && typeof f === "object" && typeof (f as { kind?: unknown }).kind === "string")
+    .map((f) => ({ kind: String(f.kind), status: String(f.status ?? ""), body: f.body }));
+  return { emails, kits: (Array.isArray(r.kits) ? r.kits : []) as KitRow[], flows };
 }
 
-/** Whether the team turned this email off. The emails that carry the calendar invite always go. */
+/**
+ * Whether the team turned this email off: on the email itself, or by pausing its workflow or taking its step out
+ * (src/lib/workflows/meetingFlows.ts). The emails that carry the calendar invite always go.
+ */
 export function systemOff(set: SystemSet | null, key: SystemKey): boolean {
   if (SYSTEM_META[key].required) return false;
-  return !!set?.emails.find((e) => e.key === key)?.off;
+  return !!set?.emails.find((e) => e.key === key)?.off || !keyOn(set?.flows, key);
 }
 
 /** Fills the merge fields: known ones with their value (escaped in HTML), else the fallback after "|". */

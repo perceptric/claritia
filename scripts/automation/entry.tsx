@@ -6,13 +6,18 @@ import { DialogHost } from "../../src/components/app/Dialogs.tsx";
 import { WorkflowEditor } from "../../src/components/app/workflows/Editor.tsx";
 import { docFromBody } from "../../src/lib/design/email/doc.ts";
 import type { Body, Step } from "../../src/lib/workflows/types.ts";
+import { meetingFlow } from "../../src/lib/workflows/meetingFlows.ts";
+import { SYSTEM_KEYS, SYSTEM_META, systemDefault } from "../../src/lib/meetings/systemEmails.ts";
 
 type Row = Record<string, unknown>;
 const calls: { fn: string; body: unknown }[] = [];
 (window as unknown as { calls: typeof calls }).calls = calls;
 const thanks = { subject: "Thanks for reaching out", preheader: "", paragraphs: ["Someone will reply within a day."], cta_label: "", cta_url: "" };
 const later = { subject: "Still want to talk?", preheader: "", paragraphs: ["Pick a time that works."], cta_label: "", cta_url: "" };
-const draft: Body = {
+// ?flow=confirmed opens the Booking confirmed meeting workflow (165) with the workspace's System emails.
+const flow = new URLSearchParams(location.search).get("flow");
+const systemRows = SYSTEM_KEYS.map((key, i) => ({ id: `sys-${key}`, name: SYSTEM_META[key].name, system_key: key, subject: systemDefault(key).subject, preheader: "", doc: systemDefault(key).doc, group_position: i }));
+const legacyDraft: Body = {
   trigger: { kind: "form", forms: ["f1"] },
   steps: [
     { id: "m1", kind: "email", email: { ...thanks, doc: docFromBody(thanks) }, from: "team", approved: false } as Step,
@@ -29,6 +34,7 @@ const draft: Body = {
   goals: [],
   entry: { mode: "once", gapDays: 30 },
 };
+const draft: Body = flow === "confirmed" ? meetingFlow("confirmed").body : legacyDraft;
 const copies: Row[] = [];
 const rpc = async (fn: string, a: Row) => {
   calls.push({ fn, body: a });
@@ -47,7 +53,7 @@ function query(table: string) {
   for (const k of ["select", "eq", "neq", "in", "is", "order", "limit", "or", "not"]) q[k] = () => q;
   q.maybeSingle = () => q;
   q.then = (ok: (v: unknown) => unknown) =>
-    Promise.resolve({ data: table === "contacts" ? [{ id: "11111111-2222-4333-8444-555555555555", email: "lee@acme.com", first_name: "Lee", last_name: "Park" }] : [], error: null }).then(ok);
+    Promise.resolve({ data: table === "contacts" ? [{ id: "11111111-2222-4333-8444-555555555555", email: "lee@acme.com", first_name: "Lee", last_name: "Park" }] : table === "emails" ? systemRows : [], error: null }).then(ok);
   return q;
 }
 const sb = { from: query, rpc } as never;
@@ -74,7 +80,7 @@ window.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
 }) as typeof window.fetch;
 
 const data = {
-  wf: { id: "99999999-0000-4000-8000-000000000001", name: "Contact us follow-up", status: "draft" as const, draft, draft_revision: 0, live_version: null, updated_at: new Date().toISOString() },
+  wf: { id: "99999999-0000-4000-8000-000000000001", name: flow === "confirmed" ? "Booking confirmed" : "Contact us follow-up", status: (flow === "confirmed" ? "live" : "draft") as "live" | "draft", draft, draft_revision: 0, live_version: flow === "confirmed" ? 1 : null, updated_at: new Date().toISOString(), meeting_kind: flow === "confirmed" ? "confirmed" : null },
   draft,
   live: null,
   versions: [],

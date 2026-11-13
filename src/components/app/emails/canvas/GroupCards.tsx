@@ -11,7 +11,8 @@ import { useMemo } from "react";
 import { Badge, must, timeAgo, useQuery } from "../../ui";
 import { cleanBody } from "@/lib/workflows/check";
 import { emailSteps, ensurePayload, type EmailCopy } from "@/lib/workflows/stepEmails";
-import { SYSTEM_KEYS, systemEnsurePayload } from "@/lib/meetings/systemEmails";
+import { flowKeys } from "@/lib/workflows/meetingFlows";
+import { ensureMeetingSetup } from "../../workflows/meetingSetup";
 import { previewHtml, type CanvasKit } from "./preview";
 
 type Mini = { id: string; status: string; doc: unknown; html: string; updated_at: string; updated_by?: string | null; system_key?: string | null };
@@ -22,12 +23,14 @@ const n = (x: number) => x.toLocaleString("en-US");
 export function GroupCards({ sb, ws, me, onOpen, show = "all" }: { sb: SupabaseClient; ws: string; me: string; onOpen: (id: string) => void; show?: GroupShow }) {
   const kits = useQuery(`email_canvas_kits:${ws}`, async () => (must(await sb.from("brand_kits").select("id, tokens, logo_url, design").eq("workspace_id", ws).order("created_at")) ?? []) as CanvasKit[]);
   const cards = useQuery(`email_groups:${ws}`, async () => {
+    // The meeting emails and their workflows, made the first time (docs/workflows-plan.md, Part A).
+    await ensureMeetingSetup(sb, ws);
     const cols = "id, status, doc, html, updated_at, updated_by";
     const [groups, loose, looseCount, flows, system] = await Promise.all([
       sb.from("email_groups").select(`id, name, created_at, emails(${cols}, group_position)`).eq("workspace_id", ws).order("created_at"),
       sb.from("emails").select(cols).eq("workspace_id", ws).eq("kind", "broadcast").is("group_id", null).neq("status", "archived").order("updated_at", { ascending: false }).limit(3),
       sb.from("emails").select("id", { count: "exact", head: true }).eq("workspace_id", ws).eq("kind", "broadcast").is("group_id", null).neq("status", "archived"),
-      sb.from("workflows").select(`id, name, created_at, draft, emails!emails_workflow_id_fkey(${cols}, group_position, step_id)`).eq("workspace_id", ws).order("created_at"),
+      sb.from("workflows").select(`*, emails!emails_workflow_id_fkey(${cols}, group_position, step_id)`).eq("workspace_id", ws).order("created_at"),
       sb.from("emails").select(`${cols}, group_position, system_key`).eq("workspace_id", ws).eq("kind", "system").order("group_position"),
     ]);
     const gs = (must(groups) ?? []) as { id: string; name: string; created_at: string; emails: (Mini & { group_position: number })[] }[];
@@ -36,32 +39,24 @@ export function GroupCards({ sb, ws, me, onOpen, show = "all" }: { sb: SupabaseC
     // Who saved the most recently edited email (migration 160).
     const by = (ms: Mini[]) => [...ms].sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0]?.updated_by ?? null;
     const out: Card[] = [{ id: "ungrouped", name: "Ungrouped", count: looseCount.count ?? ls.length, edited: latest(ls, null), by: by(ls), minis: ls }];
-    // The System emails, made now for a workspace missing any. One that can't be made (before 164) leaves the card out.
-    let sys = (system.error ? null : (system.data ?? [])) as Mini[] | null;
-    if (sys && sys.length < SYSTEM_KEYS.length) {
-      const r = await sb.rpc("system_email_ensure", { p_ws: ws, p_rows: systemEnsurePayload() });
-      sys = r.error ? (sys.length ? sys : null) : ((r.data ?? []) as { id: string; key: string; doc: unknown; updated_at: string }[]).map((e) => ({ id: e.id, status: "draft", doc: e.doc, html: "", updated_at: e.updated_at, updated_by: null, system_key: e.key }));
-    }
-    if (sys?.length) {
-      // Edited means a person saved it; made-and-never-touched shows no time.
-      const touched = sys.filter((m) => m.updated_by);
-      out.push({ id: "system", name: "System emails", count: sys.length, edited: latest(touched, null), by: by(touched), minis: sys.slice(0, 3), system: true });
-    }
+    // The System emails: each meeting workflow's card shows the ones it sends.
+    const sys = (system.error ? [] : (system.data ?? [])) as (Mini & { system_key: string })[];
     for (const g of gs) {
       const sorted = [...g.emails].sort((a, b) => a.group_position - b.group_position);
       out.push({ id: g.id, name: g.name, count: g.emails.length, edited: latest(g.emails, g.created_at), by: by(g.emails), minis: sorted.slice(0, 3) });
     }
     // Automations: their emails' copies, made now for any email step without one. A copy that can't be made leaves
     // that automation's card out until next time; it never stops the page.
-    const fs = (flows.error ? [] : (flows.data ?? [])) as { id: string; name: string; created_at: string; draft: unknown; emails: (Mini & { group_position: number; step_id: string })[] }[];
+    const fs = (flows.error ? [] : (flows.data ?? [])) as { id: string; name: string; created_at: string; draft: unknown; meeting_kind?: string | null; emails: (Mini & { group_position: number; step_id: string })[] }[];
     for (const f of fs) {
       const body = cleanBody(f.draft);
-      let ms = [...(f.emails ?? [])].sort((a, b) => a.group_position - b.group_position);
+      const keys = f.meeting_kind ? flowKeys(body) : [];
+      let ms: (Mini & { step_id?: string })[] = [...sys.filter((m) => keys.includes(m.system_key as never)), ...[...(f.emails ?? [])].sort((a, b) => a.group_position - b.group_position)];
       const need = emailSteps(body).map((s) => s.id);
       if (need.some((id) => !ms.some((m) => m.step_id === id))) {
         const r = await sb.rpc("workflow_email_ensure", { p_ws: ws, p_wf: f.id, p_steps: ensurePayload(body) });
         if (r.error) continue;
-        ms = ((r.data ?? []) as EmailCopy[]).map((c, i) => ({ id: c.id, status: "draft", doc: c.doc, html: "", updated_at: (c as EmailCopy & { updated_at?: string }).updated_at ?? f.created_at, updated_by: null, group_position: i, step_id: c.step }));
+        ms = [...ms.filter((m) => m.system_key), ...((r.data ?? []) as EmailCopy[]).map((c, i) => ({ id: c.id, status: "draft", doc: c.doc, html: "", updated_at: (c as EmailCopy & { updated_at?: string }).updated_at ?? f.created_at, updated_by: null, group_position: i, step_id: c.step }))];
       }
       if (ms.length) out.push({ id: `wf:${f.id}`, name: f.name, count: ms.length, edited: latest(ms, f.created_at), by: by(ms), minis: ms.slice(0, 3), auto: true });
     }

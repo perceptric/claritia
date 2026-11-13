@@ -61,6 +61,7 @@ import { typable } from "@/lib/design/email/typing";
 import { cleanBody } from "@/lib/workflows/check";
 import { emailSteps, sameEmail } from "@/lib/workflows/stepEmails";
 import { FIELDS_FOR, isSystemKey, SYSTEM_FIELDS, SYSTEM_META, systemDefault } from "@/lib/meetings/systemEmails";
+import { flowKeys } from "@/lib/workflows/meetingFlows";
 import { EmailBuilder } from "../../email/EmailBuilder";
 
 export const UNGROUPED = "ungrouped";
@@ -118,6 +119,16 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
     async () => {
       const cols = sys ? "id, name, subject, preheader, status, doc, html, group_id, group_position, updated_at, step_id, system_key, paused_at" : "id, name, subject, preheader, status, doc, html, group_id, group_position, updated_at, step_id";
       const q = sb.from("emails").select(cols).eq("workspace_id", ws.id);
+      // A meeting workflow (165): the System emails it sends come first, then any email steps of its own.
+      if (wfId) {
+        const w = (await sb.from("workflows").select("*").eq("id", wfId).eq("workspace_id", ws.id).maybeSingle()).data as { meeting_kind?: string | null; draft: unknown } | null;
+        const keys = w?.meeting_kind ? flowKeys(cleanBody(w.draft)) : [];
+        const [own, meeting] = await Promise.all([
+          q.eq("kind", "journey").eq("workflow_id", wfId).order("group_position"),
+          keys.length ? sb.from("emails").select("id, name, subject, preheader, status, doc, html, group_id, group_position, updated_at, step_id, system_key, paused_at").eq("workspace_id", ws.id).eq("kind", "system").in("system_key", keys).order("group_position") : Promise.resolve({ data: [], error: null }),
+        ]);
+        return [...((must(meeting) ?? []) as unknown as CanvasRow[]), ...((must(own) ?? []) as unknown as CanvasRow[])];
+      }
       const r = sys
         ? await q.eq("kind", "system").order("group_position")
         : wfId

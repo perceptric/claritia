@@ -47,31 +47,44 @@ sent. Under the hood each email is still the step's editing copy in `emails` (ki
 draft; Publish reads the copies, so the two can never disagree. An email edited since the live version shows
 **Changed since publish** on its card and in the panel.
 
+## The meeting workflows
+
+The emails Claritia sends for every meeting are workflows in a **Meetings** folder, made live the first time Workflows
+or Emails opens (`src/lib/workflows/meetingFlows.ts`, `supabase/migrations/165_meeting_flows.sql`,
+`src/components/app/workflows/meetingSetup.ts`):
+
+| Workflow | Trigger | Steps |
+| --- | --- | --- |
+| Booking confirmed | Meeting booked | Booking confirmed (to the guest, with the invite), New booking (to the host) |
+| Reminders | Meeting booked | Delay until 1 day before, Reminder; Delay until 1 hour before, Reminder |
+| Meeting moved | Meeting moved | Meeting moved (to the guest, new invite), Moved booking (to the host) |
+| Meeting canceled | Meeting canceled | Meeting canceled (to the guest), Canceled booking (to the host) |
+| After the meeting | Meeting booked | How did it go (to the host, when the meeting ends) |
+| No-show follow-up | Marked no-show | No-show follow-up (to the guest) |
+| Pick a time | Form sent, no booking | Pick a time (to the lead) |
+
+- Their emails are **Meeting email** steps: the System emails (docs/system-emails.md), edited in the step's panel with
+  a sample meeting's values, or on the canvas through Open full editor. The meeting worker sends them, so the invite,
+  one send per meeting, the host's inbox and the retries are as before; the workflow engine passes over them.
+- Pausing a workflow, or taking a step out and publishing, stops that email. **Reminders** sets when reminders go
+  (its Delay steps, in days and hours; a meeting type's reminder of 15 minutes became an hour); pausing it stops them.
+  Reminders already queued keep their time.
+- Booking confirmed, Meeting moved and Meeting canceled carry the invite: no Pause or Delete, and the guest's email
+  can't be removed or copied. Steps can be added to any of them (a Slack note, a text), and those run like any step.
+- The first time they're made, the older starting drafts they replace (Meeting announcement, Meeting follow-up,
+  No-show follow-up) go if they were never published.
+- A workspace without them (never opened since 165), or a read that fails, sends as before.
+- Tested in `tests/meetingFlows.test.ts`, `tests/pg/meetingFlows.pg.ts` and `scripts/automation-check.ts`.
+
 ## The starting set
 
-Every workspace gets two folders the first time anyone opens Workflows (`workflow_defaults`,
-`supabase/migrations/119_workflow_defaults.sql`; the bodies are `STARTING` in `src/lib/workflows/templates.ts`):
-
-| Folder | Workflow | Starts when | Does |
-| --- | --- | --- | --- |
-| Notification | Form announcement | Any form is sent | Thanks them right away; a Slack note for their owner |
-| Notification | Meeting announcement | A meeting is booked | A Slack note, then reminders a day and an hour before |
-| Follow-up | Form follow-up | Any form is sent | An email the next day, until they book |
-| Follow-up | Meeting follow-up | A meeting is held | A thank-you two hours later |
-| Follow-up | No-show follow-up | A meeting is a no-show | An email with their reschedule link; a Slack note |
-
-- They are drafts: nothing sends until someone looks them over and presses Publish.
-- They go in once per workspace (`workspaces.workflow_defaults_at`), ahead of older folders; a deleted one stays
-  deleted. Older workspaces keep their own workflows.
-- A new workspace no longer gets an empty "Workflows" folder (119 changes `workflow_folders_start`).
-- Before 119 runs, the page shows what's there.
-- Tested in `tests/workflows.test.ts` and `tests/pg/workflowDefaults.pg.ts`.
+Every workspace also gets two form drafts the first time anyone opens Workflows (`workflow_defaults`, 119; the bodies
+are `STARTING` in `src/lib/workflows/templates.ts`): Form announcement in Notification and Form follow-up in Follow-up.
+They send nothing until someone publishes them.
 
 ## Meeting reminders
 
-The meeting's own emails (confirmed, reminder, the host's notes and the rest) are System emails on the Emails page
-(docs/system-emails.md); an automation adds to them.
-
+The meeting's own reminders are the Reminders meeting workflow (above). A workflow of a team's own can send more:
 Reminders are a workflow. The meeting screens no longer set them.
 
 - A **Wait** can be **Before the meeting**: until that long before the contact's next booked meeting

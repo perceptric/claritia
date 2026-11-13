@@ -4,13 +4,14 @@
 
 import type { Cond } from "../router/types.ts";
 import type { EmailDoc } from "../design/email/doc.ts";
+import type { SystemKey } from "../meetings/systemEmails.ts";
 
 /** What starts a workflow: a form, a meeting, a form with no booking after it, routing, a click on its email, or joining a list. */
 export type TriggerKind = "form" | "meeting" | "not_booked" | "routed" | "clicked" | "list";
 
 export type Trigger =
   | { kind: "form"; forms: string[] }
-  | { kind: "meeting"; events: ("booked" | "canceled" | "held" | "no_show")[]; types: string[] }
+  | { kind: "meeting"; events: ("booked" | "canceled" | "held" | "no_show" | "rescheduled")[]; types: string[] }
   | { kind: "not_booked"; forms: string[] }
   | { kind: "routed"; result: "routed" | "unassigned" | "any" }
   | { kind: "clicked"; emails: string[] }
@@ -27,6 +28,8 @@ export type WaitEvent = "meeting.booked" | "email.clicked" | "form.submitted";
 
 export type Step =
   | { id: string; kind: "email"; email: EmailBody; from: "team" | "owner"; approved: boolean; ai?: boolean; notes?: string[] }
+  /** A meeting's own email (a System email, 164), sent by the meeting worker with the invite; in the meeting workflows only (165). */
+  | { id: string; kind: "meeting_email"; key: SystemKey }
   /** With `before: "meeting"`: until that long before the contact's next booked meeting (a reminder), not after the step before. */
   | { id: string; kind: "wait"; days: number; hours: number; weekday?: number[]; at?: string; before?: "meeting" }
   | { id: string; kind: "wait_until"; event: WaitEvent; days: number; yes: Step[]; no: Step[] }
@@ -98,6 +101,7 @@ export const STEP_LINE: Record<StepKind, string> = {
   chat: "Post to Teams or Discord",
   event: "Send an event to analytics",
   exit: "End the automation here",
+  meeting_email: "Send the meeting's email",
 };
 
 export const emptyBody = (): Body => ({ trigger: { kind: "form", forms: [] }, steps: [], goals: [], entry: { mode: "once", gapDays: 30 } });

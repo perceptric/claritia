@@ -204,6 +204,9 @@ async function runStep(rpc: Rpc, ws: string, run: Claimed, step: Step, f: Facts,
     }
     case "exit":
       return { status: "done", end: "exit step" };
+    case "meeting_email":
+      // The meeting worker sends the meeting's own emails, with the invite (src/lib/workflows/meetingFlows.ts).
+      return { status: "done", result: { why: "sent with the meeting" } };
     default:
       return { status: "skipped" };
   }

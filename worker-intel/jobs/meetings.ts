@@ -45,6 +45,7 @@ import { offer } from "../../src/lib/meetings/server.ts";
 import { validZone } from "../../src/lib/meetings/time.ts";
 import { DEFAULT_SETTINGS, type MeetingType, type TypeSettings } from "../../src/lib/meetings/types.ts";
 import type { SystemKey } from "../../src/lib/meetings/systemEmails.ts";
+import { flowReminders } from "../../src/lib/workflows/meetingFlows.ts";
 import { meetingFields, readSystemSet, systemOff, systemParts, timesFields, type SystemSet } from "../../src/lib/meetings/systemSend.ts";
 
 const MIN = 60_000;
@@ -378,8 +379,11 @@ export async function remindersByWorkflow(rpc: Rpc, ws: string): Promise<boolean
   }
 }
 
-/** Reminder and after-meeting jobs for the meeting's time now; any waiting for an earlier time are dropped. */
-async function schedule(rpc: Rpc, info: Info, now: number) {
+/**
+ * Reminder and after-meeting jobs for the meeting's time now; any waiting for an earlier time are dropped. The reminder
+ * times come from the workspace's Reminders workflow when it has one (none while it's paused), else the meeting type.
+ */
+async function schedule(rpc: Rpc, info: Info, now: number, sys: SystemSet | null) {
   const m = info.meeting;
   const start = ms(m.start_at);
   const end = ms(m.end_at);
@@ -387,7 +391,8 @@ async function schedule(rpc: Rpc, info: Info, now: number) {
   const endIso = new Date(end).toISOString();
   const jobs: { key: string; kind: string; payload: object; at: number }[] = [];
   const byWorkflow = await remindersByWorkflow(rpc, m.workspace_id);
-  for (const min of byWorkflow ? [] : [...new Set(settingsOf(info.type).reminders ?? [])]) {
+  const fromFlow = flowReminders(sys?.flows);
+  for (const min of byWorkflow ? [] : [...new Set(fromFlow ?? settingsOf(info.type).reminders ?? [])]) {
     if (!Number.isInteger(min) || min <= 0) continue;
     const at = start - min * MIN;
     if (at > now) jobs.push({ key: `remind:${m.id}:${startIso}:${min}`, kind: "meeting_remind", payload: { meeting: m.id, start: startIso, minutes: min }, at });
@@ -473,7 +478,7 @@ export const meetingNotify =
             }),
           );
         }
-        await schedule(rpc, info, now);
+        await schedule(rpc, info, now, sys);
         settle(results, job, o);
         return;
       }
