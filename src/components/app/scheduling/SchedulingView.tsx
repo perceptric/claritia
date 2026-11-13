@@ -6,7 +6,7 @@
 // Links and polls, and Settings (Payments and Webhooks). Get set up (then Connect your calendar) is one slim line
 // under the tabs until it's done.
 
-import { schedulingPage, SCHEDULING_TABS } from "@/lib/nav";
+import { NAV, schedulingPage } from "@/lib/nav";
 import { Section, type ViewProps } from "../ui";
 import { MeetingsCalendar } from "../meetings/Calendar";
 import { TypeEditor } from "../meetings/TypeEditor";
@@ -18,11 +18,11 @@ import { LinksPage } from "./LinksPage";
 import { SettingsPage } from "./SettingsPage";
 import { TypesPage } from "./TypesPage";
 
-const TABS = SCHEDULING_TABS.map((t) => ({ value: t.value, label: t.label }));
-
 export function SchedulingView(props: ViewProps) {
   const p = schedulingPage(props.id);
-  const nav = { title: "Meetings", tabs: TABS, current: p.page, onPick: (t: string) => props.navigate("scheduling", t), banner: (
+  // Each page is its own sidebar item (docs/email-canvas-plan.md Part A): its title is the item's name, no tab row.
+  const title = NAV.find((n) => n.route === "scheduling" && n.page === p.page)?.label ?? "Meetings";
+  const nav = { title, tabs: [], current: p.page, onPick: (t: string) => props.navigate("scheduling", t), banner: (
       <>
         <SetupLine sb={props.sb} session={props.session} ws={props.ws} navigate={props.navigate} />
         <MailLine session={props.session} ws={props.ws} />

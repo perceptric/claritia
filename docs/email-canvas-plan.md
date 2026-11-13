@@ -13,6 +13,8 @@ zoom, pan, the layer tree or the property lists; those come from the screenshots
 
 ## Part A. A flat sidebar
 
+Built 13 November 2026 (`src/lib/nav.ts`, `src/components/app/Sidebar.tsx`; tests in `tests/nav.test.ts`).
+
 ### What people see
 
 ```

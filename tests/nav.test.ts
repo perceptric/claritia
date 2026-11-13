@@ -22,19 +22,20 @@ test("the sidebar is Forms, Meetings, Emails and Workflows, with Settings at the
     ["main", "settings"],
   );
   const by = (g: string) => NAV.filter((n) => n.group === g).map((n) => n.label);
-  assert.deepEqual(NAV.map((n) => n.label), ["Forms", "Meetings", "Emails", "Settings"]);
-  assert.deepEqual(by("main"), ["Forms", "Meetings", "Emails"], "three sections, no group titles");
+  assert.deepEqual(NAV.map((n) => n.label), ["Forms", "Meeting types", "Upcoming", "Availability", "Booking page", "Links and polls", "Meeting settings", "Campaigns", "Automations", "Audiences", "Templates", "Brand", "Settings"]);
+  assert.deepEqual(NAV.filter((n) => n.section === "meetings").map((n) => n.page), SCHEDULING_TABS.map((t) => t.value), "every Meetings page is an item");
+  assert.deepEqual(NAV.filter((n) => n.section === "emails").map((n) => n.page || "campaigns"), EMAILS_TABS.map((t) => t.value), "every Emails page is an item");
   assert.deepEqual(EMAILS_TABS.map((t) => t.label), ["Campaigns", "Automations", "Audiences", "Templates", "Brand"]);
   assert.deepEqual(by("settings"), ["Settings"]);
   // The CRM, Enrichment, Scoring, Segments and Visitors are gone: their addresses open Forms.
   for (const gone of ["contacts", "companies", "opportunities", "objects", "enrichment", "scoring", "segments", "visitors", "signals", "leads", "people", "accounts"])
     assert.deepEqual(resolveRoute(gone, "11111111-1111-4111-8111-111111111111"), { route: "forms", id: "" }, gone);
-  for (const g of GROUPS) assert.ok(by(g.key).length <= 5, g.key);
   assert.equal(defaultRoute, "forms");
-  assert.equal(new Set(NAV.map((n) => n.route)).size, NAV.length, "one item per route");
+  assert.equal(new Set(NAV.map((n) => `${n.route}/${n.page}`)).size, NAV.length, "one item per page");
+  assert.equal(new Set(NAV.map((n) => n.key)).size, NAV.length, "keys are unique");
   assert.deepEqual(ROUTING_TABS.map((t) => t.label), ["Policies", "Teams", "Activity"]);
   assert.deepEqual(SCHEDULING_TABS.map((t) => t.label), ["Meeting types", "Upcoming", "Availability", "Booking page", "Links and polls", "Settings"]);
-  assert.equal(NAV.find((n) => n.route === "scheduling")?.label, "Meetings", "Calendar is now Meetings, at its old address");
+  assert.equal(NAV.find((n) => n.route === "scheduling")?.page, "types", "Meetings starts at Meeting types, at its old address");
 });
 
 test("old addresses open their new home", () => {
@@ -85,7 +86,7 @@ test("Inbound's old addresses open their new home", () => {
   assert.deepEqual(resolveRoute("meetings", ""), { route: "scheduling", id: "upcoming" });
   assert.deepEqual(resolveRoute("meetings", "nope"), { route: "scheduling", id: "upcoming" });
   assert.deepEqual(resolveRoute("meetings", id), { route: "meetings", id });
-  assert.equal(activeItem("meetings")?.label, "Meetings", "one meeting lights Inbound › Meetings");
+  assert.equal(activeItem("meetings", "11111111-1111-4111-8111-111111111111")?.label, "Upcoming", "one meeting lights Upcoming");
   // Calendar (scheduling) keeps its address and tabs; Availability is a Meetings tab again (it was Routing › Teams').
   assert.deepEqual(resolveRoute("scheduling", "types"), { route: "scheduling", id: "types" });
   assert.deepEqual(resolveRoute("scheduling", "availability"), { route: "scheduling", id: "availability" });
@@ -187,9 +188,17 @@ test("scheduling tabs", () => {
 });
 
 test("every page lights its one sidebar item", () => {
-  assert.equal(activeItem("routing")?.label, "Meetings", "a policy or the activity log lights Meetings");
-  assert.equal(activeItem("scheduling")?.label, "Meetings");
-  assert.equal(activeItem("emails")?.label, "Emails");
-  assert.equal(activeItem("workflows")?.label, "Emails", "a workflow lights Emails");
+  assert.equal(activeItem("routing")?.label, "Meeting types", "a policy or the activity log lights Meeting types");
+  assert.equal(activeItem("scheduling", "")?.label, "Meeting types");
+  assert.equal(activeItem("scheduling", "types/11111111-1111-4111-8111-111111111111/all")?.label, "Meeting types");
+  assert.equal(activeItem("scheduling", "availability/team")?.label, "Availability");
+  assert.equal(activeItem("scheduling", "settings/webhooks")?.label, "Meeting settings");
+  assert.equal(activeItem("scheduling", "links")?.label, "Links and polls");
+  assert.equal(activeItem("emails", "")?.label, "Campaigns");
+  assert.equal(activeItem("emails", "campaigns/group/11111111-1111-4111-8111-111111111111")?.label, "Campaigns");
+  assert.equal(activeItem("emails", "automations/11111111-1111-4111-8111-111111111111")?.label, "Automations");
+  assert.equal(activeItem("emails", "audiences")?.label, "Audiences");
+  assert.equal(activeItem("workflows")?.label, "Automations", "a workflow lights Automations");
+  assert.equal(activeItem("settings", "team")?.label, "Settings");
   assert.equal(activeItem("forms")?.label, "Forms");
 });

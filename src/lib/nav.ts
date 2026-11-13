@@ -1,5 +1,6 @@
-// The sidebar: Forms, Meetings and Emails, with no group titles, and Settings at the very bottom. Each item is one
-// route; pages inside a route are tabs under its title, each with its own address. The app opens on Forms. Old addresses keep working: they forward to
+// The sidebar (docs/email-canvas-plan.md Part A): Forms, then each page of Meetings and of Emails as its own item under
+// a small label, and Settings at the very bottom. Each item is a route and a page, with its own address; the pages
+// have no tab rows. The app opens on Forms. Old addresses keep working: they forward to
 // their new page, and the removed CRM, Enrichment, Scoring and Visitors open Forms.
 
 export type Route = "meetings" | "workflows" | "routing" | "forms" | "scheduling" | "emails" | "settings";
@@ -7,6 +8,9 @@ export type Route = "meetings" | "workflows" | "routing" | "forms" | "scheduling
 /** "main": the four sections, at the top. "settings": Settings, at the bottom of the sidebar. */
 export type GroupKey = "main" | "settings";
 export const GROUPS: { key: GroupKey }[] = [{ key: "main" }, { key: "settings" }];
+
+export type NavSection = "meetings" | "emails";
+export const SECTION_LABEL: Record<NavSection, string> = { meetings: "Meetings", emails: "Emails" };
 
 export type NavItem = {
   /** Unique, for keys and the command bar. */
@@ -16,21 +20,32 @@ export type NavItem = {
   page: string;
   label: string;
   group: GroupKey;
+  /** The small label the item sits under. */
+  section?: NavSection;
 };
 
 const item = (group: GroupKey, route: Route, label: string): NavItem => ({ key: route, route, page: "", label, group });
+const pageItem = (section: NavSection, route: Route, page: string, label: string): NavItem => ({ key: `${section}-${page || "home"}`, route, page, label, group: "main", section });
 
 /**
- * Forms (each form picks the meeting), Meetings (a Dynamic meeting picks the person; Availability holds hours, teams
- * and who's away; docs/on-submission.md), Emails (campaigns, automations, audiences, templates and brand;
- * docs/email-studio-plan.md). Workflows live in Emails › Automations (folders of workflows, meeting reminders
- * included; docs/workflows.md), and their old addresses open there. Routing has no item of its own: its old addresses
- * open where its parts went (resolveRoute).
+ * Forms (each form picks the meeting); Meetings' pages (a Dynamic meeting picks the person; Availability holds hours,
+ * teams and who's away; docs/on-submission.md); Emails' pages (docs/email-studio-plan.md). Workflows live in Emails ›
+ * Automations (folders of workflows, meeting reminders included; docs/workflows.md), and their old addresses open
+ * there. Routing has no item of its own: its old addresses open where its parts went (resolveRoute).
  */
 export const NAV: NavItem[] = [
   item("main", "forms", "Forms"),
-  item("main", "scheduling", "Meetings"),
-  item("main", "emails", "Emails"),
+  pageItem("meetings", "scheduling", "types", "Meeting types"),
+  pageItem("meetings", "scheduling", "upcoming", "Upcoming"),
+  pageItem("meetings", "scheduling", "availability", "Availability"),
+  pageItem("meetings", "scheduling", "booking", "Booking page"),
+  pageItem("meetings", "scheduling", "links", "Links and polls"),
+  pageItem("meetings", "scheduling", "settings", "Meeting settings"),
+  pageItem("emails", "emails", "", "Campaigns"),
+  pageItem("emails", "emails", "automations", "Automations"),
+  pageItem("emails", "emails", "audiences", "Audiences"),
+  pageItem("emails", "emails", "templates", "Templates"),
+  pageItem("emails", "emails", "brand", "Brand"),
   item("settings", "settings", "Settings"),
 ];
 
@@ -38,8 +53,23 @@ const ROUTES = new Set<string>([...NAV.map((n) => n.route), "meetings", "routing
 
 export const defaultRoute: Route = "forms";
 
-/** The sidebar item an address belongs to: each route has one. One meeting's page lights Meetings. */
-export const activeItem = (route: Route): NavItem | null => NAV.find((n) => n.route === (route === "meetings" || route === "routing" ? "scheduling" : route === "workflows" ? "emails" : route)) ?? null;
+/**
+ * The sidebar item an address belongs to: the route and its page. One meeting lights Upcoming, a routing page lights
+ * Meeting types, a meeting type lights Meeting types, a workflow lights Automations, an email or a group lights
+ * Campaigns.
+ */
+export function activeItem(route: Route, id = ""): NavItem | null {
+  const find = (r: Route, page: string) => NAV.find((n) => n.route === r && n.page === page) ?? null;
+  if (route === "meetings") return find("scheduling", "upcoming");
+  if (route === "routing") return find("scheduling", "types");
+  if (route === "workflows") return find("emails", "automations");
+  if (route === "scheduling") return find("scheduling", schedulingPage(id).page);
+  if (route === "emails") {
+    const p = emailsPage(id).page;
+    return find("emails", p === "campaigns" ? "" : p);
+  }
+  return NAV.find((n) => n.route === route) ?? null;
+}
 
 /**
  * Routing's amber dot: the default policy has something to fix (a rep who gets leads has no calendar, or a rule's

@@ -1,28 +1,38 @@
 "use client";
 
-// The side rail (docs/app-structure.md Part 1): Create, Search, then Forms, Meetings and Workflows from src/lib/nav.ts
-// with no group titles, and Settings at the very bottom above the account row. Items can show a count. The
+// The side rail (docs/app-structure.md Part 1, docs/email-canvas-plan.md Part A): Create, Search, then Forms and each
+// page of Meetings and Emails from src/lib/nav.ts, under a small label for each, and Settings at the very bottom above
+// the account row. Folded to icons, a thin line stands in for each label. Items can show a count. The
 // open item is a white chip on a ring shadow with a green icon. Folds to icons between 768 and 1,280 px, and on wider
 // screens when the person folds it (kept on this computer) or while Form Studio is open (docs/studio-v2-plan.md,
 // Part 1: the Studio sends "claritia:studio"; leaving it puts the sidebar back the way it was).
 
 import { useEffect, useState } from "react";
-import { activeItem, NAV, type NavItem, type Route as NavRoute } from "@/lib/nav";
+import { activeItem, NAV, SECTION_LABEL, type NavItem, type Route as NavRoute } from "@/lib/nav";
 import {
   Box,
   Branch,
   CalendarIcon,
   Check,
   ChevronDown,
+  Clock,
+  FileText,
   FormIcon,
+  Gear,
+  Grid,
+  Link,
   LogOut,
   Mail,
+  Monitor,
   Moon,
+  Palette,
   Plus,
   Search,
+  Send,
   Settings,
   Signpost,
   Sun,
+  Users,
 } from "../Icons";
 import { Logo } from "../Logo";
 import { Popover } from "./FilterBar";
@@ -38,6 +48,17 @@ export const NAV_ICONS: Record<string, React.ReactNode> = {
   scheduling: <CalendarIcon size={14} />,
   emails: <Mail size={14} />,
   settings: <Settings size={14} />,
+  "meetings-types": <Grid size={14} />,
+  "meetings-upcoming": <CalendarIcon size={14} />,
+  "meetings-availability": <Clock size={14} />,
+  "meetings-booking": <Monitor size={14} />,
+  "meetings-links": <Link size={14} />,
+  "meetings-settings": <Gear size={14} />,
+  "emails-home": <Send size={14} />,
+  "emails-automations": <Branch size={14} />,
+  "emails-audiences": <Users size={14} />,
+  "emails-templates": <FileText size={14} />,
+  "emails-brand": <Palette size={14} />,
 };
 
 const RAIL_KEY = "claritia:nav-rail";
@@ -98,7 +119,7 @@ export type SidebarProps = {
 };
 
 export function Sidebar(p: SidebarProps) {
-  const active = activeItem(p.route as NavRoute);
+  const active = activeItem(p.route as NavRoute, p.id);
   const [rail, toggleRail] = useRail();
   // Wide-screen classes apply only when the sidebar isn't folded to icons.
   const xl = (c: string) => (rail ? "" : c);
@@ -126,9 +147,21 @@ export function Sidebar(p: SidebarProps) {
         <kbd className={`text-[12px] text-faint md:hidden ${xl("xl:inline")}`}>⌘K</kbd>
       </button>
       <nav aria-label="Main" className="-mx-1 flex gap-1 overflow-x-auto px-1 md:mt-3 md:min-h-0 md:flex-1 md:flex-col md:gap-0.5 md:overflow-y-auto md:overflow-x-hidden">
-        {NAV.map((n) => (
+        {NAV.map((n, i) => (
           // Settings sits at the bottom of the sidebar on wider screens; on phones it stays in the row.
           <span key={n.key} className={n.group === "settings" ? "contents md:hidden" : "contents"}>
+            {n.section && NAV[i - 1]?.section !== n.section ? (
+              <span className="hidden md:contents">
+                {rail ? (
+                  <span aria-hidden="true" className="mx-2 my-2 h-px shrink-0 bg-line" />
+                ) : (
+                  <>
+                    <span aria-hidden="true" className="mx-2 my-2 h-px shrink-0 bg-line xl:hidden" />
+                    <span className="hidden px-2 pt-3 pb-1 text-[11.5px] font-medium text-faint xl:block">{SECTION_LABEL[n.section]}</span>
+                  </>
+                )}
+              </span>
+            ) : null}
             <NavLink n={n} on={active?.key === n.key} count={p.counts[n.key]} dot={!!p.dots?.[n.key]} navigate={p.navigate} preload={p.onPreload} rail={rail} />
             {p.under?.[n.key] && !rail ? <span className="hidden xl:contents">{p.under[n.key]}</span> : null}
           </span>
