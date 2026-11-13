@@ -16,14 +16,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { boundsOf, dropSlot, firstView, nearView, rowLayout, snapWidth, toolbarSpot, toScreen, toWorld, type Box, type Camera, type Size } from "@/lib/canvas/view";
 import { literal } from "@/lib/design/cascade";
-import { newBlock, newSection, readEmailDoc, type Block, type EmailDoc } from "@/lib/design/email/doc";
-import { duplicateEl, findEl, removeEl, updateBlock, updateSection } from "@/lib/design/email/ops";
+import { newBlock, newEmailId, newSection, readBlock, readEmailDoc, type Block, type EmailDoc } from "@/lib/design/email/doc";
+import { addBlock, duplicateEl, findEl, removeEl, updateBlock, updateSection, type Place } from "@/lib/design/email/ops";
+import { insertComponent } from "@/lib/design/email/components";
+import { pastePlace, transferEl } from "@/lib/design/email/clip";
 import { isEmailPart, type EmailPartKey } from "@/lib/design/email/parts";
 import { paddingZones, partFromClasses, type Box as LocalBox, type Zone } from "@/lib/design/email/pick";
 import { resolveEmail, type EmailState } from "@/lib/design/email/style";
 import { applyDrop, firstChildOf, KIND_LABEL, kindOf, layerTree, moveStep, nextInOrder, parentOf, siblingOf } from "@/lib/design/email/tree";
 import { allVariables } from "@/lib/design/model";
-import { ChevronDown, Grip, Monitor, MoreHorizontal, Phone, Redo, Send, Undo } from "../../../Icons";
+import { ChevronDown, Grip, Monitor, MoreHorizontal, Phone, Plus, Redo, Send, Undo } from "../../../Icons";
 import { Surface, type SurfaceApi } from "../../canvas/Surface";
 import { askConfirm, askText } from "../../Dialogs";
 import { Popover } from "../../FilterBar";
@@ -36,8 +38,15 @@ import { CanvasSend } from "./CanvasSend";
 import { Inspector } from "./Inspector";
 import { LayerTree } from "./LayerTree";
 import { Overlay } from "./Overlay";
-import { docOf, previewHtml, sourceHtml, widthOf, type CanvasRow } from "./preview";
-import { useEmailDraft } from "./useEmailDraft";
+import { docOf, previewHtml, sourceHtml, widthOf, type CanvasKit, type CanvasRow } from "./preview";
+import { cleanTokens } from "@/lib/forms/brand";
+import type { DesignSystem } from "@/lib/design/model";
+import { useCanvasEditor } from "./useCanvasEditor";
+import { useCanvasDrag } from "./useCanvasDrag";
+import { DragLayer } from "./DragLayer";
+import { AddPanel, type AddItem } from "./AddPanel";
+import { useImageResize } from "./useImageResize";
+import { useCanvasClipboard } from "./useCanvasClipboard";
 import { FormatBar } from "./FormatBar";
 import { useTyping } from "./useTyping";
 import { typable } from "@/lib/design/email/typing";
@@ -46,11 +55,21 @@ export const UNGROUPED = "ungrouped";
 const PHONE = 390;
 const TONE: Record<string, Tone> = { sent: "green", sending: "amber", scheduled: "sky", paused: "amber", draft: "gray" };
 const LABEL: Record<string, string> = { sent: "Sent", sending: "Sending", scheduled: "Scheduled", paused: "Paused", draft: "Draft" };
-type Menu = { anchor: HTMLElement; items: { label: string; run: () => void; danger?: boolean; hint?: string; group?: string }[] } | null;
+type Menu = { anchor: HTMLElement; items: { label: string; run: () => void; danger?: boolean; hint?: string; group?: string; disabled?: boolean }[] } | null;
 /** The element picked inside the email being edited; null is the whole email. */
 type El = { email: string; id: string; part: EmailPartKey | null };
-type Boxes = { picked: LocalBox | null; hover: LocalBox | null; pad: Zone[] };
-const NO_BOXES: Boxes = { picked: null, hover: null, pad: [] };
+type Boxes = { picked: LocalBox | null; hover: LocalBox | null; pad: Zone[]; img: LocalBox | null };
+const NO_BOXES: Boxes = { picked: null, hover: null, pad: [], img: null };
+// Built emails, by document and styles, so a change rebuilds only the emails it touched.
+const built = new WeakMap<EmailDoc, { system: DesignSystem; dark: boolean; kits: unknown; status: string; html: string }>();
+function htmlFor(row: CanvasRow, kits: CanvasKit[], doc: EmailDoc, system: DesignSystem, dark: boolean): string {
+  const c = built.get(doc);
+  if (c && c.system === system && c.dark === dark && c.kits === kits && c.status === row.status) return c.html;
+  const k = kits.find((x) => x.id === doc.kitId) ?? kits[0];
+  const html = previewHtml(row, kits, { doc, system, tokens: cleanTokens((k?.tokens ?? {}) as object).tokens, dark });
+  built.set(doc, { system, dark, kits, status: row.status, html });
+  return html;
+}
 const sameBox = (a: LocalBox | null, b: LocalBox | null) => (!a || !b ? a === b : a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h);
 
 export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: ViewProps & { groupId: string; pick?: string | null }) {
@@ -96,26 +115,47 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
   const [el, setEl] = useState<El | null>(null);
   const [elHover, setElHover] = useState<string | null>(null);
   const [panel, setPanel] = useState(true);
+  // The + panel, remembered per canvas on this computer (B4).
+  const addKey = `claritia:canvas-add:${groupId}`;
+  const [addOpen, setAddOpenRaw] = useState(() => {
+    try {
+      return typeof window !== "undefined" && window.localStorage.getItem(addKey) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const setAddOpen = (v: boolean) => {
+    setAddOpenRaw(v);
+    try {
+      window.localStorage.setItem(addKey, v ? "1" : "0");
+    } catch {
+      /* private window: just not remembered */
+    }
+  };
+  // A new text block types at once, after its frame shows it.
+  const pendingType = useRef<{ email: string; id: string } | null>(null);
   const [tab, setTab] = useState<"element" | "layout">("element");
   const [look, setLook] = useState<EmailState | undefined>(undefined);
   const [boxes, setBoxes] = useState<Boxes>(NO_BOXES);
   const [undoNote, setUndoNote] = useState<string>("");
+  // What a screen reader hears after each change.
+  const [announce, setAnnounce] = useState("");
   const frames = useRef(new Map<string, HTMLIFrameElement>());
   const [, setFrameTick] = useState(0);
+  // Opens the picture library in the panel (a double-click on a picture, a new Image block), for one element.
+  const [library, setLibrary] = useState<{ id: string; n: number } | null>(null);
 
   const status = useCallback((r: CanvasRow) => states.data?.find((s) => s.id === r.id)?.status ?? r.status, [states.data]);
   const list = useMemo(() => rows.data ?? [], [rows.data]);
   const kitList = useMemo(() => kits.data ?? [], [kits.data]);
   // The email being edited: the one picked, alone.
   const editId = picked.length === 1 ? picked[0]! : null;
-  const editRow = useMemo(() => (editId ? (list.find((r) => r.id === editId) ?? null) : null), [list, editId]);
   const setRows = rows.set;
-  const onSaved = useCallback(
-    (id: string, doc: EmailDoc, subject: string) =>
-      setRows((prev) => prev.map((r) => (r.id === id ? { ...r, doc, subject, preheader: doc.settings.preheader, name: r.name === "Untitled email" && subject.trim() ? subject.trim().slice(0, 200) : r.name } : r))),
-    [setRows],
-  );
-  const draft = useEmailDraft({ sb, session, ws: ws.id, row: editRow, kits: kitList, onSaved });
+  const onSaved = useCallback((id: string, doc: EmailDoc, subject: string, name: string) => setRows((prev) => prev.map((r) => (r.id === id ? { ...r, doc, subject, preheader: doc.settings.preheader, name } : r))), [setRows]);
+  // One editor for every email on the canvas, with one undo history (docs/email-canvas-b4.md section 4).
+  // Its own messages (an email sent meanwhile, styles changed elsewhere) show like the canvas's, a little longer.
+  const editor = useCanvasEditor({ sb, session, ws: ws.id, rows: list, kits: kitList, onSaved, onNotice: (t) => say(t, 5000) });
+  const draft = editor.draft(editId);
   const editDoc = draft.id === editId ? draft.doc : null;
   const draftRef = useRef(draft);
   const listRef = useRef(list);
@@ -129,19 +169,14 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
   });
   // A picked element that's gone (undo, another tab) falls back to the email.
   const elNow = el && editDoc && el.email === editId && findEl(editDoc, el.id) ? el : null;
-  // Emails on the same brand as the one being edited show its draft styles (an "Every heading" change shows on all).
-  const live = (doc: EmailDoc) => !!draft.kit && (kitList.find((k) => k.id === doc.kitId) ?? kitList[0])?.id === draft.kit.id;
-  const others = useMemo(() => {
-    const out: Record<string, string> = {};
-    for (const r of list) {
-      const doc = r.doc ? docOf(r) : null;
-      out[r.id] = doc && live(doc) ? previewHtml(r, kitList, { doc, system: draft.system, tokens: draft.tokens }) : previewHtml(r, kitList);
-    }
-    return out;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [list, kitList, draft.system, draft.tokens, draft.kit]);
-  const editHtml = useMemo(() => (editRow && draft.id === editRow.id && draft.doc ? previewHtml(editRow, kitList, { doc: draft.doc, system: draft.system, tokens: draft.tokens, dark: look === "dark" }) : null), [editRow, draft.id, draft.doc, draft.system, draft.tokens, kitList, look]);
-  const htmls = useMemo(() => (editId && editHtml !== null ? { ...others, [editId]: editHtml } : others), [others, editId, editHtml]);
+  // Each email as the canvas shows it: its document now, in its kit's styles as edited now (an "Every heading" change
+  // shows on every email of that kit). Built again only when its document, styles or dark view change.
+  const htmls: Record<string, string> = {};
+  for (const r of list) {
+    const doc = editor.docOf(r.id);
+    const k = doc ? editor.kitFor(doc) : null;
+    htmls[r.id] = doc && k?.state ? htmlFor(r, kitList, doc, k.state.system, look === "dark" && r.id === editId) : previewHtml(r, kitList);
+  }
   const rects = useMemo(() => rowLayout(list.map((r) => ({ id: r.id, w: phone ? PHONE : (widths[r.id] ?? widthOf(r)), h: heights[r.id] ?? 900 }))), [list, phone, widths, heights]);
   const all = useMemo(() => boundsOf(rects), [rects]);
   const pickedBox = useMemo(() => boundsOf(rects.filter((r) => picked.includes(r.id))), [rects, picked]);
@@ -162,10 +197,10 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
     [rects],
   );
   const back = () => navigate("emails");
-  const say = (t: string) => {
+  const say = useCallback((t: string, ms = 2600) => {
     setNotice(t);
-    window.setTimeout(() => setNotice((n) => (n === t ? "" : n)), 2600);
-  };
+    window.setTimeout(() => setNotice((n) => (n === t ? "" : n)), ms);
+  }, []);
   const reload = () => {
     void rows.reload();
     invalidate(`email_campaigns:${ws.id}`);
@@ -201,11 +236,7 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
 
   // The element under the pointer, found through the email's own frame: the innermost marked element that's in the
   // document (a component's inner blocks climb to their section), and the part clicked.
-  const docFor = (email: string): EmailDoc | null => {
-    if (email === draft.id && draft.doc) return draft.doc;
-    const r = list.find((x) => x.id === email);
-    return r?.doc ? docOf(r) : null;
-  };
+  const docFor = (email: string): EmailDoc | null => editor.latest(email);
   const hitAt = (email: string, x: number, y: number): El | null => {
     const f = frames.current.get(email);
     const d = f?.contentDocument;
@@ -251,9 +282,136 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
     const b = editDoc ? findEl(editDoc, id)?.block : undefined;
     return !!b && typable(b) && !draft.readOnly;
   };
-  const handlers = useRef({ hitAt, editId, el: elNow, start: typer.start, canType, htmls: shown });
+  // Dragging blocks and sections, inside an email and between emails (B4).
+  /** An element's kind as people say it, for tags, the drag chip and messages. */
+  const labelFor = (email: string, id: string) => {
+    const doc = editor.latest(email);
+    const f = doc ? findEl(doc, id) : null;
+    if (!doc || !f) return "Element";
+    if (!f.block && !f.column && f.section.component && !f.section.component.edit) {
+      const name = editor.kitNow(doc).system.email?.components?.find((c) => c.id === f.section.component!.id)?.name;
+      return name ? `${name} (component)` : "Component";
+    }
+    const k = kindOf(doc, id);
+    return k && k !== "email" ? KIND_LABEL[k] : "Email";
+  };
+  /** What a press on an element drags: a block; a column's or locked component's section; a picked section. */
+  const dragIdOf = (email: string, id: string, picked: boolean) => {
+    const doc = editor.latest(email);
+    const f = doc ? findEl(doc, id) : null;
+    if (!f) return null;
+    if (f.block) return id;
+    if (f.column) return picked ? f.section.id : null;
+    return picked || (f.section.component && !f.section.component.edit) ? f.section.id : null;
+  };
+  /** Whether `child` is `parent` or inside it. */
+  const within = (email: string, parent: string, child: string) => {
+    if (parent === child) return true;
+    const doc = editor.latest(email);
+    const f = doc ? findEl(doc, child) : null;
+    return !!f && (f.section.id === parent || f.column?.id === parent);
+  };
+  const dragger = useCanvasDrag({
+    surface,
+    frames,
+    rects,
+    editor,
+    labelOf: labelFor,
+    onDone: (email, id, said) => {
+      setPicked([email]);
+      setEl({ email, id, part: null });
+      setAnnounce(said);
+    },
+    onRefuse: (t) => say(t),
+  });
+  const resizer = useImageResize({ surface, frames, editor, onTick: () => setFrameTick((t) => t + 1) });
+
+  // The + panel (B4): where a new block goes, making it, and what happens after.
+  /** The email a click adds to: the one being edited, or the one nearest the middle of the view. */
+  const targetEmail = (): string | null => {
+    if (editId) return editId;
+    const sf = surface.current;
+    if (!sf || !rects.length) return rects[0]?.id ?? null;
+    const c = sf.camera();
+    const v = sf.size();
+    const mid = toWorld(c, v.w / 2, v.h / 2);
+    return [...rects].sort((a, b) => Math.hypot(a.x + a.w / 2 - mid.x, a.y + a.h / 2 - mid.y) - Math.hypot(b.x + b.w / 2 - mid.x, b.y + b.h / 2 - mid.y))[0]!.id;
+  };
+  const makeItem = (item: AddItem, doc: EmailDoc, at: Place, email: string): { doc: EmailDoc; id: string } | null => {
+    const index = "section" in at ? at.section : (() => {
+      const f = findEl(doc, at.column);
+      return f ? f.si + 1 : doc.sections.length;
+    })();
+    if (item.kind === "block") {
+      const kitRow = kitList.find((k) => k.id === editor.kitNow(doc).kitId);
+      const b = item.type === "social" && kitRow?.social?.length ? (readBlock({ ...newBlock("social"), links: kitRow.social }, new Set(), false) ?? newBlock("social")) : newBlock(item.type);
+      const next = addBlock(doc, b, at);
+      return next === doc ? null : { doc: next, id: b.id };
+    }
+    if (doc.sections.length >= 40) return null;
+    if (item.kind === "columns") {
+      const sec = { id: newEmailId(), stackOnPhone: true, columns: item.widths.map((w) => ({ id: newEmailId(), width: w, blocks: [] })) };
+      return { doc: { ...doc, sections: [...doc.sections.slice(0, index), sec, ...doc.sections.slice(index)] }, id: sec.id };
+    }
+    void email;
+    return insertComponent(doc, editor.kitNow(doc).system, item.componentId, index);
+  };
+  const afterAdd = (email: string, id: string, item: AddItem) => {
+    setPicked([email]);
+    setEl({ email, id, part: null });
+    setAnnounce(`${item.label} added`);
+    if (item.kind !== "block") return;
+    if (["heading", "text", "button", "list", "quote"].includes(item.type)) pendingType.current = { email, id };
+    else if (item.type === "image") {
+      setPanel(true);
+      setTab("element");
+      setLibrary((l) => ({ id, n: (l?.n ?? 0) + 1 }));
+    }
+  };
+  const addClick = (item: AddItem) => {
+    const email = targetEmail();
+    if (!email) return;
+    if (editor.readOnly(email)) return say("Sent emails can't change. Duplicate to edit.");
+    const doc = editor.latest(email);
+    if (!doc) return;
+    const at = pastePlace(doc, editId === email && elNow ? elNow.id : null, item.kind === "block" ? "block" : "section");
+    const r = makeItem(item, doc, at, email);
+    if (!r) return say("This email is full.");
+    editor.change({ emails: { [email]: { doc: r.doc } } }, { label: `Add ${item.label}` });
+    afterAdd(email, r.id, item);
+  };
+  const addPress = (item: AddItem, e: React.PointerEvent) =>
+    dragger.press(
+      {
+        kind: "new",
+        label: item.label,
+        section: item.kind !== "block",
+        adds: item.kind === "block" ? 1 : 0,
+        make: (doc, at, email) => makeItem(item, doc, at, email),
+        after: (email, id) => afterAdd(email, id, item),
+      },
+      e,
+      () => addClick(item),
+    );
+  // A new text block starts typing once its frame shows it (its words selected, so typing replaces them).
   useEffect(() => {
-    handlers.current = { hitAt, editId, el: elNow, start: typer.start, canType, htmls: shown };
+    const p = pendingType.current;
+    if (!p) return;
+    const d = frames.current.get(p.email)?.contentDocument;
+    if (d?.querySelector(`[data-eid="${CSS.escape(p.id)}"]`)) {
+      pendingType.current = null;
+      typer.start(p.email, p.id, shown[p.email] ?? "", undefined, { selectAll: true });
+    }
+  });
+  const isPicture = (email: string, id: string) => {
+    const b = editor.latest(email) ? findEl(editor.latest(email)!, id)?.block : undefined;
+    return (b?.type === "image" || b?.type === "logo") && !editor.readOnly(email);
+  };
+  // Set once the menu code below is defined (handlers read it at event time).
+  const openMenuRef = useRef<(email: string, id: string | null, x: number, y: number) => void>(() => undefined);
+  const handlers = useRef({ hitAt, editId, el: elNow, start: typer.start, canType, htmls: shown, press: dragger.press, dragIdOf, within, isPicture, openMenu: (email: string, id: string | null, x: number, y: number) => openMenuRef.current(email, id, x, y) });
+  useEffect(() => {
+    handlers.current = { hitAt, editId, el: elNow, start: typer.start, canType, htmls: shown, press: dragger.press, dragIdOf, within, isPicture, openMenu: (email, id, x, y) => openMenuRef.current(email, id, x, y) };
   });
   // Typing ends when the pick moves, and on a press anywhere outside the email's frame (but the format bar).
   const endTyping = typer.end;
@@ -276,9 +434,27 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
       setEl(null);
       return setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
     }
+    const h = handlers.current;
+    const hit = h.hitAt(id, e.clientX, e.clientY);
+    const here = h.el && h.el.email === id && h.editId === id ? h.el : null;
+    // A press inside the picked element keeps it picked, so a drag moves it; a click without a drag picks what was hit.
+    if (here && hit && h.within(id, here.id, hit.id)) {
+      const drag = h.dragIdOf(id, here.id, true);
+      return h.press(drag ? { kind: "el", email: id, id: drag } : null, e, () => setEl(hit));
+    }
     setPicked([id]);
-    setEl(handlers.current.hitAt(id, e.clientX, e.clientY));
+    setEl(hit);
     setPanel(true);
+    const drag = hit ? h.dragIdOf(id, hit.id, false) : null;
+    h.press(drag ? { kind: "el", email: id, id: drag } : null, e);
+  }, []);
+  const onContext = useCallback((id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    const h = handlers.current;
+    const hit = h.hitAt(id, e.clientX, e.clientY);
+    setPicked([id]);
+    setEl(hit);
+    h.openMenu(id, hit?.id ?? null, e.clientX, e.clientY);
   }, []);
   const onMove = useCallback((id: string, e: React.PointerEvent) => {
     const h = handlers.current;
@@ -293,6 +469,14 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
       if (hit && h.canType(hit.id)) {
         setEl(hit);
         h.start(id, hit.id, h.htmls[id] ?? "", { x: e.clientX, y: e.clientY });
+        return;
+      }
+      // A picture: its library in the panel, to replace it.
+      if (hit && h.isPicture(id, hit.id)) {
+        setEl(hit);
+        setPanel(true);
+        setTab("element");
+        setLibrary((l) => ({ id: hit.id, n: (l?.n ?? 0) + 1 }));
         return;
       }
       // Other parts: their first field in the panel.
@@ -334,9 +518,11 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
           }
         }
       }
-      next = { picked: pn ? boxOf(pn) : null, hover: hn ? boxOf(hn) : null, pad };
+      // A picked picture's own box, for its corner handles (B4).
+      const imgEl = pn && elNow ? d.querySelector(`.c${CSS.escape(elNow.id)}-image`) : null;
+      next = { picked: pn ? boxOf(pn) : null, hover: hn ? boxOf(hn) : null, pad, img: imgEl ? boxOf(imgEl) : null };
     }
-    if (!sameBox(next.picked, boxes.picked) || !sameBox(next.hover, boxes.hover) || JSON.stringify(next.pad) !== JSON.stringify(boxes.pad)) setBoxes(next);
+    if (!sameBox(next.picked, boxes.picked) || !sameBox(next.hover, boxes.hover) || !sameBox(next.img, boxes.img) || JSON.stringify(next.pad) !== JSON.stringify(boxes.pad)) setBoxes(next);
     // Keys moved the pick out of view: pan to it at the same zoom.
     if (elNow && next.picked && shownFor.current !== elNow.id) {
       shownFor.current = elNow.id;
@@ -574,9 +760,123 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
     if (n === editDoc) return;
     draft.apply({ doc: n });
     pickEl(p && findEl(n, p) ? p : null);
-    setUndoNote("Deleted");
+    showUndo("Deleted");
+  };
+  const showUndo = (text: string) => {
+    setUndoNote(text);
     window.clearTimeout(noteTimer.current);
     noteTimer.current = window.setTimeout(() => setUndoNote(""), 5000);
+  };
+
+  // Copy, cut and paste (B4).
+  const clipboard = useCanvasClipboard({
+    editor,
+    ws: ws.id,
+    active: () => !typer.typing && !dragger.dragging && !resizer.resizing && !document.querySelector("[role='dialog'][aria-modal='true']") && !document.activeElement?.closest("input, textarea, [contenteditable='true']"),
+    picked: () => (editId ? { email: editId, id: elNow?.id ?? null } : null),
+    fallback: targetEmail,
+    labelOf: labelFor,
+    onDone: (email, id, said) => {
+      setPicked([email]);
+      setEl({ email, id, part: null });
+      setAnnounce(said);
+    },
+    onCut: (said) => {
+      showUndo("Cut");
+      setAnnounce(said);
+    },
+    say: (t) => say(t),
+  });
+
+  // The right-click menu (B4), at the pointer, on the app's own menu.
+  const menuPoint = useRef<HTMLSpanElement>(null);
+  const [menuAt, setMenuAt] = useState({ x: 0, y: 0 });
+  /** Actions on an element of any email, by its ids (they never rely on what's picked when the menu opened). */
+  const elementAct = {
+    duplicate: (email: string, id: string) => {
+      const doc = editor.latest(email);
+      const r = doc ? duplicateEl(doc, id) : null;
+      if (!doc || !r?.id) return;
+      editor.change({ emails: { [email]: { doc: r.doc } } }, { label: `Duplicate ${labelFor(email, id)}` });
+      setEl({ email, id: r.id, part: null });
+    },
+    remove: (email: string, id: string) => {
+      const doc = editor.latest(email);
+      if (!doc) return;
+      const label = labelFor(email, id);
+      const p = parentOf(doc, id);
+      const n = removeEl(doc, id);
+      if (n === doc) return;
+      editor.change({ emails: { [email]: { doc: n } } }, { label: `Delete ${label}` });
+      setEl(p && p !== "email" && findEl(n, p) ? { email, id: p, part: null } : null);
+      showUndo("Deleted");
+    },
+    move: (email: string, id: string, dir: 1 | -1) => {
+      const doc = editor.latest(email);
+      const n = doc ? moveStep(doc, id, dir) : null;
+      if (doc && n && n !== doc) editor.change({ emails: { [email]: { doc: n } } }, { label: `Move ${labelFor(email, id)}` });
+    },
+  };
+  const openMenu = (email: string, id: string | null, x: number, y: number) => {
+    const doc = editor.latest(email);
+    const sent = editor.readOnly(email);
+    const f = id && doc ? findEl(doc, id) : null;
+    const locked = !!f && !!f.section.component && !f.section.component.edit && f.section.id !== id;
+    const items: NonNullable<Menu>["items"] = sent
+      ? [...(id ? [{ label: "Copy", hint: "⌘C", run: () => void clipboard.copy({ email, id }) }] : []), { label: "Duplicate email", run: () => void duplicate(email) }]
+      : id && doc
+        ? [
+            { label: "Copy", hint: "⌘C", run: () => void clipboard.copy({ email, id }) },
+            { label: "Cut", hint: "⌘X", disabled: locked, run: () => clipboard.cut({ email, id }) },
+            { label: "Paste", hint: "⌘V", disabled: !clipboard.hasClip, run: () => void clipboard.paste({ email, id }) },
+            { label: "Duplicate", hint: "⌘D", disabled: locked || (!!f?.column && !f.block), run: () => elementAct.duplicate(email, id) },
+            { label: "Delete", hint: "⌫", danger: true, disabled: locked, run: () => elementAct.remove(email, id) },
+            { label: "Move up", hint: "⌥⇧↑", disabled: moveStep(doc, id, -1) === doc, run: () => elementAct.move(email, id, -1) },
+            { label: "Move down", hint: "⌥⇧↓", disabled: moveStep(doc, id, 1) === doc, run: () => elementAct.move(email, id, 1) },
+            { label: "Select parent", hint: "Esc", run: () => setEl((cur) => (cur && doc ? (() => { const p = parentOf(doc, id); return p && p !== "email" ? { email, id: p, part: null } : null; })() : cur)) },
+          ]
+        : [{ label: "Paste", hint: "⌘V", disabled: !clipboard.hasClip, run: () => void clipboard.paste({ email, id: null }) }];
+    setMenuAt({ x, y });
+    if (menuPoint.current) setMenu({ anchor: menuPoint.current, items });
+  };
+  useEffect(() => {
+    openMenuRef.current = openMenu;
+  });
+  /** Shift+F10 or the menu key: the menu for the picked element, at its top left. */
+  const openMenuForPick = () => {
+    if (!editId || !elNow) return;
+    const r = rects.find((x) => x.id === editId);
+    const sf = surface.current;
+    const host = document.querySelector("[data-email-canvas] [role='application']") as HTMLElement | null;
+    if (!r || !sf || !host || !boxes.picked) return;
+    const c = sf.camera();
+    const a = toScreen(c, r.x + boxes.picked.x, r.y + boxes.picked.y);
+    const hb = host.getBoundingClientRect();
+    openMenu(editId, elNow.id, hb.left + a.x, hb.top + a.y);
+  };
+  /** Alt+Shift+← and →: the picked block or section to the email before or after, before its footer. */
+  const moveToNeighbor = (dir: 1 | -1) => {
+    if (!editId || !elNow || !editDoc) return;
+    const at = rects.findIndex((r) => r.id === editId);
+    const to = rects[at + dir]?.id;
+    if (!to) return;
+    if (editor.readOnly(to)) return say("Sent emails can't change. Duplicate to edit.");
+    const id = dragIdOf(editId, elNow.id, true);
+    const fromDoc = editor.latest(editId);
+    const toDoc = editor.latest(to);
+    if (!id || !fromDoc || !toDoc) return;
+    const f = findEl(fromDoc, id);
+    const fk = editor.kitNow(fromDoc);
+    const tk = editor.kitNow(toDoc);
+    const r = transferEl(fromDoc, toDoc, id, pastePlace(toDoc, null, f?.block ? "block" : "section"), { sameKit: fk.kitId === tk.kitId, system: tk.system, tokens: tk.tokens });
+    if ("error" in r) return say(r.error === "full" ? "This email is full." : "That couldn't be moved.");
+    const label = labelFor(editId, id);
+    const name = editor.nameOf(to);
+    editor.change({ emails: { [editId]: { doc: r.from }, [to]: { doc: r.to } } }, { label: `Move ${label} to ${name}` });
+    setPicked([to]);
+    setEl({ email: to, id: r.id, part: null });
+    setAnnounce(`${label} moved to ${name}`);
+    panTo(to);
   };
   const hideElement = (id: string, on: "phone" | "desktop") => {
     if (!editable || !editDoc) return;
@@ -596,13 +896,41 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
     return k && k !== "email" ? KIND_LABEL[k] : "Email";
   };
 
+  // Undo and redo on the canvas: the step's emails change; one out of view is panned to and picked.
+  const historyGo = (dir: "undo" | "redo") => {
+    const r = dir === "undo" ? editor.undo() : editor.redo();
+    if (!r) return;
+    setAnnounce(`${dir === "undo" ? "Undone" : "Done again"}: ${r.label}`);
+    const first = r.ids[0];
+    if (!first) return;
+    if (first !== editId) {
+      setPicked([first]);
+      setEl(null);
+    }
+    panTo(first);
+  };
+  /** Pans to an email at the same zoom when it's out of view. */
+  const panTo = (id: string) => {
+    const r = rects.find((x) => x.id === id);
+    const sf = surface.current;
+    const host = document.querySelector("[data-email-canvas] [role='application']") as HTMLElement | null;
+    if (!r || !sf || !host) return;
+    const c = sf.camera();
+    const a = toScreen(c, r.x, r.y);
+    const w = r.w * c.z;
+    if (a.x + w < 0 || a.x > host.clientWidth || a.y > host.clientHeight || a.y + r.h * c.z < 0) sf.glide({ ...c, x: host.clientWidth / 2 - (r.x + r.w / 2) * c.z, y: Math.min(c.y, 64 - r.y * c.z) });
+  };
+
   // Keys the page handles before the surface's own.
   const onKey = (e: KeyboardEvent): boolean => {
     const mod = e.metaKey || e.ctrlKey;
-    if (mod && e.key.toLowerCase() === "z" && editDoc) {
+    if (mod && e.key.toLowerCase() === "z") {
       e.preventDefault();
-      if (e.shiftKey) draft.redo();
-      else draft.undo();
+      historyGo(e.shiftKey ? "redo" : "undo");
+      return true;
+    }
+    if (!mod && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "a") {
+      setAddOpen(true);
       return true;
     }
     if (e.key === "Escape") {
@@ -638,6 +966,16 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
     } else if (editDoc && e.key === "Enter") {
       const n = firstChildOf(editDoc, "email");
       if (n) (pickEl(n), setPanel(true));
+      return true;
+    }
+    if ((e.key === "F10" && e.shiftKey) || e.key === "ContextMenu") {
+      e.preventDefault();
+      openMenuForPick();
+      return true;
+    }
+    if (elNow && e.altKey && e.shiftKey && (e.key === "ArrowRight" || e.key === "ArrowLeft")) {
+      e.preventDefault();
+      moveToNeighbor(e.key === "ArrowRight" ? 1 : -1);
       return true;
     }
     if ((e.key === "ArrowRight" || e.key === "ArrowLeft") && rects.length) {
@@ -767,11 +1105,20 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
                 <Overlay
                   c={c}
                   at={r}
-                  hover={boxes.hover && elHover ? { box: boxes.hover, tag: tagOf(elHover) } : null}
+                  image={
+                    id && boxes.img && !phone && !typingHere && !dragger.dragging && !draft.readOnly && (findEl(editDoc, id)?.block?.type === "image" || findEl(editDoc, id)?.block?.type === "logo")
+                      ? { box: boxes.img, tag: resizer.tag, onCorner: (corner, e) => resizer.start(editId, id, corner, e) }
+                      : undefined
+                  }
+                  onGrip={id && !typingHere && !dragger.dragging && !resizer.resizing ? (e) => {
+                    const d = dragIdOf(editId, id, true);
+                    if (d) dragger.press({ kind: "el", email: editId, id: d }, e);
+                  } : undefined}
+                  hover={boxes.hover && elHover && !dragger.dragging ? { box: boxes.hover, tag: tagOf(elHover) } : null}
                   picked={boxes.picked && id ? { id, box: boxes.picked, tag: typingHere ? "" : tagOf(id) } : null}
                   pad={boxes.pad}
                   actions={
-                    typingHere
+                    typingHere || dragger.dragging
                       ? null
                       : id && editable
                       ? {
@@ -789,6 +1136,7 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
               );
             })()
           : null}
+        {dragger.view ? <DragLayer view={dragger.view} /> : null}
         {typingHere && boxes.picked && !drag?.on
           ? (() => {
               const r = rects.find((x) => x.id === editId);
@@ -883,6 +1231,7 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
         onMove={onMove}
         onOpen={onBoardOpen}
         onHover={onHover}
+        onContext={onContext}
         onFrame={onFrame}
       />
     );
@@ -897,33 +1246,27 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
       onRename={ungrouped ? undefined : (name) => void run(async () => (must(await sb.rpc("email_group_save", { p_ws: ws.id, p_id: groupId, p_name: name })), void group.reload(), invalidate(`email_groups:${ws.id}`), void groups.reload()))}
       actions={
         <span className="flex min-w-0 flex-wrap items-center gap-2">
-          {editDoc ? (
-            <>
-              {draft.saving ? <span className="text-[12.5px] text-muted">Saving…</span> : null}
-              {draft.error ? (
-                <span role="alert" className="flex min-w-0 flex-wrap items-center gap-1.5 text-[12.5px] text-rose">
-                  <span className="min-w-0 break-words">{draft.error}</span>
-                  {!draft.readOnly ? (
-                    <button type="button" onClick={() => void draft.flush()} className="font-medium text-ink underline underline-offset-2">
-                      Try again
-                    </button>
-                  ) : null}
-                </span>
-              ) : null}
-              <span className="flex items-center gap-0.5">
-                <button type="button" aria-label="Undo" title="Undo (⌘Z)" disabled={!draft.canUndo} onClick={draft.undo} className="flex size-8 items-center justify-center rounded-full text-body hover:bg-hover hover:text-ink disabled:pointer-events-none disabled:opacity-35">
-                  <Undo size={15} />
-                </button>
-                <button type="button" aria-label="Redo" title="Redo (⇧⌘Z)" disabled={!draft.canRedo} onClick={draft.redo} className="flex size-8 items-center justify-center rounded-full text-body hover:bg-hover hover:text-ink disabled:pointer-events-none disabled:opacity-35">
-                  <Redo size={15} />
-                </button>
-              </span>
-              {draft.stylesChanged ? (
-                <Button variant="ghost" onClick={() => void draft.publishStyles().then(() => kits.reload())}>
-                  Publish styles
-                </Button>
-              ) : null}
-            </>
+          {editor.saving ? <span className="text-[12.5px] text-muted">Saving…</span> : null}
+          {editor.failed.length ? (
+            <span role="alert" className="flex min-w-0 flex-wrap items-center gap-1.5 text-[12.5px] text-rose">
+              <span className="min-w-0 break-words">{editor.failed.length === 1 ? `${editor.failed[0]!.name} wasn't saved` : `${editor.failed.length} emails weren't saved`}</span>
+              <button type="button" onClick={editor.retry} className="font-medium text-ink underline underline-offset-2">
+                Try again
+              </button>
+            </span>
+          ) : null}
+          <span className="flex items-center gap-0.5">
+            <button type="button" aria-label="Undo" title={editor.undoLabel ? `Undo ${editor.undoLabel} (⌘Z)` : "Undo (⌘Z)"} disabled={!editor.canUndo} onClick={() => historyGo("undo")} className="flex size-8 items-center justify-center rounded-full text-body hover:bg-hover hover:text-ink disabled:pointer-events-none disabled:opacity-35">
+              <Undo size={15} />
+            </button>
+            <button type="button" aria-label="Redo" title={editor.redoLabel ? `Redo ${editor.redoLabel} (⇧⌘Z)` : "Redo (⇧⌘Z)"} disabled={!editor.canRedo} onClick={() => historyGo("redo")} className="flex size-8 items-center justify-center rounded-full text-body hover:bg-hover hover:text-ink disabled:pointer-events-none disabled:opacity-35">
+              <Redo size={15} />
+            </button>
+          </span>
+          {editor.stylesChanged() ? (
+            <Button variant="ghost" onClick={() => void editor.publishAll().then(() => kits.reload())}>
+              Publish styles
+            </Button>
           ) : null}
           <div role="radiogroup" aria-label="Size" className="flex items-center gap-0.5 rounded-full bg-paper-deep p-0.5">
             {(
@@ -944,6 +1287,24 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
       }
     >
       <div data-email-canvas="" className="relative flex h-full min-h-0 min-w-0 flex-wrap lg:flex-nowrap">
+        <div aria-live="polite" className="sr-only">
+          {announce}
+        </div>
+        {addOpen ? (
+          <AddPanel
+            components={(() => {
+              const em = editId ?? list[0]?.id ?? null;
+              const doc = em ? editor.docOf(em) : null;
+              return (doc ? editor.kitFor(doc).state?.system.email?.components : undefined)?.map((c) => ({ id: c.id, name: c.name })) ?? [];
+            })()}
+            onClose={() => {
+              setAddOpen(false);
+              (document.querySelector("[data-email-canvas] [role='application']") as HTMLElement | null)?.focus();
+            }}
+            onAdd={addClick}
+            onPress={addPress}
+          />
+        ) : null}
         <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
         {error ? (
           <div className="absolute top-3 left-1/2 z-[5] -translate-x-1/2 rounded-lg bg-card p-1 shadow-float">
@@ -970,6 +1331,9 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
           onKey={onKey}
           onBackground={() => (setPicked([]), setEl(null))}
         >
+          <button type="button" data-canvas-ui="" aria-label="Add a block" aria-expanded={addOpen} title="Add a block (A)" onClick={() => setAddOpen(!addOpen)} className={`absolute top-3 left-3 z-[4] flex size-9 items-center justify-center rounded-full shadow-float transition-colors duration-[140ms] ${addOpen ? "bg-ink text-paper" : "bg-card text-ink hover:bg-hover"}`}>
+            <Plus size={16} />
+          </button>
           {!list.length ? (
             <div className="absolute inset-0 z-[2] flex min-w-0 flex-wrap items-center justify-center">
               <div data-canvas-ui="" className="flex flex-col items-center gap-4 px-6 text-center">
@@ -990,7 +1354,7 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
             </div>
           ) : null}
           {notice ? (
-            <div role="status" className="anim-rise-sm pointer-events-none absolute bottom-4 left-4 z-[4] rounded-full bg-brand px-3.5 py-1.5 text-[12.5px] font-medium text-on-brand shadow-float">
+            <div role="status" className="anim-rise-sm pointer-events-none absolute bottom-4 left-4 z-[4] max-w-[calc(100%-32px)] rounded-full bg-brand px-3.5 py-1.5 text-[12.5px] font-medium text-on-brand shadow-float">
               {notice}
             </div>
           ) : null}
@@ -1000,7 +1364,7 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
               <button
                 type="button"
                 onClick={() => {
-                  draft.undo();
+                  historyGo("undo");
                   setUndoNote("");
                 }}
                 className="rounded-full px-2.5 py-1 hover:bg-brand-hover"
@@ -1025,7 +1389,7 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
               tab={tab}
               onTab={setTab}
               onClose={() => setPanel(false)}
-              assets={{ session, sb, workspaceId: ws.id }}
+              assets={{ session, sb, workspaceId: ws.id, ...(library && elNow?.id === library.id ? { openLibrary: library.n } : {}) }}
               layout={
                 <LayerTree
                   tree={layerTree(editDoc, (cid) => draft.system.email?.components?.find((c) => c.id === cid)?.name)}
@@ -1042,12 +1406,19 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
                   onDelete={removeElement}
                   onDuplicate={duplicateElement}
                   onHide={hideElement}
+                  clip={{
+                    copy: (id) => void clipboard.copy({ email: editId, id }),
+                    cut: (id) => clipboard.cut({ email: editId, id }),
+                    paste: (id) => void clipboard.paste({ email: editId, id }),
+                    canPaste: clipboard.hasClip,
+                  }}
                 />
               }
             />
           </div>
         ) : null}
       </div>
+      <span ref={menuPoint} aria-hidden="true" className="pointer-events-none fixed size-0" style={{ left: menuAt.x, top: menuAt.y }} />
       {menu ? (
         <Popover anchor={menu.anchor} onClose={() => setMenu(null)} width={240}>
           <div role="menu" className="flex flex-col p-1" data-canvas-ui="">
@@ -1057,11 +1428,12 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
                 <button
                   type="button"
                   role="menuitem"
+                  disabled={i.disabled}
                   onClick={() => {
                     setMenu(null);
                     i.run();
                   }}
-                  className={`flex min-h-8 items-center justify-between gap-3 rounded-md px-2.5 py-1 text-left text-[13px] hover:bg-hover ${i.danger ? "text-rose" : "text-ink"}`}
+                  className={`flex min-h-8 items-center justify-between gap-3 rounded-md px-2.5 py-1 text-left text-[13px] hover:bg-hover disabled:pointer-events-none disabled:opacity-40 ${i.danger ? "text-rose" : "text-ink"}`}
                 >
                   <span className="min-w-0 break-words">{i.label}</span>
                   {i.hint ? <span className="shrink-0 text-[11.5px] text-faint">{i.hint}</span> : null}

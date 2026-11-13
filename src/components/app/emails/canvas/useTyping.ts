@@ -162,7 +162,7 @@ export function useTyping({ frames, doc, apply, zoom, onPick }: Opts) {
    * the block doesn't type or its frame isn't there.
    */
   const start = useCallback(
-    (email: string, id: string, html: string, at?: { x: number; y: number }): boolean => {
+    (email: string, id: string, html: string, at?: { x: number; y: number }, o: { selectAll?: boolean } = {}): boolean => {
       if (cur.current) end();
       const d0 = opts.current.doc();
       const b = d0 ? findEl(d0, id)?.block : undefined;
@@ -268,7 +268,8 @@ export function useTyping({ frames, doc, apply, zoom, onPick }: Opts) {
       if (!range) {
         range = d.createRange();
         range.selectNodeContents(el);
-        range.collapse(false);
+        // A new block's starting words are selected, so typing replaces them.
+        if (!o.selectAll) range.collapse(false);
       }
       sel?.removeAllRanges();
       sel?.addRange(range);

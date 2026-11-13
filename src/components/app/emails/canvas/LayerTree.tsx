@@ -55,6 +55,7 @@ export function LayerTree({
   onDelete,
   onDuplicate,
   onHide,
+  clip,
 }: {
   tree: Layer;
   picked: { id: string; part: string | null } | null;
@@ -68,6 +69,8 @@ export function LayerTree({
   onDelete: (id: string) => void;
   onDuplicate: (id: string) => void;
   onHide: (id: string, on: "phone" | "desktop") => void;
+  /** Copy, cut and paste (B4): the row is picked first, then the canvas's clipboard acts on it. */
+  clip?: { copy: (id: string) => void; cut: (id: string) => void; paste: (id: string) => void; canPaste: boolean };
 }) {
   const [closed, setClosed] = useState<Set<string>>(() => new Set());
   const rows = useMemo(() => flatten(tree, (k) => !closed.has(k)), [tree, closed]);
@@ -201,6 +204,13 @@ export function LayerTree({
     const id = r.layer.id;
     const hide = r.layer.only;
     return [
+      ...(clip
+        ? [
+            { label: "Copy", run: () => clip.copy(id) },
+            { label: "Cut", run: () => clip.cut(id) },
+            { label: "Paste", run: () => clip.paste(id), off: !clip.canPaste },
+          ]
+        : []),
       { label: "Duplicate", run: () => onDuplicate(id) },
       { label: hide === "desktop" ? "Show on phones" : "Hide on phones", run: () => onHide(id, "phone") },
       { label: hide === "phone" ? "Show on desktop" : "Hide on desktop", run: () => onHide(id, "desktop") },
@@ -281,11 +291,12 @@ export function LayerTree({
                 key={i.label}
                 type="button"
                 role="menuitem"
+                disabled={"off" in i && !!i.off}
                 onClick={() => {
                   setMenu(null);
                   i.run();
                 }}
-                className={`flex min-h-8 items-center rounded-md px-2.5 text-left text-[13px] hover:bg-hover ${i.danger ? "text-rose" : "text-ink"}`}
+                className={`flex min-h-8 items-center rounded-md px-2.5 text-left text-[13px] hover:bg-hover disabled:pointer-events-none disabled:opacity-40 ${"danger" in i && i.danger ? "text-rose" : "text-ink"}`}
               >
                 {i.label}
               </button>

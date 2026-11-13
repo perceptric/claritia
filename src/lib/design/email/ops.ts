@@ -21,8 +21,11 @@ export function findEl(doc: EmailDoc, id: string): { section: Section; si: numbe
   return null;
 }
 
-/** A copy with every id new, so a copy never shares styles or ids with what it came from. */
-function fresh<T extends { id: string }>(x: T, styles: Record<string, unknown>, classes: Record<string, string[]>, doc: EmailDoc): T {
+/**
+ * A copy with every id new, so a copy never shares styles or ids with what it came from. The styles and classes of
+ * the old ids (read from `doc`) are written into `styles` and `classes` under the new ones.
+ */
+export function freshEl<T extends { id: string }>(x: T, styles: Record<string, unknown>, classes: Record<string, string[]>, doc: EmailDoc): T {
   const c = clone(x) as T & { columns?: Column[]; blocks?: Block[] };
   const map = (old: string) => {
     const id = newEmailId();
@@ -70,6 +73,17 @@ export function moveBlock(doc: EmailDoc, id: string, at: Place): EmailDoc {
   return next;
 }
 
+/** Move a block out of its column into a new section of its own, at a section index (counted before the move). */
+export function moveToNewSection(doc: EmailDoc, id: string, index: number): EmailDoc {
+  const f = findEl(doc, id);
+  if (!f?.block || doc.sections.length >= EMAIL_LIMITS.sections) return doc;
+  const next = clone(doc);
+  const g = findEl(next, id)!;
+  const [block] = g.column!.blocks.splice(g.bi!, 1);
+  next.sections.splice(Math.max(0, Math.min(index, next.sections.length)), 0, newSection([block!]));
+  return next;
+}
+
 export function moveSection(doc: EmailDoc, id: string, to: number): EmailDoc {
   const si = doc.sections.findIndex((s) => s.id === id);
   if (si < 0) return doc;
@@ -112,12 +126,12 @@ export function duplicateEl(doc: EmailDoc, id: string): { doc: EmailDoc; id: str
   const g = findEl(next, id)!;
   let copyId: string;
   if (g.block) {
-    const c = fresh(g.block, styles, classes, doc);
+    const c = freshEl(g.block, styles, classes, doc);
     g.column!.blocks.splice(g.bi! + 1, 0, c);
     copyId = c.id;
   } else {
     if (next.sections.length >= EMAIL_LIMITS.sections) return { doc, id: null };
-    const c = fresh(g.section, styles, classes, doc);
+    const c = freshEl(g.section, styles, classes, doc);
     next.sections.splice(g.si + 1, 0, c);
     copyId = c.id;
   }

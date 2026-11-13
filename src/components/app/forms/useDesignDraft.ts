@@ -8,6 +8,7 @@ import type { Session } from "@supabase/supabase-js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { readSystem, type DesignSystem } from "@/lib/design/model";
 import type { Tokens } from "@/lib/forms/brand";
+import { saveDesign } from "./designSave";
 import type { Kit } from "./shared";
 
 export type DesignDraft = {
@@ -53,37 +54,28 @@ export function useDesignDraft(session: Session, workspaceId: string, kit: Kit |
     const sent = latest.current;
     setSaving(true);
     try {
-      const res = await fetch("/api/design/save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ workspaceId, kitId, design: sent, rev: rev.current }),
-      });
-      const data = (await res.json().catch(() => ({}))) as { rev?: number; design?: unknown; error?: string };
-      if (res.status === 409 && typeof data.rev === "number") {
-        const theirs = readSystem(data.design, tokens);
-        rev.current = data.rev;
+      const r = await saveDesign({ session, workspaceId, kitId, design: sent, rev: rev.current });
+      if ("conflict" in r) {
+        const theirs = readSystem(r.design, tokens);
+        rev.current = r.rev;
         latest.current = theirs;
-        setCur({ kitId, system: theirs, rev: data.rev });
-        setError(data.error ?? "Someone else changed these styles.");
+        setCur({ kitId, system: theirs, rev: r.rev });
+        setError(r.error);
         return false;
       }
-      if (!res.ok || typeof data.rev !== "number") {
+      if ("error" in r) {
         pending.current = true;
-        setError(data.error ?? "Try again in a moment.");
+        setError(r.error);
         return false;
       }
-      rev.current = data.rev;
+      rev.current = r.rev;
       setError("");
       // Changes made while this save was on its way go in the next one.
       if (latest.current !== sent) {
         pending.current = true;
         setTick((t) => t + 1);
-      } else setCur((c) => ({ ...c, rev: data.rev! }));
+      } else setCur((c) => ({ ...c, rev: r.rev }));
       return !pending.current;
-    } catch {
-      pending.current = true;
-      setError("Try again in a moment.");
-      return false;
     } finally {
       setSaving(false);
     }

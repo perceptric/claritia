@@ -10,13 +10,25 @@ import { askConfirm } from "../Dialogs";
 import { errorText, useQuery } from "../ui";
 import { Popover, Row, TextIn } from "../forms/controls";
 
-export type AssetCtx = { session: Session; sb: SupabaseClient; workspaceId: string };
+export type AssetCtx = {
+  session: Session;
+  sb: SupabaseClient;
+  workspaceId: string;
+  /** A number that opens the library when it changes (the canvas: a double-click on a picture, a new Image block). */
+  openLibrary?: number;
+};
 type Asset = { id: string; url: string; name: string; width: number; height: number };
 
 export function ImagePicker({ label, value, onChange, ctx, placeholder }: { label: string; value: string; onChange: (url: string, merge?: string) => void; ctx?: AssetCtx; placeholder?: string }) {
   const file = useRef<HTMLInputElement>(null);
   const lib = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
+  // Opened from outside: once for each new number.
+  const [asked, setAsked] = useState<number | undefined>(undefined);
+  if (ctx?.openLibrary !== undefined && ctx.openLibrary !== asked) {
+    setAsked(ctx.openLibrary);
+    setOpen(true);
+  }
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   // The library, from the cache when opened again.
