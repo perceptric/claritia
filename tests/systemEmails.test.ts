@@ -110,3 +110,8 @@ test("unknown fields take their fallback; a footer's unsubscribe link is left ou
   assert.ok(p.html.includes("Hello") && !p.html.includes("unsubscribe") && !p.html.includes("Unsubscribe"));
   assert.ok(!p.text.includes("Unsubscribe"));
 });
+
+test("the System emails open as their own group on Emails", async () => {
+  const { emailsPage } = await import("../src/lib/nav.ts");
+  assert.deepEqual(emailsPage("campaigns/group/system"), { page: "campaigns", id: "campaigns/group/system", group: "system" });
+});
