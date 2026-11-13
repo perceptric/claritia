@@ -56,6 +56,7 @@ test("old addresses open their new home", () => {
   assert.deepEqual(resolveRoute("emails", "campaigns/nope"), { route: "emails", id: "" });
   assert.deepEqual(resolveRoute("emails", "campaigns/group/11111111-1111-4111-8111-111111111111"), { route: "emails", id: "campaigns/group/11111111-1111-4111-8111-111111111111" });
   assert.deepEqual(resolveRoute("emails", "campaigns/group/nope"), { route: "emails", id: "" });
+  assert.deepEqual(resolveRoute("emails", "campaigns/group/ungrouped"), { route: "emails", id: "campaigns/group/ungrouped" }, "Ungrouped is a canvas too");
   assert.deepEqual(resolveRoute("emails", "journeys/11111111-1111-4111-8111-111111111111"), { route: "emails", id: "automations/11111111-1111-4111-8111-111111111111" });
   // Reports moved into their sections.
   assert.deepEqual(resolveRoute("reports", ""), { route: "forms", id: "" });

@@ -25,6 +25,10 @@ export function TemplateGallery(props: ViewProps) {
   });
   // ?use=<key> (the website's Use this template) opens that template's preview.
   const [asked] = useState(() => (typeof window === "undefined" ? undefined : EMAIL_TEMPLATES.find((x) => x.key === new URLSearchParams(window.location.search).get("use")?.replace(/-/g, "_"))));
+  const [forGroup] = useState(() => {
+    const g = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("group");
+    return g && /^([0-9a-f-]{36}|ungrouped)$/.test(g) ? g : null;
+  });
   const [folder, setFolder] = useState<TemplateFolder>(asked?.group ?? TEMPLATE_FOLDERS[0]!);
   const [open, setOpen] = useState<EmailTemplate | null>(asked ?? null);
   const [busy, setBusy] = useState(false);
@@ -35,6 +39,11 @@ export function TemplateGallery(props: ViewProps) {
     try {
       const id = must(await sb.rpc("email_draft_save", { p_ws: ws.id, p_id: null, p_name: t.name, p_subject: "", p_preheader: "", p_doc: t.make() })) as string;
       invalidate(`email_campaigns:${ws.id}`);
+      // From a canvas's Add email (?group=<id> or ungrouped): the draft lands in that group, picked on its canvas.
+      if (forGroup) {
+        if (forGroup !== "ungrouped") must(await sb.rpc("email_group_place", { p_ws: ws.id, p_email: id, p_group: forGroup, p_position: null }));
+        return navigate("emails", `campaigns/group/${forGroup}`, `pick=${id}`);
+      }
       navigate("emails", `campaigns/${id}`);
     } catch (e) {
       setError(errorText(e));
