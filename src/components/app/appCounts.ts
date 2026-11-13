@@ -40,8 +40,8 @@ export function useAppCounts(sb: SupabaseClient, ws: string | null) {
         routing_action?: number;
       };
       return {
-        sidebar: { "routing/review": r.review, scheduling: r.meetings_today },
-        dots: inboundDots(r),
+        sidebar: { "routing/review": r.review, "meetings-upcoming": r.meetings_today },
+        dots: { "meetings-types": inboundDots(r).routing },
         start: { calendars: r.calendars, types: r.types, liveForms: r.live_forms, routing: r.routing, members: r.members, invites: r.invites, sources: r.sources },
       };
     },

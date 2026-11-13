@@ -29,7 +29,9 @@ import { Badge, Button, ErrorNote, errorText, IconButton, invalidate, Loading, m
 
 export function EmailsView(props: ViewProps) {
   const p = emailsPage(props.id);
-  const nav = { title: "Emails", tabs: EMAILS_TABS, current: p.page, onPick: (t: string) => props.navigate("emails", t === "campaigns" ? "" : t) };
+  // Each page is its own sidebar item (docs/email-canvas-plan.md Part A): its title is the page's name, no tab row.
+  const title = EMAILS_TABS.find((t) => t.value === p.page)?.label ?? "Emails";
+  const nav = { title, tabs: [], current: p.page, onPick: (t: string) => props.navigate("emails", t === "campaigns" ? "" : t) };
   return (
     <Section nav={nav}>
       {p.page === "automations" ? (

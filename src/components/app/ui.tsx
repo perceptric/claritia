@@ -348,7 +348,7 @@ export function Page({
             {badge ? <span className="ml-1 flex shrink-0 items-center">{badge}</span> : null}
           </span>
         </nav>
-        {tabs ? <Tabs value={tabs.current} tabs={tabs.tabs} onChange={tabs.onPick} bare inline /> : null}
+        {tabs && tabs.tabs.length ? <Tabs value={tabs.current} tabs={tabs.tabs} onChange={tabs.onPick} bare inline /> : null}
         {actions ? <div className="ml-auto flex max-w-full min-w-0 flex-wrap items-center justify-end gap-2">{actions}</div> : null}
       </header>
       {tabs?.banner ?? null}
