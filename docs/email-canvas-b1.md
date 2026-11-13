@@ -78,7 +78,12 @@ math in `src/lib/canvas/view.ts`.
   on, they jump.
 - Panning has no limit, but Fit is always there, and a "Back to emails" pill appears at the bottom when every email is
   off screen **(ours)**.
-- The view (pan and zoom) is kept per group on this computer. The first visit to a group fits its emails.
+- The view (pan and zoom) is kept per group on this computer. The first visit to a group fits its emails; when that
+  would drop under 25% (a long row, like Ungrouped), it opens on the first emails at a size you can read, and Shift+1
+  still fits them all.
+- One notch of a mouse wheel (with Cmd/Ctrl) zooms about 1.5 times; a trackpad pinch's small steps zoom smoothly.
+- The surface never uses `will-change` on the world layer, so text stays sharp at every zoom.
+- Demo: https://claude.ai/artifact/JBqs83HWxpUZkDgryrX1zr
 
 ## 4. The emails on the canvas (artboards)
 
