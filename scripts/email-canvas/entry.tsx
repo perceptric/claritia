@@ -47,6 +47,32 @@ window.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     calls.push({ mode: "design_save", body });
     return new Response(JSON.stringify({ rev: k.design_rev }), { status: 200, headers: { "content-type": "application/json" } });
   }
+  // B5: Tia's stand-in. A turn rewrites the first heading in its scope (or the email); "everywhere" asks first. A plan
+  // is 3 emails; a build is a template with the planned subject. window.failSeries makes one build fail once.
+  if (String(input).includes("/api/email/chat")) {
+    const body = JSON.parse(String(init?.body ?? "{}")) as { doc: { sections: { columns: { blocks: { id: string; type: string; text?: string }[] }[] }[] }; subject: string; message: string; scope?: { kind: string; ids?: string[] }; confirmed?: boolean };
+    calls.push({ mode: "chat", body });
+    await new Promise((r) => setTimeout(r, Number((window as unknown as { chatDelay?: number }).chatDelay ?? 400)));
+    if (/everywhere/.test(body.message) && !body.confirmed)
+      return new Response(JSON.stringify({ doc: body.doc, system: null, subject: body.subject, reply: "", lines: [], ask: { question: "This changes every email on the brand. Go ahead?", choices: ["Yes, every email", "Only this one"] } }), { status: 200 });
+    const doc = JSON.parse(JSON.stringify(body.doc)) as typeof body.doc;
+    const blocks = doc.sections.flatMap((x) => x.columns.flatMap((c) => c.blocks));
+    const target = body.scope?.kind === "parts" ? blocks.find((b) => body.scope!.ids!.includes(b.id) && b.type === "heading") : blocks.find((b) => b.type === "heading");
+    if (target) target.text = "Tia's words";
+    return new Response(JSON.stringify({ doc, system: null, subject: body.subject, reply: "Done.", lines: target ? ["Changed the heading"] : [], ask: null }), { status: 200 });
+  }
+  if (String(input).includes("/api/email/series")) {
+    const body = JSON.parse(String(init?.body ?? "{}")) as { step: string; index?: number; items?: { name: string; subject: string }[] };
+    calls.push({ mode: `series:${body.step}`, body });
+    await new Promise((r) => setTimeout(r, 300));
+    if (body.step === "plan") return new Response(JSON.stringify({ reply: "", plan: [1, 2, 3].map((n) => ({ name: `Series email ${n}`, subject: `Series subject ${n}`, brief: `What email ${n} says.` })) }), { status: 200 });
+    const w = window as unknown as { failSeries?: number | null };
+    if (w.failSeries === body.index) {
+      w.failSeries = null;
+      return new Response(JSON.stringify({ error: "The AI didn't answer: overloaded" }), { status: 502 });
+    }
+    return new Response(JSON.stringify({ doc: { ...EMAIL_TEMPLATES[1]!.make(), settings: { width: 600, align: "center", darkMode: "auto", preheader: "Preview", lang: "en" } }, subject: body.items![body.index!]!.subject }), { status: 200 });
+  }
   return realFetch(input, init);
 }) as typeof window.fetch;
 

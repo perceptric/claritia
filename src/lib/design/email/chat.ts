@@ -18,6 +18,7 @@ import { newBlock, PROP_KEYS, readBlock, readEmailDoc, type Block, type EmailDoc
 import { addEmailClass, setEmailProp } from "./edit.ts";
 import { addBlock, findEl, moveBlock, removeEl, setColumns, setSettings, updateBlock } from "./ops.ts";
 import { EMAIL_TEMPLATES } from "./library.ts";
+import { scopeBreach, scopeContext, scopeRefusal, type Scope } from "./scope.ts";
 
 export const EMAIL_CHAT_MODEL = "claude-sonnet-5-5";
 const MAX_ROUNDS = 8;
@@ -38,6 +39,9 @@ export type EmailChatCtx = {
    * (docs/email-studio-plan.md Part 3). The model names them by id; the address comes from here, never from the model.
    */
   links?: { forms: LinkTarget[]; meetings: LinkTarget[] };
+  /** On the canvas (docs/email-canvas-b5.md 2.3): what this turn may change, and the other emails in the same turn. */
+  scope?: Scope;
+  turnWith?: { name: string; subject: string }[];
 };
 export type LinkTarget = { id: string; name: string; url: string };
 export type EmailChatResult = { doc: EmailDoc; system: DesignSystem; subject: string; lines: string[]; reply: string; ask?: { question: string; choices: string[] } };
@@ -112,6 +116,7 @@ export function emailContext(ctx: EmailChatCtx, doc: EmailDoc, subject: string):
     comps.length ? `Components:\n${comps.join("\n")}` : "",
     ctx.links?.forms.length ? `Forms (for link_to):\n${ctx.links.forms.map((f) => `${f.id}: ${f.name}`).join("\n")}` : "",
     ctx.links?.meetings.length ? `Meetings (for link_to):\n${ctx.links.meetings.map((m) => `${m.id}: ${m.name}`).join("\n")}` : "",
+    scopeContext(doc, ctx.scope, ctx.turnWith ?? []),
     `The email now:\n${JSON.stringify(doc)}`,
   ]
     .filter(Boolean)
@@ -302,13 +307,25 @@ export async function runEmailChat(model: Model, message: string, ctx: EmailChat
         } else results.push({ type: "tool_result", tool_use_id: c.id, content: "Pass a question and 2 to 4 choices.", is_error: true });
         continue;
       }
+      // On the canvas, only what the person added may change (checked before and after the change).
+      const refused = scopeRefusal(ctx.scope, c.name, input, doc);
+      if (refused) {
+        results.push({ type: "tool_result", tool_use_id: c.id, content: refused, is_error: true });
+        continue;
+      }
       const r = applyTool(c.name, input, doc, system, ctx);
       if ("error" in r) {
         results.push({ type: "tool_result", tool_use_id: c.id, content: r.error, is_error: true });
         continue;
       }
+      const read = readEmailDoc(r.doc, { allowHtml: true });
+      const breach = scopeBreach(ctx.scope, { doc, system, subject }, { doc: read, system: r.system, subject: r.subject ?? subject }, !!ctx.confirmed);
+      if (breach) {
+        results.push({ type: "tool_result", tool_use_id: c.id, content: breach, is_error: true });
+        continue;
+      }
       // Read back through the same checks as a save.
-      doc = readEmailDoc(r.doc, { allowHtml: true });
+      doc = read;
       system = r.system;
       if (r.subject) subject = r.subject;
       lines.push(r.line);

@@ -7,10 +7,10 @@
 
 import { toScreen, type Camera } from "@/lib/canvas/view";
 import type { Box, Zone } from "@/lib/design/email/pick";
-import { ArrowDown, ArrowUp, Copy, CornerDownLeft, Grip, Trash } from "../../../Icons";
+import { ArrowDown, ArrowUp, Copy, CornerDownLeft, Grip, Sparkle, Trash } from "../../../Icons";
 
 type Rect = { x: number; y: number; w: number; h: number };
-export type OverlayActions = { parent?: () => void; up?: () => void; down?: () => void; duplicate?: () => void; remove?: () => void };
+export type OverlayActions = { chat?: () => void; parent?: () => void; up?: () => void; down?: () => void; duplicate?: () => void; remove?: () => void };
 
 export function Overlay({
   c,
@@ -136,6 +136,7 @@ function Bar({ box, actions, below }: { box: { left: number; top: number; width:
   );
   return (
     <div data-canvas-ui="" role="toolbar" aria-label="Element actions" className="pointer-events-auto absolute flex -translate-x-full items-center gap-0.5 rounded-full bg-card p-0.5 shadow-float" style={{ left: box.left + box.width, top: below ? box.top + box.height + 6 : box.top - 36 }}>
+      {actions.chat ? btn("Add to chat", actions.chat, <Sparkle size={13} className="text-lilac" />, "⌘L") : null}
       {btn("Select parent", actions.parent, <CornerDownLeft size={13} className="rotate-90" />, "Esc")}
       {btn("Move up", actions.up, <ArrowUp size={13} />, "⌥⇧↑")}
       {btn("Move down", actions.down, <ArrowDown size={13} />, "⌥⇧↓")}

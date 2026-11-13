@@ -161,7 +161,7 @@ function ElementTab({
             </span>
           ) : null}
         </div>
-        {draft.readOnly ? <p className="rounded-md bg-paper-deep px-2.5 py-2 text-[12.5px] text-body">Sent emails can&apos;t change. Duplicate to edit.</p> : null}
+        {draft.readOnly ? <p className="rounded-md bg-paper-deep px-2.5 py-2 text-[12.5px] text-body">{draft.locked ? "Tia is changing this email" : "Sent emails can't change. Duplicate to edit."}</p> : null}
         {ctx && !draft.readOnly ? (
           <>
             <div className="grid items-center gap-2" style={{ gridTemplateColumns: "72px minmax(0,1fr)" }}>

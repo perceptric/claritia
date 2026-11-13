@@ -4,6 +4,7 @@ import { EMAIL_CHAT_MODEL, EMAIL_CHAT_SYSTEM, EMAIL_CHAT_TOOLS, runEmailChat, ty
 import { readEmailDoc } from "@/lib/design/email/doc";
 import { MAX_ASSET_BYTES, sniffImage } from "@/lib/design/assets";
 import { claudeChat } from "@/lib/forms/claude";
+import { readScope } from "@/lib/design/email/scope";
 import { emailChatParts } from "@/lib/emails/server";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
@@ -12,7 +13,8 @@ import { serviceClient } from "@/lib/serviceClient";
 // message, history?, confirmed?, variants? }. The email and the brand kit's draft styles go to runEmailChat through
 // the step cache, so the same request replays without calling the model. Each change is saved as a version under
 // `ref` (with the email as it was before the first one). With variants: 3, three different takes come back to pick
-// from (for an A/B send).
+// from (for an A/B send). On the canvas (docs/email-canvas-b5.md section 2), `scope` says what the turn may change (the
+// parts the person added, or the whole email) and `turnWith` names the other emails in the same turn.
 
 const bad = (error: string, status = 400) => Response.json({ error }, { status });
 const REF = /^(wf:[0-9a-f-]{36}:[A-Za-z0-9_-]{1,40}|tpl:[0-9a-f-]{36}|em:[0-9a-f-]{36})$/;
@@ -22,7 +24,7 @@ export async function POST(request: Request) {
   if ("denied" in auth) return auth.denied;
   const text = await request.text();
   if (text.length > 8_000_000) return bad("That's too big.", 413);
-  const b = (JSON.parse(text || "{}") ?? {}) as { workspaceId?: unknown; ref?: unknown; doc?: unknown; subject?: unknown; message?: unknown; history?: unknown; confirmed?: unknown; variants?: unknown; image?: unknown };
+  const b = (JSON.parse(text || "{}") ?? {}) as { workspaceId?: unknown; ref?: unknown; doc?: unknown; subject?: unknown; message?: unknown; history?: unknown; confirmed?: unknown; variants?: unknown; image?: unknown; scope?: unknown; turnWith?: unknown };
   if (!(await isMember(auth, b.workspaceId))) return bad("Workspace not found.", 404);
   const ws = b.workspaceId as string;
   const message = typeof b.message === "string" ? b.message.trim().slice(0, 4000) : "";
@@ -54,6 +56,15 @@ export async function POST(request: Request) {
     history,
     confirmed: b.confirmed === true,
     ...(image ? { image } : {}),
+    ...(b.scope !== undefined ? { scope: readScope(b.scope) } : {}),
+    ...(Array.isArray(b.turnWith)
+      ? {
+          turnWith: b.turnWith
+            .filter((t): t is { name: string; subject: string } => !!t && typeof t === "object" && typeof (t as { name?: unknown }).name === "string")
+            .slice(0, 4)
+            .map((t) => ({ name: t.name.slice(0, 200), subject: typeof t.subject === "string" ? t.subject.slice(0, 200) : "" })),
+        }
+      : {}),
   };
   const rpc = (fn: string, args: Record<string, unknown>) => db.rpc(fn, args);
   const count = b.variants === 3 ? 3 : 1;

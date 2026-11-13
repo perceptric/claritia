@@ -1128,6 +1128,104 @@ try {
   const sheet58 = (await pp.locator("aside[aria-label='Add']").boundingBox())!;
   check(sheet58.y > 300 && Math.abs(sheet58.width - 390) < 2, "on a phone the add panel is a sheet from the bottom");
   await ph.close();
+  // B5 ----------------------------------------------------------------------------------------------------------------
+  // 60. Add to chat on a heading, ask: only that heading changes; the email locks while Tia writes
+  const ti = await ctx.newPage();
+  ti.on("pageerror", (e) => errors.push(e.message));
+  await openCanvas(ti);
+  await ti.evaluate(() => ((window as unknown as { chatDelay: number }).chatDelay = 700));
+  const tdoc5 = (name: string) => ti.evaluate((n) => (window as unknown as W4).db.emails.find((e) => e.name === n)!.doc, name);
+  const tcalls5 = () => ti.evaluate(() => (window as unknown as W4).calls);
+  const tbox5 = (i: number, id: string) =>
+    ti.evaluate(
+      ([i, id]) => {
+        const f = document.querySelectorAll<HTMLIFrameElement>("[data-email] iframe")[i as number]!;
+        const el = f.contentDocument!.querySelector<HTMLElement>(`[data-eid="${id}"]`)!;
+        const fr = f.getBoundingClientRect();
+        const z = fr.width / f.offsetWidth;
+        const b = el.getBoundingClientRect();
+        return { x: fr.left + b.left * z, y: fr.top + b.top * z, w: b.width * z, h: b.height * z };
+      },
+      [i, id] as const,
+    );
+  const frameText = (i: number, id: string) => ti.evaluate(([i, id]) => document.querySelectorAll<HTMLIFrameElement>("[data-email] iframe")[i as number]!.contentDocument!.querySelector(`[data-eid="${id}"]`)?.textContent ?? "", [i, id] as const);
+  const w60 = await tdoc5("Welcome");
+  const head60 = w60.sections[1]!.columns[0]!.blocks[1]!.id;
+  const text60 = w60.sections[1]!.columns[0]!.blocks[2]!.id;
+  const before60 = await frameText(0, text60);
+  const hb60 = await tbox5(0, head60);
+  await ti.mouse.click(hb60.x + 30, hb60.y + hb60.h / 2);
+  await ti.keyboard.press("Control+l");
+  await ti.waitForTimeout(150);
+  const chipText = (await ti.locator("[aria-label='Added to chat']").textContent()) ?? "";
+  check((await ti.locator("aside[aria-label='Tia']").isVisible()) && chipText.includes("Welcome › Heading"), `⌘L adds the heading to the chat (${chipText})`);
+  await ti.locator("aside[aria-label='Tia'] textarea").fill("Make it shorter");
+  await ti.keyboard.press("Enter");
+  await ti.waitForTimeout(250);
+  check((await ti.locator("[data-tia-writing]").count()) === 1 && (await ti.locator("aside[aria-label='Element']").textContent())!.includes("Tia is changing this email"), "while Tia writes, the email shows it and its panel is read-only");
+  await ti.waitForTimeout(900);
+  const sent60 = (await tcalls5()).find((c) => c.mode === "chat")?.body as { scope?: { kind: string; ids?: string[] } } | undefined;
+  check(sent60?.scope?.kind === "parts" && sent60.scope.ids?.[0] === head60, "the turn is scoped to the heading");
+  check((await frameText(0, head60)) === "Tia's words" && (await frameText(0, text60)) === before60, "only the heading changed");
+  check((await ti.locator("aside[aria-label='Tia'] button").filter({ hasText: "Changed the heading" }).count()) === 1, "Tia's reply lists the change by email");
+  if (shots) await ti.screenshot({ path: `${shots}/15-b5-tia.png` });
+
+  // 61. A 2-email turn: both lock, both change, one ⌘Z takes back both
+  await ti.locator("aside[aria-label='Tia'] [aria-label^='Remove']").click();
+  await ti.keyboard.press("Escape");
+  await ti.keyboard.press("Escape");
+  const boardName = async (name: string) => (await ti.locator("[data-canvas-item]").filter({ hasText: name }).first().boundingBox())!;
+  for (const name of ["Welcome", "Class reminder"]) {
+    const nb = await boardName(name);
+    await ti.mouse.click(nb.x + 10, nb.y + nb.height / 2);
+    await ti.getByRole("toolbar", { name: "Email actions" }).getByRole("button", { name: /Add to chat/ }).click();
+  }
+  await ti.locator("aside[aria-label='Tia'] textarea").fill("Make the headline warmer");
+  await ti.keyboard.press("Enter");
+  await ti.waitForTimeout(300);
+  const locked61 = await ti.locator("[data-tia-writing]").count();
+  await ti.waitForTimeout(1300);
+  const r61 = await tdoc5("Class reminder");
+  const firstHeading = (d: Doc) => (d.sections.flatMap((x) => x.columns.flatMap((c) => c.blocks)) as unknown as { type: string; text?: string }[]).find((b) => b.type === "heading")?.text;
+  check(locked61 === 2 && firstHeading(r61) === "Tia's words" && firstHeading(await tdoc5("Welcome")) === "Tia's words", `a 2-email turn locks both (${locked61}) and changes both`);
+  await ti.locator("[role='application']").focus();
+  await ti.keyboard.press("Control+z");
+  await ti.waitForTimeout(1300);
+  check(firstHeading(await tdoc5("Class reminder")) !== "Tia's words", "one ⌘Z takes back Tia's turn in both emails");
+
+  // 62. A brand-wide ask: the question with choices; the choice goes back with the yes
+  await ti.locator("aside[aria-label='Tia'] textarea").fill("Bigger headings everywhere");
+  await ti.keyboard.press("Enter");
+  await ti.waitForTimeout(1200);
+  const askCard = ti.locator("aside[aria-label='Tia']").getByRole("button", { name: "Yes, every email" });
+  check(await askCard.isVisible(), "Tia's question comes with its choices");
+  await askCard.click();
+  await ti.waitForTimeout(1200);
+  const lastChat = [...(await tcalls5())].reverse().find((c) => c.mode === "chat")?.body as { confirmed?: boolean } | undefined;
+  check(lastChat?.confirmed === true, "a choice goes back with the person's yes");
+
+  // 63. Many emails from one prompt: a plan card, placeholders, drafts in order; one fails and Try again fills it
+  while ((await ti.locator("aside[aria-label='Tia'] [aria-label^='Remove']").count()) > 0) await ti.locator("aside[aria-label='Tia'] [aria-label^='Remove']").first().click();
+  await ti.locator("[role='application']").focus();
+  await ti.keyboard.press("Escape");
+  await ti.keyboard.press("Escape");
+  await ti.locator("aside[aria-label='Tia'] textarea").fill("Write a 3-email welcome series");
+  await ti.keyboard.press("Enter");
+  await ti.waitForTimeout(800);
+  check((await ti.locator("[data-plan] li").count()) === 3, "with nothing picked, Tia answers with a plan of 3 emails");
+  await ti.evaluate(() => ((window as unknown as { failSeries: number }).failSeries = 1));
+  await ti.locator("[data-plan]").getByRole("button", { name: "Write them" }).click();
+  await ti.waitForTimeout(150);
+  const ph63 = await ti.locator("[data-writing]").count();
+  await ti.waitForTimeout(1800);
+  const failed63 = ti.locator("[data-writing='failed']");
+  check(ph63 === 3 && (await failed63.count()) === 1, `three placeholders show while writing (${ph63}); the failed one stays with Try again`);
+  await failed63.getByRole("button", { name: "Try again" }).click();
+  await ti.waitForTimeout(1500);
+  const order63 = await ti.evaluate(() => (window as unknown as { db: { emails: { name: string; group_id: string | null; group_position: number }[] } }).db.emails.filter((e) => e.group_id).sort((a, b) => a.group_position - b.group_position).map((e) => e.name));
+  check(order63.slice(-3).join(",") === "Series email 1,Series email 2,Series email 3" && (await ti.locator("[data-writing]").count()) === 0, `the new drafts land in the group in the planned order (${order63.join(", ")})`);
+  if (shots) await ti.screenshot({ path: `${shots}/16-b5-series.png` });
+  await ti.close();
   }
 
   // 12. A row of 60 emails: only those near the view load

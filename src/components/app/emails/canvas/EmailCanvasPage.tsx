@@ -44,7 +44,11 @@ import type { DesignSystem } from "@/lib/design/model";
 import { useCanvasEditor } from "./useCanvasEditor";
 import { useCanvasDrag } from "./useCanvasDrag";
 import { DragLayer } from "./DragLayer";
-import { AddPanel, type AddItem } from "./AddPanel";
+import { AddTiles, type AddItem } from "./AddPanel";
+import { LeftPanel, type LeftTab } from "./LeftPanel";
+import { CanvasChat, type PlanItem } from "./CanvasChat";
+import { addChip, type Chip } from "@/lib/design/email/turn";
+import { AiAvatar, AiMark } from "../../Ai";
 import { useImageResize } from "./useImageResize";
 import { useCanvasClipboard } from "./useCanvasClipboard";
 import { FormatBar } from "./FormatBar";
@@ -115,23 +119,30 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
   const [el, setEl] = useState<El | null>(null);
   const [elHover, setElHover] = useState<string | null>(null);
   const [panel, setPanel] = useState(true);
-  // The + panel, remembered per canvas on this computer (B4).
-  const addKey = `claritia:canvas-add:${groupId}`;
-  const [addOpen, setAddOpenRaw] = useState(() => {
+  // The left panel (Tia and the + panel's Add tab), remembered per canvas on this computer (B4, B5).
+  const leftKey = `claritia:canvas-left:${groupId}`;
+  const [left, setLeftRaw] = useState<LeftTab | null>(() => {
     try {
-      return typeof window !== "undefined" && window.localStorage.getItem(addKey) === "1";
+      const v = typeof window !== "undefined" ? window.localStorage.getItem(leftKey) : null;
+      return v === "tia" || v === "add" ? v : null;
     } catch {
-      return false;
+      return null;
     }
   });
-  const setAddOpen = (v: boolean) => {
-    setAddOpenRaw(v);
+  const setLeft = (v: LeftTab | null) => {
+    setLeftRaw(v);
     try {
-      window.localStorage.setItem(addKey, v ? "1" : "0");
+      window.localStorage.setItem(leftKey, v ?? "");
     } catch {
       /* private window: just not remembered */
     }
   };
+  const addOpen = left === "add";
+  const setAddOpen = (v: boolean) => setLeft(v ? "add" : null);
+  // Tia (B5): the chips that say what she may change, emails she just changed (a green ring), and new emails she writes.
+  const [chips, setChips] = useState<Chip[]>([]);
+  const [flash, setFlash] = useState<string[]>([]);
+  const [writing, setWriting] = useState<{ key: string; name: string; failed: boolean; retry?: () => void }[]>([]);
   // A new text block types at once, after its frame shows it.
   const pendingType = useRef<{ email: string; id: string } | null>(null);
   const [tab, setTab] = useState<"element" | "layout">("element");
@@ -393,6 +404,55 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
       e,
       () => addClick(item),
     );
+  // Tia (B5): Add to chat, the green ring on emails she changed, and new emails from a plan.
+  const addToChat = (email: string, id: string | null) => {
+    if (editor.readOnly(email)) return say("Sent emails can't change. Duplicate to edit.");
+    const r = addChip(chips, { email, id });
+    if ("error" in r) return say(r.error);
+    setChips(r.chips);
+    setLeft("tia");
+  };
+  const flashTimer = useRef(0);
+  const flashEmails = (ids: string[]) => {
+    setFlash(ids);
+    window.clearTimeout(flashTimer.current);
+    flashTimer.current = window.setTimeout(() => setFlash([]), 900);
+  };
+  /** Write them on a plan card: placeholders at the end of the row, filled in as each email is written and saved. */
+  const writeSeries = (items: PlanItem[], message: string) => {
+    const base = list.length;
+    const firstDoc = list[0] ? editor.latest(list[0].id) : null;
+    const kitId = firstDoc ? editor.kitNow(firstDoc).kitId : (kitList[0]?.id ?? null);
+    const stamp = Date.now();
+    const keys = items.map((_, i) => `w${stamp}${i}`);
+    setWriting((w) => [...w, ...items.map((it, i) => ({ key: keys[i]!, name: it.name, failed: false }))]);
+    const sf = surface.current;
+    if (sf && rects.length) {
+      const endAt = Math.max(...rects.map((r) => r.x + r.w)) + 80;
+      sf.focus({ x: Math.max(0, endAt - 700), y: 0, r: endAt + items.length * 680, b: 700 }, 0.6);
+    }
+    const one = async (i: number): Promise<void> => {
+      setWriting((w) => w.map((x) => (x.key === keys[i] ? { ...x, failed: false } : x)));
+      try {
+        const r = await postJson<{ doc: EmailDoc; subject: string }>(session, "/api/email/series", { workspaceId: ws.id, step: "build", items, index: i, message, ...(kitId ? { kitId } : {}) });
+        const id = must(await sb.rpc("email_draft_save", { p_ws: ws.id, p_id: null, p_name: items[i]!.name.slice(0, 200), p_subject: r.subject, p_preheader: r.doc.settings?.preheader ?? "", p_doc: r.doc })) as string;
+        if (!ungrouped) await place(id, groupId, base + i);
+        await rows.reload();
+        invalidate(`email_campaigns:${ws.id}`);
+        setWriting((w) => w.filter((x) => x.key !== keys[i]));
+      } catch {
+        setWriting((w) => w.map((x) => (x.key === keys[i] ? { ...x, failed: true, retry: () => void one(i) } : x)));
+      }
+    };
+    void (async () => {
+      let next = 0;
+      await Promise.all(
+        Array.from({ length: Math.min(3, items.length) }, async () => {
+          while (next < items.length) await one(next++);
+        }),
+      );
+    })();
+  };
   // A new text block starts typing once its frame shows it (its words selected, so typing replaces them).
   useEffect(() => {
     const p = pendingType.current;
@@ -826,6 +886,7 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
       ? [...(id ? [{ label: "Copy", hint: "⌘C", run: () => void clipboard.copy({ email, id }) }] : []), { label: "Duplicate email", run: () => void duplicate(email) }]
       : id && doc
         ? [
+            { label: "Add to chat", hint: "⌘L", run: () => addToChat(email, id) },
             { label: "Copy", hint: "⌘C", run: () => void clipboard.copy({ email, id }) },
             { label: "Cut", hint: "⌘X", disabled: locked, run: () => clipboard.cut({ email, id }) },
             { label: "Paste", hint: "⌘V", disabled: !clipboard.hasClip, run: () => void clipboard.paste({ email, id }) },
@@ -927,6 +988,11 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
     if (mod && e.key.toLowerCase() === "z") {
       e.preventDefault();
       historyGo(e.shiftKey ? "redo" : "undo");
+      return true;
+    }
+    if (mod && e.key.toLowerCase() === "l" && editId) {
+      e.preventDefault();
+      addToChat(editId, elNow?.id ?? null);
       return true;
     }
     if (!mod && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "a") {
@@ -1050,6 +1116,13 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
                 </div>
               ) : null}
               {hover === r.id && !on && !drag?.on ? <div className="absolute shadow-[0_0_0_1px_var(--color-signal)]" style={{ left: a.x, top: a.y, width: r.w * z, height: r.h * z }} /> : null}
+              {flash.includes(r.id) ? <div aria-hidden="true" data-flash="" className="absolute shadow-[0_0_0_3px_var(--color-signal-line)] motion-safe:animate-pulse" style={{ left: a.x, top: a.y, width: r.w * z, height: r.h * z }} /> : null}
+              {editor.locked.includes(r.id) ? (
+                <span data-tia-writing="" className="absolute flex items-center gap-1.5 rounded-full bg-card py-0.5 pr-2.5 pl-0.5 text-[12px] font-medium whitespace-nowrap text-ink shadow-chip" style={{ left: a.x + r.w * z, top: a.y - 34, transform: "translateX(-100%)" }}>
+                  <AiAvatar size={20} working />
+                  Tia is writing
+                </span>
+              ) : null}
               {on && !drag?.on ? <div className={`absolute ${elNow && r.id === editId ? "shadow-[0_0_0_1px_var(--color-signal-line)]" : "shadow-[0_0_0_2px_var(--color-signal)]"}`} style={{ left: a.x, top: a.y, width: r.w * z, height: r.h * z }} /> : null}
             </div>
           );
@@ -1122,6 +1195,7 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
                       ? null
                       : id && editable
                       ? {
+                          chat: () => addToChat(editId, id),
                           parent: stepOut,
                           up: moveStep(editDoc, id, -1) !== editDoc ? () => moveEl(id, -1) : undefined,
                           down: moveStep(editDoc, id, 1) !== editDoc ? () => moveEl(id, 1) : undefined,
@@ -1178,6 +1252,9 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
           </>
         ) : draft ? (
           <>
+            <Button size="sm" variant="plain" onClick={() => addToChat(r!.id, null)}>
+              <AiMark size={13} /> Add to chat
+            </Button>
             <Button size="sm" variant="plain" onClick={() => open(r!.id)}>
               Open
             </Button>
@@ -1210,6 +1287,26 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
     );
   };
 
+  // New emails Tia is writing (B5b): placeholders after the row, each with its name and the loader.
+  const endX = rects.length ? Math.max(...rects.map((r) => r.x + r.w)) + 80 : 0;
+  const placeholders = writing.map((w, i) => (
+    <div key={w.key} data-writing={w.failed ? "failed" : "writing"} className="absolute top-0 flex flex-col items-center justify-center gap-3 bg-card shadow-rest" style={{ left: endX + i * 680, width: 600, height: 700 }}>
+      <span className="absolute -top-8 left-0 text-[12.5px] font-medium text-muted">{w.name}</span>
+      {w.failed ? (
+        <>
+          <p className="text-[13px] text-body">Couldn&apos;t write this one</p>
+          <Button size="sm" variant="ghost" onClick={w.retry}>
+            Try again
+          </Button>
+        </>
+      ) : (
+        <>
+          <AiAvatar size={32} working />
+          <Loading />
+        </>
+      )}
+    </div>
+  ));
   const world = rects.map((r) => {
     const row = rowOf(r.id)!;
     const lifted = drag?.on && drag.id === r.id ? { dx: drag.dx, dy: drag.dy } : null;
@@ -1290,20 +1387,46 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
         <div aria-live="polite" className="sr-only">
           {announce}
         </div>
-        {addOpen ? (
-          <AddPanel
-            components={(() => {
-              const em = editId ?? list[0]?.id ?? null;
-              const doc = em ? editor.docOf(em) : null;
-              return (doc ? editor.kitFor(doc).state?.system.email?.components : undefined)?.map((c) => ({ id: c.id, name: c.name })) ?? [];
-            })()}
+        {left ? (
+          <LeftPanel
+            tab={left}
+            onTab={setLeft}
             onClose={() => {
-              setAddOpen(false);
+              setLeft(null);
               (document.querySelector("[data-email-canvas] [role='application']") as HTMLElement | null)?.focus();
             }}
-            onAdd={addClick}
-            onPress={addPress}
-          />
+          >
+            {left === "add" ? (
+              <AddTiles
+                components={(() => {
+                  const em = editId ?? list[0]?.id ?? null;
+                  const doc = em ? editor.docOf(em) : null;
+                  return (doc ? editor.kitFor(doc).state?.system.email?.components : undefined)?.map((c) => ({ id: c.id, name: c.name })) ?? [];
+                })()}
+                onAdd={addClick}
+                onPress={addPress}
+              />
+            ) : (
+              <CanvasChat
+                session={session}
+                ws={ws.id}
+                editor={editor}
+                chips={chips}
+                onChips={setChips}
+                picked={editId && !editor.readOnly(editId) ? editId : null}
+                groupName={g.name}
+                nameOf={(id) => editor.nameOf(id)}
+                subjectOf={(id) => editor.draft(id).subject}
+                onPick={(email, id) => {
+                  setPicked([email]);
+                  setEl(id ? { email, id, part: null } : null);
+                  panTo(email);
+                }}
+                onFlash={flashEmails}
+                onWrite={writeSeries}
+              />
+            )}
+          </LeftPanel>
         ) : null}
         <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
         {error ? (
@@ -1325,15 +1448,25 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
             }
             return firstView(rects, view);
           }}
-          world={world}
+          world={
+            <>
+              {world}
+              {placeholders}
+            </>
+          }
           screen={screen}
           onView={onView}
           onKey={onKey}
           onBackground={() => (setPicked([]), setEl(null))}
         >
-          <button type="button" data-canvas-ui="" aria-label="Add a block" aria-expanded={addOpen} title="Add a block (A)" onClick={() => setAddOpen(!addOpen)} className={`absolute top-3 left-3 z-[4] flex size-9 items-center justify-center rounded-full shadow-float transition-colors duration-[140ms] ${addOpen ? "bg-ink text-paper" : "bg-card text-ink hover:bg-hover"}`}>
-            <Plus size={16} />
-          </button>
+          <div data-canvas-ui="" className="absolute top-3 left-3 z-[4] flex gap-2">
+            <button type="button" aria-label="Add a block" aria-expanded={addOpen} title="Add a block (A)" onClick={() => setAddOpen(!addOpen)} className={`flex size-9 items-center justify-center rounded-full shadow-float transition-colors duration-[140ms] ${addOpen ? "bg-ink text-paper" : "bg-card text-ink hover:bg-hover"}`}>
+              <Plus size={16} />
+            </button>
+            <button type="button" aria-label="Tia" aria-expanded={left === "tia"} title="Ask Tia (⌘L adds the pick)" onClick={() => setLeft(left === "tia" ? null : "tia")} className={`flex size-9 items-center justify-center rounded-full shadow-float transition-colors duration-[140ms] ${left === "tia" ? "bg-lilac-wash" : "bg-card hover:bg-hover"}`}>
+              <AiMark size={16} />
+            </button>
+          </div>
           {!list.length ? (
             <div className="absolute inset-0 z-[2] flex min-w-0 flex-wrap items-center justify-center">
               <div data-canvas-ui="" className="flex flex-col items-center gap-4 px-6 text-center">
