@@ -73,7 +73,7 @@ export function Inspector({
     <aside
       data-canvas-ui=""
       aria-label="Element"
-      className="z-[6] flex min-h-0 shrink-0 flex-col bg-card max-lg:absolute max-lg:inset-x-0 max-lg:bottom-0 max-lg:max-h-[55%] max-lg:rounded-t-2xl max-lg:shadow-float lg:w-80 lg:shadow-[-1px_0_0_var(--color-line)]"
+      className="z-[6] flex min-h-0 shrink-0 flex-col bg-card max-lg:absolute max-lg:inset-x-0 max-lg:bottom-0 max-lg:max-h-[55%] max-lg:rounded-t-2xl max-lg:shadow-float lg:w-[400px] lg:shadow-[-1px_0_0_var(--color-line)]"
     >
       <div className="flex shrink-0 items-center gap-1 px-3 pt-3 pb-2">
         <div role="tablist" aria-label="Panel" className="flex items-center gap-0.5 rounded-full bg-paper-deep p-0.5">
