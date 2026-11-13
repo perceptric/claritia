@@ -42,6 +42,7 @@ import type { DesignSystem } from "@/lib/design/model";
 import { useCanvasEditor } from "./useCanvasEditor";
 import { useCanvasDrag } from "./useCanvasDrag";
 import { DragLayer } from "./DragLayer";
+import { useImageResize } from "./useImageResize";
 import { FormatBar } from "./FormatBar";
 import { useTyping } from "./useTyping";
 import { typable } from "@/lib/design/email/typing";
@@ -53,8 +54,8 @@ const LABEL: Record<string, string> = { sent: "Sent", sending: "Sending", schedu
 type Menu = { anchor: HTMLElement; items: { label: string; run: () => void; danger?: boolean; hint?: string; group?: string }[] } | null;
 /** The element picked inside the email being edited; null is the whole email. */
 type El = { email: string; id: string; part: EmailPartKey | null };
-type Boxes = { picked: LocalBox | null; hover: LocalBox | null; pad: Zone[] };
-const NO_BOXES: Boxes = { picked: null, hover: null, pad: [] };
+type Boxes = { picked: LocalBox | null; hover: LocalBox | null; pad: Zone[]; img: LocalBox | null };
+const NO_BOXES: Boxes = { picked: null, hover: null, pad: [], img: null };
 // Built emails, by document and styles, so a change rebuilds only the emails it touched.
 const built = new WeakMap<EmailDoc, { system: DesignSystem; dark: boolean; kits: unknown; status: string; html: string }>();
 function htmlFor(row: CanvasRow, kits: CanvasKit[], doc: EmailDoc, system: DesignSystem, dark: boolean): string {
@@ -118,6 +119,8 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
   const [announce, setAnnounce] = useState("");
   const frames = useRef(new Map<string, HTMLIFrameElement>());
   const [, setFrameTick] = useState(0);
+  // Opens the picture library in the panel (a double-click on a picture, a new Image block), for one element.
+  const [library, setLibrary] = useState<{ id: string; n: number } | null>(null);
 
   const status = useCallback((r: CanvasRow) => states.data?.find((s) => s.id === r.id)?.status ?? r.status, [states.data]);
   const list = useMemo(() => rows.data ?? [], [rows.data]);
@@ -298,9 +301,14 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
     },
     onRefuse: (t) => say(t),
   });
-  const handlers = useRef({ hitAt, editId, el: elNow, start: typer.start, canType, htmls: shown, press: dragger.press, dragIdOf, within });
+  const resizer = useImageResize({ surface, frames, editor, onTick: () => setFrameTick((t) => t + 1) });
+  const isPicture = (email: string, id: string) => {
+    const b = editor.latest(email) ? findEl(editor.latest(email)!, id)?.block : undefined;
+    return (b?.type === "image" || b?.type === "logo") && !editor.readOnly(email);
+  };
+  const handlers = useRef({ hitAt, editId, el: elNow, start: typer.start, canType, htmls: shown, press: dragger.press, dragIdOf, within, isPicture });
   useEffect(() => {
-    handlers.current = { hitAt, editId, el: elNow, start: typer.start, canType, htmls: shown, press: dragger.press, dragIdOf, within };
+    handlers.current = { hitAt, editId, el: elNow, start: typer.start, canType, htmls: shown, press: dragger.press, dragIdOf, within, isPicture };
   });
   // Typing ends when the pick moves, and on a press anywhere outside the email's frame (but the format bar).
   const endTyping = typer.end;
@@ -352,6 +360,14 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
         h.start(id, hit.id, h.htmls[id] ?? "", { x: e.clientX, y: e.clientY });
         return;
       }
+      // A picture: its library in the panel, to replace it.
+      if (hit && h.isPicture(id, hit.id)) {
+        setEl(hit);
+        setPanel(true);
+        setTab("element");
+        setLibrary((l) => ({ id: hit.id, n: (l?.n ?? 0) + 1 }));
+        return;
+      }
       // Other parts: their first field in the panel.
       if (h.el && h.editId === id) {
         setPanel(true);
@@ -391,9 +407,11 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
           }
         }
       }
-      next = { picked: pn ? boxOf(pn) : null, hover: hn ? boxOf(hn) : null, pad };
+      // A picked picture's own box, for its corner handles (B4).
+      const imgEl = pn && elNow ? d.querySelector(`.c${CSS.escape(elNow.id)}-image`) : null;
+      next = { picked: pn ? boxOf(pn) : null, hover: hn ? boxOf(hn) : null, pad, img: imgEl ? boxOf(imgEl) : null };
     }
-    if (!sameBox(next.picked, boxes.picked) || !sameBox(next.hover, boxes.hover) || JSON.stringify(next.pad) !== JSON.stringify(boxes.pad)) setBoxes(next);
+    if (!sameBox(next.picked, boxes.picked) || !sameBox(next.hover, boxes.hover) || !sameBox(next.img, boxes.img) || JSON.stringify(next.pad) !== JSON.stringify(boxes.pad)) setBoxes(next);
     // Keys moved the pick out of view: pan to it at the same zoom.
     if (elNow && next.picked && shownFor.current !== elNow.id) {
       shownFor.current = elNow.id;
@@ -848,7 +866,12 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
                 <Overlay
                   c={c}
                   at={r}
-                  onGrip={id && !typingHere && !dragger.dragging ? (e) => {
+                  image={
+                    id && boxes.img && !phone && !typingHere && !dragger.dragging && !draft.readOnly && (findEl(editDoc, id)?.block?.type === "image" || findEl(editDoc, id)?.block?.type === "logo")
+                      ? { box: boxes.img, tag: resizer.tag, onCorner: (corner, e) => resizer.start(editId, id, corner, e) }
+                      : undefined
+                  }
+                  onGrip={id && !typingHere && !dragger.dragging && !resizer.resizing ? (e) => {
                     const d = dragIdOf(editId, id, true);
                     if (d) dragger.press({ kind: "el", email: editId, id: d }, e);
                   } : undefined}
@@ -1108,7 +1131,7 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
               tab={tab}
               onTab={setTab}
               onClose={() => setPanel(false)}
-              assets={{ session, sb, workspaceId: ws.id }}
+              assets={{ session, sb, workspaceId: ws.id, ...(library && elNow?.id === library.id ? { openLibrary: library.n } : {}) }}
               layout={
                 <LayerTree
                   tree={layerTree(editDoc, (cid) => draft.system.email?.components?.find((c) => c.id === cid)?.name)}

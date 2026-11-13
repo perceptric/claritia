@@ -20,6 +20,7 @@ export function Overlay({
   pad,
   actions,
   onGrip,
+  image,
 }: {
   c: Camera;
   at: Rect;
@@ -29,6 +30,8 @@ export function Overlay({
   actions: OverlayActions | null;
   /** A press on the grip left of the picked element starts dragging it (B4). */
   onGrip?: (e: React.PointerEvent) => void;
+  /** A picked picture: its own box, the width while resizing, and a press on a corner (B4). */
+  image?: { box: Box; tag: { w: number; snapped: "column" | "own" | null } | null; onCorner: (corner: "tl" | "tr" | "bl" | "br", e: React.PointerEvent) => void };
 }) {
   const z = c.z;
   const place = (b: Box) => {
@@ -56,6 +59,43 @@ export function Overlay({
           <div data-canvas-pick={picked.id} aria-hidden="true" className="absolute shadow-[0_0_0_2px_var(--color-signal)]" style={place(picked.box)} />
           {picked.tag ? <Tag box={place(picked.box)} text={picked.tag} inside={picked.box.y * z < 26} /> : null}
           {actions ? <Bar box={place(picked.box)} actions={actions} below={picked.box.y * z < 48} /> : null}
+          {image
+            ? (() => {
+                const b = place(image.box);
+                const corners = [
+                  ["tl", b.left, b.top, "nwse-resize", "top left"],
+                  ["tr", b.left + b.width, b.top, "nesw-resize", "top right"],
+                  ["bl", b.left, b.top + b.height, "nesw-resize", "bottom left"],
+                  ["br", b.left + b.width, b.top + b.height, "nwse-resize", "bottom right"],
+                ] as const;
+                return (
+                  <>
+                    {corners.map(([k, x, y, cursor, words]) => (
+                      <span
+                        key={k}
+                        data-canvas-ui=""
+                        data-handle={k}
+                        role="separator"
+                        aria-label={`Resize from the ${words} corner`}
+                        onPointerDown={(e) => {
+                          if (e.button !== 0) return;
+                          e.stopPropagation();
+                          e.preventDefault();
+                          image.onCorner(k, e);
+                        }}
+                        className="pointer-events-auto absolute size-2.5 rounded-[2px] bg-card shadow-[0_0_0_1.5px_var(--color-signal)] before:absolute before:-inset-2 before:content-['']"
+                        style={{ left: x - 5, top: y - 5, cursor }}
+                      />
+                    ))}
+                    {image.tag ? (
+                      <span data-width-tag="" className="absolute rounded-sm bg-signal px-1.5 py-px text-[11.5px] leading-[18px] font-medium whitespace-nowrap text-white tabular-nums" style={{ left: b.left + b.width / 2, top: b.top - 24, transform: "translateX(-50%)" }}>
+                        {image.tag.w} px{image.tag.snapped === "column" ? " · Column width" : image.tag.snapped === "own" ? " · Own size" : ""}
+                      </span>
+                    ) : null}
+                  </>
+                );
+              })()
+            : null}
           {onGrip ? (
             <button
               type="button"

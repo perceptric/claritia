@@ -254,7 +254,7 @@ try {
   await q.waitForFunction(() => document.querySelectorAll("[data-email] iframe").length >= 3, null, { timeout: 15000 });
   await q.waitForTimeout(400);
   type W = { calls: Call[]; db: { emails: { name: string; doc: Doc }[] } };
-  type Doc = { sections: { columns: { blocks: { id: string; type: string }[] }[] }[]; styles?: Record<string, unknown> };
+  type Doc = { sections: { id: string; columns: { id: string; blocks: { id: string; type: string }[] }[] }[]; styles?: Record<string, unknown> };
   const qcalls = () => q.evaluate(() => (window as unknown as W).calls);
   const qclear = () => q.evaluate(() => ((window as unknown as W).calls.length = 0));
   const saves = async () => (await qcalls()).filter((c) => c.mode === "email_draft_save");
@@ -625,6 +625,7 @@ try {
   check(!(await sent.evaluate(() => (window as unknown as W).calls.some((c) => c.mode === "email_draft_save"))), "keys change nothing in a sent email");
   await sent.close();
 
+  {
   // B4 ----------------------------------------------------------------------------------------------------------------
   type W4 = { calls: Call[]; failNext: unknown; db: { emails: { id: string; name: string; status: string; doc: Doc }[] } };
   const g = await ctx.newPage();
@@ -824,6 +825,79 @@ try {
   const after39 = { sent: await ug.evaluate(() => JSON.stringify((window as unknown as W4).db.emails.find((e) => e.status === "sent")!.doc)), count: await countOf(draftId) };
   check(chip39.includes("Copy") && after39.sent === sentBefore && after39.count === draftCount + 1, `a drag from a sent email copies and the sent email doesn't change (${chip39})`);
   await ug.close();
+
+  // 40. Resize a picture by its corner: the width tag shows; release saves one width
+  const rz = await ctx.newPage();
+  rz.on("pageerror", (e) => errors.push(e.message));
+  await openCanvas(rz);
+  const rzBox = (sel: string) =>
+    rz.evaluate((sel) => {
+      const f = document.querySelectorAll<HTMLIFrameElement>("[data-email] iframe")[0]!;
+      const el = [...f.contentDocument!.querySelectorAll<HTMLElement>("[class]")].find((e) => [...e.classList].some((c) => new RegExp(sel).test(c)))!;
+      const fr = f.getBoundingClientRect();
+      const z = fr.width / f.offsetWidth;
+      const b = el.getBoundingClientRect();
+      const cell = el.closest("[data-eid]") as HTMLElement;
+      const cs = getComputedStyle(cell);
+      return { x: fr.left + b.left * z, y: fr.top + b.top * z, w: b.width * z, h: b.height * z, lw: b.width, id: cell.getAttribute("data-eid")!, max: cell.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), z };
+    }, sel);
+  const rcalls = () => rz.evaluate(() => (window as unknown as W4).calls);
+  const logo = await rzBox("^c[a-z0-9]+-image$");
+  await rz.mouse.click(logo.x + logo.w / 2, logo.y + logo.h / 2);
+  await rz.waitForTimeout(150);
+  const handle = rz.locator("[data-handle='br']");
+  check(await handle.isVisible(), "a picked picture shows its corner handles");
+  const hb = (await handle.boundingBox())!;
+  await rz.evaluate(() => ((window as unknown as W4).calls.length = 0));
+  await rz.mouse.move(hb.x + 5, hb.y + 5);
+  await rz.mouse.down();
+  await rz.mouse.move(hb.x + 5 + 20, hb.y + 5, { steps: 4 });
+  const tag40 = (await rz.locator("[data-width-tag]").textContent()) ?? "";
+  await rz.mouse.up();
+  await rz.waitForTimeout(1100);
+  const saved40 = (await rcalls()).filter((c) => c.mode === "email_draft_save");
+  const logoAfter = (saved40[0]?.body.p_doc as { sections: { columns: { blocks: { id: string; width?: number }[] }[] }[] } | undefined)?.sections.flatMap((x) => x.columns.flatMap((c) => c.blocks)).find((b) => b.id === logo.id);
+  check(tag40.includes(`${Math.round(logo.lw + 20 / logo.z)} px`) && saved40.length === 1 && logoAfter?.width === Math.round(logo.lw + 20 / logo.z), `dragging a corner shows the width (${tag40}) and saves it once (${logoAfter?.width})`);
+
+  // 41. Near the column's width it snaps; Shift turns snapping off
+  const l2 = await rzBox("^c[a-z0-9]+-image$");
+  const h2 = (await rz.locator("[data-handle='br']").boundingBox())!;
+  const toNear = (l2.max - 3 - l2.lw) * l2.z;
+  await rz.mouse.move(h2.x + 5, h2.y + 5);
+  await rz.mouse.down();
+  await rz.mouse.move(h2.x + 5 + toNear, h2.y + 5, { steps: 4 });
+  const snapTag = (await rz.locator("[data-width-tag]").textContent()) ?? "";
+  await rz.keyboard.down("Shift");
+  await rz.mouse.move(h2.x + 5 + toNear + 0.5, h2.y + 5, { steps: 1 });
+  const freeTag = (await rz.locator("[data-width-tag]").textContent()) ?? "";
+  await rz.keyboard.press("Escape");
+  await rz.keyboard.up("Shift");
+  await rz.mouse.up();
+  check(snapTag.includes("Column width") && !freeTag.includes("Column width"), `it snaps to the column (${snapTag}); Shift doesn't (${freeTag})`);
+  const l3 = await rzBox("^c[a-z0-9]+-image$");
+  check(Math.abs(l3.lw - l2.lw) < 1, "Escape puts the picture back");
+
+  // 42. A centered picture grows from both sides
+  await rz.locator("aside[aria-label='Element'] [role='radio']").filter({ hasText: "Center" }).first().click();
+  await rz.waitForTimeout(1100);
+  const l4 = await rzBox("^c[a-z0-9]+-image$");
+  const h4 = (await rz.locator("[data-handle='br']").boundingBox())!;
+  await rz.mouse.move(h4.x + 5, h4.y + 5);
+  await rz.mouse.down();
+  await rz.mouse.move(h4.x + 5 + 10, h4.y + 5, { steps: 3 });
+  const tag42 = (await rz.locator("[data-width-tag]").textContent()) ?? "";
+  await rz.keyboard.press("Escape");
+  await rz.mouse.up();
+  check(tag42.startsWith(`${Math.round(l4.lw + (2 * 10) / l4.z)} px`), `a centered picture grows twice the pointer's move (${tag42})`);
+
+  // 43. Double-click a picture: its library opens in the panel
+  const l5 = await rzBox("^c[a-z0-9]+-image$");
+  await rz.mouse.dblclick(l5.x + l5.w / 2, l5.y + l5.h / 2);
+  await rz.waitForTimeout(250);
+  check(await rz.getByRole("dialog", { name: "Images" }).isVisible(), "a double-click on a picture opens its library");
+  if (shots) await rz.screenshot({ path: `${shots}/13-b4-resize.png` });
+  await rz.close();
+  }
 
   // 12. A row of 60 emails: only those near the view load
   const big = await ctx.newPage();
