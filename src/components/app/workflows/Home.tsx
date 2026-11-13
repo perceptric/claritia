@@ -1,8 +1,9 @@
 "use client";
 
-// Workflows (docs/workflows.md): folders on the left, each holding workflows, and the open one in the workflow editor
-// on the right. Folders are made, renamed, moved and deleted here; a workflow moves between them by drag and drop. The
-// first visit, with no workflows, offers New workflow. Before migration 100 there are no folders: one list.
+// Emails › Automations, the workflows (docs/workflows.md): folders on the left, each holding workflows, and the open
+// one in the workflow editor on the right. Describe an automation (Tia builds a draft from words) sits in the New menu
+// and on the first screen. Folders are made, renamed, moved and deleted here; a workflow moves between them by drag and drop. The
+// first visit, with no workflows, offers New automation. Before migration 100 there are no folders: one list.
 
 import { useCallback, useRef, useState } from "react";
 import { ChevronRight, Folder, FolderPlus, Plus } from "../../Icons";
@@ -11,6 +12,7 @@ import { MoreMenu } from "../StatCards";
 import { startingItems } from "@/lib/workflows/templates";
 import { ToolIntro } from "../ToolIntro";
 import { Button, ErrorNote, IconButton, Loading, must, Page, useLoad, useQuery, type ViewProps } from "../ui";
+import { Modal } from "../meetings/parts";
 import { loadWorkflow } from "./data";
 import { WorkflowEditor } from "./Editor";
 
@@ -26,7 +28,7 @@ type Group = { key: string; folder: FolderRow | null; label: string; rows: Row[]
 
 /** The left column's groups: the folders in order, then workflows in no folder. Before folders: one list. */
 export function groupsOf(rows: Row[], folders: FolderRow[] | null): Group[] {
-  if (!folders) return rows.length ? [{ key: "other", folder: null, label: "Workflows", rows }] : [];
+  if (!folders) return rows.length ? [{ key: "other", folder: null, label: "Automations", rows }] : [];
   const ids = new Set(folders.map((f) => f.id));
   const out: Group[] = [...folders].sort((a, b) => a.position - b.position).map((f) => ({ key: f.id, folder: f, label: f.name, rows: rows.filter((r) => r.folder_id === f.id) }));
   const loose = rows.filter((r) => !r.folder_id || !ids.has(r.folder_id));
@@ -34,8 +36,9 @@ export function groupsOf(rows: Row[], folders: FolderRow[] | null): Group[] {
   return out;
 }
 
-export function WorkflowsHome(props: ViewProps) {
-  const { sb, ws, navigate } = props;
+export function WorkflowsHome(props: ViewProps & { describe?: (done: () => void) => React.ReactNode }) {
+  const { sb, ws, navigate, describe } = props;
+  const [describing, setDescribing] = useState(false);
   const [tick, setTick] = useState(0);
   const data = useLoad(async () => {
     // Folders first: made from the old groups the first time (migration 100). Without it, null: grouped by stage.
@@ -68,7 +71,7 @@ export function WorkflowsHome(props: ViewProps) {
 
   if (!data.data)
     return (
-      <Page title="Workflows">
+      <Page title="Automations">
         <ErrorNote message={data.error} />
         {data.error ? null : <Loading />}
       </Page>
@@ -78,8 +81,9 @@ export function WorkflowsHome(props: ViewProps) {
   const rows = data.data.rows.map((r) => (r.id in shown ? { ...r, folder_id: shown[r.id] } : r));
   if (!rows.length)
     return (
-      <Page title="Workflows">
-        <ToolIntro title={"Follow up on every form\nand every meeting"} sketch="plane" action={<Button onClick={() => navigate("workflows", "new")}>New workflow</Button>} />
+      <Page title="Automations">
+        <ToolIntro title={"Follow up on every form\nand every meeting"} sketch="plane" action={<Button onClick={() => navigate("workflows", "new")}>New automation</Button>} />
+        {describe ? <div className="mx-auto -mt-6 w-full max-w-xl">{describe(() => undefined)}</div> : null}
       </Page>
     );
   const open = rows.find((r) => r.id === props.id) ?? rows[0]!;
@@ -96,7 +100,12 @@ export function WorkflowsHome(props: ViewProps) {
   };
   const newIn = (folder: string | null) => navigate("workflows", "new", folder ? `folder=${folder}` : undefined);
   return (
-    <Page title="Workflows" flush>
+    <Page title="Automations" flush>
+      {describing && describe ? (
+        <Modal title="Describe an automation" onClose={() => setDescribing(false)} wide>
+          {describe(() => setDescribing(false))}
+        </Modal>
+      ) : null}
       <div className="grid h-full min-h-0 md:grid-cols-[256px_minmax(0,1fr)]">
         <nav aria-label="Folders" className="flex max-h-64 min-h-0 flex-col overflow-auto border-b border-line px-2 pt-2 pb-6 md:max-h-none md:border-r md:border-b-0">
           <div className="flex h-8 shrink-0 items-center gap-1 pr-0.5 pl-2">
@@ -105,7 +114,7 @@ export function WorkflowsHome(props: ViewProps) {
               small
               label="New"
               icon={<Plus size={14} />}
-              items={[{ label: "New workflow", run: () => newIn(null) }, folders ? { label: "New folder", run: () => setNaming("new") } : null]}
+              items={[{ label: "New automation", run: () => newIn(null) }, describe ? { label: "Describe an automation", run: () => setDescribing(true) } : null, folders ? { label: "New folder", run: () => setNaming("new") } : null]}
             />
           </div>
           <ErrorNote message={error} />
@@ -148,7 +157,7 @@ export function WorkflowsHome(props: ViewProps) {
                     </button>
                     {g.folder || !folders ? (
                       <span className="hidden items-center group-hover/f:flex focus-within:flex">
-                        <IconButton label={`New workflow in ${g.label}`} className="size-6" onClick={() => newIn(g.folder?.id ?? null)}>
+                        <IconButton label={`New automation in ${g.label}`} className="size-6" onClick={() => newIn(g.folder?.id ?? null)}>
                           <Plus size={13} />
                         </IconButton>
                         {g.folder ? (
@@ -203,7 +212,7 @@ export function WorkflowsHome(props: ViewProps) {
                     {g.folder ? (
                       <button type="button" onClick={() => newIn(g.folder!.id)} className="flex h-8 items-center gap-2 rounded-lg px-2 text-left text-[13px] text-faint transition-colors duration-[140ms] hover:bg-hover hover:text-ink">
                         <Plus size={12} />
-                        New workflow
+                        New automation
                       </button>
                     ) : null}
                   </div>
@@ -284,7 +293,7 @@ function OpenJourney({ sb, session, ws, navigate, id, onChanged }: ViewProps & {
       navigate={navigate}
       data={res.data}
       reload={reload}
-      home={{ label: "Workflows", go: () => (onChanged(), navigate("workflows")) }}
+      home={{ label: "Automations", go: () => (onChanged(), navigate("workflows")) }}
     />
   );
 }

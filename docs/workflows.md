@@ -1,5 +1,7 @@
 # Workflows
 
+Workflows live in Emails › Automations (13 November 2026): there is no Workflows item in the sidebar. The folders, every workflow and the editor are the same; their address is `/emails/automations/<id>` (`/emails/automations/new` picks a template), and old `/workflows` addresses open there.
+
 Workflows is where every automated email lives, meeting reminders included. It replaced Emails: the
 Journeys, Emails, Library and Brand tabs are gone, and the senders stay in Settings › Sending.
 

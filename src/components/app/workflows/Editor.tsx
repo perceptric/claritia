@@ -313,7 +313,7 @@ export function WorkflowEditor({
         setName(v);
         setNameN((x) => x + 1);
       }}
-      back={{ label: home?.label ?? "Workflows", onClick: goHome }}
+      back={{ label: home?.label ?? "Automations", onClick: goHome }}
       actions={actions}
       flush
     >

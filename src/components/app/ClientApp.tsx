@@ -228,7 +228,7 @@ export function ClientApp({ config }: { config: SupaConfig }) {
 
   // Pages with unsaved changes get to ask first.
   const navigate = useCallback((to: Route, toId = "", query = "") => {
-    // Moved pages open their new home (a workflow opens in Emails › Journeys, availability in Routing › Sales reps).
+    // Moved pages open their new home (a workflow opens in Emails › Automations, availability in Meetings).
     const { route: r, id } = resolveRoute(to, toId);
     mayLeave().then((ok) => {
       if (!ok) return;
@@ -278,7 +278,7 @@ export function ClientApp({ config }: { config: SupaConfig }) {
     { group: "Meetings", label: "Single-use link", run: () => navigate("scheduling", "links", "create=single_use") },
     { group: "Meetings", label: "Poll", run: () => navigate("scheduling", "links", "create=poll") },
     { group: "Emails", label: "Email template", run: () => navigate("emails", "templates", "create=1") },
-    { group: "Workflows", label: "Workflow", run: () => navigate("workflows", "new") },
+    { group: "Emails", label: "Automation", run: () => navigate("workflows", "new") },
   ];
 
   // ⌘K "Copy my booking link": your page's address, or the Booking page to set one.
