@@ -669,3 +669,45 @@ export const Fit = (p: P) => (
     <path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" />
   </Svg>
 );
+
+// Email blocks (the canvas's + panel, docs/email-canvas-b4.md section 7.2).
+export const ImageIcon = (p: P) => (
+  <Svg {...p}>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <circle cx="9" cy="10" r="1.6" />
+    <path d="m21 16-5-5-9 9" />
+  </Svg>
+);
+
+export const Columns = (p: P) => (
+  <Svg {...p}>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <path d="M12 4v16" />
+  </Svg>
+);
+
+export const QuoteIcon = (p: P) => (
+  <Svg {...p}>
+    <path d="M7 7H4v5h3v3l2-3V7H7ZM18 7h-3v5h3v3l2-3V7h-2Z" />
+  </Svg>
+);
+
+export const Spacer = (p: P) => (
+  <Svg {...p}>
+    <path d="M4 4h16M4 20h16M12 8v8M9 11l3-3 3 3M9 13l3 3 3-3" />
+  </Svg>
+);
+
+export const Footer = (p: P) => (
+  <Svg {...p}>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <path d="M3 15h18M7 18h6" />
+  </Svg>
+);
+
+export const LogoIcon = (p: P) => (
+  <Svg {...p}>
+    <rect x="3" y="3" width="18" height="18" rx="4" />
+    <path d="M8 12h8M12 8v8" />
+  </Svg>
+);

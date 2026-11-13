@@ -28,11 +28,13 @@ type Props = {
   onMove: (id: string, e: React.PointerEvent) => void;
   onOpen: (id: string, e: React.MouseEvent) => void;
   onHover: (id: string | null) => void;
+  /** A right-click inside the email (B4). */
+  onContext?: (id: string, e: React.MouseEvent) => void;
   /** The frame, once its document is ready (and null when it goes), with a count that grows on each new HTML. */
   onFrame: (id: string, frame: HTMLIFrameElement | null, version: number) => void;
 };
 
-export const Artboard = memo(function Artboard({ id, name, html, x, w, h, shift, lift, live, typing = false, onHeight, onDown, onMove, onOpen, onHover, onFrame }: Props) {
+export const Artboard = memo(function Artboard({ id, name, html, x, w, h, shift, lift, live, typing = false, onHeight, onDown, onMove, onOpen, onHover, onContext, onFrame }: Props) {
   const frame = useRef<HTMLIFrameElement>(null);
   // The frame starts from the HTML it first had; later HTML is written into it.
   const [first, setFirst] = useState(html);
@@ -94,6 +96,7 @@ export const Artboard = memo(function Artboard({ id, name, html, x, w, h, shift,
       onPointerDown={(e) => onDown(id, e)}
       onPointerMove={(e) => onMove(id, e)}
       onDoubleClick={(e) => onOpen(id, e)}
+      onContextMenu={(e) => onContext?.(id, e)}
       onPointerEnter={() => onHover(id)}
       onPointerLeave={() => onHover(null)}
       className={`absolute top-0 cursor-default bg-white ${lift ? "z-[3] opacity-90 shadow-float" : "shadow-rest transition-transform duration-[220ms] ease-out motion-reduce:transition-none"}`}

@@ -19,7 +19,7 @@ import type { CanvasEditor } from "./useCanvasEditor";
 export type DragSource =
   | { kind: "el"; email: string; id: string }
   /** A new block, columns or component from the + panel; `make` puts it into a document at a place. */
-  | { kind: "new"; label: string; section: boolean; adds: number; make: (doc: EmailDoc, at: Place, email: string) => { doc: EmailDoc; id: string } | null };
+  | { kind: "new"; label: string; section: boolean; adds: number; make: (doc: EmailDoc, at: Place, email: string) => { doc: EmailDoc; id: string } | null; after?: (email: string, id: string) => void };
 export type DragView = { chip: { x: number; y: number; label: string; note: "Copy" | "Sent" | "Full" | null; above: boolean }; line: { x: number; y: number; w: number } | null };
 type Target = { email: string; drop: Drop | null; line: { x: number; y: number; w: number } | null; note: "Sent" | "Full" | null };
 type Rect = { id: string; x: number; y: number; w: number; h: number };
@@ -175,7 +175,8 @@ export function useCanvasDrag(env: Env) {
       const r = src.make(toDoc, t.drop, t.email);
       if (!r) return e.onRefuse("This email is full.");
       ed.change({ emails: { [t.email]: { doc: r.doc } } }, { label: `Add ${src.label}` });
-      return e.onDone(t.email, r.id, `${src.label} added`);
+      e.onDone(t.email, r.id, `${src.label} added`);
+      return src.after?.(t.email, r.id);
     }
     const fromDoc = ed.latest(src.email);
     if (!fromDoc || !findEl(fromDoc, src.id)) return;
@@ -212,7 +213,9 @@ export function useCanvasDrag(env: Env) {
     if (!c || !c.on || !sf) return;
     const p = sf.point(c.x, c.y);
     const v = sf.size();
-    const speed = (d: number) => (d < ZONE_PX ? 4 + 16 * (1 - Math.max(0, d) / ZONE_PX) : 0);
+    // Only while the pointer is over the canvas (a tile dragged out of the + panel crosses it first).
+    const inside = p.x >= 0 && p.y >= 0 && p.x <= v.w && p.y <= v.h;
+    const speed = (d: number) => (inside && d < ZONE_PX ? 4 + 16 * (1 - d / ZONE_PX) : 0);
     const dx = speed(p.x) - speed(v.w - p.x);
     const dy = speed(p.y) - speed(v.h - p.y);
     if (dx || dy) sf.nudge(dx, dy);

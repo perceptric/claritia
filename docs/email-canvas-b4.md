@@ -1,6 +1,6 @@
 # B4: drag and drop, the + panel, image resize, copy and paste
 
-Plan, 13 November 2026 (detailed edition). Step B4 of `docs/email-canvas-plan.md`, after B1 (the canvas,
+Plan, 13 November 2026 (detailed edition); built the same day (section 21). Step B4 of `docs/email-canvas-plan.md`, after B1 (the canvas,
 `docs/email-canvas-b1.md`), B2 (picking and the panel, `docs/email-canvas-b2.md`) and B3 (typing in place,
 `docs/email-canvas-b3.md`). B5 (Tia on the canvas, versions, comments, Campaigns views) is in `docs/email-canvas-b5.md`
 and builds on what B4 makes here.
@@ -936,3 +936,28 @@ the + panel, resize and copy and paste.
 | Servers and database | $0 (everything runs in the browser; saves are the same `email_draft_save` and design save calls; a move is two saves) | $0 |
 | Claude | $0 (no AI in B4) | $0 |
 | **Total added** | **$0 a month** | **$0 a month** |
+
+---
+
+## 21. As built
+
+- **Files:** `src/lib/canvas/history.ts`, `src/lib/design/email/clip.ts`, `src/lib/design/email/drop.ts`, with
+  `moveToNewSection` and `freshEl` in `ops.ts`, `blockText` exported and the empty boxes in `compile.ts`;
+  `src/components/app/forms/designSave.ts`; and in `src/components/app/emails/canvas/`: `useCanvasEditor.ts` (in place
+  of the deleted `useEmailDraft.ts`), `useCanvasDrag.ts`, `DragLayer.tsx`, `useImageResize.ts`, `AddPanel.tsx`,
+  `useCanvasClipboard.ts`. The right-click menu reuses the page's B1 menu (with a point to open at) instead of a
+  separate `CanvasMenu.tsx`. New icons in `Icons.tsx`: Image, Columns, Quote, Spacer, Footer, Logo. `Surface.tsx` gained
+  `nudge` and `size`.
+- **Save order** is worked out from each step itself: in any step that changes several emails (a move, its undo, its
+  redo), emails that gain blocks save before emails that lose them. A move's undo therefore saves in the other order,
+  as it should.
+- **Auto-pan** runs only while the pointer is over the canvas, so dragging a tile out of the + panel doesn't pan the
+  view as it crosses the panel. It has no stop 3 screens past the last email.
+- **Press inside the picked element:** the pick stays on press (so a drag moves the picked element) and moves to what
+  was pressed on release without a drag, as in design tools.
+- **Menus can't read the clipboard:** the right-click and Layout menus copy to the memory copy and to the system
+  clipboard as HTML and plain words (with the marker), and paste from the memory copy.
+- **Proof:** unit tests `tests/canvasHistory.test.ts`, `tests/emailClip.test.ts`, `tests/emailDrop.test.ts`,
+  `tests/emailOps.test.ts` (1,293 tests in all); `scripts/email-canvas-check.ts` part B4 (checks 30 to 58), 127
+  browser checks in all, with B1 to B3 passing unchanged on the new editor; `scripts/studio-check.ts` passes on the
+  shared design save.

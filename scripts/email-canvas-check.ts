@@ -897,6 +897,237 @@ try {
   check(await rz.getByRole("dialog", { name: "Images" }).isVisible(), "a double-click on a picture opens its library");
   if (shots) await rz.screenshot({ path: `${shots}/13-b4-resize.png` });
   await rz.close();
+  // 44. The + panel: the button and A open it
+  const ad = await ctx.newPage();
+  ad.on("pageerror", (e) => errors.push(e.message));
+  await openCanvas(ad);
+  const acalls = () => ad.evaluate(() => (window as unknown as W4).calls);
+  const adoc = (name: string) => ad.evaluate((n) => (window as unknown as W4).db.emails.find((e) => e.name === n)!.doc, name);
+  const abox = (i: number, what: string, n = 0) =>
+    ad.evaluate(
+      ([i, what, n]) => {
+        const f = document.querySelectorAll<HTMLIFrameElement>("[data-email] iframe")[i as number]!;
+        const d = f.contentDocument!;
+        const els = (what as string).startsWith("#") ? [d.querySelector<HTMLElement>(`[data-eid="${(what as string).slice(1)}"]`)!] : (what as string).startsWith("[") ? [...d.querySelectorAll<HTMLElement>(what as string)] : [...d.querySelectorAll<HTMLElement>("[class]")].filter((e) => [...e.classList].some((c) => new RegExp(`^c[a-z0-9]+-${what}$`).test(c)));
+        const el = els[n as number]!;
+        const fr = f.getBoundingClientRect();
+        const z = fr.width / f.offsetWidth;
+        const b = el.getBoundingClientRect();
+        return { x: fr.left + b.left * z, y: fr.top + b.top * z, w: b.width * z, h: b.height * z, id: el.closest("[data-eid]")?.getAttribute("data-eid") ?? "" };
+      },
+      [i, what, n] as const,
+    );
+  await ad.getByRole("button", { name: "Add a block" }).click();
+  check(await ad.locator("aside[aria-label='Add']").isVisible(), "the + button opens the add panel");
+  await ad.locator("aside[aria-label='Add'] [aria-label='Close the add panel']").click();
+  await ad.locator("[role='application']").focus();
+  await ad.keyboard.press("a");
+  check(await ad.locator("aside[aria-label='Add']").isVisible(), "A opens it too");
+
+  // 45. With a block picked, click Heading: it lands right after, picked, typing with its words selected
+  const at45 = (await adoc("Welcome")).sections[1]!.columns[0]!.blocks.map((b) => b.id);
+  const pb = await abox(0, `#${at45[0]}`);
+  await ad.mouse.click(pb.x + 30, pb.y + pb.h / 2);
+  await ad.locator("aside[aria-label='Add'] [data-add='heading']").click();
+  await ad.waitForTimeout(250);
+  const typingNow = await ad.evaluate(() => !!document.querySelectorAll<HTMLIFrameElement>("[data-email] iframe")[0]!.contentDocument!.querySelector("[contenteditable='true']"));
+  await ad.keyboard.type("New title");
+  await ad.keyboard.press("Escape");
+  await ad.waitForTimeout(1100);
+  const s45 = (await adoc("Welcome")).sections[1]!.columns[0]!.blocks as unknown as { id: string; type: string; text?: string }[];
+  check(typingNow && s45[1]?.type === "heading" && s45[1].text === "New title" && s45[0]!.id === at45[0], `a Heading lands after the picked block and types at once (${s45[1]?.text})`);
+
+  // 46. Drag "2 columns" between two sections: a section with two empty columns and their dashed boxes
+  const d46 = await adoc("Welcome");
+  const secB = await abox(0, `#${d46.sections[3]!.id}`);
+  const tile = (await ad.locator("aside[aria-label='Add'] [data-add='c2']").boundingBox())!;
+  await ad.mouse.move(tile.x + tile.width / 2, tile.y + tile.height / 2);
+  await ad.mouse.down();
+  await ad.mouse.move(tile.x + tile.width / 2 + 10, tile.y + tile.height / 2 + 10, { steps: 3 });
+  await ad.mouse.move(secB.x + 60, secB.y + 4, { steps: 10 });
+  await ad.waitForTimeout(80);
+  await ad.mouse.up();
+  await ad.waitForTimeout(1100);
+  const d46b = await adoc("Welcome");
+  const newSec = d46b.sections[3]!;
+  const empties = await ad.evaluate(() => document.querySelectorAll<HTMLIFrameElement>("[data-email] iframe")[0]!.contentDocument!.querySelectorAll("[data-empty]").length);
+  check(d46b.sections.length === d46.sections.length + 1 && newSec.columns.length === 2 && newSec.columns.every((c) => !c.blocks.length) && empties === 2, `dragging 2 columns adds an empty two-column section with its dashed boxes (${empties})`);
+
+  // 47. Drag a Text tile into an empty column's box
+  const emptyBox = await abox(0, "[data-empty]", 1);
+  const tt47 = (await ad.locator("aside[aria-label='Add'] [data-add='text']").boundingBox())!;
+  await ad.mouse.move(tt47.x + tt47.width / 2, tt47.y + tt47.height / 2);
+  await ad.mouse.down();
+  await ad.mouse.move(tt47.x + 20, tt47.y + 20, { steps: 3 });
+  await ad.mouse.move(emptyBox.x + emptyBox.w / 2, emptyBox.y + emptyBox.h / 2, { steps: 10 });
+  await ad.waitForTimeout(80);
+  await ad.mouse.up();
+  await ad.waitForTimeout(400);
+  await ad.keyboard.press("Escape");
+  await ad.waitForTimeout(1100);
+  const d47 = await adoc("Welcome");
+  check(d47.sections[3]!.columns[1]!.blocks.length === 1 && d47.sections[3]!.columns[1]!.blocks[0]!.type === "text", "a Text tile dropped on an empty column's box lands in that column");
+
+  // 48. The component tile adds a use of it after the picked section
+  const sb48 = await abox(0, `#${d47.sections[1]!.id}`);
+  await ad.mouse.click(sb48.x + sb48.w - 6, sb48.y + 4);
+  await ad.keyboard.press("Escape");
+  await ad.waitForTimeout(100);
+  const tag48 = await ad.locator("[data-canvas-tag='pick']").textContent().catch(() => "");
+  if (tag48 !== "Section") {
+    await ad.mouse.click(sb48.x + 60, sb48.y + sb48.h / 2);
+    await ad.keyboard.press("Escape");
+  }
+  await ad.locator("aside[aria-label='Add'] [data-add='cmp:cmp1']").click();
+  await ad.waitForTimeout(1100);
+  const d48 = await adoc("Welcome") as unknown as { sections: { component?: { id: string } }[] };
+  check(d48.sections.some((x) => x.component?.id === "cmp1"), "a component tile adds a use of the component");
+  if (shots) await ad.screenshot({ path: `${shots}/14-b4-add.png` });
+
+  // 49. ⌘C a section in Welcome, ⌘V in Class reminder: the copy lands with new ids
+  const clipCopy = () =>
+    ad.evaluate(() => {
+      const dt = new DataTransfer();
+      (document.activeElement ?? document.body).dispatchEvent(new ClipboardEvent("copy", { clipboardData: dt, bubbles: true, cancelable: true }));
+      return Object.fromEntries(dt.types.map((t) => [t, dt.getData(t)]));
+    });
+  const clipCut = () =>
+    ad.evaluate(() => {
+      const dt = new DataTransfer();
+      (document.activeElement ?? document.body).dispatchEvent(new ClipboardEvent("cut", { clipboardData: dt, bubbles: true, cancelable: true }));
+      return Object.fromEntries(dt.types.map((t) => [t, dt.getData(t)]));
+    });
+  const clipPaste = (data: Record<string, string>) =>
+    ad.evaluate((data) => {
+      const dt = new DataTransfer();
+      for (const [k, v] of Object.entries(data)) dt.setData(k, v);
+      (document.activeElement ?? document.body).dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+    }, data);
+  await ad.locator("aside[aria-label='Add'] [aria-label='Close the add panel']").click();
+  const w49 = await adoc("Welcome");
+  const plain49 = (w49.sections as (Doc["sections"][number] & { component?: unknown })[]).findIndex((x, i) => i >= 1 && !x.component && x.columns.length === 1 && x.columns[0]!.blocks.length > 1);
+  const secC = await abox(0, `#${w49.sections[plain49]!.columns[0]!.blocks[0]!.id}`);
+  await ad.mouse.click(secC.x + 30, secC.y + secC.h / 2);
+  for (let i = 0; i < 2 && (await ad.locator("[data-canvas-tag='pick']").textContent().catch(() => "")) !== "Section"; i++) await ad.keyboard.press("Escape");
+  const copied = await clipCopy();
+  check(!!copied["application/x-claritia-email+json"] && (copied["text/html"] ?? "").includes("data-claritia-clip") && !!copied["text/plain"], "⌘C puts the section on the clipboard three ways");
+  const r49 = await adoc("Class reminder");
+  const into49 = await abox(1, `#${r49.sections[1]!.columns[0]!.blocks[0]!.id}`);
+  await ad.mouse.click(into49.x + 30, into49.y + into49.h / 2);
+  for (let i = 0; i < 2 && (await ad.locator("[data-canvas-tag='pick']").textContent().catch(() => "")) !== "Section"; i++) await ad.keyboard.press("Escape");
+  await clipPaste(copied);
+  await ad.waitForTimeout(1100);
+  const r49b = await adoc("Class reminder");
+  const srcIds = w49.sections[plain49]!.columns.flatMap((c) => c.blocks.map((b) => b.id));
+  const pasted = r49b.sections[2]!;
+  check(r49b.sections.length === r49.sections.length + 1 && pasted.columns.flatMap((c) => c.blocks).length === srcIds.length && !pasted.columns.flatMap((c) => c.blocks.map((b) => b.id)).some((id) => srcIds.includes(id)), "⌘V in another email pastes the section after the picked one, with new ids");
+
+  // 50. ⌘X then ⌘V elsewhere: gone from one place, in the other
+  const w50 = await adoc("Welcome");
+  const cutId = w50.sections[1]!.columns[0]!.blocks[0]!.id;
+  const cb50 = await abox(0, `#${cutId}`);
+  await ad.mouse.click(cb50.x + 30, cb50.y + cb50.h / 2);
+  const cutData = await clipCut();
+  await ad.waitForTimeout(100);
+  const r50 = await adoc("Class reminder");
+  const into50 = await abox(1, `#${r50.sections[1]!.columns[0]!.blocks[0]!.id}`);
+  await ad.mouse.click(into50.x + 30, into50.y + into50.h / 2);
+  await clipPaste(cutData);
+  await ad.waitForTimeout(1300);
+  check(!ids(await adoc("Welcome")).includes(cutId) && ids(await adoc("Class reminder")).length === ids(r50).length + 1, "⌘X removes it and ⌘V puts it in the other email");
+
+  // 51. A crafted clip pastes without its script or bad link
+  const evil = { claritia: "email-clip", v: 1, kind: "block", el: { id: "evil1", type: "text", html: '<p>Safe words<script>alert(1)</script> <a href="javascript:alert(2)">link</a></p>' }, styles: {}, classes: {}, kit: null, ws: "", from: "" };
+  await clipPaste({ "application/x-claritia-email+json": JSON.stringify(evil), "text/plain": "Safe words" });
+  await ad.waitForTimeout(1100);
+  const r51 = JSON.stringify(await adoc("Class reminder"));
+  check(r51.includes("Safe words") && !r51.includes("script") && !r51.includes("javascript"), "a crafted clip pastes without its script or bad link");
+
+  // 52. Words with a Markdown heading and a list paste as blocks after the picked one
+  const before52 = ids(await adoc("Class reminder")).length;
+  await clipPaste({ "text/plain": "# From notes\n- First point\n- Second point" });
+  await ad.waitForTimeout(1100);
+  const r52 = (await adoc("Class reminder")).sections.flatMap((x) => x.columns.flatMap((c) => c.blocks)) as unknown as { type: string; text?: string; items?: string[] }[];
+  check(r52.length === before52 + 2 && r52.some((b) => b.type === "heading" && b.text === "From notes") && r52.some((b) => b.type === "list" && b.items?.join("|") === "First point|Second point"), "Markdown words paste as a Heading and a List");
+
+  // 53. A clip's classes come along to an email on the same kit, and stay off on another kit
+  const classed = { claritia: "email-clip", v: 1, kind: "block", el: { id: "cls9", type: "heading", text: "Classy", level: 2 }, styles: {}, classes: { cls9: ["big1"] }, kit: "aaaaaaaa-0000-4000-8000-000000000001", ws: "ws1", from: "x" };
+  await clipPaste({ "application/x-claritia-email+json": JSON.stringify(classed), "text/plain": "Classy" });
+  const n53 = await adoc("Monthly news");
+  const into53 = await abox(2, `#${n53.sections[1]!.columns[0]!.blocks[0]!.id}`);
+  await ad.mouse.click(into53.x + 30, into53.y + into53.h / 2);
+  await clipPaste({ "application/x-claritia-email+json": JSON.stringify(classed), "text/plain": "Classy" });
+  await ad.waitForTimeout(1300);
+  const sameKit53 = JSON.stringify((await adoc("Class reminder") as unknown as { classes?: unknown }).classes ?? {});
+  const otherKit53 = JSON.stringify((await adoc("Monthly news") as unknown as { classes?: unknown }).classes ?? {});
+  check(sameKit53.includes("big1") && !otherKit53.includes("big1"), "classes come along on the same kit and stay off on another");
+
+  // 54. Alt+Shift+→ moves the picked block into the next email, before its footer
+  const w54 = await adoc("Welcome");
+  const mv54 = w54.sections[1]!.columns[0]!.blocks[0]!.id;
+  const b54 = await abox(0, `#${mv54}`);
+  await ad.mouse.click(b54.x + 30, b54.y + b54.h / 2);
+  await ad.keyboard.press("Alt+Shift+ArrowRight");
+  await ad.waitForTimeout(1300);
+  const r54 = await adoc("Class reminder");
+  const footerSec = r54.sections.findIndex((x) => x.columns.some((c) => c.blocks.some((b) => b.type === "footer")));
+  check(!ids(await adoc("Welcome")).includes(mv54) && r54.sections[footerSec - 1]!.columns[0]!.blocks.length === 1, "Alt+Shift+→ moves the block into the next email before its footer");
+
+  // 55. Right-click a part: the menu; Delete removes it
+  await ad.locator("[role='application']").focus();
+  await ad.keyboard.press("Shift+Digit1");
+  await ad.waitForTimeout(450);
+  const w55 = await adoc("Welcome");
+  const del55 = w55.sections[1]!.columns[0]!.blocks[0]!.id;
+  const b55 = await abox(0, `#${del55}`);
+  await ad.mouse.click(b55.x + 30, b55.y + b55.h / 2, { button: "right" });
+  await ad.waitForTimeout(150);
+  const menu55 = ad.getByRole("menu");
+  check((await menu55.getByRole("menuitem").allTextContents()).join("|").startsWith("Copy⌘C|Cut⌘X|Paste⌘V|Duplicate⌘D|Delete⌫"), "right-click opens the menu with Copy, Cut, Paste, Duplicate, Delete");
+  await menu55.getByRole("menuitem", { name: /Delete/ }).click();
+  await ad.waitForTimeout(1100);
+  check(!ids(await adoc("Welcome")).includes(del55), "the menu's Delete removes it");
+
+  // 56. Shift+F10 opens the menu for the picked element
+  const w56 = await adoc("Welcome");
+  const b56 = await abox(0, `#${w56.sections[1]!.columns[0]!.blocks[0]!.id}`);
+  await ad.mouse.click(b56.x + 30, b56.y + b56.h / 2);
+  await ad.keyboard.press("Shift+F10");
+  await ad.waitForTimeout(150);
+  check(await ad.getByRole("menu").isVisible(), "Shift+F10 opens the menu for the picked element");
+  await ad.keyboard.press("Escape");
+
+  // 57. Undo of a change in an email out of view pans back to it
+  const w57 = await adoc("Welcome");
+  const b57 = await abox(0, `#${w57.sections[1]!.columns[0]!.blocks[0]!.id}`);
+  await ad.mouse.click(b57.x + 30, b57.y + b57.h / 2);
+  await ad.keyboard.press("Delete");
+  await ad.waitForTimeout(200);
+  await ad.keyboard.press("Shift+Digit0");
+  await ad.waitForTimeout(400);
+  for (let i = 0; i < 6; i++) await ad.mouse.wheel(600, 0);
+  await ad.waitForTimeout(200);
+  const st57 = (await ad.locator("[role='application']").boundingBox())!;
+  const off57 = (await ad.locator("[data-email]").first().boundingBox())!;
+  await ad.locator("[role='application']").focus();
+  await ad.keyboard.press("Control+z");
+  await ad.waitForTimeout(700);
+  const on57 = (await ad.locator("[data-email]").first().boundingBox())!;
+  check(off57.x + off57.width < st57.x && on57.x + on57.width > st57.x && on57.x < st57.x + st57.width, "⌘Z of a change out of view pans back to it");
+  void acalls;
+  await ad.close();
+
+  // 58. The add panel is a sheet on a phone
+  const ph = await browser.newContext({ viewport: { width: 390, height: 800 } });
+  const pp = await ph.newPage();
+  pp.on("pageerror", (e) => errors.push(e.message));
+  await pp.goto(`http://localhost:${port}/`);
+  await pp.waitForFunction(() => document.querySelectorAll("[data-email] iframe").length >= 1, null, { timeout: 15000 });
+  await pp.waitForTimeout(300);
+  await pp.getByRole("button", { name: "Add a block" }).click();
+  const sheet58 = (await pp.locator("aside[aria-label='Add']").boundingBox())!;
+  check(sheet58.y > 300 && Math.abs(sheet58.width - 390) < 2, "on a phone the add panel is a sheet from the bottom");
+  await ph.close();
   }
 
   // 12. A row of 60 emails: only those near the view load
