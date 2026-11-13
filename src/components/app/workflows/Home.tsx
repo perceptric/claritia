@@ -10,6 +10,7 @@ import { ChevronRight, Folder, FolderPlus, Plus } from "../../Icons";
 import { askConfirm } from "../Dialogs";
 import { MoreMenu } from "../StatCards";
 import { startingItems } from "@/lib/workflows/templates";
+import { ensureMeetingSetup } from "./meetingSetup";
 import { ToolIntro } from "../ToolIntro";
 import { Button, ErrorNote, IconButton, Loading, must, Page, useLoad, useQuery, type ViewProps } from "../ui";
 import { Modal } from "../meetings/parts";
@@ -46,6 +47,8 @@ export function WorkflowsHome(props: ViewProps & { describe?: (done: () => void)
     // Then the starting set, once per workspace (migration 119): Notification and Follow-up, as drafts. Before 119
     // runs the call fails and the page shows what's there.
     if (!started.error) await sb.rpc("workflow_defaults", { p_ws: ws.id, p_items: startingItems() });
+    // The meeting workflows: the emails Claritia sends for every meeting (165).
+    if (!started.error) await ensureMeetingSetup(sb, ws.id);
     const [rows, folders] = await Promise.all([
       started.error ? sb.from("workflows").select("id, name, status").eq("workspace_id", ws.id).order("created_at") : sb.from("workflows").select("id, name, status, folder_id").eq("workspace_id", ws.id).order("created_at"),
       started.error ? Promise.resolve(null) : sb.from("workflow_folders").select("id, name, position").eq("workspace_id", ws.id).order("position"),

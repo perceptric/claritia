@@ -91,3 +91,9 @@ now.
 
 - Only the Emails item leaves the sidebar; Workflows, Audiences, Templates and Brand stay in the Email section.
 - Templates means both: the email templates (redrawn, 200) and about 30 workflow templates.
+
+## As built: Part A
+
+Built as planned (`src/lib/workflows/meetingFlows.ts`, 165). Two details: a Delay counts days and hours, so a meeting
+type's sub-hour reminder became an hour; and "After the meeting" starts on Meeting booked, with its email going when
+the meeting ends.

@@ -12,7 +12,7 @@ import { meetingTypes } from "../meetings/TypesList";
 import { workspacePeople } from "../shared";
 import { byId, type Names } from "./model";
 
-export type Workflow = { id: string; name: string; status: "draft" | "live" | "paused"; draft: unknown; draft_revision: number; live_version: number | null; updated_at: string };
+export type Workflow = { id: string; name: string; status: "draft" | "live" | "paused"; draft: unknown; draft_revision: number; live_version: number | null; updated_at: string; /** A meeting workflow (165). */ meeting_kind?: string | null };
 export type Version = { version: number; note: string | null; published_at: string; published_by: string | null; body: unknown };
 export type Stats = { entered: number; active: number; steps: Record<string, number> };
 
@@ -52,7 +52,7 @@ export const wordsOf = (n: Names): WordNames => ({ lists: byId(n.lists ?? []), f
 /** A workflow with its versions, names and counts, all asked for at once. */
 export async function loadWorkflow(sb: SupabaseClient, ws: string, id: string): Promise<Loaded> {
   const [row, versions, names, stats] = await Promise.all([
-    sb.from("workflows").select("id, name, status, draft, draft_revision, live_version, updated_at").eq("id", id).eq("workspace_id", ws).maybeSingle(),
+    sb.from("workflows").select("*").eq("id", id).eq("workspace_id", ws).maybeSingle(),
     sb.from("workflow_versions").select("version, note, published_at, published_by, body").eq("workflow_id", id).order("version", { ascending: false }).limit(50),
     loadNames(sb, ws),
     sb.rpc("workflow_stats", { p_id: id }),

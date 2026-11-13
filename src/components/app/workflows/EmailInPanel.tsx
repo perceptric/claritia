@@ -21,7 +21,26 @@ const LABEL: Record<string, string> = { first_name: "First name", last_name: "La
 /** Merge tags as a reader sees them while not typing: the fallback. */
 const fallbacks = (html: string) => html.replace(/\{\{\s*([a-z_]+)\s*(?:\|([^}]*))?\}\}/g, (_m, k: string, f?: string) => (k === "company_address" ? "" : k === "unsubscribe_url" ? "#" : (f ?? "")));
 
-export function EmailInPanel({ doc, kits, onChange, readOnly }: { doc: EmailDoc; kits: CanvasKit[]; onChange: (doc: EmailDoc) => void; readOnly: boolean }) {
+export function EmailInPanel({
+  doc,
+  kits,
+  onChange,
+  readOnly,
+  fill = fallbacks,
+  fields,
+  footer = true,
+}: {
+  doc: EmailDoc;
+  kits: CanvasKit[];
+  onChange: (doc: EmailDoc) => void;
+  readOnly: boolean;
+  /** How merge fields show while not typing: their fallback, or a meeting email's sample values. */
+  fill?: (html: string) => string;
+  /** The merge values Insert data offers; a contact's when left out. */
+  fields?: { tag: string; label: string }[];
+  /** Show the Footer block added for you (an automation email); a meeting's own email has none. */
+  footer?: boolean;
+}) {
   const box = useRef<HTMLDivElement>(null);
   const frames = useRef(new Map<string, HTMLIFrameElement>());
   const [w, setW] = useState(360);
@@ -43,11 +62,11 @@ export function EmailInPanel({ doc, kits, onChange, readOnly }: { doc: EmailDoc;
   });
   const built = useMemo(() => {
     try {
-      return fallbacks(buildDoc(withFooter(doc), kits, { marks: true }));
+      return fill(buildDoc(footer ? withFooter(doc) : doc, kits, { marks: true }));
     } catch {
       return "";
     }
-  }, [doc, kits]);
+  }, [doc, kits, fill, footer]);
   // While typing the frame keeps its HTML, so the caret stays; it's built again once typing ends.
   const [held, setHeld] = useState<string | null>(null);
   const typing = typer.typing;
@@ -111,7 +130,7 @@ export function EmailInPanel({ doc, kits, onChange, readOnly }: { doc: EmailDoc;
 
   return (
     <div className="flex flex-col gap-2">
-      {typing ? <Bar mode={typing.mode} marks={typer.marks} onExec={typer.exec} onLink={() => void typer.link()} onInsert={typer.insert} /> : null}
+      {typing ? <Bar mode={typing.mode} marks={typer.marks} onExec={typer.exec} onLink={() => void typer.link()} onInsert={typer.insert} fields={fields} /> : null}
       <div ref={box} data-email-in-panel="" className="relative overflow-hidden rounded-[10px] bg-paper-deep shadow-rest" style={{ height: h * zoom }}>
         {html ? (
           <iframe
@@ -132,7 +151,7 @@ export function EmailInPanel({ doc, kits, onChange, readOnly }: { doc: EmailDoc;
 }
 
 /** Bold, italic, link and merge values while typing (the canvas's format bar, in a row). */
-function Bar({ mode, marks, onExec, onLink, onInsert }: { mode: TypeMode; marks: { bold: boolean; italic: boolean; link: boolean }; onExec: (c: "bold" | "italic") => void; onLink: () => void; onInsert: (t: string) => void }) {
+function Bar({ mode, marks, onExec, onLink, onInsert, fields }: { mode: TypeMode; marks: { bold: boolean; italic: boolean; link: boolean }; onExec: (c: "bold" | "italic") => void; onLink: () => void; onInsert: (t: string) => void; fields?: { tag: string; label: string }[] }) {
   const [open, setOpen] = useState<HTMLElement | null>(null);
   const keep = (e: React.MouseEvent) => e.preventDefault();
   const btn = "flex h-7 min-w-7 items-center justify-center rounded-full px-2 text-[13px] text-muted hover:bg-hover hover:text-ink aria-pressed:bg-hover aria-pressed:text-ink";
@@ -156,20 +175,20 @@ function Bar({ mode, marks, onExec, onLink, onInsert }: { mode: TypeMode; marks:
       </button>
       {open ? (
         <Popover anchor={open} onClose={() => setOpen(null)} width={180}>
-          <div role="menu" data-typing-keep="" className="flex flex-col p-1">
-            {MERGE_KEYS.map((k) => (
+          <div role="menu" data-typing-keep="" className="flex max-h-72 flex-col overflow-y-auto p-1">
+            {(fields ?? MERGE_KEYS.map((k) => ({ tag: k, label: LABEL[k] ?? k }))).map((f) => (
               <button
-                key={k}
+                key={f.tag}
                 type="button"
                 role="menuitem"
                 onMouseDown={keep}
                 onClick={() => {
                   setOpen(null);
-                  onInsert(`{{${k}|}}`);
+                  onInsert(fields ? `{{${f.tag}}}` : `{{${f.tag}|}}`);
                 }}
                 className="flex min-h-8 items-center rounded-md px-2.5 text-left text-[13px] text-ink hover:bg-hover"
               >
-                {LABEL[k] ?? k}
+                {f.label}
               </button>
             ))}
           </div>

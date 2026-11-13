@@ -2,6 +2,7 @@
 // the changes Make live lists.
 
 import { clockLabel } from "./times.ts";
+import { SYSTEM_META, type SystemKey } from "../meetings/systemEmails.ts";
 import { BASE_FIELDS, ruleWords } from "../router/conditions.ts";
 import { find, walk } from "./tree.ts";
 import type { Body, Goal, Step, Trigger } from "./types.ts";
@@ -45,7 +46,7 @@ export function triggerTitle(t: Trigger): string {
     case "form":
       return "Form submitted";
     case "meeting": {
-      const EV: Record<string, string> = { booked: "booked", canceled: "canceled", held: "held", no_show: "no-show" };
+      const EV: Record<string, string> = { booked: "booked", canceled: "canceled", held: "held", no_show: "no-show", rescheduled: "moved" };
       return `Meeting ${t.events.length ? list(t.events.map((e) => EV[e] ?? e)) : "booked"}`;
     }
     case "not_booked":
@@ -77,7 +78,7 @@ export function triggerDetail(t: Trigger, n: Names = {}): string {
 }
 
 /** A card's name, a noun: Email, Delay, Slack message. */
-export const STEP_TITLE: Record<Step["kind"], string> = { email: "Send email", wait: "Delay", wait_until: "Wait for event", branch: "If/else branch", split: "A/B split", route: "Route lead", slack: "Slack message", webhook: "Webhook", sms: "Text message", whatsapp: "WhatsApp", chat: "Teams or Discord", event: "Analytics event", exit: "End" };
+export const STEP_TITLE: Record<Step["kind"], string> = { email: "Send email", wait: "Delay", wait_until: "Wait for event", branch: "If/else branch", split: "A/B split", route: "Route lead", slack: "Slack message", webhook: "Webhook", sms: "Text message", whatsapp: "WhatsApp", chat: "Teams or Discord", event: "Analytics event", exit: "End", meeting_email: "Send email" };
 
 /** A card's detail under its name: "See you tomorrow", from owner; 1 day before meeting; To owner. */
 export function stepDetail(s: Step, n: Names = {}): string {
@@ -114,6 +115,8 @@ export function stepDetail(s: Step, n: Names = {}): string {
       return s.target?.name ? `To ${s.target.name}` : s.source ? (n.chats?.[s.source] ? `To ${n.chats[s.source]}` : "To a channel") : "No channel yet";
     case "exit":
       return "The automation ends here";
+    case "meeting_email":
+      return meetingEmailDetail(s.key);
   }
 }
 
@@ -156,7 +159,15 @@ export function stepWords(s: Step, n: Names = {}): string {
       return "Send an event";
     case "exit":
       return "End here";
+    case "meeting_email":
+      return `Send "${SYSTEM_META[s.key].name}"`;
   }
+}
+
+/** A Meeting email's card line: which email, to whom, and when it goes when that's not right away. */
+export function meetingEmailDetail(key: SystemKey): string {
+  const m = SYSTEM_META[key];
+  return `${m.name}, to the ${m.to}${key === "after" ? ", when the meeting ends" : ""}`;
 }
 
 const hostOf = (u: string) => {

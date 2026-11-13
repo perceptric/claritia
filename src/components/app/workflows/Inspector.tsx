@@ -199,6 +199,7 @@ export function TriggerPanel({ body, names, onChange, readOnly, problems = [] }:
             <Pills
               options={[
                 { value: "booked", label: "Booked" },
+                { value: "rescheduled", label: "Moved" },
                 { value: "canceled", label: "Canceled" },
                 { value: "held", label: "Held" },
                 { value: "no_show", label: "No-show" },

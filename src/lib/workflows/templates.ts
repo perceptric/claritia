@@ -209,14 +209,12 @@ export const templateByKey = (k: string) => TEMPLATES.find((t) => t.key === k);
 
 /**
  * The starting set every workspace gets the first time Workflows opens (supabase/migrations/119_workflow_defaults.sql):
- * Notification and Follow-up, as drafts with unapproved emails, so nothing sends until someone publishes.
+ * Notification and Follow-up, as drafts, so nothing sends until someone publishes. The meeting emails are the meeting
+ * workflows (src/lib/workflows/meetingFlows.ts), made live beside these.
  */
 export const STARTING: { folder: string; key: string }[] = [
   { folder: "Notification", key: "form_announcement" },
-  { folder: "Notification", key: "meeting_announcement" },
   { folder: "Follow-up", key: "form_followup" },
-  { folder: "Follow-up", key: "meeting_followup" },
-  { folder: "Follow-up", key: "no_show" },
 ];
 
 /** The starting set as workflow_defaults takes it: each one's folder, name and draft body. */

@@ -18,6 +18,7 @@ export type Sel = "trigger" | string;
 
 const ICON: Record<StepKind, (p: { size?: number }) => React.ReactNode> = {
   email: Mail,
+  meeting_email: Mail,
   wait: Clock,
   wait_until: Clock,
   branch: Branch,
@@ -155,7 +156,7 @@ function Card(p: ListProps & { step: Step; first: boolean; last: boolean }) {
             </span>
           ) : null}
         </span>
-        {s.kind === "email" && p.thumbs?.[s.id] ? (
+        {(s.kind === "email" || s.kind === "meeting_email") && p.thumbs?.[s.id] ? (
           <span aria-hidden="true" className="relative h-[92px] w-[66px] shrink-0 overflow-hidden rounded-[5px] bg-white shadow-[0_1px_3px_rgb(0_0_0/0.12),0_0_0_1px_rgb(0_0_0/0.05)]">
             <iframe title="" tabIndex={-1} loading="lazy" srcDoc={p.thumbs[s.id]} sandbox="" className="pointer-events-none absolute top-0 left-0 h-[840px] w-[600px] origin-top-left scale-[0.11] border-0 bg-white" />
           </span>

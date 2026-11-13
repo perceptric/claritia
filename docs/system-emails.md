@@ -1,5 +1,9 @@
 # System emails
 
+Since 165 each System email is a step of a meeting workflow (docs/workflows.md, "The meeting workflows"): edited there
+or on the canvas, and turned off by pausing its workflow or taking its step out. The System emails group on Emails is
+gone; each meeting workflow's card shows its emails.
+
 The emails Claritia sends for every meeting, as designs a team can change on the Emails canvas. Before this, their
 words and look were fixed in code (`src/lib/meetings/emails.ts`) and nobody could see them in Emails.
 

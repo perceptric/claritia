@@ -167,6 +167,36 @@ try {
   check((await p.locator("[data-test-result]").innerText()).includes("doesn't reach this step"), "a step off their path says they don't reach it");
   if (shots) await p.screenshot({ path: `${shots}/automation.png` });
   await p.close();
+
+  // A meeting workflow (docs/workflows-plan.md, Part A): Booking confirmed, with the meeting's own emails.
+  const mf = await ctx.newPage();
+  mf.on("pageerror", (e) => check(false, `no page errors (${e.message})`));
+  await mf.goto(`${base}/?flow=confirmed`);
+  await mf.locator("[data-node]").nth(1).waitFor();
+  await mf.waitForTimeout(500);
+  const cardsText = await mf.locator("[data-node]").allInnerTexts();
+  check(cardsText.some((t) => t.includes("Booking confirmed, to the guest")) && cardsText.some((t) => t.includes("New booking for the host, to the host")), `the cards name each meeting email and who gets it (${cardsText.map((t) => t.replace(/\s+/g, " ")).join(" / ")})`);
+  check((await mf.getByRole("button", { name: "Delete automation" }).count()) === 0 && (await mf.getByRole("button", { name: "Pause" }).count()) === 0, "the workflow with the invite has no Delete and no Pause");
+  const guestCard = mf.locator("[data-node]").nth(1);
+  await guestCard.click();
+  await mf.waitForTimeout(400);
+  const aside = mf.locator("aside");
+  check((await aside.innerText()).includes("with the calendar invite") && (await aside.getByRole("button", { name: "Delete" }).count()) === 0, "the guest's email says it carries the invite and can't be deleted");
+  const mframe = aside.frameLocator("[data-email-in-panel] iframe");
+  check((await mframe.locator("body").innerText()).includes("Alex Kim"), "the email shows a sample meeting's values");
+  await mframe.getByText("Your meeting is booked").click();
+  await mf.keyboard.press("End");
+  await mf.keyboard.type("!");
+  await mf.keyboard.press("Escape");
+  await mf.waitForTimeout(1300);
+  const sysSaves = await mf.evaluate(() => (window as unknown as { calls: { fn: string; body: { p_id?: string; p_doc?: unknown } }[] }).calls.filter((c) => c.fn === "email_draft_save" && c.body.p_id === "sys-confirm").map((c) => JSON.stringify(c.body.p_doc)));
+  check(sysSaves.some((d) => d.includes("Your meeting is booked!")), "typing in it saves the meeting's own email");
+  await guestCard.click();
+  await mf.keyboard.press("Delete");
+  await mf.waitForTimeout(200);
+  check((await mf.locator("[data-node]").count()) === 3 && (await mf.getByText("sends the calendar invite").count()) >= 1, "Delete on it says why it stays");
+  if (shots) await mf.screenshot({ path: `${shots}/automation-meeting.png` });
+  await mf.close();
 } finally {
   await browser.close();
   server.close();
