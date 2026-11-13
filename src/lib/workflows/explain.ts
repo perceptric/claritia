@@ -49,13 +49,13 @@ export function triggerTitle(t: Trigger): string {
       return `Meeting ${t.events.length ? list(t.events.map((e) => EV[e] ?? e)) : "booked"}`;
     }
     case "not_booked":
-      return "No booking after form";
+      return "Form, no booking";
     case "routed":
       return t.result === "unassigned" ? "Lead unassigned" : t.result === "routed" ? "Lead assigned" : "Lead routed";
     case "clicked":
-      return "Email clicked";
+      return "Link clicked";
     case "list":
-      return "Joined a list";
+      return "Added to list";
   }
 }
 
@@ -77,7 +77,7 @@ export function triggerDetail(t: Trigger, n: Names = {}): string {
 }
 
 /** A card's name, a noun: Email, Delay, Slack message. */
-export const STEP_TITLE: Record<Step["kind"], string> = { email: "Email", wait: "Delay", wait_until: "Event wait", branch: "Branch", split: "Split", route: "Route", slack: "Slack message", webhook: "Webhook", sms: "Text message", whatsapp: "WhatsApp message", chat: "Chat message", event: "Analytics event", exit: "Exit" };
+export const STEP_TITLE: Record<Step["kind"], string> = { email: "Send email", wait: "Delay", wait_until: "Wait for event", branch: "If/else branch", split: "A/B split", route: "Route lead", slack: "Slack message", webhook: "Webhook", sms: "Text message", whatsapp: "WhatsApp", chat: "Teams or Discord", event: "Analytics event", exit: "End" };
 
 /** A card's detail under its name: "See you tomorrow", from owner; 1 day before meeting; To owner. */
 export function stepDetail(s: Step, n: Names = {}): string {
@@ -113,7 +113,7 @@ export function stepDetail(s: Step, n: Names = {}): string {
     case "chat":
       return s.target?.name ? `To ${s.target.name}` : s.source ? (n.chats?.[s.source] ? `To ${n.chats[s.source]}` : "To a channel") : "No channel yet";
     case "exit":
-      return "End of workflow";
+      return "The automation ends here";
   }
 }
 

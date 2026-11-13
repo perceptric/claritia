@@ -55,28 +55,28 @@ export type Body = { trigger: Trigger; steps: Step[]; goals: Goal[]; entry: Entr
 
 /** The steps a person can add, in the order the picker shows them, grouped. */
 export const STEP_KINDS: { kind: StepKind; label: string; group: "Email" | "Time" | "Logic" | "Lead" | "Outside" | "End" }[] = [
-  { kind: "email", label: "Email", group: "Email" },
+  { kind: "email", label: "Send email", group: "Email" },
   { kind: "wait", label: "Delay", group: "Time" },
-  { kind: "wait_until", label: "Event wait", group: "Time" },
-  { kind: "branch", label: "Branch", group: "Logic" },
-  { kind: "split", label: "Split", group: "Logic" },
-  { kind: "route", label: "Route", group: "Lead" },
+  { kind: "wait_until", label: "Wait for event", group: "Time" },
+  { kind: "branch", label: "If/else branch", group: "Logic" },
+  { kind: "split", label: "A/B split", group: "Logic" },
+  { kind: "route", label: "Route lead", group: "Lead" },
   { kind: "slack", label: "Slack message", group: "Outside" },
   { kind: "sms", label: "Text message", group: "Outside" },
-  { kind: "whatsapp", label: "WhatsApp message", group: "Outside" },
-  { kind: "chat", label: "Teams or Discord message", group: "Outside" },
+  { kind: "whatsapp", label: "WhatsApp", group: "Outside" },
+  { kind: "chat", label: "Teams or Discord", group: "Outside" },
   { kind: "event", label: "Analytics event", group: "Outside" },
   { kind: "webhook", label: "Webhook", group: "Outside" },
-  { kind: "exit", label: "Exit", group: "End" },
+  { kind: "exit", label: "End", group: "End" },
 ];
 
 export const TRIGGERS: { kind: TriggerKind; label: string }[] = [
   { kind: "form", label: "Form submitted" },
-  { kind: "meeting", label: "Meeting event" },
-  { kind: "not_booked", label: "No booking after form" },
+  { kind: "meeting", label: "Meeting activity" },
+  { kind: "not_booked", label: "Form, no booking" },
   { kind: "routed", label: "Lead routed" },
-  { kind: "clicked", label: "Email clicked" },
-  { kind: "list", label: "Joined a list" },
+  { kind: "clicked", label: "Link clicked" },
+  { kind: "list", label: "Added to list" },
 ];
 
 export const LIMITS = { steps: 50, depth: 3, workflows: 100, runsPerContact: 20 };
@@ -86,18 +86,18 @@ export const emptyEmail = (): EmailBody => ({ subject: "", preheader: "", paragr
 /** One line about each kind: under it in the add menu and under its title in the panel. */
 export const STEP_LINE: Record<StepKind, string> = {
   email: "Send an email",
-  wait: "Wait a while, or until a day and time",
+  wait: "Wait a set time",
   wait_until: "Wait until they book, click or fill a form",
-  branch: "Two paths by what's true about them",
-  split: "Send part one way and part the other",
-  route: "Give the lead to the right person",
-  slack: "Post a message in Slack",
-  webhook: "Send the data to another tool",
-  sms: "Text their mobile, with their consent",
-  whatsapp: "Send an approved WhatsApp template",
-  chat: "Post in Teams or Discord",
-  event: "Send an event to your analytics",
-  exit: "Stop here",
+  branch: "Take a path based on a condition",
+  split: "Split people between two paths",
+  route: "Assign the lead to the right person",
+  slack: "Post to Slack",
+  webhook: "Send data to another app",
+  sms: "Text their phone, with consent",
+  whatsapp: "Send a WhatsApp template",
+  chat: "Post to Teams or Discord",
+  event: "Send an event to analytics",
+  exit: "End the automation here",
 };
 
 export const emptyBody = (): Body => ({ trigger: { kind: "form", forms: [] }, steps: [], goals: [], entry: { mode: "once", gapDays: 30 } });

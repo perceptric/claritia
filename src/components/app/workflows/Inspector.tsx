@@ -147,7 +147,7 @@ export function TriggerPanel({ body, names, onChange, readOnly, problems = [] }:
           <span className="min-w-0">{problems[0]}</span>
         </p>
       ) : null}
-      <Group name="Starts when">
+      <Group name="Trigger">
         <div role="radiogroup" aria-label="Trigger" className="grid grid-cols-2 gap-1.5">
           {TRIGGERS.map((x) => {
             const Icon = TRIGGER_ICON[x.kind] ?? Clock;
@@ -186,7 +186,11 @@ export function TriggerPanel({ body, names, onChange, readOnly, problems = [] }:
                 </span>
               ))}
           </div>
-          <Pills options={names.forms.map((f) => ({ value: f.id, label: f.name }))} value={t.forms.filter((id) => names.forms.some((f) => f.id === id))} onChange={(forms) => set({ forms })} disabled={readOnly} />
+          {names.forms.length ? (
+            <Pills options={names.forms.map((f) => ({ value: f.id, label: f.name }))} value={t.forms.filter((id) => names.forms.some((f) => f.id === id))} onChange={(forms) => set({ forms })} disabled={readOnly} />
+          ) : (
+            <span className="text-[12.5px] text-muted">No forms yet</span>
+          )}
         </Group>
       ) : null}
       {t.kind === "meeting" ? (
@@ -210,7 +214,11 @@ export function TriggerPanel({ body, names, onChange, readOnly, problems = [] }:
                 Deleted meeting type <X size={11} />
               </button>
             ) : null}
-            <Pills options={names.types.map((x) => ({ value: x.id, label: x.name }))} value={t.types.filter((id) => names.types.some((x) => x.id === id))} onChange={(types) => set({ types })} disabled={readOnly} />
+            {names.types.length ? (
+              <Pills options={names.types.map((x) => ({ value: x.id, label: x.name }))} value={t.types.filter((id) => names.types.some((x) => x.id === id))} onChange={(types) => set({ types })} disabled={readOnly} />
+            ) : (
+              <span className="text-[12.5px] text-muted">No meeting types yet</span>
+            )}
           </Group>
         </>
       ) : null}
@@ -233,27 +241,29 @@ export function TriggerPanel({ body, names, onChange, readOnly, problems = [] }:
       ) : null}
 
       <div className="flex flex-col gap-3 border-t border-line pt-4">
-        <span className={label}>Re-entry</span>
+        <span className={label}>Enroll</span>
         <Segmented
           value={body.entry.mode}
           options={[
             { value: "once", label: "Once" },
-            { value: "repeat", label: "Repeat" },
+            { value: "repeat", label: "Every time" },
           ]}
           onChange={(mode) => onChange({ ...body, entry: { ...body.entry, mode } })}
         />
         {body.entry.mode === "repeat" ? (
-          <Group name="Days before they can enter again">
+          <Group name="Days between">
             <NumberField label="Days" value={body.entry.gapDays} min={1} max={365} onChange={(gapDays) => onChange({ ...body, entry: { ...body.entry, gapDays } }, "gap")} className="w-36" disabled={readOnly} />
           </Group>
         ) : null}
       </div>
 
       <div className="flex flex-col gap-3 border-t border-line pt-4">
-        <span className={label}>Exit condition</span>
+        <span className={label}>Stop when</span>
         <div className="flex items-center justify-between gap-3 text-[13px] text-ink">
-          Meeting booked
-          <Toggle label="Exit when a meeting is booked" on={!!goal("meeting_booked")} onChange={(v) => setGoal("meeting_booked", v ? { kind: "meeting_booked" } : null)} disabled={readOnly} />
+          <span className="flex items-center gap-2">
+            <CalendarIcon size={13} /> A meeting is booked
+          </span>
+          <Toggle label="Stop when a meeting is booked" on={!!goal("meeting_booked")} onChange={(v) => setGoal("meeting_booked", v ? { kind: "meeting_booked" } : null)} disabled={readOnly} />
         </div>
       </div>
     </div>
@@ -316,9 +326,9 @@ export function Conditions({ conds, onChange, readOnly }: { conds: Cond[]; onCha
 /** Where the email builder opens from: who is signed in and the workspace. */
 export type BuilderCtx = { session: Session; sb: SupabaseClient; ws: string; /** Where the AI's versions are kept. */ ref?: string };
 
-export function EmailForm({ email, onChange, readOnly, builder }: { email: EmailBody; onChange: (e: EmailBody, key?: string) => void; readOnly: boolean; builder?: BuilderCtx }) {
+export function EmailForm({ email, onChange, readOnly, builder, noSubject = false }: { email: EmailBody; onChange: (e: EmailBody, key?: string) => void; readOnly: boolean; builder?: BuilderCtx; /** The subject is shown elsewhere (the email step's panel). */ noSubject?: boolean }) {
   const [open, setOpen] = useState(false);
-  const subject = (
+  const subject = noSubject ? null : (
     <Group name="Subject">
       <div className="flex min-w-0 items-center gap-2">
         <Input aria-label="Subject" value={email.subject} onChange={(e) => onChange({ ...email, subject: e.target.value }, "subject")} className="h-9 min-w-0 flex-1" disabled={readOnly} />
@@ -583,10 +593,10 @@ export function StepPanel(p: {
                 </Button>
               ) : null}
             </div>
-            {s.email.doc && p.kits ? (
-              <EmailInPanel doc={s.email.doc} kits={p.kits} onChange={(doc) => p.onPatch({ email: { ...s.email, doc } } as Partial<Step>, "doc")} readOnly={p.readOnly} />
+            {s.email.doc ? (
+              p.kits ? <EmailInPanel doc={s.email.doc} kits={p.kits} onChange={(doc) => p.onPatch({ email: { ...s.email, doc } } as Partial<Step>, "doc")} readOnly={p.readOnly} /> : <div className="h-40 rounded-[10px] bg-paper-deep" />
             ) : (
-              <EmailForm email={s.email} onChange={(email, key) => p.onPatch({ email } as Partial<Step>, key)} readOnly={p.readOnly} />
+              <EmailForm email={s.email} onChange={(email, key) => p.onPatch({ email } as Partial<Step>, key)} readOnly={p.readOnly} noSubject />
             )}
           </div>
           {!p.readOnly ? (
