@@ -49,6 +49,9 @@ import { LeftPanel, type LeftTab } from "./LeftPanel";
 import { CanvasChat, type PlanItem } from "./CanvasChat";
 import { addChip, type Chip } from "@/lib/design/email/turn";
 import { AiAvatar, AiMark } from "../../Ai";
+import { VersionPill, versionTime, type Version } from "./VersionPill";
+import { Composer, Pin, ThreadCard, type CommentRow } from "./Comments";
+import { Message } from "../../../Icons";
 import { useImageResize } from "./useImageResize";
 import { useCanvasClipboard } from "./useCanvasClipboard";
 import { FormatBar } from "./FormatBar";
@@ -62,8 +65,8 @@ const LABEL: Record<string, string> = { sent: "Sent", sending: "Sending", schedu
 type Menu = { anchor: HTMLElement; items: { label: string; run: () => void; danger?: boolean; hint?: string; group?: string; disabled?: boolean }[] } | null;
 /** The element picked inside the email being edited; null is the whole email. */
 type El = { email: string; id: string; part: EmailPartKey | null };
-type Boxes = { picked: LocalBox | null; hover: LocalBox | null; pad: Zone[]; img: LocalBox | null };
-const NO_BOXES: Boxes = { picked: null, hover: null, pad: [], img: null };
+type Boxes = { picked: LocalBox | null; hover: LocalBox | null; pad: Zone[]; img: LocalBox | null; pins: Record<string, { email: string; x: number; y: number }> };
+const NO_BOXES: Boxes = { picked: null, hover: null, pad: [], img: null, pins: {} };
 // Built emails, by document and styles, so a change rebuilds only the emails it touched.
 const built = new WeakMap<EmailDoc, { system: DesignSystem; dark: boolean; kits: unknown; status: string; html: string }>();
 function htmlFor(row: CanvasRow, kits: CanvasKit[], doc: EmailDoc, system: DesignSystem, dark: boolean): string {
@@ -76,7 +79,7 @@ function htmlFor(row: CanvasRow, kits: CanvasKit[], doc: EmailDoc, system: Desig
 }
 const sameBox = (a: LocalBox | null, b: LocalBox | null) => (!a || !b ? a === b : a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h);
 
-export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: ViewProps & { groupId: string; pick?: string | null }) {
+export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick }: ViewProps & { groupId: string; pick?: string | null }) {
   const ungrouped = groupId === UNGROUPED;
   const group = useQuery(`email_group:${groupId}`, async () => (ungrouped ? { id: UNGROUPED, name: "Ungrouped" } : (must(await sb.from("email_groups").select("id, name").eq("id", groupId).eq("workspace_id", ws.id).maybeSingle()) as { id: string; name: string } | null)), { staleMs: 0 });
   const rows = useQuery(
@@ -143,6 +146,15 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
   const [chips, setChips] = useState<Chip[]>([]);
   const [flash, setFlash] = useState<string[]>([]);
   const [writing, setWriting] = useState<{ key: string; name: string; failed: boolean; retry?: () => void }[]>([]);
+  // Versions and comments (B5c, B5d).
+  const [viewing, setViewing] = useState<{ email: string; v: Version; hold: boolean } | null>(null);
+  const [commentMode, setCommentMode] = useState(false);
+  const [composer, setComposer] = useState<{ email: string; element: string | null; x: number; y: number } | null>(null);
+  const [openThread, setOpenThread] = useState<{ id: string; anchor: HTMLElement } | null>(null);
+  const [showResolved, setShowResolved] = useState(false);
+  // Emails changed by hand since their last version: a saved point when the pick leaves them (B5c).
+  const versionDirty = useRef(new Set<string>());
+  const threadsRef = useRef<CommentRow[][]>([]);
   // A new text block types at once, after its frame shows it.
   const pendingType = useRef<{ email: string; id: string } | null>(null);
   const [tab, setTab] = useState<"element" | "layout">("element");
@@ -162,7 +174,13 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
   // The email being edited: the one picked, alone.
   const editId = picked.length === 1 ? picked[0]! : null;
   const setRows = rows.set;
-  const onSaved = useCallback((id: string, doc: EmailDoc, subject: string, name: string) => setRows((prev) => prev.map((r) => (r.id === id ? { ...r, doc, subject, preheader: doc.settings.preheader, name } : r))), [setRows]);
+  const onSaved = useCallback(
+    (id: string, doc: EmailDoc, subject: string, name: string) => {
+      versionDirty.current.add(id);
+      setRows((prev) => prev.map((r) => (r.id === id ? { ...r, doc, subject, preheader: doc.settings.preheader, name } : r)));
+    },
+    [setRows],
+  );
   // One editor for every email on the canvas, with one undo history (docs/email-canvas-b4.md section 4).
   // Its own messages (an email sent meanwhile, styles changed elsewhere) show like the canvas's, a little longer.
   const editor = useCanvasEditor({ sb, session, ws: ws.id, rows: list, kits: kitList, onSaved, onNotice: (t) => say(t, 5000) });
@@ -187,6 +205,13 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
     const doc = editor.docOf(r.id);
     const k = doc ? editor.kitFor(doc) : null;
     htmls[r.id] = doc && k?.state ? htmlFor(r, kitList, doc, k.state.system, look === "dark" && r.id === editId) : previewHtml(r, kitList);
+  }
+  // A version being looked at shows in place of the email (B5c).
+  const viewingDoc = useMemo(() => (viewing ? readEmailDoc(viewing.v.doc, { allowHtml: true }) : null), [viewing]);
+  if (viewing && viewingDoc) {
+    const row = list.find((r) => r.id === viewing.email);
+    const k = editor.kitFor(viewingDoc).state;
+    if (row && k) htmls[viewing.email] = htmlFor({ ...row, status: "draft" }, kitList, viewingDoc, k.system, false);
   }
   const rects = useMemo(() => rowLayout(list.map((r) => ({ id: r.id, w: phone ? PHONE : (widths[r.id] ?? widthOf(r)), h: heights[r.id] ?? 900 }))), [list, phone, widths, heights]);
   const all = useMemo(() => boundsOf(rects), [rects]);
@@ -469,9 +494,9 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
   };
   // Set once the menu code below is defined (handlers read it at event time).
   const openMenuRef = useRef<(email: string, id: string | null, x: number, y: number) => void>(() => undefined);
-  const handlers = useRef({ hitAt, editId, el: elNow, start: typer.start, canType, htmls: shown, press: dragger.press, dragIdOf, within, isPicture, openMenu: (email: string, id: string | null, x: number, y: number) => openMenuRef.current(email, id, x, y) });
+  const handlers = useRef({ hitAt, editId, el: elNow, start: typer.start, canType, htmls: shown, press: dragger.press, dragIdOf, within, isPicture, commentMode, openMenu: (email: string, id: string | null, x: number, y: number) => openMenuRef.current(email, id, x, y) });
   useEffect(() => {
-    handlers.current = { hitAt, editId, el: elNow, start: typer.start, canType, htmls: shown, press: dragger.press, dragIdOf, within, isPicture, openMenu: (email, id, x, y) => openMenuRef.current(email, id, x, y) };
+    handlers.current = { hitAt, editId, el: elNow, start: typer.start, canType, htmls: shown, press: dragger.press, dragIdOf, within, isPicture, commentMode, openMenu: (email, id, x, y) => openMenuRef.current(email, id, x, y) };
   });
   // Typing ends when the pick moves, and on a press anywhere outside the email's frame (but the format bar).
   const endTyping = typer.end;
@@ -496,6 +521,14 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
     }
     const h = handlers.current;
     const hit = h.hitAt(id, e.clientX, e.clientY);
+    // Comment mode (C): the click places a new comment on the part under it, or on the email (B5d).
+    if (h.commentMode) {
+      setCommentMode(false);
+      const at = { email: id, element: hit?.id ?? null, x: e.clientX, y: e.clientY };
+      // Opened once the click is over, so the click itself doesn't close the box.
+      window.addEventListener("click", () => setComposer(at), { once: true });
+      return;
+    }
     const here = h.el && h.el.email === id && h.editId === id ? h.el : null;
     // A press inside the picked element keeps it picked, so a drag moves it; a click without a drag picks what was hit.
     if (here && hit && h.within(id, here.id, hit.id)) {
@@ -580,9 +613,20 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
       }
       // A picked picture's own box, for its corner handles (B4).
       const imgEl = pn && elNow ? d.querySelector(`.c${CSS.escape(elNow.id)}-image`) : null;
-      next = { picked: pn ? boxOf(pn) : null, hover: hn ? boxOf(hn) : null, pad, img: imgEl ? boxOf(imgEl) : null };
+      next = { picked: pn ? boxOf(pn) : null, hover: hn ? boxOf(hn) : null, pad, img: imgEl ? boxOf(imgEl) : null, pins: {} };
     }
-    if (!sameBox(next.picked, boxes.picked) || !sameBox(next.hover, boxes.hover) || !sameBox(next.img, boxes.img) || JSON.stringify(next.pad) !== JSON.stringify(boxes.pad)) setBoxes(next);
+    // Each comment pin at its part's top right, or its email's when the part is gone (B5d).
+    const pinsNext: Boxes["pins"] = {};
+    for (const t of threadsRef.current) {
+      const c = t[0]!;
+      const fd = frames.current.get(c.email_id)?.contentDocument;
+      const at = fd ? ((c.element_id ? fd.querySelector(`[data-eid="${CSS.escape(c.element_id)}"]`) : null) ?? fd.querySelector(`[data-eid="email"]`)) : null;
+      if (!at) continue;
+      const b = at.getBoundingClientRect();
+      pinsNext[c.thread_id] = { email: c.email_id, x: Math.round(b.left + b.width - 6), y: Math.round(b.top + 6) };
+    }
+    next = { ...next, pins: pinsNext };
+    if (!sameBox(next.picked, boxes.picked) || !sameBox(next.hover, boxes.hover) || !sameBox(next.img, boxes.img) || JSON.stringify(next.pad) !== JSON.stringify(boxes.pad) || JSON.stringify(next.pins) !== JSON.stringify(boxes.pins)) setBoxes(next);
     // Keys moved the pick out of view: pan to it at the same zoom.
     if (elNow && next.picked && shownFor.current !== elNow.id) {
       shownFor.current = elNow.id;
@@ -785,6 +829,7 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
         ...(draft ? [{ label: "Rename", run: () => void rename(id) }] : []),
         { label: "Duplicate", hint: "⌘D", run: () => void duplicate(id) },
         { label: "Code", run: () => setCode({ html: sourceHtml(r, kits.data ?? []), name: r.name }) },
+        { label: showResolved ? "Hide resolved comments" : "Show resolved comments", run: () => setShowResolved((v) => !v) },
         { label: "Move to group", run: () => moveMenu(anchor, [id]) },
         ...(ungrouped ? [] : [{ label: "Take out of the group", run: () => void moveTo([id], null) }]),
         ...(draft ? [{ label: "Delete", hint: "⌫", danger: true, run: () => void remove([id]) }] : []),
@@ -850,7 +895,84 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
 
   // The right-click menu (B4), at the pointer, on the app's own menu.
   const menuPoint = useRef<HTMLSpanElement>(null);
+  const [composerAnchor, setComposerAnchor] = useState<HTMLSpanElement | null>(null);
   const [menuAt, setMenuAt] = useState({ x: 0, y: 0 });
+
+  // Comments (B5d): threads by email and part, pins at their parts, a composer and thread cards.
+  const me = session.user?.id ?? "";
+  const listIds = list.map((r) => r.id);
+  const comments = useQuery(listIds.length ? `email_comments:${ws.id}:${groupId}:${listIds.length}` : null, async () => (must(await sb.from("email_comments").select("id, email_id, element_id, thread_id, author, body, created_at, resolved_at").eq("workspace_id", ws.id).in("email_id", listIds).order("created_at")) ?? []) as CommentRow[], { staleMs: 5000 });
+  const threads = useMemo(() => {
+    const by = new Map<string, CommentRow[]>();
+    for (const c of comments.data ?? []) by.set(c.thread_id, [...(by.get(c.thread_id) ?? []), c]);
+    return [...by.values()].filter((t) => showResolved || !t[0]!.resolved_at);
+  }, [comments.data, showResolved]);
+  useEffect(() => {
+    threadsRef.current = threads;
+  });
+  const openCount = (email: string) => threads.filter((t) => t[0]!.email_id === email && !t[0]!.resolved_at).length;
+  const pins = boxes.pins;
+  const commentCall = async (fn: string, args: Record<string, unknown>) => {
+    try {
+      must(await sb.rpc(fn, { p_ws: ws.id, ...args }));
+      await comments.reload();
+    } catch (e) {
+      say(errorText(e));
+    }
+  };
+
+  // Versions (B5c): look at one in place, Restore it, and saved points for hand edits.
+  const pickVersion = (email: string, v: Version) => {
+    editor.lock([email], true);
+    setViewing({ email, v, hold: true });
+  };
+  const hoverVersion = (email: string, v: Version | null) => {
+    if (viewing?.hold) return;
+    setViewing(v ? { email, v, hold: false } : null);
+  };
+  const backToLatest = () => {
+    if (viewing?.hold) editor.lock([viewing.email], false);
+    setViewing(null);
+  };
+  const restoreVersion = () => {
+    if (!viewing || !viewingDoc) return;
+    const { email, v } = viewing;
+    editor.lock([email], false);
+    editor.change({ emails: { [email]: { doc: viewingDoc, subject: v.subject } } }, { label: "Restore version" });
+    setViewing(null);
+    setAnnounce("Version restored");
+    void (async () => {
+      await draftRef.current.flush();
+      versionDirty.current.delete(email);
+      await sb.rpc("email_version_save", { p_ws: ws.id, p_email: email, p_note: `Restored from ${versionTime(v.created_at)}` });
+      invalidate(`email_versions:${ws.id}:em:${email}`);
+    })();
+  };
+  /** A saved point for an email changed by hand: after its changes save, if any came since the last version. */
+  const savePoint = useCallback(
+    (email: string) => {
+      if (!versionDirty.current.has(email)) return;
+      versionDirty.current.delete(email);
+      void draftRef.current.flush().then(() => sb.rpc("email_version_save", { p_ws: ws.id, p_email: email, p_note: "Edited" }).then(() => invalidate(`email_versions:${ws.id}:em:${email}`)));
+    },
+    [sb, ws.id],
+  );
+  const prevEdit = useRef<string | null>(null);
+  useEffect(() => {
+    const prev = prevEdit.current;
+    prevEdit.current = editId;
+    if (prev && prev !== editId) savePoint(prev);
+  }, [editId, savePoint]);
+  useEffect(() => {
+    const t = window.setInterval(() => {
+      const id = prevEdit.current;
+      if (id) savePoint(id);
+    }, 10 * 60_000);
+    return () => {
+      window.clearInterval(t);
+      for (const id of [...versionDirty.current]) savePoint(id);
+    };
+  }, [savePoint]);
   /** Actions on an element of any email, by its ids (they never rely on what's picked when the menu opened). */
   const elementAct = {
     duplicate: (email: string, id: string) => {
@@ -887,6 +1009,7 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
       : id && doc
         ? [
             { label: "Add to chat", hint: "⌘L", run: () => addToChat(email, id) },
+            { label: "Comment", hint: "C", run: () => setComposer({ email, element: id, x, y }) },
             { label: "Copy", hint: "⌘C", run: () => void clipboard.copy({ email, id }) },
             { label: "Cut", hint: "⌘X", disabled: locked, run: () => clipboard.cut({ email, id }) },
             { label: "Paste", hint: "⌘V", disabled: !clipboard.hasClip, run: () => void clipboard.paste({ email, id }) },
@@ -999,6 +1122,15 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
       setAddOpen(true);
       return true;
     }
+    if (e.key === "Escape" && (viewing?.hold || commentMode)) {
+      if (viewing?.hold) backToLatest();
+      setCommentMode(false);
+      return true;
+    }
+    if (!mod && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "c") {
+      setCommentMode(true);
+      return true;
+    }
     if (e.key === "Escape") {
       if (drag) setDrag(null);
       else if (elNow) stepOut();
@@ -1090,6 +1222,7 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
 
   const screen = (c: Camera, view: Size) => {
     const z = c.z;
+    const c0 = c;
     const near = nearView(rects, c, view);
     const one = picked.length === 1 ? rowOf(picked[0]!) : undefined;
     return (
@@ -1113,6 +1246,13 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
                 >
                   <span className="min-w-0 break-words">{row.name}</span>
                   <Badge tone={TONE[st] ?? "gray"}>{LABEL[st] ?? st}</Badge>
+                  {row.doc ? <VersionPill sb={sb} ws={ws.id} email={r.id} viewing={viewing?.email === r.id ? viewing.v : null} onHover={(v) => hoverVersion(r.id, v)} onPick={(v) => pickVersion(r.id, v)} /> : null}
+                  {openCount(r.id) ? (
+                    <span className="inline-flex h-5 shrink-0 items-center gap-1 rounded-full bg-paper-deep px-1.5 text-[11.5px] text-muted">
+                      <Message size={11} />
+                      {openCount(r.id)}
+                    </span>
+                  ) : null}
                 </div>
               ) : null}
               {hover === r.id && !on && !drag?.on ? <div className="absolute shadow-[0_0_0_1px_var(--color-signal)]" style={{ left: a.x, top: a.y, width: r.w * z, height: r.h * z }} /> : null}
@@ -1210,6 +1350,35 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
               );
             })()
           : null}
+        {threads.map((t) => {
+          const c = t[0]!;
+          const pin = pins[c.thread_id];
+          const r = pin ? rects.find((x) => x.id === pin.email) : null;
+          if (!pin || !r || z < 0.25) return null;
+          const at = toScreen(c0, r.x + pin.x, r.y + pin.y);
+          return <Pin key={c.thread_id} x={at.x} y={at.y} count={t.length} resolved={!!c.resolved_at} onOpen={(anchor) => setOpenThread({ id: c.thread_id, anchor })} />;
+        })}
+        {viewing?.hold
+          ? (() => {
+              const r = rects.find((x) => x.id === viewing.email);
+              if (!r) return null;
+              const at = toScreen(c0, r.x, r.y);
+              const sent = editor.readOnly(viewing.email) && !editor.locked.includes(viewing.email);
+              return (
+                <div data-canvas-ui="" data-version-bar="" className="pointer-events-auto absolute flex -translate-x-1/2 flex-wrap items-center gap-1 rounded-full bg-card p-1 pl-3 text-[12.5px] font-medium text-ink shadow-float" style={{ left: at.x + (r.w * z) / 2, top: at.y + 10 }}>
+                  Version from {versionTime(viewing.v.created_at)}
+                  {!sent ? (
+                    <Button size="sm" onClick={restoreVersion}>
+                      Restore
+                    </Button>
+                  ) : null}
+                  <Button size="sm" variant="plain" onClick={backToLatest}>
+                    Back to latest
+                  </Button>
+                </div>
+              );
+            })()
+          : null}
         {dragger.view ? <DragLayer view={dragger.view} /> : null}
         {typingHere && boxes.picked && !drag?.on
           ? (() => {
@@ -1252,6 +1421,9 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
           </>
         ) : draft ? (
           <>
+            <button type="button" aria-label="Comment" title="Comment (C)" onClick={() => setCommentMode(true)} className="flex size-7 items-center justify-center rounded-full text-muted hover:bg-hover hover:text-ink">
+              <Message size={14} />
+            </button>
             <Button size="sm" variant="plain" onClick={() => addToChat(r!.id, null)}>
               <AiMark size={13} /> Add to chat
             </Button>
@@ -1271,6 +1443,9 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
           </>
         ) : (
           <>
+            <button type="button" aria-label="Comment" title="Comment (C)" onClick={() => setCommentMode(true)} className="flex size-7 items-center justify-center rounded-full text-muted hover:bg-hover hover:text-ink">
+              <Message size={14} />
+            </button>
             <Button size="sm" variant="plain" onClick={() => navigate("emails", `campaigns/${r!.id}`)}>
               Results
             </Button>
@@ -1552,6 +1727,38 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
         ) : null}
       </div>
       <span ref={menuPoint} aria-hidden="true" className="pointer-events-none fixed size-0" style={{ left: menuAt.x, top: menuAt.y }} />
+      <span ref={setComposerAnchor} aria-hidden="true" className="pointer-events-none fixed size-0" style={{ left: composer?.x ?? 0, top: composer?.y ?? 0 }} />
+      {composer && composerAnchor ? (
+        <Popover anchor={composerAnchor} onClose={() => setComposer(null)} width={280}>
+          <Composer
+            onCancel={() => setComposer(null)}
+            onSubmit={async (body) => {
+              await commentCall("email_comment_add", { p_email: composer.email, p_element: composer.element, p_thread: null, p_body: body });
+              setComposer(null);
+            }}
+          />
+        </Popover>
+      ) : null}
+      {openThread && threads.some((t) => t[0]!.thread_id === openThread.id) ? (
+        <Popover anchor={openThread.anchor} onClose={() => setOpenThread(null)} width={300}>
+          <ThreadCard
+            comments={threads.find((t) => t[0]!.thread_id === openThread.id)!}
+            me={me}
+            owner={role === "owner"}
+            onReply={(body) => commentCall("email_comment_add", { p_email: threads.find((t) => t[0]!.thread_id === openThread.id)![0]!.email_id, p_element: null, p_thread: openThread.id, p_body: body })}
+            onResolve={(on) => {
+              void commentCall("email_comment_resolve", { p_thread: openThread.id, p_resolved: on });
+              if (on && !showResolved) setOpenThread(null);
+            }}
+            onDelete={(c) =>
+              void (async () => {
+                if (!(await askConfirm("Delete this comment?", { body: c.id === c.thread_id ? "Its replies go too." : undefined, ok: "Delete", danger: true }))) return;
+                await commentCall("email_comment_delete", { p_id: c.id });
+              })()
+            }
+          />
+        </Popover>
+      ) : null}
       {menu ? (
         <Popover anchor={menu.anchor} onClose={() => setMenu(null)} width={240}>
           <div role="menu" className="flex flex-col p-1" data-canvas-ui="">

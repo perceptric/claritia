@@ -31,6 +31,8 @@ const K2_DESIGN = { email: { globals: {}, classes: [{ id: "kid1", name: "Playful
 const db: Record<string, Row[]> = {
   email_groups: [{ id: G, workspace_id: "ws1", name: "Welcome series", created_at: new Date(now - 86400000).toISOString() }, { id: "22222222-2222-4222-8222-222222222222", workspace_id: "ws1", name: "Holiday promo", created_at: new Date(now).toISOString() }],
   emails: [email("Welcome", 0, G, 0), email("Class reminder", 3, G, 1), { ...email("Monthly news", 6, G, 2), doc: { ...EMAIL_TEMPLATES[6]!.make(), kitId: K2 } }, email("Spring workshop", 9, null, 0)],
+  email_versions: [],
+  email_comments: [],
   brand_kits: [{ id: K1, workspace_id: "ws1", name: "Juniper", design: K1_DESIGN, design_live: K1_DESIGN, tokens: {}, logo_url: LOGO, design_rev: 0, created_at: new Date(now - 86400000).toISOString() },
     { id: K2, workspace_id: "ws1", name: "Juniper Kids", tokens: {}, logo_url: LOGO, design: K2_DESIGN, design_live: K2_DESIGN, design_rev: 0, created_at: new Date(now - 3600000).toISOString() }],
 };
@@ -85,6 +87,7 @@ function query(table: string) {
     select: () => q,
     eq: (k: string, v: unknown) => (filters.push((r) => r[k] === v), q),
     neq: (k: string, v: unknown) => (filters.push((r) => r[k] !== v), q),
+    in: (k: string, vs: unknown[]) => (filters.push((r) => vs.includes(r[k])), q),
     is: (k: string, v: unknown) => (filters.push((r) => (r[k] ?? null) === v), q),
     order: (k: string, o?: { ascending?: boolean }) => ((orders = [...orders, [k, o?.ascending !== false]]), q),
     limit: (n: number) => ((max = n), q),
@@ -131,6 +134,33 @@ const rpc = async (fn: string, a: Row) => {
     if (old !== a.p_group) regroup(old);
     return { data: true, error: null };
   }
+  // B5: versions and comments.
+  if (fn === "email_version_save") {
+    const e = db.emails!.find((x) => x.id === a.p_email)!;
+    const ref = `em:${e.id}`;
+    const last = db.email_versions!.filter((v) => v.ref === ref).sort((x, y) => String(y.created_at).localeCompare(String(x.created_at)))[0];
+    if (last && JSON.stringify(last.doc) === JSON.stringify(e.doc)) return { data: null, error: null };
+    const v = { id: `v${db.email_versions!.length + 1}`, workspace_id: "ws1", ref, doc: JSON.parse(JSON.stringify(e.doc)), subject: e.subject, note: a.p_note || "Edited", by_ai: false, created_at: new Date(Date.now() + db.email_versions!.length).toISOString() };
+    db.email_versions!.push(v);
+    return { data: v.id, error: null };
+  }
+  if (fn === "email_comment_add") {
+    const id = `c${db.email_comments!.length + 1}aaaa`;
+    const thread = (a.p_thread as string | null) ?? id;
+    const el = a.p_thread ? (db.email_comments!.find((c) => c.id === a.p_thread)!.element_id as string | null) : ((a.p_element as string | null) || null);
+    db.email_comments!.push({ id, workspace_id: "ws1", email_id: a.p_email, element_id: el, thread_id: thread, author: "u1", body: String(a.p_body).trim(), created_at: new Date(Date.now() + db.email_comments!.length).toISOString(), resolved_at: null });
+    return { data: id, error: null };
+  }
+  if (fn === "email_comment_resolve") {
+    for (const c of db.email_comments!) if (c.thread_id === a.p_thread) c.resolved_at = a.p_resolved ? new Date().toISOString() : null;
+    return { data: true, error: null };
+  }
+  if (fn === "email_comment_delete") {
+    const c = db.email_comments!.find((x) => x.id === a.p_id);
+    if (!c) return { data: false, error: null };
+    db.email_comments = db.email_comments!.filter((x) => (c.id === c.thread_id ? x.thread_id !== c.id : x.id !== c.id));
+    return { data: true, error: null };
+  }
   if (fn === "brand_kit_design_publish") {
     const k = db.brand_kits!.find((x) => x.id === a.p_id)!;
     k.design_live = k.design;
@@ -164,7 +194,7 @@ const rpc = async (fn: string, a: Row) => {
 const sb = { from: query, rpc } as never;
 const props = {
   sb,
-  session: { access_token: "t" } as never,
+  session: { access_token: "t", user: { id: "u1" } } as never,
   ws: { id: "ws1", name: "Juniper", features: [] },
   role: "owner" as const,
   id: "",
