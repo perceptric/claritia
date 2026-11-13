@@ -159,7 +159,7 @@ Each step is its own PR with its tests and its cost line.
 | B2 (built, `docs/email-canvas-b2.md`) | Picking blocks on the canvas, the Element and Layout panel with the full property sets, the layer tree | compiler tests for each new property; browser check |
 | B3 (built, `docs/email-canvas-b3.md`) | Typing in place, the format bar, paste rules | browser check (type, bold, link, plain paste, Markdown paste) |
 | B4 (plan, `docs/email-canvas-b4.md`) | Dragging sections and blocks (within and between emails), image corner resize, the + panel, copy and paste, keyboard moves, undo | `tests/emailOps.test.ts` for each operation; browser check |
-| B5 | Tia on the canvas (Add to chat, scoped edits, versions on the artboard), Campaigns' Groups and List views | chat tests with a scripted model; browser check |
+| B5 (plan, `docs/email-canvas-b5.md`) | Tia on the canvas (Add to chat, scoped edits, many emails from one prompt), versions on the artboard, comments, Campaigns' Groups and List views, campaign drafts open on the canvas | chat tests with a scripted model; browser check |
 
 The browser checks run like `scripts/studio-check.ts`: the canvas with a stand-in server
 (`scripts/email-canvas/entry.ts`) in the pre-installed Chromium, since the whole app can't run in a session here.
