@@ -121,7 +121,7 @@ export function Sections({ ctx }: { ctx: Ctx }) {
 
 const shortLabel = (p: Prop) => propDef(p).label.replace(/^(Border|Corner|Inset) (top|right|bottom|left)( left| right)? ?/i, (m) => m.replace(/^(Border|Inset) /i, "")).replace(/^\w/, (c) => c.toUpperCase());
 
-function PropRow({ ctx, prop, label, linked }: { ctx: Ctx; prop: Prop; label?: string; linked?: Prop[] }) {
+export function PropRow({ ctx, prop, label, linked }: { ctx: Ctx; prop: Prop; label?: string; linked?: Prop[] }) {
   const all = linked ?? [prop];
   const origin = ctx.origin(prop);
   const own = ctx.own(prop);

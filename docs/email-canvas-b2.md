@@ -1,6 +1,6 @@
 # B2: picking inside an email, and the Element and Layout panel
 
-Plan, 13 November 2026. Step B2 of `docs/email-canvas-plan.md`, after B1 (`docs/email-canvas-b1.md`). B2 makes the
+Plan, 13 November 2026; built the same day (section 12). Step B2 of `docs/email-canvas-plan.md`, after B1 (`docs/email-canvas-b1.md`). B2 makes the
 emails on the canvas editable by picking: click any part of an email to pick it, see and change everything about it
 in a panel on the right (Element), see the email's structure as a tree (Layout), and reorder through the tree and the
 keyboard. Typing in place is B3; dragging blocks on the canvas itself and the + panel are B4; Tia is B5.
@@ -266,3 +266,25 @@ from Brew's panel is left out: mail apps decide where links open, so the setting
 | --- | --- | --- |
 | Servers, database, Claude | $0 (it runs in the browser; saves are the same calls the Email Studio makes) | $0 |
 | **Total added** | **$0 a month** | **$0 a month** |
+
+## 12. As built
+
+- **Files:** `src/lib/design/email/tree.ts` and `pick.ts` (tested in `tests/emailTree.test.ts`);
+  `src/components/app/emails/canvas/useEmailDraft.ts`, `Inspector.tsx`, `LayerTree.tsx`, `Overlay.tsx`; changes to
+  `Artboard.tsx` (registers its frame, writes new HTML into it), `preview.ts` (builds with marks, from the live draft),
+  `EmailCanvasPage.tsx`, `EmailStyle.tsx` (`emailStyleCtx`, shared by both panels) and `StyleSections.tsx` (`PropRow`
+  exported). Heading levels 4 to 6 and the image `loading` setting are in `doc.ts`, `compile.ts` and
+  `BlockSettings.tsx`. The groups live in `Inspector.tsx` instead of one file each.
+- **Content** is the Email Studio's own `BlockSettings`, so Align, Loading, Show on, Show when and Stack on phones
+  stay where the Email Studio has them (in Content) instead of in Layout and Visibility.
+- **Enter** now steps into the picked email (its first section); a double-click on the email's name opens it in the
+  Email Studio. Steps in go through a Column when a section has several (email › section › column › block).
+- **⌘D and Delete** act on the picked element; with the whole email picked (click its name, or Escape out) they act
+  on the email as in B1.
+- **Sent emails** show what was sent; one sent before marks existed (only its HTML) picks as a whole email.
+- **Undo** covers the document and the brand's draft styles together; resizing the email being edited goes through
+  its editor too, so Undo takes it back.
+- On a phone the panel is a sheet over the lower half of the canvas, and the email toolbar moves to the top while it's
+  open.
+- **Proof:** `scripts/email-canvas-check.ts` part B2 (checks 14 to 22) and the B1 checks updated for Enter and the
+  sheet.

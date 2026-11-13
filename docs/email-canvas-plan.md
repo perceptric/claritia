@@ -156,7 +156,7 @@ Each step is its own PR with its tests and its cost line.
 | --- | --- | --- |
 | A | Flat sidebar | `tests/nav.test.ts`, overflow test |
 | B1 (built, `docs/email-canvas-b1.md`) | The canvas: pan, zoom, fit, artboards of a group and Ungrouped, picking an email, the email toolbar, reorder by drag | `tests/canvasView.test.ts` (zoom toward a point, fit, clamps); a browser check |
-| B2 | Picking blocks on the canvas, the Element and Layout panel with the full property sets, the layer tree | compiler tests for each new property; browser check |
+| B2 (built, `docs/email-canvas-b2.md`) | Picking blocks on the canvas, the Element and Layout panel with the full property sets, the layer tree | compiler tests for each new property; browser check |
 | B3 | Typing in place, the format bar, paste rules | browser check (type, bold, link, plain paste, Markdown paste) |
 | B4 | Dragging sections and blocks (within and between emails), image corner resize, the + panel, copy and paste, keyboard moves, undo | `tests/emailOps.test.ts` for each operation; browser check |
 | B5 | Tia on the canvas (Add to chat, scoped edits, versions on the artboard), Campaigns' Groups and List views | chat tests with a scripted model; browser check |

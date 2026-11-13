@@ -304,11 +304,11 @@ function BlockForm({ doc, b, onChange, assets }: { doc: EmailDoc; b: Block; onCh
           <>
             <AreaIn label="Heading" value={b.text} rows={2} onChange={(v) => set({ text: v.replace(/\n/g, " ") }, "text")} />
             <Merge onPick={(t) => set({ text: `${b.text}${t}` })} />
-            <Row label="Size">
+            <Row label="Level">
               <Seg<string>
-                label="Heading size"
+                label="Heading level"
                 value={String(b.level)}
-                options={["1", "2", "3"].map((l) => ({ value: l, label: `H${l}` }))}
+                options={["1", "2", "3", "4", "5", "6"].map((l) => ({ value: l, label: `H${l}` }))}
                 onChange={(l) => set({ level: Number(l) })}
               />
             </Row>
@@ -339,6 +339,18 @@ function BlockForm({ doc, b, onChange, assets }: { doc: EmailDoc; b: Block; onCh
             {text("Link", "url", b.url, { placeholder: "https://", mono: true })}
             <NumRow label="Width" value={b.width} onChange={(v) => set({ width: v })} min={20} max={1400} empty unit="px" />
             {align(b.align)}
+            <Row label="Loading">
+              <Seg<string>
+                label="Loading"
+                value={b.loading ?? ""}
+                options={[
+                  { value: "", label: "Default" },
+                  { value: "lazy", label: "Lazy" },
+                  { value: "eager", label: "Eager" },
+                ]}
+                onChange={(v) => set({ loading: v === "lazy" || v === "eager" ? v : undefined })}
+              />
+            </Row>
           </>
         );
       case "logo":

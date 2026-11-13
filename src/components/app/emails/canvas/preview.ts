@@ -5,7 +5,7 @@
 import { compileEmail } from "@/lib/design/email/compile";
 import { readEmailDoc, type EmailDoc } from "@/lib/design/email/doc";
 import { designFonts, fontUrl } from "@/lib/design/fonts";
-import { readSystem } from "@/lib/design/model";
+import { readSystem, type DesignSystem } from "@/lib/design/model";
 import { cleanTokens, type Tokens } from "@/lib/forms/brand";
 
 export type CanvasKit = { id: string; tokens: Partial<Tokens> | null; logo_url: string | null; design: unknown };
@@ -19,19 +19,28 @@ export const docOf = (row: Pick<CanvasRow, "doc">): EmailDoc => readEmailDoc(row
 /** The email's own width: the builder's setting, or 600 for an email with no blocks. */
 export const widthOf = (row: Pick<CanvasRow, "doc">): number => (row.doc ? docOf(row).settings.width : 600);
 
-/** The HTML that goes out (no editing marks), for the code view and the preview. */
-export function sourceHtml(row: Pick<CanvasRow, "doc" | "status" | "html">, kits: CanvasKit[]): string {
-  if (row.status !== "draft" && row.html) return row.html;
-  const doc = docOf(row);
+/** A document built in its brand: the draft styles (or the given live ones), with the canvas's marks when `marks`. */
+export function buildDoc(doc: EmailDoc, kits: CanvasKit[], o: { system?: DesignSystem; tokens?: Partial<Tokens>; marks?: boolean; dark?: boolean } = {}): string {
   const kit = kits.find((k) => k.id === doc.kitId) ?? kits[0];
-  const tokens = cleanTokens((kit?.tokens ?? {}) as object).tokens;
-  const system = readSystem(kit?.design ?? {}, tokens);
-  return compileEmail(system, doc, { tokens, logo: kit?.logo_url ?? null, fontUrl: fontUrl(designFonts(system, doc.styles ?? null)) }).html;
+  const tokens = o.tokens ?? cleanTokens((kit?.tokens ?? {}) as object).tokens;
+  const system = o.system ?? readSystem(kit?.design ?? {}, tokens);
+  return compileEmail(system, doc, { tokens, logo: kit?.logo_url ?? null, fontUrl: fontUrl(designFonts(system, doc.styles ?? null)), ...(o.marks ? { preview: true } : {}), ...(o.dark ? { forceDark: true } : {}) }).html;
 }
 
-export function previewHtml(row: Pick<CanvasRow, "doc" | "status" | "html">, kits: CanvasKit[]): string {
+/** The HTML that goes out (no editing marks), for the code view. */
+export function sourceHtml(row: Pick<CanvasRow, "doc" | "status" | "html">, kits: CanvasKit[]): string {
+  if (row.status !== "draft" && row.html) return row.html;
+  return buildDoc(docOf(row), kits);
+}
+
+/**
+ * What the canvas shows: a sent email as sent; a draft built with the canvas's marks (so a click finds its parts),
+ * from its live document and styles while it's being edited. Merge tags show their fallback.
+ */
+export function previewHtml(row: Pick<CanvasRow, "doc" | "status" | "html">, kits: CanvasKit[], live?: { doc: EmailDoc; system: DesignSystem; tokens: Partial<Tokens>; dark?: boolean }): string {
   try {
-    return filled(sourceHtml(row, kits));
+    if (row.status !== "draft" && row.html) return filled(row.html);
+    return filled(live ? buildDoc(live.doc, kits, { system: live.system, tokens: live.tokens, marks: true, dark: live.dark }) : buildDoc(docOf(row), kits, { marks: true }));
   } catch {
     return "";
   }
