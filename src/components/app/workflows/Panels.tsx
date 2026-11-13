@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { cleanBody } from "@/lib/workflows/check";
 import { diffWords, resultWords, stepWords, type Names as WordNames } from "@/lib/workflows/explain";
 import { find } from "@/lib/workflows/tree";
+import { emailSteps } from "@/lib/workflows/stepEmails";
 import type { Body } from "@/lib/workflows/types";
 import { Search } from "../../Icons";
 import { askConfirm } from "../Dialogs";
@@ -305,8 +306,10 @@ export function VersionsDrawer({ versions, live, people, onOpen, onCopy, onClose
 
 // Publish -----------------------------------------------------------------------------------------------------------
 
-export function PublishDialog({ session, id, live, draft, names, next, onDone, onFailed, onClose }: { session: Session; id: string; live: Body | null; draft: Body; names: WordNames; next: number; onDone: (v: number) => void; onFailed?: () => void; onClose: () => void }) {
+export function PublishDialog({ session, id, live, draft, names, next, thumbs = {}, onDone, onFailed, onClose }: { session: Session; id: string; live: Body | null; draft: Body; names: WordNames; next: number; thumbs?: Record<string, string>; onDone: (v: number) => void; onFailed?: () => void; onClose: () => void }) {
   const changes = useMemo(() => diffWords(live, draft, names), [live, draft, names]);
+  // Every email once, as it will go: this is the look before anything sends.
+  const emails = useMemo(() => emailSteps(draft), [draft]);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -318,7 +321,7 @@ export function PublishDialog({ session, id, live, draft, names, next, onDone, o
       onDone(r.version);
     } catch (e) {
       setError(errorText(e));
-      // An email changed on the Emails page: its words come into the draft, for a look and a new approval.
+      // The emails are read again from the Emails page.
       onFailed?.();
     } finally {
       setBusy(false);
@@ -340,6 +343,21 @@ export function PublishDialog({ session, id, live, draft, names, next, onDone, o
       }
     >
       <div className="flex flex-col gap-4">
+        {emails.length ? (
+          <ul aria-label="Emails" className="flex max-h-80 flex-col gap-2 overflow-y-auto">
+            {emails.map((s) => (
+              <li key={s.id} className="flex items-center gap-3 rounded-[10px] bg-paper p-2.5">
+                <span aria-hidden="true" className="relative h-[92px] w-[66px] shrink-0 overflow-hidden rounded-[5px] bg-white shadow-rest">
+                  {thumbs[s.id] ? <iframe title="" tabIndex={-1} srcDoc={thumbs[s.id]} sandbox="" className="pointer-events-none absolute top-0 left-0 h-[840px] w-[600px] origin-top-left scale-[0.11] border-0 bg-white" /> : null}
+                </span>
+                <span className="flex min-w-0 flex-col">
+                  <span className="text-[13.5px] font-medium break-words text-ink">{s.email.subject || "No subject yet"}</span>
+                  <span className="text-[12.5px] text-muted">{s.from === "owner" ? "From their owner" : "From your team"}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
         <ul className="flex max-h-64 flex-col gap-1 overflow-y-auto">
           {changes.map((c, i) => (
             <li key={i} className="text-[13px] leading-5 text-ink">

@@ -116,9 +116,37 @@ try {
   check(ids2.indexOf("w1") > ids2.indexOf("m1"), "⌘Z puts it back");
 
   // The trigger as cards.
+  await p.getByRole("application", { name: "Automation" }).focus();
+  await p.keyboard.press("Shift+Digit1");
+  await p.waitForTimeout(400);
   await p.locator('[data-node="trigger"]').click();
   const radios = p.locator("aside").getByRole("radiogroup", { name: "Trigger" }).getByRole("radio");
   check((await radios.count()) === 6 && (await p.locator("aside").getByRole("radio", { name: "Form submitted" }).getAttribute("aria-checked")) === "true", "the trigger is a set of cards with the current one picked");
+
+  // One email (docs/workflows.md): the email in the panel, typed in place, no Approve, Open full editor.
+  await p.locator('[data-node="m1"]').click();
+  await p.waitForTimeout(300);
+  const side = p.locator("aside");
+  check((await side.getByRole("button", { name: "Approve" }).count()) === 0 && (await side.getByText("Approve the email").count()) === 0 && (await side.getByText("Add the Footer block").count()) === 0, "an email step has no Approve and no footer to add");
+  check((await side.locator("[data-email-in-panel] iframe").count()) === 1 && (await side.getByRole("button", { name: "From" }).count()) === 1, "the panel shows From, the subject and the email itself");
+  const mailFrame = side.frameLocator("[data-email-in-panel] iframe");
+  check(/Unsubscribe/.test(await mailFrame.locator("body").innerText()), "the footer is there, added for you");
+  await mailFrame.getByText("Someone will reply within a day.").click();
+  await p.waitForTimeout(150);
+  check((await mailFrame.locator("[contenteditable='true']").count()) === 1 && (await side.getByRole("toolbar", { name: "Format" }).count()) === 1, "a click on the words types in place, with the format bar");
+  await p.keyboard.press("End");
+  await p.keyboard.type(" Usually sooner.");
+  await p.keyboard.press("Escape");
+  await p.waitForTimeout(400);
+  check((await side.locator("[data-email-in-panel] iframe").evaluate((f) => (f as HTMLIFrameElement).contentDocument?.body.innerText ?? "")).includes("Usually sooner."), "the typed words stay in the email");
+  await p.waitForTimeout(1200);
+  const saved = await p.evaluate(() => (window as unknown as { calls: { fn: string; body: { p_doc?: unknown } }[] }).calls.filter((c) => c.fn === "email_draft_save").map((c) => JSON.stringify(c.body.p_doc ?? "")));
+  check(saved.some((d) => d.includes("Usually sooner.")), "and reach the email on the Emails page");
+  await side.getByRole("button", { name: "Open full editor" }).click();
+  await p.waitForTimeout(400);
+  const nav = await p.evaluate(() => (window as unknown as { calls: { fn: string; body: { r: string; i: string } }[] }).calls.filter((c) => c.fn === "navigate").map((c) => c.body.i));
+  check(nav.some((i) => i?.startsWith("campaigns/group/wf:")), `Open full editor opens the same email on the Emails canvas (${nav.join(", ")})`);
+  if (shots) await p.screenshot({ path: `${shots}/automation-email.png` });
 
   // The Test tab.
   await p.locator('[data-node="w1"]').click();

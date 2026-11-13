@@ -103,7 +103,7 @@ test("merge fields fill from the contact, take the fallback when blank, and a fi
 test("the checks: what stops Make live, in words", () => {
   const body: Body = { ...emptyBody(), steps: [email("e1", false), { id: "b", kind: "branch", match: "all", conds: [], yes: [], no: [] }, { id: "h", kind: "webhook", url: "http://x.com" }] };
   const p = problems(body).map((x) => `${x.step}:${x.text}`);
-  assert.ok(p.includes("e1:Approve the email"));
+  assert.ok(!p.some((x) => x.includes("Approve")), "no Approve: Publish shows every email once");
   assert.ok(p.includes("b:Add a condition"));
   assert.ok(p.includes("h:Webhooks need an https:// address"));
   const gap = problems({ ...emptyBody(), steps: [{ ...email("e2"), email: { subject: "Hi {{first_name}}", preheader: "", paragraphs: ["x"], cta_label: "", cta_url: "" } } as Step] });
@@ -201,7 +201,7 @@ test("an email built with blocks: checked for words, links, images and its foote
   const step = (blocks: object[]) => ({ id: "e1", kind: "email", from: "team", approved: true, email: { subject: "Hi", preheader: "", paragraphs: [], cta_label: "", cta_url: "", doc: { sections: [{ id: "s1", columns: [{ id: "c1", blocks }] }] } } });
   const clean = (blocks: object[]) => cleanBody({ trigger: { kind: "manual" }, steps: [step(blocks)] }).steps[0]!;
   assert.deepEqual(stepProblems(clean([{ id: "f", type: "footer" }])), ["Write the email"]);
-  assert.deepEqual(stepProblems(clean([{ id: "h", type: "heading", text: "Hi {{first_name}}" }])), ["Add the Footer block", "Give {{first_name}} a fallback, like {{first_name|there}}"]);
+  assert.deepEqual(stepProblems(clean([{ id: "h", type: "heading", text: "Hi {{first_name}}" }])), ["Give {{first_name}} a fallback, like {{first_name|there}}"], "the Footer block is added for you");
   assert.deepEqual(stepProblems(clean([{ id: "b", type: "button", label: "Go", url: "http://x.io" }, { id: "i", type: "image", src: "" }, { id: "f", type: "footer" }])), ["The button needs an https:// link", "Add the image or remove its block"]);
   assert.deepEqual(stepProblems(clean([{ id: "h", type: "heading", text: "Hi {{first_name|there}}" }, { id: "f", type: "footer" }])), [], "the footer's own merge tags need no fallback");
   const read = clean([{ id: "t", type: "text", html: "<p onclick=x>ok<script>bad()</script></p>" }]) as { email: { doc: { sections: { columns: { blocks: { html: string }[] }[] }[] } } };
@@ -220,9 +220,8 @@ test("the starting set: Notification and Follow-up, as drafts that send nothing 
     const emails = it.draft.steps.filter((s) => s.kind === "email");
     assert.ok(emails.length > 0, `${it.name} sends an email`);
     assert.ok(emails.every((s) => s.kind === "email" && !s.approved), `${it.name} starts with its emails unapproved`);
-    // The only thing left to do on each is approving its emails.
-    const left = problems(it.draft).filter((p) => p.text !== "Approve the email");
-    assert.deepEqual(left, [], `${it.name} has nothing else to fix`);
+    // Nothing to fix: each is ready to publish once someone has looked at it.
+    assert.deepEqual(problems(it.draft), [], `${it.name} has nothing to fix`);
   }
   assert.deepEqual(
     items.map((it) => it.draft.trigger),

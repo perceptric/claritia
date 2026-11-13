@@ -80,3 +80,23 @@ test("an automation's emails open as their own group on Emails", () => {
   assert.deepEqual(emailsPage(`campaigns/group/wf:${id}`), { page: "campaigns", id: `campaigns/group/wf:${id}`, group: `wf:${id}` });
   assert.deepEqual(emailsPage("campaigns/group/wf:nope"), { page: "campaigns", id: "" });
 });
+
+test("every email gets a Footer block when it has none, and keeps its own when it has one", async () => {
+  const { withFooter } = await import("../src/lib/workflows/stepEmails.ts");
+  const { docFromBody } = await import("../src/lib/design/email/doc.ts");
+  const bare = docFromBody({ preheader: "", paragraphs: ["Hi"], cta_label: "", cta_url: "" });
+  const footed = withFooter(bare);
+  const footers = (d: typeof bare) => d.sections.flatMap((x) => x.columns.flatMap((c) => c.blocks)).filter((b) => b.type === "footer").length;
+  assert.equal(footers(bare), 0);
+  assert.equal(footers(footed), 1);
+  assert.equal(withFooter(footed), footed, "one already there stays the only one");
+  const ids = footed.sections.flatMap((x) => [x.id, ...x.columns.flatMap((c) => [c.id, ...c.blocks.map((b) => b.id)])]);
+  assert.equal(new Set(ids).size, ids.length, "its ids are new");
+});
+
+test("Publish takes each email as it is on the Emails page: no refusal, the newer words win", () => {
+  const a = email("a", "Thanks", false);
+  const c = { ...copyOf(a), subject: "Thanks, with news" };
+  const merged = mergeCopies(body(a), [c]).body;
+  assert.equal((merged.steps[0] as Extract<Step, { kind: "email" }>).email.subject, "Thanks, with news");
+});

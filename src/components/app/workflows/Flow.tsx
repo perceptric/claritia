@@ -154,13 +154,12 @@ function Card(p: ListProps & { step: Step; first: boolean; last: boolean }) {
           ) : null}
         </span>
         {s.kind === "email" && p.thumbs?.[s.id] ? (
-          <span aria-hidden="true" className="relative h-[72px] w-12 shrink-0 overflow-hidden rounded-[4px] bg-white shadow-[0_1px_3px_rgb(0_0_0/0.12),0_0_0_1px_rgb(0_0_0/0.05)]">
-            <iframe title="" tabIndex={-1} loading="lazy" srcDoc={p.thumbs[s.id]} sandbox="" className="pointer-events-none absolute top-0 left-0 h-[900px] w-[600px] origin-top-left scale-[0.08] border-0 bg-white" />
+          <span aria-hidden="true" className="relative h-[92px] w-[66px] shrink-0 overflow-hidden rounded-[5px] bg-white shadow-[0_1px_3px_rgb(0_0_0/0.12),0_0_0_1px_rgb(0_0_0/0.05)]">
+            <iframe title="" tabIndex={-1} loading="lazy" srcDoc={p.thumbs[s.id]} sandbox="" className="pointer-events-none absolute top-0 left-0 h-[840px] w-[600px] origin-top-left scale-[0.11] border-0 bg-white" />
           </span>
         ) : null}
         {s.kind === "email" && s.ai ? <Badge tone="violet">AI</Badge> : null}
         {s.kind === "email" && p.changedSinceLive?.has(s.id) ? <Badge tone="violet">Changed since publish</Badge> : null}
-        {s.kind === "email" && s.approved ? <Badge tone="green">Approved</Badge> : null}
       </button>
       {!p.readOnly ? (
         <span className="absolute top-1/2 -right-11 hidden -translate-y-1/2 flex-col rounded-full bg-card shadow-chip shadow-soft group-hover:flex group-focus-within:flex">

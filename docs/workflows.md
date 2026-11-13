@@ -32,11 +32,20 @@ data on messages) and Test (pick a person and see what the step would do for the
 
 ## Emails in an automation
 
-Each email step has an editing copy on the Emails page (docs/email-unify-plan.md, E3): the automation is a group there,
-tagged Automation, and **Edit email** in the step's panel opens the email on the canvas. The step's panel keeps From,
-Write with AI, templates, Approve and **Open in the classic editor**. Words changed on the canvas come into the draft
-the next time the automation opens, and ask for approval again; Publish refuses while a copy and the draft differ. An
-email edited since the live version shows **Changed since publish** on its card and on the canvas.
+Each email step is one email. It opens two ways, and both are the same email:
+
+- **In the step's panel**: From (your team or their owner), the subject with Insert data, and the email itself as it
+  will look. A click on its words types in place, with bold, italic, links and Insert data
+  (`src/components/app/workflows/EmailInPanel.tsx`, the canvas's own typing). **Rewrite with Tia** writes it again.
+- **On the Emails page**: **Open full editor** opens it on the automation's group canvas for the design (blocks,
+  colors, pictures, Tia, versions, comments). **Back to automation** comes back, with the changes already here.
+
+There's no Approve. **Publish** shows every email once (its picture, subject and sender) with what changed, and takes
+each email as it is on the Emails page right then. The Footer block (address and unsubscribe link) is added for you
+when an email has none (`withFooter` in `src/lib/workflows/stepEmails.ts`), in the panel, on the cards and in what's
+sent. Under the hood each email is still the step's editing copy in `emails` (kind journey, 163), kept in step with the
+draft; Publish reads the copies, so the two can never disagree. An email edited since the live version shows
+**Changed since publish** on its card and in the panel.
 
 ## The starting set
 
@@ -51,7 +60,7 @@ Every workspace gets two folders the first time anyone opens Workflows (`workflo
 | Follow-up | Meeting follow-up | A meeting is held | A thank-you two hours later |
 | Follow-up | No-show follow-up | A meeting is a no-show | An email with their reschedule link; a Slack note |
 
-- They are drafts with unapproved emails: nothing sends until someone reads each email and presses Publish.
+- They are drafts: nothing sends until someone looks them over and presses Publish.
 - They go in once per workspace (`workspaces.workflow_defaults_at`), ahead of older folders; a deleted one stays
   deleted. Older workspaces keep their own workflows.
 - A new workspace no longer gets an empty "Workflows" folder (119 changes `workflow_folders_start`).

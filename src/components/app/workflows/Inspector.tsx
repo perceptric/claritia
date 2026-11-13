@@ -21,6 +21,8 @@ import { Select } from "../Select";
 import { Badge, Button, ErrorNote, errorText, IconButton, Input, NumberField, postJson, Segmented, Toggle } from "../ui";
 import { timeOptions, uses12h } from "@/lib/workflows/times";
 import type { Names } from "./model";
+import { EmailInPanel } from "./EmailInPanel";
+import type { CanvasKit } from "../emails/canvas/preview";
 
 const label = "text-[12px] font-medium text-muted";
 const area = "min-h-24 w-full rounded-md bg-card shadow-input px-3 py-2 text-[13.5px] leading-relaxed text-ink outline-none focus:shadow-focus";
@@ -492,6 +494,8 @@ export function StepPanel(p: {
   onEditEmail?: () => void;
   /** The email's words differ from the live version's. */
   changedSinceLive?: boolean;
+  /** The workspace's brand kits, to show the email as it will look. */
+  kits?: CanvasKit[];
 }) {
   const s = p.step;
   const [error, setError] = useState("");
@@ -508,7 +512,7 @@ export function StepPanel(p: {
     try {
       const r = await postJson<{ steps: { subject: string; preheader: string; paragraphs: string[]; cta_label: string; cta_url: string; review_notes: string[] }[] }>(p.session, "/api/workflows/draft", { workspaceId: p.ws, brief, count: 1 });
       const d = r.steps[0];
-      if (d) p.onPatch({ email: { subject: d.subject, preheader: d.preheader, paragraphs: d.paragraphs, cta_label: d.cta_label, cta_url: d.cta_url }, ai: true, notes: d.review_notes, approved: false } as Partial<Step>);
+      if (d) p.onPatch({ email: { subject: d.subject, preheader: d.preheader, paragraphs: d.paragraphs, cta_label: d.cta_label, cta_url: d.cta_url }, ai: true, notes: d.review_notes } as Partial<Step>);
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -549,65 +553,58 @@ export function StepPanel(p: {
 
       {s.kind === "email" ? (
         <>
-          <div className="flex flex-wrap items-center gap-2">
-            {p.onEditEmail ? (
-              <Button variant="ghost" onClick={p.onEditEmail}>
-                <Mail size={13} /> Edit email
-              </Button>
-            ) : null}
-            {p.changedSinceLive ? <Badge tone="violet">Changed since publish</Badge> : null}
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Segmented value={s.from} options={[{ value: "team", label: "Team" }, { value: "owner", label: "Owner" }]} onChange={(from) => p.onPatch({ from } as Partial<Step>)} />
-            {!p.readOnly ? (
-              <Button variant="ghost" onClick={() => void draft()} disabled={busy}>
-                <AiMark size={13} /> Write with AI
-              </Button>
-            ) : null}
-          </div>
-          {p.names.templates.length && !p.readOnly ? (
+          {/* One email (docs/workflows.md): the words here, the full design on the Emails canvas. */}
+          <Group name="From">
             <Select
-              value=""
-              options={p.names.templates.map((t) => ({ value: t.id, label: t.name }))}
-              onChange={async (id) => {
-                const t = p.names.templates.find((x) => x.id === id);
-                if (!t) return;
-                // The list holds names only; the picked template's body is read now.
-                const body = t.body ?? (p.sb ? ((await p.sb.from("email_templates").select("body").eq("id", id).maybeSingle()).data as { body: unknown } | null)?.body : undefined);
-                if (body) p.onPatch({ email: body as EmailBody, approved: false } as Partial<Step>);
-              }}
-              ariaLabel="Use a template"
-              placeholder="Use a template"
-              plainPlaceholder
+              value={s.from}
+              options={[
+                { value: "team", label: "Your team" },
+                { value: "owner", label: "Their owner" },
+              ]}
+              onChange={(from) => p.onPatch({ from } as Partial<Step>)}
+              ariaLabel="From"
+              disabled={p.readOnly}
               className="h-9 w-full"
             />
+          </Group>
+          <Group name="Subject">
+            <div className="flex min-w-0 items-center gap-2">
+              <Input aria-label="Subject" value={s.email.subject} onChange={(e) => p.onPatch({ email: { ...s.email, subject: e.target.value } } as Partial<Step>, "subject")} className="h-9 min-w-0 flex-1" disabled={p.readOnly} />
+              <InsertData disabled={p.readOnly} onInsert={(t) => p.onPatch({ email: { ...s.email, subject: withTag(s.email.subject, t) } } as Partial<Step>)} />
+            </div>
+          </Group>
+          <div className="flex flex-col gap-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`${label} flex-1`}>The email</span>
+              {p.changedSinceLive ? <Badge tone="violet">Changed since publish</Badge> : null}
+              {p.onEditEmail ? (
+                <Button size="sm" variant="ghost" onClick={p.onEditEmail}>
+                  Open full editor
+                </Button>
+              ) : null}
+            </div>
+            {s.email.doc && p.kits ? (
+              <EmailInPanel doc={s.email.doc} kits={p.kits} onChange={(doc) => p.onPatch({ email: { ...s.email, doc } } as Partial<Step>, "doc")} readOnly={p.readOnly} />
+            ) : (
+              <EmailForm email={s.email} onChange={(email, key) => p.onPatch({ email } as Partial<Step>, key)} readOnly={p.readOnly} />
+            )}
+          </div>
+          {!p.readOnly ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="ghost" onClick={() => void draft()} disabled={busy}>
+                <AiMark size={13} /> Rewrite with Tia
+              </Button>
+            </div>
           ) : null}
-          <EmailForm email={s.email} onChange={(email, key) => p.onPatch({ email } as Partial<Step>, key)} readOnly={p.readOnly} builder={p.sb ? { session: p.session, sb: p.sb, ws: p.ws, ...(p.workflowId ? { ref: `wf:${p.workflowId}:${s.id}` } : {}) } : undefined} />
           {s.notes?.length ? (
             <div className="flex flex-col gap-1 rounded-lg bg-butter-wash px-3 py-2.5">
-              <span className={label}>Check before approving</span>
+              <span className={label}>Tia&apos;s notes</span>
               {s.notes.map((n) => (
                 <span key={n} className="text-[12.5px] text-body">
                   {n}
                 </span>
               ))}
             </div>
-          ) : null}
-          {!p.readOnly ? (
-            s.approved ? (
-              <div className="flex items-center gap-2">
-                <Badge tone="green" dot>
-                  Approved
-                </Badge>
-                <Button variant="ghost" onClick={() => p.onPatch({ approved: false } as Partial<Step>)}>
-                  Unapprove
-                </Button>
-              </div>
-            ) : (
-              <Button onClick={() => p.onPatch({ approved: true } as Partial<Step>)} disabled={stepProblems({ ...s, approved: true }).length > 0}>
-                Approve
-              </Button>
-            )
           ) : null}
         </>
       ) : null}

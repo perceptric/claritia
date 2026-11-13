@@ -1694,9 +1694,7 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
           ) : auto ? (
             <>
               <Badge tone="violet">Automation</Badge>
-              <Button variant="ghost" onClick={() => navigate("emails", `automations/${wfId}`)}>
-                Open the automation
-              </Button>
+              <Button onClick={() => navigate("emails", `automations/${wfId}`)}>Back to automation</Button>
             </>
           ) : (
             <Button onClick={(e) => addMenu(e.currentTarget)}>
