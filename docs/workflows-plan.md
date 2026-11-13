@@ -7,8 +7,7 @@ Plan, 2026-11-13. Three parts, each its own release.
 - Meeting emails live in two places today: the System emails group on Emails, and the starting workflows (Meeting
   announcement, Meeting follow-up, No-show follow-up) that send their own reminders and follow-ups. People can't tell
   which one sends what.
-- The sidebar has a whole Email section (Emails, Automations, Audiences, Templates, Brand) for a product that is forms,
-  meetings and workflows.
+- The Email section has an Emails page beside Automations, so there are two places to look for an email.
 - The 100 email templates look plain: black and white only, no logo, square buttons, the same layout every time, and
   placeholders like "[What they ordered]" and "{{company_address}}" showing in the gallery.
 
@@ -46,11 +45,13 @@ Tests: a real database with flaky providers, as for System emails (`tests/pg/sys
 once, the invite always goes, Pause stops reminders, Delay changes move reminders, a removed starting workflow never
 causes a second email.
 
-## Part B. The sidebar: Forms, Meetings, Workflows
+## Part B. The Email section: Workflows, Audiences, Templates, Brand
 
-- **Workflows** is one item in the sidebar, at `/workflows`. "Automation" becomes "Workflow" everywhere.
-  `/emails/automations/…` addresses open the same workflow.
-- The Email section goes. Where its other pages go is the open question below.
+- The **Emails** item leaves the Email section. The section keeps **Workflows** (was Automations), Audiences,
+  Templates and Brand, in that order.
+- "Automation" becomes "Workflow" everywhere. `/emails/automations/…` addresses open the same workflow.
+- The email canvas stays: each workflow's emails open on it through Open full editor, as now. Its old
+  `/emails/campaigns/…` addresses keep working, so nothing already linked breaks.
 
 ## Part C. Templates
 
@@ -73,7 +74,7 @@ causes a second email.
 ## Build order
 
 1. Part A, meeting emails as the default workflows (largest; reliability tests first).
-2. Part B, the sidebar and the rename.
+2. Part B, the Emails item out of the sidebar and the rename to Workflows.
 3. Part C, templates: the redraw and 100 new email templates, then workflow templates.
 
 ## Monthly cost
@@ -86,6 +87,7 @@ now.
 | Beta (50 teams) | $0 | $0 | $0 | **$0** |
 | Growth (500 teams) | $0 | $0 | $0 | **$0** |
 
-## Open question
+## Decided
 
-Where Emails (campaigns), Audiences, Templates and Brand go once the Email section is gone.
+- Only the Emails item leaves the sidebar; Workflows, Audiences, Templates and Brand stay in the Email section.
+- Templates means both: the email templates (redrawn, 200) and about 30 workflow templates.
