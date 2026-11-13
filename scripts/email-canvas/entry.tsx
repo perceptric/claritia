@@ -22,10 +22,17 @@ const now = Date.now();
 const email = (name: string, t: number, group: string | null, pos: number, status = "draft"): Row => ({
   id: id(), workspace_id: "ws1", kind: "broadcast", name, subject: `${name} subject`, preheader: "", status, doc: EMAIL_TEMPLATES[t]!.make(), html: "", group_id: group, group_position: pos, created_at: new Date(now - (100 - seq) * 1000).toISOString(), updated_at: new Date(now - seq * 60000).toISOString(),
 });
+// B4: two brand kits. The first has a saved component; the second a class. "Monthly news" uses the second.
+const K1 = "aaaaaaaa-0000-4000-8000-000000000001";
+const K2 = "aaaaaaaa-0000-4000-8000-000000000002";
+const LOGO = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='40'%3E%3Crect width='120' height='40' fill='%23888'/%3E%3C/svg%3E";
+const K1_DESIGN = { email: { globals: {}, classes: [{ id: "big1", name: "Big", styles: {} }], components: [{ id: "cmp1", name: "Footer block", stackOnPhone: true, columns: [{ id: "kcol1", width: 100, blocks: [{ id: "kblk1", type: "text", html: "<p>Thanks for reading.</p>" }] }] }] } };
+const K2_DESIGN = { email: { globals: {}, classes: [{ id: "kid1", name: "Playful", styles: {} }] } };
 const db: Record<string, Row[]> = {
   email_groups: [{ id: G, workspace_id: "ws1", name: "Welcome series", created_at: new Date(now - 86400000).toISOString() }, { id: "22222222-2222-4222-8222-222222222222", workspace_id: "ws1", name: "Holiday promo", created_at: new Date(now).toISOString() }],
-  emails: [email("Welcome", 0, G, 0), email("Class reminder", 3, G, 1), email("Monthly news", 6, G, 2), email("Spring workshop", 9, null, 0)],
-  brand_kits: [{ id: "k1", workspace_id: "ws1", name: "Juniper", tokens: {}, logo_url: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='40'%3E%3Crect width='120' height='40' fill='%23888'/%3E%3C/svg%3E", design: null, design_live: null, design_rev: 0, created_at: new Date(now - 86400000).toISOString() }],
+  emails: [email("Welcome", 0, G, 0), email("Class reminder", 3, G, 1), { ...email("Monthly news", 6, G, 2), doc: { ...EMAIL_TEMPLATES[6]!.make(), kitId: K2 } }, email("Spring workshop", 9, null, 0)],
+  brand_kits: [{ id: K1, workspace_id: "ws1", name: "Juniper", design: K1_DESIGN, design_live: K1_DESIGN, tokens: {}, logo_url: LOGO, design_rev: 0, created_at: new Date(now - 86400000).toISOString() },
+    { id: K2, workspace_id: "ws1", name: "Juniper Kids", tokens: {}, logo_url: LOGO, design: K2_DESIGN, design_live: K2_DESIGN, design_rev: 0, created_at: new Date(now - 3600000).toISOString() }],
 };
 for (let i = 0; i < many; i++) db.emails!.push(email(`Weekly note #${i + 1}`, 1, null, 0, "sent"));
 w.db = db;
@@ -69,7 +76,20 @@ const regroup = (g: string | null) => {
   if (!g) return;
   db.emails!.filter((e) => e.group_id === g).sort((a, b) => Number(a.group_position) - Number(b.group_position)).forEach((e, i) => (e.group_position = i));
 };
+// Test switches (docs/email-canvas-b4.md section 17.3): the next matching call answers a hiccup, "not a draft", or
+// nothing for 20 seconds.
+type Fail = { fn: string; email?: string; kind: "503" | "not a draft" | "hang" };
+(window as unknown as { failNext: Fail | null }).failNext = null;
 const rpc = async (fn: string, a: Row) => {
+  const f = (window as unknown as { failNext: Fail | null }).failNext;
+  if (f && f.fn === fn && (!f.email || f.email === a.p_id)) {
+    (window as unknown as { failNext: Fail | null }).failNext = null;
+    calls.push({ mode: `${fn}:${f.kind}`, body: a });
+    if (f.kind === "503") return { data: null, error: { message: "Service unavailable" }, status: 503 };
+    if (f.kind === "not a draft") return { data: null, error: { message: "This email is not a draft" }, status: 400 };
+    await new Promise((r) => setTimeout(r, 20_000));
+    return { data: null, error: { message: "Gateway timeout" }, status: 504 };
+  }
   if (fn !== "email_campaigns") calls.push({ mode: fn, body: a });
   if (fn === "email_campaigns") return { data: db.emails!.map((e) => ({ id: e.id, status: e.status })), error: null };
   if (fn === "email_group_place") {

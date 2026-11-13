@@ -7,12 +7,29 @@
 
 import { toScreen, type Camera } from "@/lib/canvas/view";
 import type { Box, Zone } from "@/lib/design/email/pick";
-import { ArrowDown, ArrowUp, Copy, CornerDownLeft, Trash } from "../../../Icons";
+import { ArrowDown, ArrowUp, Copy, CornerDownLeft, Grip, Trash } from "../../../Icons";
 
 type Rect = { x: number; y: number; w: number; h: number };
 export type OverlayActions = { parent?: () => void; up?: () => void; down?: () => void; duplicate?: () => void; remove?: () => void };
 
-export function Overlay({ c, at, hover, picked, pad, actions }: { c: Camera; at: Rect; hover: { box: Box; tag: string } | null; picked: { id: string; box: Box; tag: string } | null; pad: Zone[]; actions: OverlayActions | null }) {
+export function Overlay({
+  c,
+  at,
+  hover,
+  picked,
+  pad,
+  actions,
+  onGrip,
+}: {
+  c: Camera;
+  at: Rect;
+  hover: { box: Box; tag: string } | null;
+  picked: { id: string; box: Box; tag: string } | null;
+  pad: Zone[];
+  actions: OverlayActions | null;
+  /** A press on the grip left of the picked element starts dragging it (B4). */
+  onGrip?: (e: React.PointerEvent) => void;
+}) {
   const z = c.z;
   const place = (b: Box) => {
     const a = toScreen(c, at.x + b.x, at.y + b.y);
@@ -39,6 +56,24 @@ export function Overlay({ c, at, hover, picked, pad, actions }: { c: Camera; at:
           <div data-canvas-pick={picked.id} aria-hidden="true" className="absolute shadow-[0_0_0_2px_var(--color-signal)]" style={place(picked.box)} />
           {picked.tag ? <Tag box={place(picked.box)} text={picked.tag} inside={picked.box.y * z < 26} /> : null}
           {actions ? <Bar box={place(picked.box)} actions={actions} below={picked.box.y * z < 48} /> : null}
+          {onGrip ? (
+            <button
+              type="button"
+              data-canvas-ui=""
+              aria-label={`Drag ${picked.tag}`}
+              title="Drag to move"
+              onPointerDown={(e) => {
+                if (e.button !== 0) return;
+                e.stopPropagation();
+                e.preventDefault();
+                onGrip(e);
+              }}
+              className="pointer-events-auto absolute flex h-7 w-4 cursor-grab items-center justify-center rounded-full bg-card text-muted shadow-chip hover:text-ink"
+              style={{ left: place(picked.box).left - 22, top: place(picked.box).top }}
+            >
+              <Grip size={11} />
+            </button>
+          ) : null}
         </>
       ) : null}
     </>

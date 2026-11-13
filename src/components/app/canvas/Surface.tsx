@@ -21,6 +21,10 @@ export type SurfaceApi = {
   focus: (b: Box, maxZ?: number) => void;
   /** The screen point for a pointer event, inside the surface. */
   point: (clientX: number, clientY: number) => { x: number; y: number };
+  /** Moves the view by screen px at once, without easing (auto-pan while dragging, docs/email-canvas-b4.md 5.6). */
+  nudge: (dx: number, dy: number) => void;
+  /** The view's size in screen px. */
+  size: () => Size;
 };
 
 type Props = {
@@ -126,7 +130,23 @@ export const Surface = forwardRef<SurfaceApi, Props>(function Surface(p, ref) {
     const r = stage.current!.getBoundingClientRect();
     return { x: cx - r.left, y: cy - r.top };
   };
-  useImperativeHandle(ref, () => ({ camera: () => camRef.current, glide, fit, focus: focusBox, point }), [glide, fit, focusBox]);
+  useImperativeHandle(
+    ref,
+    () => ({
+      camera: () => camRef.current,
+      glide,
+      fit,
+      focus: focusBox,
+      point,
+      nudge: (dx: number, dy: number) => {
+        cancelAnimationFrame(anim.current);
+        put({ ...camRef.current, x: camRef.current.x + dx, y: camRef.current.y + dy });
+      },
+      size,
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [glide, fit, focusBox, put],
+  );
 
   // The view's size, and the first camera once the items are measured.
   useLayoutEffect(() => {

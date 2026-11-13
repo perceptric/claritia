@@ -40,6 +40,8 @@ import { docOf, previewHtml, sourceHtml, widthOf, type CanvasKit, type CanvasRow
 import { cleanTokens } from "@/lib/forms/brand";
 import type { DesignSystem } from "@/lib/design/model";
 import { useCanvasEditor } from "./useCanvasEditor";
+import { useCanvasDrag } from "./useCanvasDrag";
+import { DragLayer } from "./DragLayer";
 import { FormatBar } from "./FormatBar";
 import { useTyping } from "./useTyping";
 import { typable } from "@/lib/design/email/typing";
@@ -208,11 +210,7 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
 
   // The element under the pointer, found through the email's own frame: the innermost marked element that's in the
   // document (a component's inner blocks climb to their section), and the part clicked.
-  const docFor = (email: string): EmailDoc | null => {
-    if (email === draft.id && draft.doc) return draft.doc;
-    const r = list.find((x) => x.id === email);
-    return r?.doc ? docOf(r) : null;
-  };
+  const docFor = (email: string): EmailDoc | null => editor.latest(email);
   const hitAt = (email: string, x: number, y: number): El | null => {
     const f = frames.current.get(email);
     const d = f?.contentDocument;
@@ -258,9 +256,51 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
     const b = editDoc ? findEl(editDoc, id)?.block : undefined;
     return !!b && typable(b) && !draft.readOnly;
   };
-  const handlers = useRef({ hitAt, editId, el: elNow, start: typer.start, canType, htmls: shown });
+  // Dragging blocks and sections, inside an email and between emails (B4).
+  /** An element's kind as people say it, for tags, the drag chip and messages. */
+  const labelFor = (email: string, id: string) => {
+    const doc = editor.latest(email);
+    const f = doc ? findEl(doc, id) : null;
+    if (!doc || !f) return "Element";
+    if (!f.block && !f.column && f.section.component && !f.section.component.edit) {
+      const name = editor.kitNow(doc).system.email?.components?.find((c) => c.id === f.section.component!.id)?.name;
+      return name ? `${name} (component)` : "Component";
+    }
+    const k = kindOf(doc, id);
+    return k && k !== "email" ? KIND_LABEL[k] : "Email";
+  };
+  /** What a press on an element drags: a block; a column's or locked component's section; a picked section. */
+  const dragIdOf = (email: string, id: string, picked: boolean) => {
+    const doc = editor.latest(email);
+    const f = doc ? findEl(doc, id) : null;
+    if (!f) return null;
+    if (f.block) return id;
+    if (f.column) return picked ? f.section.id : null;
+    return picked || (f.section.component && !f.section.component.edit) ? f.section.id : null;
+  };
+  /** Whether `child` is `parent` or inside it. */
+  const within = (email: string, parent: string, child: string) => {
+    if (parent === child) return true;
+    const doc = editor.latest(email);
+    const f = doc ? findEl(doc, child) : null;
+    return !!f && (f.section.id === parent || f.column?.id === parent);
+  };
+  const dragger = useCanvasDrag({
+    surface,
+    frames,
+    rects,
+    editor,
+    labelOf: labelFor,
+    onDone: (email, id, said) => {
+      setPicked([email]);
+      setEl({ email, id, part: null });
+      setAnnounce(said);
+    },
+    onRefuse: (t) => say(t),
+  });
+  const handlers = useRef({ hitAt, editId, el: elNow, start: typer.start, canType, htmls: shown, press: dragger.press, dragIdOf, within });
   useEffect(() => {
-    handlers.current = { hitAt, editId, el: elNow, start: typer.start, canType, htmls: shown };
+    handlers.current = { hitAt, editId, el: elNow, start: typer.start, canType, htmls: shown, press: dragger.press, dragIdOf, within };
   });
   // Typing ends when the pick moves, and on a press anywhere outside the email's frame (but the format bar).
   const endTyping = typer.end;
@@ -283,9 +323,19 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
       setEl(null);
       return setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
     }
+    const h = handlers.current;
+    const hit = h.hitAt(id, e.clientX, e.clientY);
+    const here = h.el && h.el.email === id && h.editId === id ? h.el : null;
+    // A press inside the picked element keeps it picked, so a drag moves it; a click without a drag picks what was hit.
+    if (here && hit && h.within(id, here.id, hit.id)) {
+      const drag = h.dragIdOf(id, here.id, true);
+      return h.press(drag ? { kind: "el", email: id, id: drag } : null, e, () => setEl(hit));
+    }
     setPicked([id]);
-    setEl(handlers.current.hitAt(id, e.clientX, e.clientY));
+    setEl(hit);
     setPanel(true);
+    const drag = hit ? h.dragIdOf(id, hit.id, false) : null;
+    h.press(drag ? { kind: "el", email: id, id: drag } : null, e);
   }, []);
   const onMove = useCallback((id: string, e: React.PointerEvent) => {
     const h = handlers.current;
@@ -798,11 +848,15 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
                 <Overlay
                   c={c}
                   at={r}
-                  hover={boxes.hover && elHover ? { box: boxes.hover, tag: tagOf(elHover) } : null}
+                  onGrip={id && !typingHere && !dragger.dragging ? (e) => {
+                    const d = dragIdOf(editId, id, true);
+                    if (d) dragger.press({ kind: "el", email: editId, id: d }, e);
+                  } : undefined}
+                  hover={boxes.hover && elHover && !dragger.dragging ? { box: boxes.hover, tag: tagOf(elHover) } : null}
                   picked={boxes.picked && id ? { id, box: boxes.picked, tag: typingHere ? "" : tagOf(id) } : null}
                   pad={boxes.pad}
                   actions={
-                    typingHere
+                    typingHere || dragger.dragging
                       ? null
                       : id && editable
                       ? {
@@ -820,6 +874,7 @@ export function EmailCanvasPage({ sb, session, ws, navigate, groupId, pick }: Vi
               );
             })()
           : null}
+        {dragger.view ? <DragLayer view={dragger.view} /> : null}
         {typingHere && boxes.picked && !drag?.on
           ? (() => {
               const r = rects.find((x) => x.id === editId);

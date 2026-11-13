@@ -625,6 +625,206 @@ try {
   check(!(await sent.evaluate(() => (window as unknown as W).calls.some((c) => c.mode === "email_draft_save"))), "keys change nothing in a sent email");
   await sent.close();
 
+  // B4 ----------------------------------------------------------------------------------------------------------------
+  type W4 = { calls: Call[]; failNext: unknown; db: { emails: { id: string; name: string; status: string; doc: Doc }[] } };
+  const g = await ctx.newPage();
+  g.on("pageerror", (e) => errors.push(e.message));
+  const openCanvas = async (pg: typeof g, query = "") => {
+    await pg.goto(`http://localhost:${port}/${query}`);
+    await pg.waitForFunction(() => document.querySelectorAll("[data-email] iframe").length >= 2, null, { timeout: 15000 });
+    await pg.waitForTimeout(500);
+  };
+  await openCanvas(g);
+  const gcalls = () => g.evaluate(() => (window as unknown as W4).calls);
+  const gclear = () => g.evaluate(() => ((window as unknown as W4).calls.length = 0));
+  const gdoc = (name: string) => g.evaluate((n) => (window as unknown as W4).db.emails.find((e) => e.name === n)!.doc, name);
+  const gid = (name: string) => g.evaluate((n) => (window as unknown as W4).db.emails.find((e) => e.name === n)!.id, name);
+  const ids = (d: Doc) => d.sections.flatMap((x) => x.columns.flatMap((c) => c.blocks.map((b) => b.id)));
+  /** A part's or element's page box inside email i's frame: by part class (`kind`) or by element id (`#id`). */
+  const gbox = (i: number, what: string, n = 0) =>
+    g.evaluate(
+      ([i, what, n]) => {
+        const f = document.querySelectorAll<HTMLIFrameElement>("[data-email] iframe")[i as number]!;
+        const d = f.contentDocument!;
+        const els = (what as string).startsWith("#")
+          ? [d.querySelector<HTMLElement>(`[data-eid="${(what as string).slice(1)}"]`)!]
+          : [...d.querySelectorAll<HTMLElement>("[class]")].filter((e) => [...e.classList].some((c) => new RegExp(`^c[a-z0-9]+-${what}$`).test(c)));
+        const el = els[n as number]!;
+        const fr = f.getBoundingClientRect();
+        const z = fr.width / f.offsetWidth;
+        const b = el.getBoundingClientRect();
+        const id = (what as string).startsWith("#") ? (what as string).slice(1) : el.closest("[data-eid]")!.getAttribute("data-eid")!;
+        return { x: fr.left + b.left * z, y: fr.top + b.top * z, w: b.width * z, h: b.height * z, id };
+      },
+      [i, what, n] as const,
+    );
+  const dragTo = async (from: { x: number; y: number }, to: { x: number; y: number }, o: { hold?: () => Promise<void>; release?: boolean } = {}) => {
+    await g.mouse.move(from.x, from.y);
+    await g.mouse.down();
+    await g.mouse.move(from.x + 8, from.y + 8, { steps: 3 });
+    await g.mouse.move(to.x, to.y, { steps: 10 });
+    await g.waitForTimeout(80);
+    if (o.hold) await o.hold();
+    if (o.release !== false) await g.mouse.up();
+    await g.waitForTimeout(120);
+  };
+  const welcomeId = await gid("Welcome");
+  const reminderId = await gid("Class reminder");
+  const newsId = await gid("Monthly news");
+
+  // 30. Drag a heading below the next block: the line and chip show, the source dims; one save with the new order
+  const w0 = await gdoc("Welcome");
+  const s1 = w0.sections[1]!.columns[0]!.blocks.map((b) => b.id);
+  const hd = await gbox(0, `#${s1[1]}`);
+  const nx = await gbox(0, `#${s1[2]}`);
+  await gclear();
+  let seen = { line: false, chip: "", dim: "" };
+  await dragTo({ x: hd.x + 30, y: hd.y + hd.h / 2 }, { x: nx.x + 30, y: nx.y + nx.h * 0.8 }, {
+    hold: async () => {
+      seen = {
+        line: (await g.locator("[data-drop-line]").count()) === 1,
+        chip: (await g.locator("[data-drag-chip]").textContent()) ?? "",
+        dim: await g.evaluate((id) => getComputedStyle(document.querySelectorAll<HTMLIFrameElement>("[data-email] iframe")[0]!.contentDocument!.querySelector(`[data-eid="${id}"]`)!).opacity, s1[1]!),
+      };
+    },
+  });
+  check(seen.line && seen.chip.startsWith("Heading") && seen.dim === "0.4", `while dragging: the line, the chip (${seen.chip}) and the source at 40% (${seen.dim})`);
+  await g.waitForTimeout(1100);
+  const w1 = await gdoc("Welcome");
+  check(JSON.stringify(w1.sections[1]!.columns[0]!.blocks.map((b) => b.id)) === JSON.stringify([s1[0], s1[2], s1[1]]) && (await gcalls()).filter((c) => c.mode === "email_draft_save").length === 1, "the drop moves the heading below and one save goes out");
+
+  // 31. Escape mid-drag changes nothing
+  await gclear();
+  const hd2 = await gbox(0, `#${s1[1]}`);
+  await dragTo({ x: hd2.x + 30, y: hd2.y + hd2.h / 2 }, { x: hd2.x + 30, y: hd2.y - 60 }, { hold: async () => g.keyboard.press("Escape"), release: true });
+  await g.waitForTimeout(900);
+  check(!(await gcalls()).some((c) => c.mode === "email_draft_save") && (await g.locator("[data-drag-chip]").count()) === 0, "Escape during a drag changes and saves nothing");
+
+  // 32. Near the line between two sections, a block lands as a section of its own
+  const before32 = await gdoc("Welcome");
+  const sec2 = await gbox(0, `#${before32.sections[2]!.id}`);
+  const mover = before32.sections[1]!.columns[0]!.blocks[0]!.id;
+  const mb = await gbox(0, `#${mover}`);
+  await dragTo({ x: mb.x + 30, y: mb.y + mb.h / 2 }, { x: sec2.x + 60, y: sec2.y + 1 });
+  await g.waitForTimeout(1100);
+  const after32 = await gdoc("Welcome");
+  check(after32.sections.length === before32.sections.length + 1 && JSON.stringify(after32.sections[2]!.columns[0]!.blocks.map((b) => b.id)) === JSON.stringify([mover]), "a drop on the line between sections makes a section holding only that block");
+
+  // 33. Into another email: it leaves one and joins the other; the gaining email saves first
+  await gclear();
+  const moving = (await gdoc("Welcome")).sections[3]!.columns[0]!.blocks[0]!.id;
+  const mv = await gbox(0, `#${moving}`);
+  const into = await gbox(1, "text", 2);
+  await dragTo({ x: mv.x + 30, y: mv.y + mv.h / 2 }, { x: into.x + 20, y: into.y + into.h * 0.8 });
+  await g.waitForTimeout(1300);
+  const saves33 = (await gcalls()).filter((c) => c.mode === "email_draft_save").map((c) => c.body.p_id);
+  const wAfter = await gdoc("Welcome");
+  const rAfter = await gdoc("Class reminder");
+  check(!ids(wAfter).includes(moving), "the block left Welcome");
+  check(saves33[0] === reminderId && saves33[1] === welcomeId && saves33.length === 2, `the gaining email saved first (${saves33.join(", ")})`);
+  const rCount = ids(rAfter).length;
+
+  // 34. One ⌘Z puts it back in both
+  await gclear();
+  await g.keyboard.press("Control+z");
+  await g.waitForTimeout(1300);
+  check(ids(await gdoc("Welcome")).includes(moving) && ids(await gdoc("Class reminder")).length === rCount - 1 && (await gcalls()).filter((c) => c.mode === "email_draft_save").length === 2, "one ⌘Z takes the move back in both emails (two saves)");
+
+  // 35. A flaky save: the gainer's first save fails with a 503, is tried again on its own, then the loser saves
+  await gclear();
+  await g.evaluate((id) => ((window as unknown as W4).failNext = { fn: "email_draft_save", email: id, kind: "503" }), reminderId);
+  const mv2 = await gbox(0, `#${moving}`);
+  const into2 = await gbox(1, "text", 2);
+  await dragTo({ x: mv2.x + 30, y: mv2.y + mv2.h / 2 }, { x: into2.x + 20, y: into2.y + into2.h * 0.8 });
+  await g.waitForTimeout(2600);
+  const seq35 = (await gcalls()).filter((c) => c.mode.startsWith("email_draft_save")).map((c) => `${c.mode === "email_draft_save" ? "" : "503:"}${c.body.p_id === reminderId ? "gainer" : "loser"}`);
+  check(seq35.join(",") === "503:gainer,gainer,loser" && (await g.locator("[role='alert']").count()) === 0, `a flaky save is tried again, then the loser saves (${seq35.join(", ")})`);
+  check(!ids(await gdoc("Welcome")).includes(moving) && ids(await gdoc("Class reminder")).length === rCount, "nothing is lost after the retry");
+
+  // 36. Alt-drag copies; the original stays
+  await gclear();
+  const cp = (await gdoc("Welcome")).sections[1]!.columns[0]!.blocks[0]!.id;
+  const cpb = await gbox(0, `#${cp}`);
+  const into3 = await gbox(1, "text", 1);
+  await g.mouse.move(cpb.x + 30, cpb.y + cpb.h / 2);
+  await g.mouse.down();
+  await g.keyboard.down("Alt");
+  await g.mouse.move(cpb.x + 40, cpb.y + cpb.h / 2 + 10, { steps: 3 });
+  await g.mouse.move(into3.x + 20, into3.y + into3.h * 0.8, { steps: 10 });
+  await g.waitForTimeout(80);
+  const chip36 = (await g.locator("[data-drag-chip]").textContent()) ?? "";
+  await g.mouse.up();
+  await g.keyboard.up("Alt");
+  await g.waitForTimeout(1300);
+  check(chip36.includes("Copy") && ids(await gdoc("Welcome")).includes(cp) && ids(await gdoc("Class reminder")).length === rCount + 1, `Alt-drag copies and the original stays (${chip36})`);
+
+  // 37. Auto-pan: holding a drag near the right edge moves the canvas
+  const stg = (await g.locator("[role='application']").boundingBox())!;
+  const a0 = (await g.locator("[data-email]").first().boundingBox())!;
+  const ap = await gbox(0, "text", 1);
+  await dragTo({ x: ap.x + 30, y: ap.y + ap.h / 2 }, { x: stg.x + stg.width - 8, y: stg.y + stg.height / 2 }, { hold: async () => g.waitForTimeout(500), release: false });
+  const a1 = (await g.locator("[data-email]").first().boundingBox())!;
+  await g.keyboard.press("Escape");
+  await g.mouse.up();
+  check(a0.x - a1.x > 40, `holding a drag at the right edge pans the canvas (${Math.round(a0.x - a1.x)} px)`);
+
+  // 38. Sent meanwhile: the gaining email answers "not a draft"; the move is taken back and the loser never saves
+  await g.keyboard.press("Shift+Digit1");
+  await g.waitForTimeout(400);
+  await gclear();
+  await g.evaluate((id) => ((window as unknown as W4).failNext = { fn: "email_draft_save", email: id, kind: "not a draft" }), newsId);
+  const sm = (await gdoc("Welcome")).sections[1]!.columns[0]!.blocks[0]!.id;
+  const smb = await gbox(0, `#${sm}`);
+  const into4 = await gbox(2, "text", 1);
+  await dragTo({ x: smb.x + 30, y: smb.y + smb.h / 2 }, { x: into4.x + 20, y: into4.y + into4.h * 0.8 });
+  await g.waitForTimeout(2000);
+  const saves38 = (await gcalls()).filter((c) => c.mode.startsWith("email_draft_save")).map((c) => c.body.p_id);
+  const back38 = await g.evaluate((id) => !!document.querySelectorAll<HTMLIFrameElement>("[data-email] iframe")[0]!.contentDocument!.querySelector(`[data-eid="${id}"]`), sm);
+  check(!saves38.includes(welcomeId) && back38 && (await g.locator("[role='status']").filter({ hasText: "was sent, so the block stayed in Welcome" }).count()) === 1, "a gaining email sent meanwhile: the move is taken back, the loser never saves, and the message says so");
+  if (shots) await g.screenshot({ path: `${shots}/12-b4-drag.png` });
+  await g.close();
+
+  // 39. Dragging out of a sent email copies, and the sent email doesn't change
+  const ug = await ctx.newPage();
+  ug.on("pageerror", (e) => errors.push(e.message));
+  await ug.goto(`http://localhost:${port}/?group=ungrouped&n=1`);
+  await ug.waitForFunction(() => document.querySelectorAll("[data-email] iframe").length >= 2, null, { timeout: 15000 });
+  await ug.waitForTimeout(500);
+  const order39 = await ug.evaluate(() => [...document.querySelectorAll("[data-email]")].map((e) => (e as HTMLElement).dataset.email!));
+  const sentIdx = await ug.evaluate((o) => o.indexOf((window as unknown as W4).db.emails.find((e) => e.status === "sent")!.id), order39);
+  const draftIdx = 1 - sentIdx;
+  const sentBefore = await ug.evaluate(() => JSON.stringify((window as unknown as W4).db.emails.find((e) => e.status === "sent")!.doc));
+  const srcBox = await ug.evaluate((i) => {
+    const f = document.querySelectorAll<HTMLIFrameElement>("[data-email] iframe")[i]!;
+    const el = [...f.contentDocument!.querySelectorAll<HTMLElement>("[class]")].find((e) => [...e.classList].some((c) => /^c[a-z0-9]+-heading$/.test(c)))!;
+    const fr = f.getBoundingClientRect();
+    const z = fr.width / f.offsetWidth;
+    const b = el.getBoundingClientRect();
+    return { x: fr.left + (b.left + 20) * z, y: fr.top + (b.top + b.height / 2) * z };
+  }, sentIdx);
+  const dstBox = await ug.evaluate((i) => {
+    const f = document.querySelectorAll<HTMLIFrameElement>("[data-email] iframe")[i]!;
+    const el = [...f.contentDocument!.querySelectorAll<HTMLElement>("[class]")].filter((e) => [...e.classList].some((c) => /^c[a-z0-9]+-text$/.test(c)))[1]!;
+    const fr = f.getBoundingClientRect();
+    const z = fr.width / f.offsetWidth;
+    const b = el.getBoundingClientRect();
+    return { x: fr.left + (b.left + 20) * z, y: fr.top + (b.top + b.height * 0.8) * z };
+  }, draftIdx);
+  const draftId = order39[draftIdx]!;
+  const countOf = (id: string) => ug.evaluate((i) => (window as unknown as W4).db.emails.find((e) => e.id === i)!.doc.sections.flatMap((x) => x.columns.flatMap((c) => c.blocks)).length, id);
+  const draftCount = await countOf(draftId);
+  await ug.mouse.move(srcBox.x, srcBox.y);
+  await ug.mouse.down();
+  await ug.mouse.move(srcBox.x + 10, srcBox.y + 10, { steps: 3 });
+  await ug.mouse.move(dstBox.x, dstBox.y, { steps: 10 });
+  await ug.waitForTimeout(80);
+  const chip39 = (await ug.locator("[data-drag-chip]").textContent()) ?? "";
+  await ug.mouse.up();
+  await ug.waitForTimeout(1300);
+  const after39 = { sent: await ug.evaluate(() => JSON.stringify((window as unknown as W4).db.emails.find((e) => e.status === "sent")!.doc)), count: await countOf(draftId) };
+  check(chip39.includes("Copy") && after39.sent === sentBefore && after39.count === draftCount + 1, `a drag from a sent email copies and the sent email doesn't change (${chip39})`);
+  await ug.close();
+
   // 12. A row of 60 emails: only those near the view load
   const big = await ctx.newPage();
   big.on("pageerror", (e) => errors.push(e.message));
