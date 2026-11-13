@@ -274,16 +274,20 @@ function visibility(inner: string, hideOn: "phone" | "desktop" | undefined): str
 }
 const conditional = (inner: string, c: EmailCond | undefined) => (c ? `${IF_OPEN(c)}${inner}${IF_CLOSE}` : inner);
 
+const EMPTY_BOX = (h: number) => `<div data-empty="" style="height:${h}px;margin:8px 0;border:1px dashed #cfcfcf;border-radius:8px;box-sizing:border-box"></div>`;
+
 function sectionHtml(ctx: Ctx, s: Section, inner: number): string {
   const sec = style(ctx, s.id, "section", isMargin);
   const padL = px(sec.base["padding-left"], 32);
   const padR = px(sec.base["padding-right"], 32);
   const avail = Math.max(100, inner - padL - padR);
   const mark = (id: string) => (ctx.opts.preview ? ` data-eid="${id}"` : "");
+  // The canvas's own build shows an empty column as a dashed box, so it can take a drop (never in an email that goes out).
+  const blocksOf = (c: Section["columns"][number], w: number) => (c.blocks.length || !ctx.opts.preview ? c.blocks.map((b) => blockRow(ctx, b, w, mark)).join("") : EMPTY_BOX(48));
   const colsHtml = (() => {
     if (s.columns.length === 1) {
       const c = s.columns[0]!;
-      return `<div${mark(c.id)}>${c.blocks.map((b) => blockRow(ctx, b, avail, mark)).join("")}</div>`;
+      return `<div${mark(c.id)}>${blocksOf(c, avail)}</div>`;
     }
     const parts: string[] = ['<!--[if mso]><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><![endif]-->'];
     for (const c of s.columns) {
@@ -291,7 +295,7 @@ function sectionHtml(ctx: Ctx, s: Section, inner: number): string {
       const col = style(ctx, c.id, "column", isMargin);
       parts.push(`<!--[if mso]><td width="${w}" valign="top"><![endif]-->`);
       parts.push(
-        `<div${mark(c.id)} class="clr-col${s.stackOnPhone ? " clr-stack" : ""}${col.className ? ` ${col.className}` : ""}" style="display:inline-block;vertical-align:top;width:100%;max-width:${w}px;font-size:16px;${escapeAttr(col.inline)}">${c.blocks.map((b) => blockRow(ctx, b, w, mark)).join("")}</div>`,
+        `<div${mark(c.id)} class="clr-col${s.stackOnPhone ? " clr-stack" : ""}${col.className ? ` ${col.className}` : ""}" style="display:inline-block;vertical-align:top;width:100%;max-width:${w}px;font-size:16px;${escapeAttr(col.inline)}">${blocksOf(c, w)}</div>`,
       );
       parts.push("<!--[if mso]></td><![endif]-->");
     }
@@ -358,7 +362,7 @@ ${styleBlock}
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${escapeAttr(bodyBg)}" style="background-color:${escapeAttr(bodyBg)}"><tr><td align="${doc.settings.align}" style="${escapeAttr(body.inline)}">
 <!--[if mso]><table role="presentation" width="${width}" align="${doc.settings.align}" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
 <div class="clr-w" style="max-width:${width}px;${doc.settings.align === "center" ? "margin:0 auto;" : ""}">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"${attrClass(content.className)}${ctx.opts.preview ? ' data-eid="email"' : ""} style="${escapeAttr(content.inline)}">${sections}</table>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"${attrClass(content.className)}${ctx.opts.preview ? ' data-eid="email"' : ""} style="${escapeAttr(content.inline)}">${sections || (ctx.opts.preview ? `<tr><td style="padding:16px">${EMPTY_BOX(120)}</td></tr>` : "")}</table>
 </div>
 <!--[if mso]></td></tr></table><![endif]-->
 </td></tr></table>
@@ -371,7 +375,7 @@ ${styleBlock}
 
 // Plain text ---------------------------------------------------------------------------------------------------------
 
-function blockText(b: Block): string {
+export function blockText(b: Block): string {
   switch (b.type) {
     case "heading":
       return b.text;
