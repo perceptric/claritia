@@ -11,6 +11,7 @@ import { persistStudio } from "@/lib/studio/persist";
 import { forgetPublic } from "@/lib/forms/server";
 import { turnstileSiteKey } from "@/lib/forms/server";
 import { BRAND_RULES, CHAT_RULES, STUDIO_MODEL, TRANSLATE_RULES } from "@/lib/studio/prompts";
+import { cleanMessages, cleanTitle, titleFrom } from "@/lib/studio/threads";
 import { hostLogo, hostOf, readPage, readSite, readSource } from "@/lib/studio/site";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
@@ -28,6 +29,9 @@ import { serviceClient } from "@/lib/serviceClient";
 //   translate { texts, lang }         → { texts }               the form's words in another language
 //   chat-save { chat: { id, name, state, brandId, formId, body } } → { ok }   one chat with Tia (112)
 //   chat-delete { id }               → { ok }
+//   thread-save { thread: { id, chatId, title?, messages } } → { ok, title }   one chat about a form (166); the
+//                                                               Studio reads a form's chats itself (members read)
+//   thread-delete { id }             → { ok }
 //   brand-css { kitId, css }         → { ok }                  the brand's CSS, edited in Code
 //   brand-profile { kitId, profile } → { ok }                  the brand's industry, language and country (113)
 //   convert { formId }               → { formId, lost }          an older form's draft as a studio page (Part 8)
@@ -205,6 +209,39 @@ export async function POST(request: Request) {
     if (!id) return bad("Chat not found.", 404);
     const del = await db.from("form_chats").delete().eq("id", id).eq("workspace_id", ws);
     if (del.error) return Response.json({ error: "Chats aren't set up on this server yet.", missing: true }, { status: 503 });
+    return Response.json({ ok: true });
+  }
+
+  if (b.mode === "thread-save") {
+    // One chat about a form (166): its messages after each of Tia's answers, and its name. Made on its first save,
+    // with who started it; the form's own chat row (112) has to be saved first.
+    const t = (b.thread && typeof b.thread === "object" ? b.thread : {}) as Record<string, unknown>;
+    const id = typeof t.id === "string" && UUID.test(t.id) ? t.id : "";
+    const chatId = typeof t.chatId === "string" && UUID.test(t.chatId) ? t.chatId : "";
+    if (!id || !chatId) return bad("The chat can't be read.");
+    const chat = await db.from("form_chats").select("workspace_id").eq("id", chatId).maybeSingle();
+    if (chat.error) return Response.json({ error: "Chats aren't set up on this server yet.", missing: true }, { status: 503 });
+    if (!chat.data || (chat.data as { workspace_id: string }).workspace_id !== ws) return bad("Form not found.", 404);
+    const messages = cleanMessages(t.messages);
+    const title = cleanTitle(t.title) || titleFrom(messages);
+    const had = await db.from("studio_threads").select("workspace_id, form_chat_id").eq("id", id).maybeSingle();
+    if (had.error) return Response.json({ error: "Chats aren't kept one by one on this server yet.", missing: true }, { status: 503 });
+    const row = had.data as { workspace_id: string; form_chat_id: string } | null;
+    if (row && (row.workspace_id !== ws || row.form_chat_id !== chatId)) return bad("Chat not found.", 404);
+    const now = new Date().toISOString();
+    const up = row
+      ? await db.from("studio_threads").update({ title, messages, updated_at: now }).eq("id", id)
+      : await db.from("studio_threads").insert({ id, workspace_id: ws, form_chat_id: chatId, title, messages, created_by: auth.user.id, updated_at: now });
+    if (up.error) return bad(up.error.message, 500);
+    return Response.json({ ok: true, title });
+  }
+
+  if (b.mode === "thread-delete") {
+    // One chat goes; the form and its other chats stay.
+    const id = typeof b.id === "string" && UUID.test(b.id) ? b.id : "";
+    if (!id) return bad("Chat not found.", 404);
+    const del = await db.from("studio_threads").delete().eq("id", id).eq("workspace_id", ws);
+    if (del.error) return Response.json({ error: "Chats aren't kept one by one on this server yet.", missing: true }, { status: 503 });
     return Response.json({ ok: true });
   }
 

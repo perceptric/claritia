@@ -2,7 +2,9 @@
 // opens first: it reads the site, asks "Is this the brand?" with its real logo and name, and only then reads its look.
 // Tia builds the form into the live preview and the chat is saved with it; once built, a change lands with no setup
 // question. Edit works right on the form (pick, type, the floating bar, undo) with nothing covering the bar; Code, On
-// submission and Publish work, the published page runs in the form script, and each form keeps its own chat.
+// submission and Publish work, the published page runs in the form script, each form keeps its own chats with Tia
+// (one bar under the form, chats that slide up from it), the look is one card with one gallery, and the Welcome screen
+// is edited like any page (its photo is its photo, never a field from Page 1).
 //   CHROMIUM_PATH=… node scripts/studio-check.ts   (SHOTS=dir saves screenshots)
 
 import { readFileSync } from "node:fs";
@@ -71,9 +73,8 @@ try {
   const toPreview = async () => { if (!(await $("#exitPrev").isVisible())) await p.locator("#hdrPreview").click(); };
   const toEdit = async () => { if (await $("#exitPrev").isVisible()) await $("#exitPrev").click(); };
   // The Ending page holds what happens after the send: Ending type in the sidebar, Team meeting's rules in the center.
-  const toAfter = async () => { await toEdit(); if (await $("#aiBody").isVisible()) await $("#aiClose").click(); await $("#stepBar .pg.end .sp").click(); };
+  const toAfter = async () => { await toEdit(); if (await $("#thread").isVisible()) await $("#thFold").click(); await $("#stepBar .pg.end .sp").click(); };
   const addField = async () => { if (await $("#adds").isHidden()) await $("#addFieldBtn").click(); };
-  const openTia = async () => { if (!(await $("#aiBody").isVisible())) await $("#askBox button[type=submit]").click(); };
   const addPageNow = async () => { await $("#pageTools [data-add-page]").click(); await $(".menu .mi").filter({ hasText: /^Page$/ }).click(); };
 
   // 0. While the form loads, the canvas is blank: the templates never flash before a form
@@ -111,18 +112,21 @@ try {
   await $("#tplGrid .tpl").first().waitFor();
   check(await $("#peekBar").isHidden() && (await form.locator("input").count()) === 0, "All templates goes back to the list, with the form still empty");
 
-  // 1b. No brand yet: the chat waits, and the brand button opens the look menu: your own brand, then every style
-  check(await $("#input").isDisabled(), "the chat waits for a brand");
-  await $("#brandBtn").click();
+  // 1b. No brand yet: the bar waits, and the empty chat's button opens the one theme gallery: your brands, then styles
+  check((await $("#askIn").getAttribute("placeholder")) === "Pick your brand or a style to start" && (await $("#send").isDisabled()) && !(await $("#thread").isVisible()), "the bar waits for a brand, and the chat starts folded over the templates");
+  await $("#askIn").click();
+  check(await $("#thread").isVisible(), "a click on the bar opens the chat");
+  check((await $("#chat #msgs").count()) === 0 && (await $("#tDock #thread").count()) === 1 && (await $("#chat").getAttribute("aria-label")) === "Pages", "there's no chat column: Tia's chat lives in the bar under the form");
+  await $("#pickTheme").click();
   await $("#ownSite").waitFor();
-  check((await $("#layer .lookmenu .themes .th").count()) >= 18, "the look menu lists every style under Use your own brand");
+  check((await $("#themeDlg .tsec").first().textContent()) === "Your brands" && (await $("#themeDlg .tcard").count()) >= 18, "the theme gallery puts your brands first, then every style");
   if (shots) await p.screenshot({ path: `${shots}/0-look-menu.png` });
 
   // 2. Use your own brand: the site is learned on its own screen, its name and logo confirmed before the look
   await $("#ownSite").fill("nope.dev");
   await $("#ownSite").press("Enter");
   await $("#brandDlg .learn").waitFor();
-  check(((await $("#brandDlg .lsteps").textContent()) ?? "").includes("Opening nope.dev"), "the learning screen opens on the site typed in the menu");
+  check(((await $("#brandDlg .lsteps").textContent()) ?? "").includes("Opening nope.dev"), "the learning screen opens on the site typed in the gallery");
   await $("#dlgBody .err").waitFor();
   check((await $("#dlgBody").textContent())!.includes("Read it in a browser"), "a site that can't be read offers the browser read");
   await $("#dlgSite").fill("finch.care");
@@ -143,7 +147,7 @@ try {
   await $("#learnDone").click();
   await $("#brandDlg").waitFor({ state: "detached" });
   check((await calls()).some((c) => c.mode === "confirm" && (c.body as { logoUrl: string }).logoUrl === "https://finch.care/logo.png"), "confirming saves the name and the logo's address");
-  check((await $("#brandBtn").textContent())!.trim() === "Finch", "the brand shows as its logo and name only");
+  check((await $("#chatPick img.bmark").count()) === 1, "the brand shows as its logo beside the form's name");
   await p.waitForFunction(() => !document.querySelector("#studio")!.shadowRoot!.getElementById("send")!.hasAttribute("disabled"));
   check((await calls()).some((c) => c.mode === "look"), "the look is read after confirming");
   check((await $("#msgs").textContent())!.includes("soft green"), "what Tia found in the look shows in the chat");
@@ -155,8 +159,8 @@ try {
   check((await $(".starts button").first().textContent()) === "An RSVP with a plus-one", "the ideas follow the industry");
 
   // 3. Tia builds the form; the chat is saved with it
-  await $("#input").fill("A daily check-in");
-  await $("#input").press("Enter");
+  await $("#askIn").fill("A daily check-in");
+  await $("#askIn").press("Enter");
   await idle();
   const first = (await calls()).find((c) => c.mode === "tia")!.body as { content: string }[];
   const opts1 = (await calls()).find((c) => c.mode === "tiaOpts")!.body as { brand: string; built: boolean };
@@ -170,16 +174,20 @@ try {
   check((await $("#chatPick").textContent())!.includes("Daily check-in"), "the chat takes the form's name");
   check((await $(".msg.ai .who").first().textContent())!.includes("Tia") && !(await $("#app").textContent())!.includes("Claude"), "the chat is Tia, and Claude isn't named");
   await p.waitForFunction(() => Object.values((window as unknown as { saved: Record<string, { body?: { html: string } }> }).saved).some((c) => c.body?.html.includes('id="title"')));
-  check(true, "the chat is saved with its form");
+  check(true, "the form is saved");
+  await p.waitForFunction(() => Object.values((window as unknown as { threads: Record<string, { title: string; messages: unknown[] }[]> }).threads).some((l) => l.some((t) => t.title === "A daily check-in" && t.messages.length === 2)));
+  check((await $("#thTitle").textContent()) === "A daily check-in" && (await $("#thWho").textContent()) === "Started by you", "the first message starts a chat on this form, named after it, and it's kept");
   if (shots) await p.screenshot({ path: `${shots}/2-built.png` });
 
   // 4. Built is built: a change lands with no setup question
-  check((await $("#input").getAttribute("placeholder")) === "Ask Tia to change anything", "a built form asks for changes");
-  await $("#input").fill("Call the title How was today?");
-  await $("#input").press("Enter");
+  check((await $("#askIn").getAttribute("placeholder")) === "Ask Tia to change anything", "a built form asks for changes");
+  await $("#askIn").fill("Call the title How was today?");
+  await $("#askIn").press("Enter");
   await idle();
   const second = ((await calls()).filter((c) => c.mode === "tia")[1]!.body as { content: string }[]).at(-1)!.content;
   check(second.includes("[THE FORM IS BUILT]") && ((await calls()).filter((c) => c.mode === "tiaOpts")[1]!.body as { built: boolean }).built, "a change says the form is built, so Tia thinks less");
+  const secondTurns = (await calls()).filter((c) => c.mode === "tia")[1]!.body as { role: string; content: string }[];
+  check(secondTurns.length === 3 && secondTurns[0]!.content === "A daily check-in" && secondTurns[1]!.content.startsWith("<say>"), "Tia reads the chat so far, rebuilt from its messages");
   check(!/>\s+</.test(/<form_html>([\s\S]*?)<\/form_html>/.exec(second)![1]!), "the form goes to Tia without the spaces between tags");
   check((await form.locator("#title").textContent()) === "How was today?", "Tia's change lands on the form");
   check((await $(".ask").count()) === 0, "no setup question once the form is built");
@@ -199,7 +207,7 @@ try {
   // 5. The preview still runs: required, steps, show-if, the booking calendar
   check(!(await $("#exitPrev").isVisible()) && (await $("#panel").isVisible()), "the Studio opens in the editor, with no view tabs");
   await toPreview();
-  check((await $("#exitPrev").isVisible()) && (await $("#stepBar").isVisible()) && !(await $("#aiBody").isVisible()) && !(await $("#panel").isVisible()) && (await $("#tools").isHidden()), "Preview shows the form and its pages, with Back to editor, and no editing tools");
+  check((await $("#exitPrev").isVisible()) && (await $("#stepBar").isVisible()) && !(await $("#thread").isVisible()) && !(await $("#panel").isVisible()) && (await $("#tools").isHidden()), "Preview shows the form and its pages, with Back to editor, and no editing tools");
   await form.locator("[data-cl-next]").click();
   check(((await form.locator('[data-cl-error-for="name"]').textContent()) ?? "").length > 0, "a required answer stops the next step");
   await form.locator("#nm").fill("Sam");
@@ -215,10 +223,15 @@ try {
 
   // 6. Edit: pick, type in place, the floating bar, undo, and nothing covers anything
   await toEdit();
-  check(await $("#aiBody").isVisible(), "Tia's chat stays open over the pages while Tia builds");
-  await $("#aiClose").click();
-  check(!(await $("#aiBody").isVisible()) && (await $("#stepBar").isVisible()) && (await $("#adds").isHidden()), "closing the chat shows the pages; the fields wait behind Add field");
-  check((await $("#askBox input").count()) === 1 && (await $("#tools #addFieldBtn").count()) === 1 && (await $("#tools #designBtn").count()) === 1, "Add field and Design sit over the form, the Tia box under it");
+  check(!(await $("#thread").isVisible()), "a click away from the bar folds Tia's chat");
+  await $("#askBox button[type=submit]").click();
+  check(await $("#thread").isVisible(), "the bar opens the chat again");
+  const thBox = await $("#thread").boundingBox(), tiaBar = await $("#askBox").boundingBox();
+  check(!!thBox && !!tiaBar && thBox.y + thBox.height <= tiaBar.y + 1, "the chat slides up above the bar");
+  if (shots) { await p.waitForTimeout(400); await p.screenshot({ path: `${shots}/2c-tia-chat.png` }); }
+  await $("#thFold").click();
+  check(!(await $("#thread").isVisible()) && (await $("#stepBar").isVisible()) && (await $("#adds").isHidden()), "folding the chat leaves the pages; the fields wait behind Add field");
+  check((await $("#askBox #askIn").count()) === 1 && (await $("#tools #addFieldBtn").count()) === 1 && (await $("#tools #designBtn").count()) === 1, "Add field and Design sit over the form, the Tia box under it");
   // Pages as tabs: one at a time, the Ending, or all with dividers
   const tabs = async () => (await $("#stepBar .pg .sp span:last-child").allTextContents()).map((x) => x.trim());
   check(JSON.stringify(await tabs()) === JSON.stringify(["Page 1", "Page 2", "Booking page"]) && (await $("#stepBar .psep").textContent()) === "Ending", "the sidebar lists each page as a page, then the Ending");
@@ -416,18 +429,24 @@ try {
   check((await form.locator("[data-cl-field='hidden'][data-cl-param='ref']").count()) === 1, "a hidden field from the link is added");
   // Design: a theme from the gallery, then Basic or Advanced styling.
   await $("#designBtn").click();
-  check((await $("#selName").textContent()) === "Design" && (await $("#pscroll #brandBtn").count()) === 1, "Design opens in the right panel, with the brand");
-  const design = $("#pscroll .sec").filter({ has: p.locator("h4", { hasText: /^Design$/ }) });
+  check((await $("#selName").textContent()) === "Design" && (await $("#pscroll #themeCard").count()) === 1, "Design opens in the right panel, with the theme card on top");
+  const cardText = (await $("#themeCard").textContent()) ?? "";
+  check(cardText.includes("Finch") && cardText.includes("Your brand") && (await $("#themeChange").textContent()) === "Change", "the card names the theme, says it's your brand, and offers Change");
+  check((await $("#pscroll h4").filter({ hasText: /^Design$/ }).count()) === 0 && !((await $("#pscroll").textContent()) ?? "").includes("Open theme gallery") && (await $("#pscroll .brandbtn").count()) === 0, "no second Design heading, no Theme row, no style menu: the card is the one place");
+  check(((await $("#themeProfile").textContent()) ?? "").startsWith("Hospitality and events"), "the industry sits under the card");
+  if (shots) await p.screenshot({ path: `${shots}/2d0-theme-card.png` });
+  const design = $("#pscroll .dsec");
   const basic = (await design.textContent())!;
-  check(["Background", "Questions", "Answers", "Buttons", "Button text", "Alignment", "Font size", "Logo", "Round corners"].every((x) => basic.includes(x)) && basic.includes("Open theme gallery"), "Design opens on Basic: five colors, alignment, font, size, logo and corners");
-  await design.locator(".pill").filter({ hasText: "Open theme gallery" }).click();
-  check((await $("#themeDlg .tcard").count()) >= 18, "Change opens the theme gallery with every style");
+  check(["Background", "Questions", "Answers", "Buttons", "Button text", "Alignment", "Font size", "Logo", "Round corners"].every((x) => basic.includes(x)), "Design opens on Basic: five colors, alignment, font, size, logo and corners");
+  await $("#themeChange").click();
+  check((await $("#themeDlg .tcard").count()) >= 18 && (await $("#themeDlg .tsec").allTextContents()).join(",") === "Your brands,Styles", "Change opens one gallery: your brands, then every style");
   if (shots) await p.screenshot({ path: `${shots}/2d-theme.png` });
   const styleBefore = await p.evaluate(() => Object.values((window as unknown as { saved: Record<string, { body?: { style?: string } }> }).saved).map((c) => c.body?.style ?? "").join(","));
   await $("#themeDlg .tcard").filter({ hasText: "Midnight" }).click();
   check((await $("#themeDlg").count()) === 0, "picking a theme closes the gallery");
   await p.waitForFunction(() => Object.values((window as unknown as { saved: Record<string, { body?: { style?: string } }> }).saved).some((c) => c.body?.style === "midnight"));
   check(!styleBefore.includes("midnight"), "the picked theme is the form's style");
+  check(((await $("#themeCard").textContent()) ?? "").includes("Midnight") && ((await $("#themeCard").textContent()) ?? "").includes("Style"), "the card shows the style picked");
   await $("#undo").click();
   await design.locator(".seg button").filter({ hasText: "Advanced" }).click();
   const adv = (await design.textContent())!;
@@ -831,13 +850,36 @@ try {
   check((await lf.locator("#clr-consent").count()) === 1 && (await lf.locator('input[name="company_url"]').count()) === 1, "the live form has the consent line and the spam trap");
   if (shots) await lp.screenshot({ path: `${shots}/5-live.png` });
 
-  // 9. One chat per form: a new chat starts empty, and the first keeps its form
+  // 9. Chats on this form: the clock lists them, New chat starts one about the same form, and switching keeps the form
   await toEdit();
-  if (await $("#chat").evaluate((e) => e.classList.contains("folded"))) await $("#chatFold").click();
-  await $("#chatPick").click();
-  check((await $("#layer .menu").textContent())!.includes("Daily check-in") && (await $("#layer .menu").textContent())!.includes("Live"), "the chat list shows each form and its state, in the header's words");
-  await $("#layer .menu button").filter({ hasText: "New chat" }).click();
-  check(!(await form.locator("#title").count()) && (await $(".starts button").count()) > 0, "a new chat starts empty, with ideas");
+  await $("#histBtn").click();
+  const hist = (await $("#layer .menu").textContent()) ?? "";
+  check(hist.includes("Chats on this form") && hist.includes("A daily check-in") && hist.includes("You, Just now") && !hist.includes("Live"), "the clock lists this form's chats, with who started each and when, and no other forms");
+  await $("#layer #newThread").click();
+  check((await $("#thread").isVisible()) && (await $("#thTitle").textContent()) === "New chat" && (await $("#thWho").textContent()) === "" && (await form.locator("#title").count()) === 1, "New chat starts an empty chat about the same form");
+  const tiaFresh = (await calls()).filter((c) => c.mode === "tia").length;
+  await $("#askIn").fill("Make the button say Done");
+  await $("#askIn").press("Enter");
+  await p.waitForFunction((n) => (window as unknown as { calls: { mode: string }[] }).calls.filter((c) => c.mode === "tia").length > n, tiaFresh);
+  await idle();
+  const fresh = (await calls()).filter((c) => c.mode === "tia")[tiaFresh]!.body as { content: string }[];
+  check(fresh.length === 1 && fresh[0]!.content.includes("[THE FORM IS BUILT]") && fresh[0]!.content.includes("<form_html>"), "a new chat starts Tia's memory fresh, but Tia still reads the form as it is");
+  await p.waitForFunction(() => Object.values((window as unknown as { threads: Record<string, unknown[]> }).threads).some((l) => l.length === 2));
+  await $("#histBtn").click();
+  check((await $("#layer .menu .thmi").count()) === 2 && ((await $("#layer .menu .thmi").first().textContent()) ?? "").includes("Make the button say Done"), "the new chat is kept, newest first");
+  if (shots) await p.screenshot({ path: `${shots}/9-chats.png` });
+  await $("#layer .menu .thmi").filter({ hasText: "A daily check-in" }).click();
+  check((await $("#thTitle").textContent()) === "A daily check-in" && (await form.locator("#title").textContent()) === "How was today?" && ((await $("#msgs").textContent()) ?? "").includes("A daily check-in"), "switching chats shows that chat and never changes the form");
+  await $("#histBtn").click();
+  await $("#layer button[aria-label='Delete Make the button say Done']").click();
+  await p.waitForFunction(() => (window as unknown as { calls: { mode: string }[] }).calls.some((c) => c.mode === "deleteThread"));
+  check((await form.locator("#title").count()) === 1 && Object.values(await p.evaluate(() => (window as unknown as { threads: Record<string, unknown[]> }).threads)).some((l) => l.length === 1), "deleting a chat keeps the form and the other chats");
+  await $("#undo").click();
+  // A new form, as the Forms list opens it: it starts empty, with ideas.
+  const firstChat = await p.evaluate(() => (window as unknown as { studioState: { chatId: string } | null }).studioState?.chatId ?? "");
+  await p.evaluate(() => (window as unknown as { openStudio: (s: unknown) => void }).openStudio({ fresh: true }));
+  await $("#blankBtn").waitFor();
+  check(!(await form.locator("#title").count()) && (await $(".starts button").count()) > 0, "a new form starts empty, with ideas");
   await $("#blankBtn").click();
   check((await form.locator("input[type='email']").count()) === 1 && (await form.locator("[type=submit]").count()) === 1 && (await $("#tools").isVisible()), "Start blank makes an email question and a send button, and opens Edit with the Add list");
   // The new fields: 39 in the Add list, each added in one click
@@ -883,14 +925,17 @@ try {
   await addPageNow();
   check((await form.locator("[data-cl-step]").count()) === 3, "Add page on a form with pages adds one more");
   if (shots) await p.screenshot({ path: `${shots}/9-pages.png` });
-  await $("#chatPick").click();
-  await $("#layer .menu .mi").filter({ hasText: "Daily check-in" }).click();
+  await p.evaluate((id) => (window as unknown as { openStudio: (s: unknown) => void }).openStudio({ chatId: id }), firstChat);
   await form.locator("#title").waitFor();
-  check((await form.locator("#title").textContent()) === "How was today?", "switching back keeps the first chat's form");
+  check((await form.locator("#title").textContent()) === "How was today?", "opening the first form again keeps its form");
+  await $("#histBtn").click();
+  check(((await $("#layer .menu").textContent()) ?? "").includes("A daily check-in") && ((await $("#layer .menu").textContent()) ?? "").includes("Make the button say Done") === false, "and its chats come back with it");
+  await $("#histBtn").click();
 
   // 9b. A built form switches brand only when asked, keeps its look until the new one is ready, then Tia moves it
-  await openTia();
-  await $("#brandBtn").click();
+  await toEdit();
+  await $("#designBtn").click();
+  await $("#themeChange").click();
   await $("#ownSite").fill("acme.dev");
   await $("#ownSite").press("Enter");
   await $("#dlgBody button").filter({ hasText: "Yes, use this brand" }).click();
@@ -902,12 +947,12 @@ try {
   await idle();
   const sw = ((await calls()).filter((c) => c.mode === "tia")[tiaN]!.body as { content: string }[]).at(-1)!.content;
   check(sw.startsWith("Switch this form to Acme") && sw.includes("[The brand just changed from Finch to Acme."), "Tia moves the form to the new brand in one change");
-  check((await $("#brandBtn").textContent())!.trim() === "Acme", "the form is on the new brand");
+  await $("#designBtn").click().catch(() => undefined);
+  if (!(await $("#themeCard").count())) await $("#designBtn").click();
+  check(((await $("#themeCard").textContent()) ?? "").includes("Acme"), "the form is on the new brand");
 
-  // 9c. A template on a new chat's empty canvas makes the form in the chat's brand, opens it, and the empty chat goes
-  await openTia();
-  await $("#chatPick").click();
-  await $("#layer .menu button").filter({ hasText: "New chat" }).click();
+  // 9c. A template on a new form's empty canvas makes the form in its brand, opens it, and the empty form goes
+  await p.evaluate(() => (window as unknown as { openStudio: (s: unknown) => void }).openStudio({ fresh: true }));
   await $("#tplGrid .tpl").first().waitFor();
   const tplId = await $("#tplGrid .tpl").first().getAttribute("data-tpl");
   const emptyChat = await p.evaluate(() => (window as unknown as { studioState: { chatId: string } | null }).studioState?.chatId ?? "");
@@ -915,12 +960,11 @@ try {
   await $("#peekUse").click();
   await p.waitForFunction(() => (window as unknown as { calls: { mode: string }[] }).calls.some((c) => c.mode === "openForm"));
   const used = (await calls()).find((c) => c.mode === "useTemplate")!.body as { id: string; look: { kitId?: string } };
-  check(used.id === tplId && used.look.kitId === "55555555-5555-4555-8555-555555555555", "a template is made in the chat's brand");
+  check(used.id === tplId && used.look.kitId === "44444444-4444-4444-8444-444444444444", "a template is made in the new form's brand (the workspace's first)");
   check((await calls()).some((c) => c.mode === "openForm" && c.body === "77777777-7777-4777-8777-777777777777"), "the new form opens");
   check(!!emptyChat && (await calls()).some((c) => c.mode === "deleteChat" && c.body === emptyChat), "the empty chat it started from is removed");
   await $("#peekBack").click();
-  await $("#chatPick").click();
-  await $("#layer .menu .mi").filter({ hasText: "Daily check-in" }).click();
+  await p.evaluate((id) => (window as unknown as { openStudio: (s: unknown) => void }).openStudio({ chatId: id }), firstChat);
   await form.locator("#title").waitFor();
 
   // 9d. A welcome screen with a photo: the switch adds it first, the library's photo goes beside it, then behind it,
@@ -948,6 +992,48 @@ try {
   await p.waitForFunction(() => (window as unknown as { calls: { mode: string }[] }).calls.some((c) => c.mode === "uploadPicture"));
   await p.waitForTimeout(150);
   check(((await form.locator("[data-cl-cover]").getAttribute("data-cl-media")) ?? "").endsWith("bb.png"), "an uploaded photo takes its place");
+  // The Welcome screen is edited like any page: its photo is its photo, its words and Start are its own.
+  await $("#designBtn").click();
+  await form.locator(".page > .cl-fig").click({ position: { x: 20, y: 20 } });
+  const photoPanel = (await $("#pscroll").textContent()) ?? "";
+  check((await $("#selName").textContent()) === "Photo" && photoPanel.includes("Change photo") && photoPanel.includes("Place") && !photoPanel.includes("Display condition") && (await $("#pscroll [aria-label='Required']").count()) === 0, "clicking the Welcome screen's photo picks the photo, with its settings, and no Page 1 field");
+  check(((await $("#seltag").textContent()) ?? "") === "Photo", "the photo wears the pick outline as Photo");
+  if (shots) await p.screenshot({ path: `${shots}/9d0-cover-photo.png` });
+  await form.locator("[data-cl-cover] h1").click();
+  check((await $("#selName").textContent()) === "Heading" && ((await $("#pscroll").textContent()) ?? "").includes("Insert field value") && (await $("#pscroll [aria-label='Required']").count()) === 0, "clicking its title picks the title, with text settings");
+  await form.locator("[data-cl-cover] h1").click();
+  await p.keyboard.press("ControlOrMeta+a").catch(() => undefined);
+  await p.keyboard.type("Welcome aboard");
+  await p.keyboard.press("Enter");
+  check((await form.locator("[data-cl-cover] h1").textContent()) === "Welcome aboard", "its title is typed in place");
+  await form.locator("[data-cl-cover] [data-cl-start]").click();
+  check((await $("#selName").textContent()) === "Button" && (await $("#pscroll input[aria-label='Text']").count()) === 1, "clicking Start picks the button, with its words");
+  await $("#pscroll input[aria-label='Text']").fill("Let's go");
+  await $("#pscroll input[aria-label='Text']").press("Enter");
+  check((await form.locator("[data-cl-cover] [data-cl-start]").textContent()) === "Let's go", "Start's words change from the panel");
+  await $("#undo").click();
+  check((await form.locator("[data-cl-cover] [data-cl-start]").textContent()) === "Start", "undo works on the Welcome screen");
+  await $("#redo").click();
+  // The screen itself (its free space), and the page box around it: neither borrows a field from Page 1.
+  await form.locator("[data-cl-cover]").dispatchEvent("click");
+  const coverPanel = (await $("#pscroll").textContent()) ?? "";
+  check((await $("#pscroll [aria-label='Required']").count()) === 0 && !coverPanel.includes("Your name") && !coverPanel.includes("Display condition") && coverPanel.includes("Photo"), "the Welcome screen's free space shows its own settings (its photo), never another page's field");
+  await form.locator(".page").first().dispatchEvent("click");
+  const pagePanel = (await $("#pscroll").textContent()) ?? "";
+  check((await $("#pscroll [aria-label='Required']").count()) === 0 && !pagePanel.includes("Your name"), "the page box around the screens never shows a field from inside it");
+  await form.locator(".page > .cl-fig").click({ position: { x: 20, y: 20 } });
+  await $("#fbar button[aria-label='Remove photo']").click();
+  check(!(await form.locator("[data-cl-cover]").getAttribute("data-cl-media")) && (await form.locator("[data-cl-cover] [data-cl-start]").count()) === 1, "the photo's bar removes the photo, not the screen");
+  await $("#undo").click();
+  check(((await form.locator("[data-cl-cover]").getAttribute("data-cl-media")) ?? "").endsWith("bb.png"), "and undo puts it back");
+  await $("#addFieldBtn").click();
+  await $("#addList [data-add='text']").click();
+  check((await form.locator("[data-cl-cover] [data-cl-start]").evaluate((b) => !!b.previousElementSibling && !b.previousElementSibling.matches("p.text"))) || (await form.locator("[data-cl-cover] > *").count()) > 3, "Add puts words on the Welcome screen, above Start");
+  await $("#undo").click();
+  await form.locator("[data-cl-cover] h1").click();
+  await $("#fbar button[aria-label='Ask Tia about this']").click();
+  check(((await $("#aboutText").textContent()) ?? "").startsWith("About: Heading") && (await $("#thread").isVisible()), "Ask Tia about this works on the Welcome screen");
+  await $("#aboutX").click();
   await toPreview();
   await $("#stepBar .sp").first().click();
   await form.locator("[data-cl-cover]").waitFor();
@@ -974,18 +1060,13 @@ try {
   await $("#pscroll button[aria-label='One question at a time']").click();
   check((await form.locator("form[data-cl-one]").count()) === 0, "and off again");
 
-  // Clear chat: Tia's messages on this form go; the form stays.
-  await openTia();
-  const before = (await $("#msgs").textContent()) ?? "";
-  await $("#aiClear").click();
-  await p.waitForTimeout(200);
-  const afterClear = (await $("#msgs").textContent()) ?? "";
-  check(before.length > afterClear.length && (await form.locator("[data-cl-thanks]").count()) === 1, "Clear chat empties Tia's chat and keeps the form");
-  // 10. Delete a brand from the menu
-  await $("#brandBtn").click();
+  // 10. Delete a brand from the gallery
+  await $("#designBtn").click();
+  if (!(await $("#themeChange").count())) await $("#designBtn").click();
+  await $("#themeChange").click();
   await $("#layer button[aria-label='Delete Finch']").click();
   await $("#layer .mdel button").filter({ hasText: "Delete" }).click();
-  check((await calls()).some((c) => c.mode === "delete"), "a brand can be deleted from the menu");
+  check((await calls()).some((c) => c.mode === "delete"), "a brand can be deleted from the gallery");
   void sh;
   check(errors.length === 0, `no page errors${errors.length ? `: ${errors.join("; ")}` : ""}`);
 } finally {

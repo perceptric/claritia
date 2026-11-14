@@ -1,6 +1,7 @@
 # Form Studio, round two: the plan
 
-What the owner asked for after using the live Studio (Nov 2): more room, one chat per form kept in the Studio,
+What the owner asked for after using the live Studio (Nov 2): more room, one chat per form kept in the Studio (since
+Part 13, many chats per form in one Tia bar),
 icons in place of words, nothing covering anything, an editor that works like Webflow or Framer right on the form,
 and a Tia that stops asking setup questions once the form is built.
 
@@ -322,6 +323,44 @@ Everything a form needs can be made in Edit without Tia (`src/lib/studio/builder
 
 Running cost: $0 a month at Beta (50 teams) and Growth (500 teams). Nothing new is bought, and these edits make no
 Claude calls.
+
+## Part 13. One Tia bar, many chats per form, one theme card (built Nov 14)
+
+What the owner asked for after the demo (claude.ai/artifact/UH7dnJR97Rc8hjVcsSog2Q): Tia and the look were each in
+too many places. Now there's one place for each.
+
+- **One place to talk to Tia.** The chat column is gone; the left column is only the form's mark, its name and its
+  pages. The "Build with Tia" bar under the form is the only place to type. Sending opens Tia's chat, which slides up
+  from the bar over the form: its name, who started it, the messages with Tia's sparkle and a fold button. A click
+  away (or the fold) folds it; an answer that lands while it's folded lights the dot on Tia's face. The chat starts
+  folded, so an empty form's templates show whole; a click on the bar opens it.
+- **Chats on this form.** The bar's clock lists this form's chats, newest first, each with who started it and when,
+  with New chat on top and a delete on each row (the app's own confirm; the form stays). Switching chats never changes
+  the form. A new chat starts Tia's memory fresh, but Tia still reads the form as it is now, so it knows what's built.
+  The old list of every form's chats left the Studio: Forms opens each form.
+- **What moved where.** Starter ideas, the brand's greeting, Pick your brand or a style (before anything is built) and
+  the industry pill now sit in an empty chat. Attach a file, the attached files and "About: …" from Ask Tia about this
+  sit on the bar. The form check's Fix and the brand switch send into the open chat. Clear chat became New chat and
+  delete.
+- **One place to pick the look.** Design opens on one theme card: a small preview in the theme's colors, its name,
+  Your brand or Style, and Change. Change opens one gallery: Your brands first (learn one from your site, pick one,
+  delete one), then the 18 styles. Basic and Advanced stay under the card. The industry pill and the "Reading the look"
+  state sit under the card. The style menu, the Theme row, Open theme gallery and the second Design heading are gone.
+- **The Welcome screen is edited like any page.** A screen's photo is drawn as the page runs, so it has no key of its
+  own: a click on it used to climb to the page box, whose settings took the first question inside (Page 1's first
+  field). Now a click on the photo picks the photo (its settings: change, remove, place, the spot kept in view, words
+  for screen readers; the bar's Remove takes the photo off, not the screen), and a whole screen or the page box never
+  borrows a field from inside it. The title and line type in place with text settings, Start shows its words, and Add
+  puts words, headings and dividers on the Welcome screen above Start (a question goes on Page 1).
+
+Storage: `supabase/migrations/166_studio_threads.sql` adds `studio_threads` (id, workspace_id, form_chat_id, title,
+created_by, messages, created_at, updated_at); members read, `/api/studio` writes (thread-save, thread-delete). Each
+form's conversation so far moved into one chat, "Earlier chat"; the old `log` and `turns` in `form_chats.body` stay, so
+the old Studio still works. Until 166 is applied the chats are kept with the form (`body.threads`). The rules for
+messages, names and Tia's turns are in `src/lib/studio/threads.ts` (`tests/studioThreads.test.ts`).
+
+Running cost: $0 a month at Beta (50 teams) and Growth (500 teams). A few rows per form in the Postgres database on
+the VPS, which is already paid; Tia's calls are the same, and a new chat sends fewer past turns.
 
 ## Tokens and files (after launch)
 

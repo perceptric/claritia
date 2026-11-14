@@ -1,8 +1,9 @@
 "use client";
 
-// Inbound › Forms › Studio (/forms/studio, docs/studio-v2-plan.md): every form is one chat with Tia on the left and the
-// live form on the right. The screen itself is plain DOM in a shadow root (studio.ts); this part hands it the
-// workspace: its brands with their real logos and CSS, its meeting types, its chats (form_chats, 112) and the calls to
+// Inbound › Forms › Studio (/forms/studio, docs/studio-v2-plan.md): the form with its pages on the left, Tia's bar
+// under it and the panel on the right. The screen itself is plain DOM in a shadow root (studio.ts); this part hands it the
+// workspace: its brands with their real logos and CSS, its meeting types, its forms' chats (form_chats, 112), each
+// form's chats with Tia (studio_threads, 166) and the calls to
 // /api/studio. Until 112 is applied, chats and brand CSS are kept in this browser. The app's sidebar folds to icons
 // while the Studio is open and comes back as it was after.
 
@@ -23,6 +24,7 @@ import { brandPlan } from "@/lib/meetings/brandPage";
 import { entryOf } from "@/lib/sources/catalog";
 import { moveForm } from "../folders";
 import { meetingsApi } from "../../meetings/parts";
+import { workspacePeople } from "../../shared";
 
 type Line = { t?: string; done?: string; cut?: boolean; css?: string; say?: string; profile?: unknown; error?: string; working?: number; beat?: number };
 
@@ -87,6 +89,15 @@ export function Studio({ sb, session, ws, navigate, formId = "", chatId = "", fr
     // Before 112 the chats live in this browser; the browser copy stays as a backup after.
     let local = false;
     const localChats = () => read<Chat[]>(LOCAL, []);
+    // Who started each chat about a form, by name (their booking page name, else their email's first part).
+    let names: Promise<Map<string, string>> | null = null;
+    const nameMap = () =>
+      (names ??= Promise.all([workspacePeople(sb, ws.id), sb.from("booking_profiles").select("user_id, name").eq("workspace_id", ws.id)])
+        .then(([people, prof]) => {
+          const own = new Map(((prof.data ?? []) as { user_id: string; name: string | null }[]).map((p) => [p.user_id, p.name]));
+          return new Map(people.map((p) => [p.id, own.get(p.id) || p.email.replace(/@.*/, "")]));
+        })
+        .catch(() => new Map<string, string>()));
     const keepLocal = (c: Chat) => write(LOCAL, [c, ...localChats().filter((x) => x.id !== c.id)].slice(0, 40));
 
     const api: StudioApi = {
@@ -189,6 +200,31 @@ export function Studio({ sb, session, ws, navigate, formId = "", chatId = "", fr
         write(LOCAL, localChats().filter((x) => x.id !== id));
         if (!local) await post({ mode: "chat-delete", id });
       },
+      // A form's chats with Tia (166), newest first. Null before 166: the Studio keeps them with the form.
+      threads: async (chatId) => {
+        const res = await sb.from("studio_threads").select("id, title, created_by, messages, updated_at").eq("form_chat_id", chatId).order("updated_at", { ascending: false }).limit(100);
+        if (res.error) return null;
+        const who = await nameMap();
+        const me = sessionRef.current.user.id;
+        return ((res.data ?? []) as { id: string; title: string; created_by: string | null; messages: unknown; updated_at: string }[]).map((r) => ({
+          id: r.id,
+          title: r.title,
+          mine: r.created_by === me,
+          byName: r.created_by === me ? "You" : (r.created_by && who.get(r.created_by)) || "A teammate",
+          updatedAt: r.updated_at,
+          messages: Array.isArray(r.messages) ? r.messages : [],
+        }));
+      },
+      saveThread: async (chatId, t) => {
+        const res = await post({ mode: "thread-save", thread: { id: t.id, chatId, title: t.title, messages: t.messages } });
+        if (res.status === 503) throw Object.assign(new Error("Chats aren't kept one by one on this server yet."), { missing: true });
+        if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error || "Couldn't save the chat.");
+      },
+      deleteThread: async (id) => {
+        const res = await post({ mode: "thread-delete", id });
+        if (!res.ok && res.status !== 503) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error || "Couldn't delete the chat.");
+      },
+      confirmDeleteThread: (title) => askConfirm(`Delete "${title}"?`, { body: "The form stays as it is.", ok: "Delete", danger: true }),
       keepProfile: (id, profile) => {
         write(profileKey(id), profile);
         void post({ mode: "brand-profile", kitId: id, profile }).catch(() => undefined);
@@ -299,7 +335,6 @@ export function Studio({ sb, session, ws, navigate, formId = "", chatId = "", fr
         await postJson(sessionRef.current, "/api/forms/destination", { workspaceId: ws.id, formId: id, kind: "source", sourceId: to.id, name: to.name });
         return true;
       },
-      confirmClear: () => askConfirm("Clear this chat?", { body: "The form stays as it is.", ok: "Clear", danger: true }),
       removeSend: async (d) => {
         if (!(await askConfirm(`Stop sending to ${d.name}?`, { body: "Sends already made stay there.", ok: "Remove", danger: true }))) return false;
         must(await sb.rpc("form_destination_delete", { p_id: d.id }));
