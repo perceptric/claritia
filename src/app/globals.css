@@ -379,6 +379,9 @@ body {
 
 /* Empty-state scenes (src/components/sketches/Sketch.tsx): gentle loops in the homepage's style. Each loop runs about
    six seconds and rests before it starts again; under reduced motion everything stands still (the rule above). */
+/* The 3D pictures float a few pixels, slowly. */
+.sk-float { animation: sk-float 6s ease-in-out infinite; will-change: transform; }
+@keyframes sk-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
 .sk * {
   transform-box: fill-box;
   transform-origin: center;

@@ -18,28 +18,29 @@ export const BOOK_CSS = `
 :where(.cb-root) button{font:inherit;color:inherit;cursor:pointer;background:none;border:0;padding:0}
 .cb-root button:focus-visible,.cb-root a:focus-visible,.cb-root input:focus-visible,.cb-root textarea:focus-visible{outline:2px solid var(--clr-accent);outline-offset:2px}
 :where(.cb-root) a{color:inherit}
-.cb-h{font-family:var(--clr-heading-font);font-weight:600;letter-spacing:-.02em;line-height:1.15;margin:0}
+.cb-h{font-family:var(--clr-heading-font);font-weight:var(--cb-h-weight,600);letter-spacing:var(--cb-h-track,-.02em);line-height:1.15;margin:0}
 .cb-muted{color:var(--clr-muted)}
 .cb-welcome{margin:-6px 0 18px;font-size:1em;line-height:1.5}
 .cb-small{font-size:.85em}
 .cb-label{font-size:12px;font-weight:500;color:var(--clr-muted)}
 .cb-eyebrow{font-size:12.5px;color:var(--clr-muted);font-weight:500}
-.cb-two{font-family:var(--clr-heading-font);font-weight:600;letter-spacing:-.025em;line-height:1.15;margin:0;text-wrap:balance}
+.cb-two{font-family:var(--clr-heading-font);font-weight:var(--cb-h-weight,600);letter-spacing:var(--cb-h-track,-.025em);line-height:1.15;margin:0;text-wrap:balance}
 .cb-two .cb-gray{display:block;color:color-mix(in srgb,var(--clr-text) 42%,var(--clr-bg))}
 
-/* The page around the card */
-.cb-page{min-height:100vh;min-height:100dvh;background:var(--cb-soft);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 16px 24px}
+/* The page around the card. A design (src/lib/meetings/designs.ts) sets the page color, pattern, card frame and footer
+   through --cb-page-*, --cb-card-*, --cb-narrow-* and --cb-foot-*; unset, each falls back to Claritia's own look. */
+.cb-page{min-height:100vh;min-height:100dvh;background:var(--cb-page-bg,var(--cb-soft));background-image:var(--cb-page-img,none);background-size:var(--cb-page-size,auto);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 16px 24px}
 .cb-page.cb-embed{min-height:0;background:var(--clr-bg);padding:0}
 .cb-wrap{width:100%;max-width:1000px;display:flex;flex-direction:column;gap:16px}
 .cb-cardwrap{position:relative}
 .cb-mark{flex:none;display:block}
 .cb-wrap.cb-narrow{max-width:640px}
-.cb-card{container-type:inline-size;background:var(--clr-bg);border:1px solid var(--cb-line);border-radius:var(--cb-card-r);overflow:hidden;box-shadow:0 1px 2px color-mix(in srgb,var(--clr-text) 4%,transparent),0 16px 40px -16px color-mix(in srgb,var(--clr-text) 14%,transparent)}
-.cb-wrap.cb-narrow .cb-card{box-shadow:none;border:0;background:transparent;overflow:visible}
+.cb-card{container-type:inline-size;background:var(--clr-bg);border:var(--cb-card-border,1px solid var(--cb-line));border-radius:var(--cb-card-r);overflow:hidden;box-shadow:var(--cb-card-shadow,0 1px 2px color-mix(in srgb,var(--clr-text) 4%,transparent),0 16px 40px -16px color-mix(in srgb,var(--clr-text) 14%,transparent))}
+.cb-wrap.cb-narrow .cb-card{box-shadow:var(--cb-narrow-shadow,none);border:var(--cb-narrow-border,0);background:var(--cb-narrow-bg,transparent);overflow:var(--cb-narrow-overflow,visible);padding:var(--cb-narrow-pad,0)}
 .cb-embed .cb-card{border:0;border-radius:0}
-.cb-foot{display:flex;justify-content:center;padding:12px 0 4px;font-size:12px;color:var(--clr-muted)}
-.cb-foot a{text-decoration:none;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;transition:background-color 140ms var(--cb-ease),color 140ms var(--cb-ease)}.cb-foot a:hover{color:var(--clr-text);background:var(--cb-tint)}
-.cb-foot b{font-weight:600;color:var(--clr-text);letter-spacing:-.01em}
+.cb-foot{display:flex;justify-content:center;padding:12px 0 4px;font-size:12px;color:var(--cb-foot-text,var(--clr-muted))}
+.cb-foot a{text-decoration:none;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;transition:background-color 140ms var(--cb-ease),color 140ms var(--cb-ease)}.cb-foot a:hover{color:var(--cb-foot-strong,var(--clr-text));background:var(--cb-foot-hover,var(--cb-tint))}
+.cb-foot b{font-weight:600;color:var(--cb-foot-strong,var(--clr-text));letter-spacing:-.01em}
 .cb-logo{height:28px;width:auto;max-width:180px;object-fit:contain;display:block}
 
 /* Booking: info | calendar | times */

@@ -126,7 +126,7 @@ Workflows at the top, Settings at the very bottom above the account row. The ope
   move the booked slot or redraw it. Every kit file (small, ink and white marks, lockups, app icon, avatar, favicon,
   link image) is in `claritia-site/assets/brand` and listed in its `BRAND.md`.
 - **The Catch:** `src/components/app/Catch.tsx`, on the sign-in screen.
-- **Drawings:** `src/components/sketches/Sketch.tsx` on first screens and empty states.
+- **Drawings:** `src/components/sketches/Sketch.tsx` on first screens and empty states. Each is a 3D object, glazed white with one part in Claritia green, floating over its own soft shadow, with a light and a dark PNG in `public/empty`. Omniscient draws line tiles and Arrowsterr flat blue blocks; Claritia's are the only rendered ones. To add or change one, edit `scripts/empty-art/scene.js` and run `scripts/empty-art/render.mjs`.
 - **AI:** the sparkle (`src/components/app/Ai.tsx`).
 
 ## 5. Outside the app
