@@ -26,6 +26,7 @@ export function Select<T extends string | number>({
   down = false,
   menuWidth,
   align = "left",
+  many,
 }: {
   value: T;
   options: Option<T>[];
@@ -46,6 +47,8 @@ export function Select<T extends string | number>({
   menuWidth?: number;
   /** Line the menu up with the button's right edge. */
   align?: "left" | "right";
+  /** Pick several: the menu stays open, each pick toggles, and `value`/`onChange` are ignored. */
+  many?: { values: T[]; onChange: (v: T[]) => void; allLabel?: string };
 }) {
   const [open, setOpen] = useState(autoOpen);
   const [active, setActive] = useState(0);
@@ -53,6 +56,9 @@ export function Select<T extends string | number>({
   const button = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLUListElement>(null);
   const current = options.find((o) => o.value === value);
+  const picked = (v: T) => (many ? many.values.includes(v) : v === value);
+  // Several picks read as their labels in a row, or the all-label when every option is on.
+  const manyLabel = many && many.values.length ? (many.values.length === options.length && many.allLabel ? many.allLabel : options.filter((o) => many.values.includes(o.value)).map((o) => o.label).join(", ")) : null;
 
   const close = (focus = true) => {
     setOpen(false);
@@ -97,6 +103,10 @@ export function Select<T extends string | number>({
   const pickAt = (i: number) => {
     const o = options[i];
     if (!o) return;
+    if (many) {
+      many.onChange(many.values.includes(o.value) ? many.values.filter((v) => v !== o.value) : options.filter((x) => x.value === o.value || many.values.includes(x.value)).map((x) => x.value));
+      return;
+    }
     close();
     if (o.value !== value) onChange(o.value);
   };
@@ -132,7 +142,7 @@ export function Select<T extends string | number>({
         }}
         className={`inline-flex items-center justify-between gap-2 text-left ${className}`}
       >
-        <span className={`truncate ${current || plainPlaceholder || shown ? "" : "text-faint"}`}>{shown ?? current?.label ?? placeholder}</span>
+        <span className={`truncate ${(many ? manyLabel : current) || plainPlaceholder || shown ? "" : "text-faint"}`}>{shown ?? (many ? manyLabel : current?.label) ?? placeholder}</span>
         {down ? <ChevronDown size={12} className="shrink-0 text-muted" /> : <ChevronsUpDown size={13} className="shrink-0 text-faint" />}
       </button>
       {open && pos
@@ -141,6 +151,7 @@ export function Select<T extends string | number>({
               ref={menu}
               role="listbox"
               aria-label={ariaLabel}
+              aria-multiselectable={many ? true : undefined}
               style={{ position: "fixed", left: pos.left, top: pos.top, minWidth: pos.width, maxHeight: 300 }}
               className="anim-rise-sm z-[100] overflow-y-auto rounded-lg bg-card p-1.5 text-[13px] shadow-float"
             >
@@ -154,7 +165,7 @@ export function Select<T extends string | number>({
                   key={String(o.value)}
                   data-i={i}
                   role="option"
-                  aria-selected={o.value === value}
+                  aria-selected={picked(o.value)}
                   onMouseEnter={() => setActive(i)}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => pickAt(i)}
@@ -164,7 +175,7 @@ export function Select<T extends string | number>({
                     <span className="whitespace-nowrap text-ink">{o.label}</span>
                     {o.hint ? <span className="max-w-[260px] text-[11.5px] leading-snug text-muted">{o.hint}</span> : null}
                   </span>
-                  {o.value === value ? <Check size={13} className={`shrink-0 text-ink ${o.hint ? "mt-0.5" : ""}`} /> : <span className="w-[13px] shrink-0" />}
+                  {picked(o.value) ? <Check size={13} className={`shrink-0 text-ink ${o.hint ? "mt-0.5" : ""}`} /> : <span className="w-[13px] shrink-0" />}
                 </li>,
               ])}
             </ul>,
