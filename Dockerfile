@@ -13,6 +13,8 @@ COPY --from=build /app/package.json /app/package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts && rm -rf /root/.npm
 COPY --from=build /app/.next ./.next
 COPY --from=build /app/next.config.ts ./
+# Static files (empty-screen pictures, form art, email images) are served from public/.
+COPY --from=build /app/public ./public
 RUN useradd --create-home web && chown -R web /app
 USER web
 EXPOSE 3000
