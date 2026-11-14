@@ -1,24 +1,27 @@
 // Form Studio with a stand-in server (scripts/studio-check.ts): the real screen (studio.ts), fake brands and chats, a
 // fake site read, and canned Tia answers streamed in small pieces (the first builds, the second changes a built form).
-import { mountStudio, STUDIO_CSS, STUDIO_HTML, type StudioApi, type StudioChat, type StudioState } from "../../src/components/app/forms/studio/studio.ts";
+import { mountStudio, STUDIO_CSS, STUDIO_HTML, type StudioApi, type StudioChat, type StudioState, type StudioThread } from "../../src/components/app/forms/studio/studio.ts";
 import fx from "./fixtures.json";
 import { studioTemplates, templatePreview } from "../../src/lib/forms/gallery/studioList.ts";
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const calls: { mode: string; body: unknown }[] = [];
-const w = window as unknown as { calls: typeof calls; saved: Record<string, StudioChat>; studioState: StudioState | null };
+const w = window as unknown as { calls: typeof calls; saved: Record<string, StudioChat>; threads: Record<string, StudioThread[]>; studioState: StudioState | null };
 w.calls = calls;
 const people = [{ id: "u-ana", name: "Ana Diaz" }, { id: "u-bo", name: "Bo Chen" }, { id: "u-cy", name: "Cy Park" }];
 const team = { key: "t-ent", name: "Enterprise", id: "q-ent", method: "rr", revision: 1, members: [{ user: "u-ana", weight: 1 }, { user: "u-bo", weight: 1 }] };
 const teams: (typeof team)[] = [team];
 w.saved = {};
+w.threads = {};
+const kits: Awaited<ReturnType<StudioApi["brands"]>> = [];
 let tiaCalls = 0;
 const sends: { id: string; kind: string; name: string; domain: string | null }[] = [];
 const api: StudioApi = {
   start: {},
+  // Brands confirmed in this run, as the workspace keeps them (oldest first), so a form opened again finds them.
   brands: async () => {
     await wait(400);
-    return [];
+    return kits.map((k) => ({ ...k }));
   },
   meetings: async () => [
     { id: "11111111-1111-4111-8111-111111111111", name: "Intro call", length: 15, slug: "intro" },
@@ -35,16 +38,28 @@ const api: StudioApi = {
   confirm: async (b) => {
     calls.push({ mode: "confirm", body: b });
     await wait(200);
-    return { kitId: (b as { name: string }).name === "Acme" ? "55555555-5555-4555-8555-555555555555" : "44444444-4444-4444-8444-444444444444" };
+    const kitId = (b as { name: string }).name === "Acme" ? "55555555-5555-4555-8555-555555555555" : "44444444-4444-4444-8444-444444444444";
+    if (!kits.some((k) => k.id === kitId)) kits.push({ id: kitId, name: (b as { name: string }).name, site: (b as { url: string }).url.replace(/^https?:\/\//, "").replace(/\/.*$/, ""), logo: fx.logo, css: "", profile: null });
+    return { kitId };
   },
   look: async (kitId, fresh) => {
     calls.push({ mode: "look", body: { kitId, fresh } });
     await wait(600);
-    return { css: fx.brand, say: "Finch uses a soft green and rounded buttons.", profile: { industry: "health", language: "en", country: "US", languages: ["en", "es"] } };
+    const profile = { industry: "health", language: "en", country: "US", languages: ["en", "es"] };
+    const k = kits.find((x) => x.id === kitId);
+    if (k) { k.css = fx.brand; k.profile ||= profile; }
+    return { css: fx.brand, say: "Finch uses a soft green and rounded buttons.", profile };
   },
   keepCss: (id) => void calls.push({ mode: "keepCss", body: id }),
-  keepProfile: (id, profile) => void calls.push({ mode: "keepProfile", body: { id, profile } }),
-  deleteBrand: async (id) => void calls.push({ mode: "delete", body: id }),
+  keepProfile: (id, profile) => {
+    calls.push({ mode: "keepProfile", body: { id, profile } });
+    const k = kits.find((x) => x.id === id);
+    if (k) k.profile = profile;
+  },
+  deleteBrand: async (id) => {
+    calls.push({ mode: "delete", body: id });
+    kits.splice(kits.findIndex((k) => k.id === id), 1);
+  },
   templates: async () => {
     await wait(50);
     return studioTemplates();
@@ -78,7 +93,20 @@ const api: StudioApi = {
     calls.push({ mode: "page", body: url });
     return { url, preview: `<html><body><h1>Welcome aboard</h1><p>${"Thanks for joining. ".repeat(8)}</p></body></html>`, shot: null };
   },
-  confirmClear: async () => true,
+  // Each form's chats with Tia (166), kept here by form; the check can read them (window.threads).
+  threads: async (chatId) => (w.threads[chatId] ?? []).map((t) => JSON.parse(JSON.stringify(t))),
+  saveThread: async (chatId, t) => {
+    calls.push({ mode: "saveThread", body: { chatId, ...JSON.parse(JSON.stringify(t)) } });
+    const list = (w.threads[chatId] ||= []);
+    const had = list.find((x) => x.id === t.id);
+    if (had) Object.assign(had, { title: t.title, messages: JSON.parse(JSON.stringify(t.messages)), updatedAt: new Date().toISOString() });
+    else list.unshift({ id: t.id, title: t.title, mine: true, byName: "You", updatedAt: new Date().toISOString(), messages: JSON.parse(JSON.stringify(t.messages)) });
+  },
+  deleteThread: async (id) => {
+    calls.push({ mode: "deleteThread", body: id });
+    for (const k of Object.keys(w.threads)) w.threads[k] = w.threads[k]!.filter((x) => x.id !== id);
+  },
+  confirmDeleteThread: async () => true,
   // One routing team (Enterprise, round robin, two members) and the people who can join it; saves change it in place.
   routingFacts: async () => ({ teams: teams.map((t) => ({ ...t, members: t.members.map((m) => ({ ...m })) })), people }),
   saveTeam: async (t) => {
@@ -193,7 +221,14 @@ function drawCheck() {
     box.append(row);
   }
 }
-const ctl = mountStudio(shell, api);
+let ctl = mountStudio(shell, api);
+// Another form, as the Forms list opens it (the Studio holds one form at a time): a new one, or a chat by id.
+(window as unknown as { openStudio: (start: StudioApi["start"]) => void }).openStudio = (start) => {
+  ctl.stop();
+  shell.innerHTML = `<style>${STUDIO_CSS}</style>${STUDIO_HTML}`;
+  api.start = start;
+  ctl = mountStudio(shell, api);
+};
 document.getElementById("hdrPreview")!.onclick = () => ctl.preview();
 document.getElementById("hdrAction")!.onclick = async () => {
   if (w.studioState?.state === "live") return void calls.push({ mode: "openShare", body: w.studioState.formId });
