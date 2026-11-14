@@ -174,7 +174,7 @@ function SignatureDialog({ url, name, onClose }: { url: string; name: string; on
       }
     >
       <div className="flex flex-col gap-3">
-        <input value={text} maxLength={80} onChange={(e) => setText(e.target.value)} aria-label="Link words" className="h-9 rounded-md bg-card shadow-input px-3 text-[13.5px] text-ink outline-none focus:shadow-focus" />
+        <input value={text} maxLength={80} onChange={(e) => setText(e.target.value)} aria-label="Link words" className="h-9 rounded-md bg-card shadow-input px-3 text-[13.5px] text-ink outline-none" />
         <div className="rounded-lg shadow-rest bg-paper px-4 py-3 text-[13.5px]" dangerouslySetInnerHTML={{ __html: html }} />
       </div>
     </Modal>

@@ -236,7 +236,7 @@ export function BrandSettings({ sb, session, ws }: Pick<ViewProps, "sb" | "sessi
             if (url.trim() && !busy) void scan(url.trim());
           }}
         >
-          <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="yourcompany.com" aria-label="Website" className="h-9 min-w-[220px] flex-1 rounded-md border border-line-strong bg-card px-3 text-[13px] text-ink outline-none focus:shadow-focus" />
+          <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="yourcompany.com" aria-label="Website" className="h-9 min-w-[220px] flex-1 rounded-md border border-line-strong bg-card px-3 text-[13px] text-ink outline-none" />
           <Button disabled={!url.trim() || busy}>{busy ? "Reading" : "Read this site"}</Button>
         </form>
       </Panel>

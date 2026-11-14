@@ -128,7 +128,7 @@ const PICTURES = {
     const c2 = at(box(0.62, 0.26, 0.08, 0.12, M.paleBlue), 0.36, 0.84, 0.11);
     const btn = at(box(1.35, 0.34, 0.14, 0.16, M.ink), 0, 0.4, 0.13);
     const arrow = at(stroke([[-0.12, 0, 0], [0.12, 0, 0], [0.04, 0.08, 0], [0.12, 0, 0], [0.04, -0.08, 0]], 0.025, M.porcelain), 0, 0.4, 0.22);
-    return at(group(card, title, f1, f2, c1, c2, btn, arrow), 0, 0, 0, 0, -0.3, 0);
+    return at(group(card, title, f1, f2, c1, c2, btn, arrow), 0, 0, 0, 0, 0, 0);
   },
   /** Capture: a funnel with leads dropping in and one coming out green. */
   funnel() {
@@ -154,7 +154,7 @@ const PICTURES = {
       g.add(at(ball(0.07, dot), dx - 0.72, y + 0.17, 0.585 - dx * 0.6 + dx * 0.26));
       g.add(at(box(0.9, 0.08, 0.04, 0.03, mat === M.blue ? M.porcelain : M.shade), dx - 0.1, y + 0.17, 0.585 - dx * 0.6 + dx * 0.15));
     }
-    return at(g, 0, 0, 0, 0, -0.25, 0);
+    return at(g, 0, 0, 0, 0, 0, 0);
   },
   /** Chain: steps joined on a path, one branch reaching the green goal. */
   road() {
@@ -168,7 +168,7 @@ const PICTURES = {
     const flag = group(stroke([[0, 0, 0], [0, 1.05, 0]], 0.05, M.ink), at(box(0.5, 0.34, 0.06, 0.04, M.blue), 0.27, 0.86, 0));
     flag.position.set(0.85, 0.44, 0.75);
     g.add(flag);
-    return g;
+    return at(g, 0, 0, 0, 0.45, 0, 0);
   },
   /** Workflows: a paper plane on its way, with a green trail. */
   plane() {
@@ -184,7 +184,7 @@ const PICTURES = {
     };
     const plane = group(tri([N, L, C], M.porcelain), tri([N, C, R], M.paleShade), tri([N, K, C], M.shade), tri([N, C, K], M.shade));
     plane.scale.setScalar(1.25);
-    const PR = (params.get("rot") || "-0.25,0,-0.3,1.9").split(",").map(Number);
+    const PR = (params.get("rot") || "0.5,0,0,1.85").split(",").map(Number);
     plane.rotation.set(PR[0], PR[1], PR[2]);
     const flying = group(plane);
     flying.rotation.y = PR[3];
@@ -211,7 +211,7 @@ const PICTURES = {
     a2.rotation.y = Math.PI - 0.45;
     a2.position.set(-0.4, 1.65, -0.25);
     const a3 = at(arrow(1.1, M.shade), 0.38, 1.12, 0.12, 0, -0.45, 0);
-    return at(group(base, post, cap, a1, a2, a3), 0, 0, 0, 0, -0.25, 0);
+    return at(group(base, post, cap, a1, a2, a3), 0, 0, 0, 0, 0, 0);
   },
   /** Emails: a sealed envelope over a second one. */
   envelopes() {
@@ -224,7 +224,7 @@ const PICTURES = {
     seal.position.set(0, 0.62, 0.12);
     const l1 = stroke([[-0.98, 0.06, 0.11], [-0.3, 0.55, 0.11]], 0.02, M.shade);
     const l2 = stroke([[0.98, 0.06, 0.11], [0.3, 0.55, 0.11]], 0.02, M.shade);
-    return at(group(back, body, flap, seal, l1, l2), 0, 0, 0, 0, -0.3, 0);
+    return at(group(back, body, flap, seal, l1, l2), 0, 0, 0, 0, 0, 0);
   },
   /** Feed: a page with its form and the green button. */
   browser() {
@@ -236,7 +236,7 @@ const PICTURES = {
     const btn = at(box(0.8, 0.26, 0.14, 0.13, M.blue), -0.45, 0.46, 0.12);
     const pic = at(box(0.42, 0.52, 0.09, 0.04, M.paleBlue), 0.82, 0.97, 0.1);
     const back = at(box(1.6, 1.25, 0.16, 0.1, M.shade), 0.55, 0.62, -0.5, 0, 0.18, 0);
-    return at(group(back, frame, bar, ...dots, f1, f2, btn, pic), 0, 0, 0, 0, -0.32, 0);
+    return at(group(back, frame, bar, ...dots, f1, f2, btn, pic), 0, 0, 0, 0, 0, 0);
   },
   /** People: contact cards. */
   megaphone() {
@@ -248,7 +248,7 @@ const PICTURES = {
     body.scale.set(1, 0.42, 0.3);
     const l1 = at(box(0.9, 0.1, 0.06, 0.03, M.shade), 0, 0.38, 0.11);
     const l2 = at(box(0.56, 0.1, 0.06, 0.03, M.shade), 0, 0.22, 0.11);
-    return at(group(back, front, head, body, l1, l2), 0, 0, 0, 0, -0.3, 0);
+    return at(group(back, front, head, body, l1, l2), 0, 0, 0, 0, 0, 0);
   },
   /** Settings: two gears, the small one green. */
   gear() {
@@ -275,7 +275,7 @@ const PICTURES = {
     small.rotation.z = 0.3;
     const hub1 = at(puck(0.22, 0.42, 0.06, M.shade), -0.3, 1.15, -0.21, Math.PI / 2, 0, 0);
     const hub2 = at(puck(0.12, 0.46, 0.05, M.porcelain), 0.98, 0.72, -0.11, Math.PI / 2, 0, 0);
-    return at(group(big, small, hub1, hub2), 0, 0, 0, 0, -0.3, 0);
+    return at(group(big, small, hub1, hub2), 0, 0, 0, 0, 0, 0);
   },
   /** Meetings: a desk calendar with six time slots, one booked in green. */
   calendar() {
@@ -292,7 +292,7 @@ const PICTURES = {
       }
     face.rotation.x = -0.18;
     const leg = at(box(0.7, 0.14, 0.9, 0.06, M.shade), 0, 0.07, -0.45);
-    return at(group(face, leg), 0, 0, 0, 0, -0.3, 0);
+    return at(group(face, leg), 0, 0, 0, 0, 0, 0);
   },
   /** Sync: two arrows chasing each other round, one green. */
   sync() {
@@ -312,7 +312,7 @@ const PICTURES = {
       return g;
     };
     const g = group(arc(Math.PI * 0.15, Math.PI * 0.85, M.blue), arc(Math.PI * 1.15, Math.PI * 1.85, M.porcelain));
-    return at(g, 0, 1.25, 0, -0.1, 0.35, 0);
+    return at(g, 0, 1.25, 0, -0.06, 0.1, 0);
   },
   /** Your domain: a globe with a green orbit. */
   domain() {
@@ -340,7 +340,7 @@ const PICTURES = {
     const t1 = at(box(0.36, 0.16, 0.16, 0.05, M.porcelain), 0.2, -1.75, 0);
     const t2 = at(box(0.26, 0.14, 0.16, 0.05, M.porcelain), 0.15, -1.98, 0);
     const k = group(bow, shaft, tip, collar, t1, t2);
-    k.rotation.set(0.1, 0.45, -0.8);
+    k.rotation.set(0.05, 0.15, -0.8);
     k.position.set(0, 1.3, 0);
     return k;
   },
@@ -414,7 +414,7 @@ scene.add(blob);
 const camera = new THREE.PerspectiveCamera(24, 1, 0.1, 100);
 const fit = new THREE.Box3().setFromObject(holder, true);
 const sphere = fit.getBoundingSphere(new THREE.Sphere());
-const dir = new THREE.Vector3(0.95, 0.8, 1.35).normalize();
+const dir = new THREE.Vector3(0.36, 0.5, 1.5).normalize();
 let dist = sphere.radius / Math.sin(THREE.MathUtils.degToRad(12));
 const corners = [];
 for (const x of [fit.min.x, fit.max.x]) for (const y of [fit.min.y, fit.max.y]) for (const z of [fit.min.z, fit.max.z]) corners.push(new THREE.Vector3(x, y, z));

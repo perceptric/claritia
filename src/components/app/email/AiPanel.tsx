@@ -131,7 +131,7 @@ export function AiPanel({
           rows={3}
           aria-label="What to change"
           placeholder="Make the intro shorter and add a booking button"
-          className="w-full resize-none rounded-md bg-card shadow-input px-2 py-1.5 text-[12.5px] text-ink outline-none placeholder:text-faint focus:shadow-focus"
+          className="w-full resize-none rounded-md bg-card shadow-input px-2 py-1.5 text-[12.5px] text-ink outline-none placeholder:text-faint"
         />
         <div className="flex flex-wrap items-center gap-1.5">
           <Button type="submit" disabled={!!busy || !text.trim()}>

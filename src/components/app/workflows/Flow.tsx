@@ -271,7 +271,7 @@ function AddMenu({ onPick }: { onPick: (k: StepKind) => void }) {
         }}
         placeholder="Search steps"
         aria-label="Search steps"
-        className="mb-1 h-8 w-full rounded-md bg-card px-2.5 text-[13px] text-ink shadow-input outline-none placeholder:text-faint focus:shadow-focus"
+        className="mb-1 h-8 w-full rounded-md bg-card px-2.5 text-[13px] text-ink shadow-input outline-none placeholder:text-faint"
       />
       <div className="flex max-h-[380px] flex-col overflow-y-auto">
         {GROUPS.filter((g) => shown.some((k) => k.group === g)).map((g) => (

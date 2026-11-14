@@ -311,7 +311,7 @@ export function EmailBuilder({
             onChange={(e) => onSubject(e.target.value.slice(0, 200))}
             placeholder="Subject"
             aria-label="Subject"
-            className="h-8 w-full max-w-md min-w-0 rounded-md bg-card px-2.5 text-[13px] font-medium text-ink shadow-input outline-none focus:shadow-focus"
+            className="h-8 w-full max-w-md min-w-0 rounded-md bg-card px-2.5 text-[13px] font-medium text-ink shadow-input outline-none"
           />
         ) : (
           <span className="min-w-0 truncate text-[13px] font-semibold tracking-[-0.01em] text-ink">{subject || "Email"}</span>

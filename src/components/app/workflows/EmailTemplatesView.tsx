@@ -127,7 +127,7 @@ export function EmailTemplatesView({ sb, ws, session, above }: ViewProps & { abo
                 }}
                 aria-label="Name"
                 maxLength={120}
-                className="h-9 rounded-sm border border-transparent bg-transparent px-2 text-[16px] font-semibold tracking-[-0.02em] text-ink outline-none hover:border-line focus:shadow-focus"
+                className="h-9 rounded-sm border border-transparent bg-transparent px-2 text-[16px] font-semibold tracking-[-0.02em] text-ink outline-none hover:border-line"
               />
               <EmailForm
                 email={open.body}

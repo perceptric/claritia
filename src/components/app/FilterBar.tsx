@@ -151,7 +151,7 @@ export function FilterEditor({ fields, start, onDone }: { fields: AnyField[]; st
             onChange={setOp}
             ariaLabel="Condition"
             options={OPS[field.type].map((o) => ({ value: o, label: OP_LABEL[o] }))}
-            className="ml-auto h-9 w-36 rounded-md bg-card shadow-input px-3 text-[13px] focus:shadow-focus"
+            className="ml-auto h-9 w-36 rounded-md bg-card shadow-input px-3 text-[13px]"
           />
         ) : null}
       </div>
@@ -259,7 +259,7 @@ export function FilterBar({
         placeholder="Custom view"
         plainPlaceholder
         options={views.map((v) => ({ value: v.value, label: v.label }))}
-        className="h-9 w-44 rounded-md bg-card shadow-input px-3 text-[13px] focus:shadow-focus"
+        className="h-9 w-44 rounded-md bg-card shadow-input px-3 text-[13px]"
       />
       {filters.map((f, i) => (
         <span key={i} className="anim-pop inline-flex h-8 items-center gap-0.5 rounded-full bg-card shadow-outline pr-1 text-[12.5px] transition-[translate,box-shadow] duration-[320ms] ease-out hover:-translate-y-px hover:shadow-soft">

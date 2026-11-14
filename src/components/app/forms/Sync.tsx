@@ -415,7 +415,7 @@ function ListPane({ sb, session, ws, formId, dests, failed, reload, source, logo
                     }
                   }}
                   onBlur={addTag}
-                  className="h-[28px] w-[140px] rounded-[8px] bg-card px-[10px] text-[12.5px] text-ink shadow-input outline-none placeholder:text-faint focus:shadow-focus"
+                  className="h-[28px] w-[140px] rounded-[8px] bg-card px-[10px] text-[12.5px] text-ink shadow-input outline-none placeholder:text-faint"
                 />
               ) : null}
             </div>
@@ -513,7 +513,7 @@ function DocPane({ sb, session, ws, formId, dests, failed, reload, patchDests, s
                     takeLink();
                   }
                 }}
-                className="h-[32px] min-w-0 flex-1 rounded-[8px] bg-card px-[10px] text-[13px] text-ink shadow-input outline-none placeholder:text-faint focus:shadow-focus"
+                className="h-[32px] min-w-0 flex-1 rounded-[8px] bg-card px-[10px] text-[13px] text-ink shadow-input outline-none placeholder:text-faint"
               />
               <button type="button" className={GHOST_SM} disabled={busy || !link.trim()} onClick={takeLink}>
                 Use
@@ -946,7 +946,7 @@ function RowsPane({ sb, session, ws, form, formId, dests, failed, reload, source
               takeLink();
             }
           }}
-          className="h-[32px] min-w-0 flex-1 rounded-[8px] bg-card px-[10px] text-[13px] text-ink shadow-input outline-none placeholder:text-faint focus:shadow-focus"
+          className="h-[32px] min-w-0 flex-1 rounded-[8px] bg-card px-[10px] text-[13px] text-ink shadow-input outline-none placeholder:text-faint"
         />
         <button type="button" className={GHOST_SM} disabled={busy || !link.trim()} onClick={takeLink}>
           Use
@@ -967,7 +967,7 @@ function RowsPane({ sb, session, ws, form, formId, dests, failed, reload, source
           takeTable();
         }
       }}
-      className="h-[32px] min-w-0 flex-1 rounded-[8px] bg-card px-[10px] font-mono text-[12.5px] text-ink shadow-input outline-none placeholder:text-faint focus:shadow-focus"
+      className="h-[32px] min-w-0 flex-1 rounded-[8px] bg-card px-[10px] font-mono text-[12.5px] text-ink shadow-input outline-none placeholder:text-faint"
     />
   );
 

@@ -170,7 +170,7 @@ export function ChipList({
     setText("");
   };
   return (
-    <div className="flex min-h-8 w-full min-w-0 flex-wrap items-center gap-1 rounded-md bg-card shadow-input px-1 py-1 focus-within:shadow-focus">
+    <div className="flex min-h-8 w-full min-w-0 flex-wrap items-center gap-1 rounded-md bg-card shadow-input px-1 py-1">
       {values.map((v) => (
         <span key={v} className="inline-flex h-6 max-w-full items-center gap-1 rounded-full bg-paper-deep pr-1 pl-2.5 text-[12px] text-ink">
           <span className="truncate">{v}</span>

@@ -20,7 +20,7 @@ export const BOOK_CSS = `
 :where(.cb-root) a{color:inherit}
 .cb-h{font-family:var(--clr-heading-font);font-weight:var(--cb-h-weight,600);letter-spacing:var(--cb-h-track,-.02em);line-height:1.15;margin:0}
 .cb-muted{color:var(--clr-muted)}
-.cb-welcome{margin:-6px 0 18px;font-size:1em;line-height:1.5}
+.cb-welcome{margin:-6px 0 18px;font-size:1em;line-height:1.5;overflow-wrap:anywhere}.cb-welcome p{margin:0 0 .6em}.cb-welcome>:last-child{margin-bottom:0}.cb-welcome strong,.cb-welcome b{color:var(--clr-text);font-weight:600}.cb-welcome a{color:var(--clr-text);text-decoration:underline;text-decoration-color:var(--cb-line2);text-underline-offset:3px;transition:text-decoration-color 140ms var(--cb-ease)}.cb-welcome a:hover{text-decoration-color:currentColor}.cb-welcome ul,.cb-welcome ol{margin:0 0 .6em;padding-left:1.3em}.cb-welcome ul{list-style:disc}.cb-welcome ol{list-style:decimal}.cb-welcome li{margin:.15em 0}.cb-welcome li::marker{color:var(--cb-dot,var(--clr-accent))}
 .cb-small{font-size:.85em}
 .cb-label{font-size:12px;font-weight:500;color:var(--clr-muted)}
 .cb-eyebrow{font-size:12.5px;color:var(--clr-muted);font-weight:500}
@@ -39,7 +39,7 @@ export const BOOK_CSS = `
 .cb-wrap.cb-narrow .cb-card{box-shadow:var(--cb-narrow-shadow,none);border:var(--cb-narrow-border,0);background:var(--cb-narrow-bg,transparent);overflow:var(--cb-narrow-overflow,visible);padding:var(--cb-narrow-pad,0)}
 .cb-embed .cb-card{border:0;border-radius:0}
 .cb-foot{display:flex;justify-content:center;padding:12px 0 4px;font-size:12px;color:var(--cb-foot-text,var(--clr-muted))}
-.cb-foot a{text-decoration:none;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;transition:background-color 140ms var(--cb-ease),color 140ms var(--cb-ease)}.cb-foot a:hover{color:var(--cb-foot-strong,var(--clr-text));background:var(--cb-foot-hover,var(--cb-tint))}
+.cb-foot a{text-decoration:none;display:inline-flex;align-items:center;gap:6px;padding:6px 12px}.cb-foot .cb-mark{transition:transform 140ms var(--cb-ease)}.cb-foot a:hover .cb-mark{transform:scale(1.08)}@media (prefers-reduced-motion:reduce){.cb-foot .cb-mark{transition:none}.cb-foot a:hover .cb-mark{transform:none}}
 .cb-foot b{font-weight:600;color:var(--cb-foot-strong,var(--clr-text));letter-spacing:-.01em}
 .cb-logo{height:28px;width:auto;max-width:180px;object-fit:contain;display:block}
 

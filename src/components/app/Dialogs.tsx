@@ -81,7 +81,7 @@ export function DialogHost() {
               onChange={(e) => setText(e.target.value)}
               placeholder={req.placeholder}
               rows={8}
-              className="w-full rounded-md bg-card shadow-input px-3 py-2 font-mono text-[12.5px] outline-none focus:shadow-focus"
+              className="w-full rounded-md bg-card shadow-input px-3 py-2 font-mono text-[12.5px] outline-none"
             />
           ) : null}
           {req.kind === "text" ? (
@@ -91,7 +91,7 @@ export function DialogHost() {
               onChange={(e) => setText(e.target.value)}
               placeholder={req.placeholder}
               maxLength={120}
-              className="h-10 w-full rounded-md bg-card shadow-input px-3 text-[13.5px] outline-none focus:shadow-focus"
+              className="h-10 w-full rounded-md bg-card shadow-input px-3 text-[13.5px] outline-none"
             />
           ) : null}
         </div>

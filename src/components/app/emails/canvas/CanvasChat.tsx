@@ -329,7 +329,7 @@ export function CanvasChat({
           rows={2}
           aria-label="Ask Tia"
           placeholder="Ask Tia"
-          className="min-h-[56px] w-full resize-none rounded-lg bg-card px-2.5 py-2 text-[13px] text-ink shadow-input outline-none placeholder:text-faint focus:shadow-focus"
+          className="min-h-[56px] w-full resize-none rounded-lg bg-card px-2.5 py-2 text-[13px] text-ink shadow-input outline-none placeholder:text-faint"
         />
       </div>
     </div>

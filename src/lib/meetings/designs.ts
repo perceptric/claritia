@@ -87,7 +87,7 @@ export const DESIGNS: Record<DesignId, Design> = {
       buttonRadius: 999,
       error: "#ff8a8a",
     },
-    vars: { "--cb-page-bg": "#0a0f1f", "--cb-page-img": midnightDots.img, "--cb-page-size": midnightDots.size, "--cb-h-weight": "700", "--cb-foot-text": "#8b93b8", "--cb-foot-strong": "#eef1ff", "--cb-foot-hover": "rgba(255,255,255,0.08)", ...framed("1px solid #2b3666", "0 30px 80px -30px rgba(70,100,255,0.45)") },
+    vars: { "--cb-page-bg": "#0a0f1f", "--cb-page-img": midnightDots.img, "--cb-page-size": midnightDots.size, "--cb-h-weight": "700", "--cb-foot-text": "#8b93b8", "--cb-foot-strong": "#eef1ff", ...framed("1px solid #2b3666", "0 30px 80px -30px rgba(70,100,255,0.45)") },
     swatch: { page: "#0a0f1f", pattern: midnightDots.img, patternSize: "10px 10px", card: "#121a33", text: "#eef1ff", accent: "#8aa6ff", button: "#8aa6ff", buttonText: "#0a0f1f", font: "'Plus Jakarta Sans', sans-serif", weight: 700, radius: 10, buttonRadius: 999 },
   },
   mint: {
@@ -145,7 +145,7 @@ export const DESIGNS: Record<DesignId, Design> = {
       buttonRadius: 0,
       buttonCase: "uppercase",
     },
-    vars: { "--cb-page-bg": "#0a0a0a", "--cb-h-weight": "700", "--cb-h-track": "-0.045em", "--cb-dot": "#ff4d00", "--cb-foot-text": "#8a8a8a", "--cb-foot-strong": "#ffffff", "--cb-foot-hover": "rgba(255,255,255,0.1)", ...framed("0", "none") },
+    vars: { "--cb-page-bg": "#0a0a0a", "--cb-h-weight": "700", "--cb-h-track": "-0.045em", "--cb-dot": "#ff4d00", "--cb-foot-text": "#8a8a8a", "--cb-foot-strong": "#ffffff", ...framed("0", "none") },
     swatch: { page: "#0a0a0a", card: "#ffffff", text: "#0a0a0a", accent: "#ff4d00", button: "#0a0a0a", buttonText: "#ffffff", font: "'Space Grotesk', sans-serif", weight: 700, radius: 2, buttonRadius: 0 },
   },
   lilac: {
@@ -185,7 +185,7 @@ export const DESIGNS: Record<DesignId, Design> = {
       radius: 4,
       buttonRadius: 4,
     },
-    vars: { "--cb-page-bg": "#1f4fd1", "--cb-page-img": blueprintGrid.img, "--cb-page-size": blueprintGrid.size, "--cb-h-weight": "600", "--cb-h-track": "-0.02em", "--cb-foot-text": "#c9d6ff", "--cb-foot-strong": "#ffffff", "--cb-foot-hover": "rgba(255,255,255,0.12)", ...framed("1px solid #c9d4f5", "0 24px 60px -30px rgba(5,20,80,0.6)") },
+    vars: { "--cb-page-bg": "#1f4fd1", "--cb-page-img": blueprintGrid.img, "--cb-page-size": blueprintGrid.size, "--cb-h-weight": "600", "--cb-h-track": "-0.02em", "--cb-foot-text": "#c9d6ff", "--cb-foot-strong": "#ffffff", ...framed("1px solid #c9d4f5", "0 24px 60px -30px rgba(5,20,80,0.6)") },
     swatch: { page: "#1f4fd1", pattern: blueprintGrid.img, patternSize: "12px 12px", card: "#f7f9ff", text: "#0d1b44", accent: "#1f4fd1", button: "#1f4fd1", buttonText: "#ffffff", font: "'IBM Plex Mono', monospace", weight: 600, radius: 4, buttonRadius: 4 },
   },
   bold: {
@@ -207,7 +207,7 @@ export const DESIGNS: Record<DesignId, Design> = {
       radius: 0,
       buttonRadius: 0,
     },
-    vars: { "--cb-page-bg": "#ffd84d", "--cb-h-weight": "800", "--cb-h-track": "-0.03em", "--cb-dot": "#ff3d00", "--cb-foot-text": "#111111", "--cb-foot-strong": "#111111", "--cb-foot-hover": "rgba(0,0,0,0.08)", ...framed("2px solid #111111", "6px 6px 0 #111111") },
+    vars: { "--cb-page-bg": "#ffd84d", "--cb-h-weight": "800", "--cb-h-track": "-0.03em", "--cb-dot": "#ff3d00", "--cb-foot-text": "#111111", "--cb-foot-strong": "#111111", ...framed("2px solid #111111", "6px 6px 0 #111111") },
     swatch: { page: "#ffd84d", card: "#fffdf5", text: "#111111", accent: "#ff3d00", button: "#111111", buttonText: "#ffd84d", font: "Archivo, sans-serif", weight: 800, radius: 0, buttonRadius: 0, border: "2px solid #111111", shadow: "3px 3px 0 #111111" },
   },
   forest: {
@@ -228,7 +228,7 @@ export const DESIGNS: Record<DesignId, Design> = {
       radius: 12,
       buttonRadius: 999,
     },
-    vars: { "--cb-page-bg": "#123d2c", "--cb-h-weight": "400", "--cb-h-track": "0", "--cb-foot-text": "#a9c2b4", "--cb-foot-strong": "#f6f1e4", "--cb-foot-hover": "rgba(255,255,255,0.1)", ...framed("0", "0 30px 70px -30px rgba(0,0,0,0.55)") },
+    vars: { "--cb-page-bg": "#123d2c", "--cb-h-weight": "400", "--cb-h-track": "0", "--cb-foot-text": "#a9c2b4", "--cb-foot-strong": "#f6f1e4", ...framed("0", "0 30px 70px -30px rgba(0,0,0,0.55)") },
     swatch: { page: "#123d2c", card: "#f6f1e4", text: "#13281f", accent: "#1f6b4a", button: "#13281f", buttonText: "#f6f1e4", font: "'DM Serif Display', Georgia, serif", weight: 400, radius: 12, buttonRadius: 999 },
   },
 };

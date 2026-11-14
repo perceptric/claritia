@@ -116,7 +116,7 @@ export function ZonePicker({ value, onChange }: { value: string; onChange: (tz: 
         <span className="truncate">{value.replace(/_/g, " ")}</span>
       </button>
       <Popover anchor={anchor} open={open} onClose={() => setOpen(false)} label="Time zone" width={280}>
-        <label className="mb-1.5 flex h-8 items-center gap-2 rounded-sm border border-line-strong px-2 focus-within:shadow-focus">
+        <label className="mb-1.5 flex h-8 items-center gap-2 rounded-sm border border-line-strong px-2">
           <Search size={13} className="text-faint" />
           <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" aria-label="Search time zones" className="min-w-0 flex-1 bg-transparent text-[12.5px] outline-none placeholder:text-faint" />
         </label>

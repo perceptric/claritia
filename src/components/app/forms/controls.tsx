@@ -10,7 +10,7 @@ import { Select } from "../Select";
 import { Toggle } from "../ui";
 
 export const INPUT =
-  "h-7 w-full min-w-0 rounded-md bg-card shadow-input px-2 text-[12.5px] text-ink outline-none transition-shadow duration-[140ms] placeholder:text-faint hover:shadow-input-hover focus:shadow-focus";
+  "h-7 w-full min-w-0 rounded-md bg-card shadow-input px-2 text-[12.5px] text-ink outline-none transition-shadow duration-[140ms] placeholder:text-faint hover:shadow-input-hover";
 export const PICK = "h-7 w-full min-w-0 rounded-md bg-card shadow-input px-2 text-[12.5px] text-ink hover:shadow-input-hover";
 
 /** A titled block in a panel. */
@@ -96,7 +96,7 @@ export function AreaIn({ value, onChange, placeholder, label, rows = 3 }: { valu
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       aria-label={label}
-      className="w-full min-w-0 resize-y rounded-md bg-card shadow-input px-2 py-1.5 text-[12.5px] leading-snug text-ink outline-none placeholder:text-faint hover:shadow-input-hover focus:shadow-focus"
+      className="w-full min-w-0 resize-y rounded-md bg-card shadow-input px-2 py-1.5 text-[12.5px] leading-snug text-ink outline-none placeholder:text-faint hover:shadow-input-hover"
     />
   );
 }
@@ -344,7 +344,7 @@ export function TagInput({
     setText("");
   };
   return (
-    <div className="flex min-h-7 w-full min-w-0 flex-wrap items-center gap-1 rounded-md bg-card shadow-input px-1 py-0.5 focus-within:shadow-focus">
+    <div className="flex min-h-7 w-full min-w-0 flex-wrap items-center gap-1 rounded-md bg-card shadow-input px-1 py-0.5">
       {values.map((v) => (
         <span key={v} className="inline-flex h-5 items-center gap-1 rounded-full bg-paper-deep pr-1 pl-2 text-[11.5px] text-ink">
           {v}

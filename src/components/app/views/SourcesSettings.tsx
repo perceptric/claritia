@@ -246,7 +246,7 @@ function ConnectPanel({ session, wsId, entry, onClose, onError }: { session: Vie
                     rows={5}
                     spellCheck={false}
                     autoComplete="off"
-                    className="w-full rounded-md bg-card shadow-input px-3 py-2 font-mono text-[12px] outline-none focus:shadow-focus"
+                    className="w-full rounded-md bg-card shadow-input px-3 py-2 font-mono text-[12px] outline-none"
                   />
                 ) : (
                   <Input value={keys[k.key] ?? ""} onChange={(e) => setKeys({ ...keys, [k.key]: e.target.value })} type={k.secret ? "password" : "text"} placeholder={k.placeholder} autoComplete="off" />

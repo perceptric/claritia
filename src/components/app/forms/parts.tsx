@@ -19,11 +19,11 @@ export const GHOST_SM = "press inline-flex h-[26px] shrink-0 items-center gap-[6
 export const IB = "press inline-flex size-[30px] shrink-0 items-center justify-center rounded-full text-muted transition-colors duration-[120ms] hover:bg-hover hover:text-ink disabled:pointer-events-none disabled:opacity-35";
 export const IB_SM = "press inline-flex size-[24px] shrink-0 items-center justify-center rounded-full text-muted transition-colors duration-[120ms] hover:bg-hover hover:text-ink disabled:pointer-events-none disabled:opacity-35";
 /** A text box: 34 px, 6 px corners. */
-export const IN = "h-[34px] w-full min-w-0 rounded-md bg-card shadow-input px-[10px] text-[13px] text-ink outline-none placeholder:text-faint focus:shadow-focus";
-export const IN_SM = "h-[30px] w-full min-w-0 rounded-md bg-card shadow-input px-[10px] text-[12.5px] text-ink outline-none placeholder:text-faint focus:shadow-focus";
+export const IN = "h-[34px] w-full min-w-0 rounded-md bg-card shadow-input px-[10px] text-[13px] text-ink outline-none placeholder:text-faint";
+export const IN_SM = "h-[30px] w-full min-w-0 rounded-md bg-card shadow-input px-[10px] text-[12.5px] text-ink outline-none placeholder:text-faint";
 /** A small text box with its own width (set beside it). */
 export const IN_FIT = IN_SM.replace("w-full ", "");
-export const AREA = "w-full min-w-0 resize-y rounded-md bg-card shadow-input px-[10px] py-[8px] text-[13px] leading-normal text-ink outline-none placeholder:text-faint focus:shadow-focus";
+export const AREA = "w-full min-w-0 resize-y rounded-md bg-card shadow-input px-[10px] py-[8px] text-[13px] leading-normal text-ink outline-none placeholder:text-faint";
 export const EYEBROW = "font-mono text-[10.5px] tracking-[0.06em] text-muted uppercase";
 export const CARD = "rounded-[10px] bg-card shadow-rest";
 /** A row in a card: what it is on the left, the control on the right. */

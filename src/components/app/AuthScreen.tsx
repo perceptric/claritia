@@ -312,7 +312,7 @@ export function AuthScreen({ sb, config }: { sb: SupabaseClient; config?: SupaCo
           onChange={(e) => setEmail(e.target.value)}
           placeholder="you@company.com"
           aria-label="Email"
-          className="h-11 w-full rounded-md bg-card shadow-input px-3.5 text-[14px] outline-none focus:shadow-focus"
+          className="h-11 w-full rounded-md bg-card shadow-input px-3.5 text-[14px] outline-none"
         />
         <Button type="submit" className="h-11 w-full" disabled={busy}>
           {pending === "email" ? "Sending…" : "Continue with email"}

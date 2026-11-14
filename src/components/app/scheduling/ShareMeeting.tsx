@@ -105,7 +105,7 @@ export function ShareMeeting({ session, ws, type, wsSlug, onClose, onSingleUse, 
               <div className="flex flex-col divide-y divide-line rounded-[10px] shadow-rest">
                 <label className="flex items-center justify-between gap-3 px-4 py-2.5 text-[13px] text-ink">
                   Button text
-                  <input value={o.text ?? ""} maxLength={60} onChange={(e) => setO({ ...o, text: e.target.value })} aria-label="Button text" className="h-[30px] w-[200px] rounded-[6px] border border-line-strong bg-card px-2.5 text-[12.5px] text-ink outline-none focus:shadow-focus" />
+                  <input value={o.text ?? ""} maxLength={60} onChange={(e) => setO({ ...o, text: e.target.value })} aria-label="Button text" className="h-[30px] w-[200px] rounded-[6px] border border-line-strong bg-card px-2.5 text-[12.5px] text-ink outline-none" />
                 </label>
                 <div className="flex items-center justify-between gap-3 px-4 py-2.5 text-[13px] text-ink">
                   Full screen on phones

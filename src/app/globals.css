@@ -194,6 +194,12 @@ body {
     outline-offset: 1px;
     box-shadow: 0 0 0 4px rgb(12 140 94 / 0.18);
   }
+  /* Fill-in fields keep their resting look while typing: no ring or outline. Buttons, links and other controls keep
+     the ring above. :where() keeps this at zero weight, so the booking page and customers' forms keep their own. */
+  :where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="button"], [type="submit"], [type="reset"], [type="color"], [type="file"]), textarea, [contenteditable]:not([contenteditable="false"])):focus-visible {
+    outline: none;
+    box-shadow: none;
+  }
 }
 
 /* Section and field labels: Inter, small, medium weight, sentence case. Mono is only for code, keys and ids. */

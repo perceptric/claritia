@@ -182,8 +182,8 @@ and polls, Settings):
   controls: the span, Pick a day, search, filter pills (host, type, status, source, booked in Claritia) and List or
   Week. Times sit on one line; busy times are thin gray rows. A meeting opens in a side panel with its actions; Join
   shows 10 minutes before; J and K move, Enter opens.
-- **Availability.** Paint your hours on a half-hour week grid (drag across days and times; keyboard too), or Exact
-  times. A health line says how many 30-minute times your page shows next week, amber under 5 or with what's
+- **Availability.** Exact times (the default), or the Time Grid: paint your hours on a half-hour week grid (drag
+  across days and times; keyboard too). A health line says how many 30-minute times your page shows next week, amber under 5 or with what's
   missing. Team shows each person's calendar state with Connect, Reconnect or Ask.
 - **Booking page.** Styling is a brand picker: Claritia, or any brand imported in Form Studio (logo and name), plus
   Import a brand. Each page saves its own brand (`PageLook.brand`); the server reads the form's brand, then the

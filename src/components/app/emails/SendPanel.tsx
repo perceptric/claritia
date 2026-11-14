@@ -42,7 +42,7 @@ const VARS: { key: string; label: string; tag: string }[] = [
   { key: "title", label: "Job title", tag: "{{title}}" },
 ];
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const inputCls = "h-9 w-full min-w-0 rounded-md bg-card px-3 text-[13px] text-ink shadow-input outline-none focus:shadow-focus";
+const inputCls = "h-9 w-full min-w-0 rounded-md bg-card px-3 text-[13px] text-ink shadow-input outline-none";
 const label = "text-[12.5px] font-medium text-muted";
 
 export function SendPanel({
@@ -216,7 +216,7 @@ export function SendPanel({
               </label>
               <label className="flex min-w-0 flex-col gap-1.5">
                 <span className={label}>From address</span>
-                <span className="flex h-9 min-w-0 items-center rounded-md bg-card shadow-input focus-within:shadow-focus">
+                <span className="flex h-9 min-w-0 items-center rounded-md bg-card shadow-input">
                   <input value={local} maxLength={64} onChange={(e) => setPicked((x) => ({ ...x, local: e.target.value.replace(/[^a-z0-9._+-]/gi, "").toLowerCase() }))} className="h-full w-0 min-w-[64px] flex-1 bg-transparent px-3 text-[13px] text-ink outline-none" />
                   <span className="shrink-0 pr-3 text-[13px] wrap-anywhere text-muted">@{domain || "domain"}</span>
                 </span>
@@ -228,14 +228,14 @@ export function SendPanel({
             </label>
             <div className="flex flex-col gap-1.5">
               <span className={label}>Subject</span>
-              <span className="flex h-9 min-w-0 items-center gap-1 rounded-md bg-card pr-1 shadow-input focus-within:shadow-focus">
+              <span className="flex h-9 min-w-0 items-center gap-1 rounded-md bg-card pr-1 shadow-input">
                 <input ref={subjectRef} aria-label="Subject" value={subject} maxLength={200} onChange={(e) => onSubject(e.target.value)} className="h-full min-w-0 flex-1 bg-transparent px-3 text-[13px] text-ink outline-none" />
                 {vars(subjectRef, subject, onSubject, "subject")}
               </span>
             </div>
             <div className="flex flex-col gap-1.5">
               <span className={label}>Preview text</span>
-              <span className="flex h-9 min-w-0 items-center gap-1 rounded-md bg-card pr-1 shadow-input focus-within:shadow-focus">
+              <span className="flex h-9 min-w-0 items-center gap-1 rounded-md bg-card pr-1 shadow-input">
                 <input ref={previewRef} aria-label="Preview text" value={preheader} maxLength={200} onChange={(e) => onPreheader(e.target.value)} className="h-full min-w-0 flex-1 bg-transparent px-3 text-[13px] text-ink outline-none" />
                 <span className="shrink-0 text-[12px] text-faint tabular-nums">{preheader.length}/200</span>
                 {vars(previewRef, preheader, onPreheader, "preview text")}

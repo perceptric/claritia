@@ -292,7 +292,7 @@ function Describe({ ws, session, navigate, onPick, seed }: Pick<ViewProps, "ws" 
             onKeyDown={(e) => e.key === "Enter" && build()}
             maxLength={300}
             placeholder="A deposit form for custom cake orders"
-            className="h-[36px] min-w-[220px] flex-1 rounded-sm border border-line bg-card px-[10px] text-[13px] text-ink outline-none placeholder:text-muted focus:shadow-focus"
+            className="h-[36px] min-w-[220px] flex-1 rounded-sm border border-line bg-card px-[10px] text-[13px] text-ink outline-none placeholder:text-muted"
           />
           <button type="button" className={BTN} onClick={build}>
             <Ic n="wand" />
@@ -564,7 +564,7 @@ export function TemplatesPage({ sb, ws, session, navigate, id }: ViewProps) {
           </nav>
           <div className="flex min-w-0 flex-1 flex-col gap-[14px]">
             <div className="flex flex-wrap items-center gap-[8px]">
-              <label className="flex h-[36px] min-w-[200px] flex-1 items-center gap-[8px] rounded-sm border border-line bg-card px-[10px] text-muted focus-within:shadow-focus">
+              <label className="flex h-[36px] min-w-[200px] flex-1 items-center gap-[8px] rounded-sm border border-line bg-card px-[10px] text-muted">
                 <Ic n="search" />
                 <input
                   value={text}

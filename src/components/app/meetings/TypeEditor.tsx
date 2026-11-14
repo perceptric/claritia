@@ -261,7 +261,7 @@ export function TypeEditor(props: ViewProps) {
                 )}
               </Row>
               <Row label="Link">
-                <span className="flex min-w-0 flex-1 items-center rounded-md bg-card shadow-input focus-within:shadow-focus">
+                <span className="flex min-w-0 flex-1 items-center rounded-md bg-card shadow-input">
                   <span className="max-w-[45%] shrink-0 truncate pl-2 font-mono text-[11.5px] text-faint">/{slug.data ?? "…"}/</span>
                   <input
                     aria-label="Link"
