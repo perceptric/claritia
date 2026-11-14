@@ -1,11 +1,14 @@
 import { ChevronRight, Dollar, Users } from "@/components/Icons";
 import { LOCATION_LABEL, lengthLabel, priceLabel, type GuestHost, type GuestType } from "@/lib/meetings/guest";
+import { welcomeHtml } from "@/lib/meetings/welcome";
 import { Avatar, LocationIcon } from "./parts";
 
 // The team page's and a person's page's meeting types, as cards (docs/meetings-scheduler.md 1.8b).
 
 /** The page's title in two tones: the title, then the line in gray. */
 export function PageHead({ title, line, hosts, logo, big, welcome }: { title: string; line?: string | null; hosts?: GuestHost[]; logo?: string | null; big?: boolean; welcome?: string | null }) {
+  // The welcome line is rich text, cleaned again here before it's drawn (src/lib/meetings/welcome.ts).
+  const words = welcomeHtml(welcome);
   return (
     <>
     <header className="cb-head">
@@ -19,7 +22,7 @@ export function PageHead({ title, line, hosts, logo, big, welcome }: { title: st
         </h1>
       </div>
     </header>
-    {welcome ? <p className="cb-muted cb-welcome">{welcome}</p> : null}
+    {words ? <div className="cb-muted cb-welcome" dangerouslySetInnerHTML={{ __html: words }} /> : null}
     </>
   );
 }

@@ -77,7 +77,7 @@ Raised things sit on a ring shadow in place of a border:
 | `shadow-outline` | Secondary buttons |
 | `shadow-input`, `shadow-input-hover` | Inputs and pickers |
 | `shadow-primary` | The primary button |
-| `shadow-focus` | Focus: a 1px green ring in a soft green halo |
+| `shadow-focus` | Focus on buttons, links and other controls: a 1px green ring in a soft green halo. Fill-in fields don't use it. |
 | `shadow-menu`, `shadow-modal` | Menus, popovers and dialogs |
 
 Dividers inside a card (table rows, a card's header) stay as `line` hairlines.
@@ -103,7 +103,7 @@ Things arrive with a short rise (opacity and 6px). Everything stops under `prefe
 | `Button` | Pill, 34px (28px small). Primary: `brand` fill with `shadow-primary`. Ghost and danger: `card` with `shadow-outline`. |
 | `IconButton` | 32px circle with a tooltip. |
 | `Badge` | 6px tag, 20px tall, soft fill and deep text, optional dot. |
-| `Input` | 36px, 8px corners, `shadow-input`; focus shows `shadow-focus`. |
+| `Input` | 36px, 8px corners, `shadow-input`; it keeps that look while typing, with no focus ring or outline (text fields, text areas and number fields across the app). |
 | `Panel` | `card`, 12px corners, `shadow-rest`. |
 | `Tabs` | Small 8px chips with `shadow-chip`; the open one is `signal-soft` with green text. Inside a section they sit beside the page title. |
 | `Segmented` | Gray pill track with a white thumb on `shadow-chip`. |

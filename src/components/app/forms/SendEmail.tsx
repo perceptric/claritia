@@ -147,7 +147,7 @@ export function SendEmail({ sb, session, ws, form, row }: Props) {
             </button>
           </div>
           <div className="relative">
-            <div data-share-to="" onClick={() => input.current?.focus()} className="flex min-h-[40px] w-full min-w-0 cursor-text flex-wrap items-center gap-[6px] rounded-md bg-card px-[8px] py-[6px] shadow-input focus-within:shadow-focus">
+            <div data-share-to="" onClick={() => input.current?.focus()} className="flex min-h-[40px] w-full min-w-0 cursor-text flex-wrap items-center gap-[6px] rounded-md bg-card px-[8px] py-[6px] shadow-input">
               {to.map((p) => (
                 <span key={p.email} title={OK.test(p.email) ? p.email : "This isn't an email"} data-chip={p.email} className={`inline-flex h-[26px] max-w-full min-w-0 items-center gap-[6px] rounded-full pr-[4px] pl-[4px] text-[12.5px] ${OK.test(p.email) ? "bg-chip text-ink" : "bg-rose-wash text-rose"}`}>
                   <span aria-hidden="true" className="inline-flex size-[18px] shrink-0 items-center justify-center rounded-full bg-card text-[9.5px] font-medium text-muted">

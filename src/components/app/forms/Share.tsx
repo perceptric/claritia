@@ -131,7 +131,7 @@ function LinkPane({ sb, session, ws, role, navigate, form, row, apply }: Props) 
     <>
       <H3>Link</H3>
       <div className="flex flex-wrap items-center gap-[8px]">
-        <div data-share-link={link} className="flex h-[40px] min-w-0 flex-1 basis-[300px] items-center overflow-hidden rounded-[10px] border border-line-strong bg-card focus-within:shadow-focus">
+        <div data-share-link={link} className="flex h-[40px] min-w-0 flex-1 basis-[300px] items-center overflow-hidden rounded-[10px] border border-line-strong bg-card">
           {endings && (cur || editing) ? (
             <>
               <span className="max-w-[60%] shrink-0 truncate pl-[12px] font-mono text-[13px] text-muted" title={prefix}>
@@ -431,7 +431,7 @@ function EmbedPane({ form, row }: Props) {
   const opener = o.mode === "popup" || o.mode === "slider" ? `var f=document.querySelector("claritia-form");f&&f.open&&f.open();` : "";
   const opensOn = o.mode === "popup" || o.mode === "slider";
   const textBox = (label: string, value: string, onChange: (v: string) => void, placeholder?: string) => (
-    <input value={value} onChange={(e) => onChange(e.target.value)} aria-label={label} placeholder={placeholder} maxLength={60} className="h-[30px] w-[200px] rounded-md bg-card shadow-input px-[10px] text-[12.5px] text-ink outline-none focus:shadow-focus" />
+    <input value={value} onChange={(e) => onChange(e.target.value)} aria-label={label} placeholder={placeholder} maxLength={60} className="h-[30px] w-[200px] rounded-md bg-card shadow-input px-[10px] text-[12.5px] text-ink outline-none" />
   );
   return (
     <>
@@ -452,7 +452,7 @@ function EmbedPane({ form, row }: Props) {
                 <Seg label={title} value={o[k] ? "fixed" : "auto"} onChange={(v: "auto" | "fixed") => set({ [k]: v === "fixed" ? start : null })} options={[{ value: "auto", label: auto }, { value: "fixed", label: "Fixed" }]} />
                 {o[k] ? (
                   <span className="inline-flex items-center gap-[6px] text-[12.5px] text-muted">
-                    <input type="number" inputMode="numeric" min={k === "width" ? 280 : 200} max={k === "width" ? 2000 : 4000} value={o[k] ?? ""} onChange={(e) => set({ [k]: Number(e.target.value) || start })} aria-label={`${title} in pixels`} className="h-[30px] w-[84px] rounded-md bg-card px-[10px] text-[12.5px] text-ink shadow-input outline-none focus:shadow-focus" />
+                    <input type="number" inputMode="numeric" min={k === "width" ? 280 : 200} max={k === "width" ? 2000 : 4000} value={o[k] ?? ""} onChange={(e) => set({ [k]: Number(e.target.value) || start })} aria-label={`${title} in pixels`} className="h-[30px] w-[84px] rounded-md bg-card px-[10px] text-[12.5px] text-ink shadow-input outline-none" />
                     px
                   </span>
                 ) : null}

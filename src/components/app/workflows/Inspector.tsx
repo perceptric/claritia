@@ -25,7 +25,7 @@ import { EmailInPanel } from "./EmailInPanel";
 import type { CanvasKit } from "../emails/canvas/preview";
 
 const label = "text-[12px] font-medium text-muted";
-const area = "min-h-24 w-full rounded-md bg-card shadow-input px-3 py-2 text-[13.5px] leading-relaxed text-ink outline-none focus:shadow-focus";
+const area = "min-h-24 w-full rounded-md bg-card shadow-input px-3 py-2 text-[13.5px] leading-relaxed text-ink outline-none";
 
 function Row({ name, children }: { name: string; children: React.ReactNode }) {
   return (

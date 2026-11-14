@@ -27,6 +27,8 @@ import { Badge, Button, ErrorNote, errorText, Input, invalidate, Loading, Page, 
 import { CopyButton, meetingsApi, usePeople } from "../meetings/parts";
 import { useMeetingTypes, type TypeRow } from "../meetings/TypesList";
 import { IconSeg, Labeled, PanelFooter, PanelSection } from "./panel";
+import { WelcomeEditor } from "./WelcomeEditor";
+import { welcomeText } from "@/lib/meetings/welcome";
 import { svgDataUri } from "@/lib/brand/svgData";
 
 type Info = {
@@ -383,11 +385,17 @@ export function BookingPage(props: ViewProps) {
                   ))}
                 </ul>
               ) : (
-                <span className="text-[12.5px] text-muted">No meeting types yet</span>
+                <span className="flex flex-col items-start gap-2.5">
+                  <span className="text-[12.5px] text-muted">No meeting types yet</span>
+                  <Button size="sm" onClick={() => props.navigate("scheduling", "types/new")}>
+                    <Plus size={14} />
+                    Create meeting type
+                  </Button>
+                </span>
               )}
             </PanelSection>
-            <PanelSection icon={<Message />} title="Welcome line" summary={look.welcome || "None"} open={open === "welcome"} onToggle={() => toggle("welcome")}>
-              <Input value={look.welcome} disabled={!canEdit} maxLength={140} placeholder="Pick a time that works for you." onChange={(e) => setLook({ welcome: e.target.value })} className="h-[34px] text-[13px]" />
+            <PanelSection icon={<Message />} title="Welcome line" summary={welcomeText(look.welcome) || "None"} open={open === "welcome"} onToggle={() => toggle("welcome")}>
+              <WelcomeEditor value={look.welcome} disabled={!canEdit} placeholder="Pick a time that works for you." onChange={(welcome) => setLook({ welcome })} />
             </PanelSection>
             <PanelSection
               icon={<Palette />}
@@ -726,7 +734,7 @@ function HandleField({ host, value, onChange, check, saved, disabled = false }: 
   const taken = bad && !handleProblem(value);
   return (
     <div className="flex flex-col gap-1.5">
-      <span className={`flex h-9 min-w-0 items-center rounded-sm border bg-card pr-1 pl-2.5 font-mono text-[12px] focus-within:shadow-focus ${bad ? "border-rose" : "border-line-strong"}`}>
+      <span className={`flex h-9 min-w-0 items-center rounded-sm border bg-card pr-1 pl-2.5 font-mono text-[12px] ${bad ? "border-rose" : "border-line-strong"}`}>
         <span className="max-w-[60%] shrink-0 truncate text-faint">{host}/booking/</span>
         <input aria-label="Handle" value={value} maxLength={40} disabled={disabled} onChange={(e) => onChange(cleanHandle(e.target.value))} className="h-full min-w-10 flex-1 bg-transparent text-ink outline-none disabled:text-muted" />
         {taken ? (

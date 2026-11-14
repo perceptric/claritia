@@ -428,7 +428,7 @@ function Describe({ sb, session, ws, navigate, onDone }: Pick<ViewProps, "sb" | 
         }}
         rows={3}
         placeholder="When someone signs up for the workshop, send what to bring two days before. Stop if they book a private class."
-        className="w-full resize-none rounded-md bg-card px-3 py-2 text-[13.5px] text-ink shadow-input outline-none focus:shadow-focus"
+        className="w-full resize-none rounded-md bg-card px-3 py-2 text-[13.5px] text-ink shadow-input outline-none"
       />
       <ErrorNote message={error} />
       <div className="flex flex-wrap justify-end gap-2">
@@ -673,7 +673,7 @@ function Audiences({ sb, session, ws, role }: ViewProps) {
           menuWidth={260}
           className="h-8 min-w-[200px] rounded-full bg-card px-3.5 text-[12.5px] font-medium text-ink shadow-chip"
         />
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name, email or phone" aria-label="Search people" className="h-8 w-full max-w-xs min-w-0 rounded-md bg-card px-3 text-[13px] text-ink shadow-input outline-none focus:shadow-focus" />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name, email or phone" aria-label="Search people" className="h-8 w-full max-w-xs min-w-0 rounded-md bg-card px-3 text-[13px] text-ink shadow-input outline-none" />
         <span className="flex-1" />
         <ColumnsMenu on={cols} toggle={toggleCol} />
         {list ? (
@@ -864,7 +864,7 @@ function Voice({ sb, ws }: ViewProps) {
         onBlur={() => void save()}
         rows={4}
         placeholder="Warm and calm. Short sentences. Speaks to one person by first name. No hype words."
-        className="w-full resize-y rounded-md bg-card px-3 py-2 text-[13.5px] leading-relaxed text-ink shadow-input outline-none focus:shadow-focus"
+        className="w-full resize-y rounded-md bg-card px-3 py-2 text-[13.5px] leading-relaxed text-ink shadow-input outline-none"
       />
       <ErrorNote message={error} />
     </div>

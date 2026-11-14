@@ -154,7 +154,7 @@ export function TestDrawer({ session, ws, d, row, body, flush, onClose }: Pick<V
             <ContactLookup session={session} ws={ws.id} value={t.contact ?? null} onChange={(c) => edit({ contact: c, ...(c?.email ? { email: c.email } : {}) })} />
           </Lbl>
           <Lbl label="Work email">
-            <input value={t.email} disabled={!!t.contact} onChange={(e) => edit({ email: e.target.value })} className="h-[30px] w-full rounded-md bg-card shadow-input px-2.5 text-ink outline-none focus:shadow-focus disabled:opacity-60" />
+            <input value={t.email} disabled={!!t.contact} onChange={(e) => edit({ email: e.target.value })} className="h-[30px] w-full rounded-md bg-card shadow-input px-2.5 text-ink outline-none disabled:opacity-60" />
           </Lbl>
           {used.map((f) => (
             <Lbl key={f.key} label={f.label}>
@@ -183,7 +183,7 @@ export function TestDrawer({ session, ws, d, row, body, flush, onClose }: Pick<V
                   placeholder="Unknown"
                   inputMode={f.type === "number" ? "numeric" : undefined}
                   onChange={(e) => edit({ values: { ...t.values, [f.key]: e.target.value } })}
-                  className="h-[30px] w-full rounded-md bg-card shadow-input px-2.5 text-ink outline-none placeholder:text-faint focus:shadow-focus"
+                  className="h-[30px] w-full rounded-md bg-card shadow-input px-2.5 text-ink outline-none placeholder:text-faint"
                 />
               )}
             </Lbl>
@@ -308,7 +308,7 @@ function ContactLookup({ session, ws, value, onChange }: Pick<ViewProps, "sessio
     );
   return (
     <div className="flex flex-col gap-1">
-      <label className="flex h-[30px] items-center gap-2 rounded-md bg-card shadow-input px-2.5 focus-within:shadow-focus">
+      <label className="flex h-[30px] items-center gap-2 rounded-md bg-card shadow-input px-2.5">
         <Search size={12} className="text-muted" />
         <input aria-label="Find a contact" placeholder="None" value={text} onChange={(e) => setText(e.target.value)} className="min-w-0 flex-1 bg-transparent font-normal text-ink outline-none placeholder:text-faint" />
       </label>

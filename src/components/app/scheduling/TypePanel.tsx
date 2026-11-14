@@ -343,7 +343,7 @@ export function TypePanel({
             rows={4}
             placeholder="What it's for and what to bring"
             onChange={(e) => setS("description", e.target.value || undefined)}
-            className="w-full resize-y rounded-md bg-card shadow-input px-2.5 py-2 text-[13px] leading-[1.5] text-ink outline-none placeholder:text-faint focus:shadow-focus"
+            className="w-full resize-y rounded-md bg-card shadow-input px-2.5 py-2 text-[13px] leading-[1.5] text-ink outline-none placeholder:text-faint"
           />
           <Labeled label="What we'll cover">
             <textarea
@@ -352,7 +352,7 @@ export function TypePanel({
               rows={3}
               placeholder={"Your goals\nA quick tour\nNext steps"}
               onChange={(e) => setS("agenda", e.target.value ? e.target.value.split("\n").slice(0, 8) : undefined)}
-              className="w-full resize-y rounded-md bg-card shadow-input px-2.5 py-2 text-[13px] leading-[1.5] text-ink outline-none placeholder:text-faint focus:shadow-focus"
+              className="w-full resize-y rounded-md bg-card shadow-input px-2.5 py-2 text-[13px] leading-[1.5] text-ink outline-none placeholder:text-faint"
             />
           </Labeled>
           <Labeled label="Before the call">
@@ -362,7 +362,7 @@ export function TypePanel({
               rows={2}
               placeholder={"Bring your numbers\nInvite your team"}
               onChange={(e) => setS("prep", e.target.value ? e.target.value.split("\n").slice(0, 8) : undefined)}
-              className="w-full resize-y rounded-md bg-card shadow-input px-2.5 py-2 text-[13px] leading-[1.5] text-ink outline-none placeholder:text-faint focus:shadow-focus"
+              className="w-full resize-y rounded-md bg-card shadow-input px-2.5 py-2 text-[13px] leading-[1.5] text-ink outline-none placeholder:text-faint"
             />
           </Labeled>
         </PanelSection>
@@ -584,7 +584,7 @@ export function TypePanel({
               rows={3}
               placeholder={THANKS}
               onChange={(e) => setS("confirmation", { kind: "message", ...(e.target.value ? { text: e.target.value } : {}) })}
-              className="w-full resize-none rounded-md bg-card shadow-input px-2.5 py-2 text-[13px] text-ink outline-none placeholder:text-faint focus:shadow-focus"
+              className="w-full resize-none rounded-md bg-card shadow-input px-2.5 py-2 text-[13px] text-ink outline-none placeholder:text-faint"
             />
           ) : (
             <Input aria-label="Page" value={s.confirmation.url} placeholder="https://" onChange={(e) => setS("confirmation", { kind: "redirect", url: e.target.value })} className="h-[34px] text-[13px]" />

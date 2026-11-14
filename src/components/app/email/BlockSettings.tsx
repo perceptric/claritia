@@ -552,7 +552,7 @@ function RichText({ value, onChange }: { value: string; onChange: (html: string)
         contentEditable
         suppressContentEditableWarning
         onInput={read}
-        className="min-h-24 rounded-md bg-card shadow-input px-2 py-1.5 text-[12.5px] leading-snug text-ink outline-none hover:shadow-input-hover focus:shadow-focus [&_a]:text-clay [&_a]:underline [&_ul]:list-disc [&_ul]:pl-5 [&_p]:mb-2"
+        className="min-h-24 rounded-md bg-card shadow-input px-2 py-1.5 text-[12.5px] leading-snug text-ink outline-none hover:shadow-input-hover [&_a]:text-clay [&_a]:underline [&_ul]:list-disc [&_ul]:pl-5 [&_p]:mb-2"
       />
     </div>
   );

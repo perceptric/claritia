@@ -45,7 +45,7 @@ function ContactPick({ sb, ws, onPick }: { sb?: SupabaseClient; ws: string; onPi
   }, [sb, text, ws]);
   return (
     <div className="flex flex-col gap-2 p-4 text-[13px]">
-      <label className="flex h-[30px] items-center gap-2 rounded-md bg-card shadow-input px-2.5 focus-within:shadow-focus">
+      <label className="flex h-[30px] items-center gap-2 rounded-md bg-card shadow-input px-2.5">
         <Search size={13} className="text-muted" />
         <input autoFocus aria-label="Find a contact" placeholder="Find a contact" value={text} onChange={(e) => setText(e.target.value)} className="min-w-0 flex-1 bg-transparent text-ink outline-none placeholder:text-faint" />
       </label>
@@ -244,7 +244,7 @@ function Handoff({ session, ws, d, contact, onClose, onDone }: Pick<ViewProps, "
                         setRes(null);
                       }
                     }}
-                    className="h-[30px] w-full rounded-md bg-card shadow-input px-2.5 font-normal text-ink outline-none placeholder:text-faint focus:shadow-focus disabled:opacity-60"
+                    className="h-[30px] w-full rounded-md bg-card shadow-input px-2.5 font-normal text-ink outline-none placeholder:text-faint disabled:opacity-60"
                   />
                 </label>
               );
@@ -295,7 +295,7 @@ function Handoff({ session, ws, d, contact, onClose, onDone }: Pick<ViewProps, "
                       placeholder="Reason"
                       value={reason}
                       onChange={(e) => setReason(e.target.value.slice(0, 300))}
-                      className="h-[30px] w-full rounded-md bg-card shadow-input px-2.5 text-ink outline-none placeholder:text-faint focus:shadow-focus"
+                      className="h-[30px] w-full rounded-md bg-card shadow-input px-2.5 text-ink outline-none placeholder:text-faint"
                     />
                   ) : null}
                 </div>

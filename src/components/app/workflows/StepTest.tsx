@@ -83,7 +83,7 @@ export function StepTest({ sb, session, ws, body, sel, names }: { sb: SupabaseCl
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search people by name or email"
             aria-label="Test with"
-            className="h-9 w-full rounded-md bg-card px-3 text-[13.5px] text-ink shadow-input outline-none placeholder:text-faint focus:shadow-focus"
+            className="h-9 w-full rounded-md bg-card px-3 text-[13.5px] text-ink shadow-input outline-none placeholder:text-faint"
           />
           {found.map((f) => (
             <button key={f.id} type="button" onClick={() => (setWho(f), setFound([]))} className="flex flex-col items-start rounded-md px-2.5 py-1.5 text-left hover:bg-hover">

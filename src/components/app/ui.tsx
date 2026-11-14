@@ -386,7 +386,7 @@ function TitleInput({ value, onChange }: { value: string; onChange: (v: string) 
         }
       }}
       style={{ width: `${Math.max(6, text.length + 1)}ch` }}
-      className="h-7 max-w-[60vw] min-w-0 rounded-sm border border-transparent bg-transparent px-1 text-[13px] font-medium text-ink outline-none hover:bg-hover focus:shadow-focus focus:bg-card"
+      className="h-7 max-w-[60vw] min-w-0 rounded-sm border border-transparent bg-transparent px-1 text-[13px] font-medium text-ink outline-none hover:bg-hover focus:bg-card"
     />
   );
 }
@@ -464,7 +464,7 @@ export function Input({ className = "", ...props }: React.InputHTMLAttributes<HT
   return (
     <input
       {...props}
-      className={`h-9 w-full rounded-md bg-card px-3 text-[13.5px] text-ink shadow-input outline-none transition-shadow duration-[150ms] placeholder:text-faint focus:shadow-focus focus-visible:outline-none ${className}`}
+      className={`h-9 w-full rounded-md bg-card px-3 text-[13.5px] text-ink shadow-input outline-none transition-shadow duration-[150ms] placeholder:text-faint focus-visible:outline-none ${className}`}
     />
   );
 }
@@ -523,7 +523,7 @@ export function NumberField({ value, onChange, min = 0, max = 9999, label, disab
   const clamp = (n: number) => Math.min(max, Math.max(min, Math.round(n)));
   const [text, setText] = useState<string | null>(null);
   return (
-    <div role="group" aria-label={label} className={`flex h-9 items-center overflow-hidden rounded-md bg-card shadow-input focus-within:shadow-focus ${disabled ? "opacity-60" : ""} ${className}`}>
+    <div role="group" aria-label={label} className={`flex h-9 items-center overflow-hidden rounded-md bg-card shadow-input ${disabled ? "opacity-60" : ""} ${className}`}>
       <button type="button" aria-label={`Less ${label.toLowerCase()}`} disabled={disabled || value <= min} onClick={() => onChange(clamp(value - 1))} className="flex h-full w-8 shrink-0 items-center justify-center text-muted hover:bg-hover hover:text-ink disabled:opacity-40">
         <Minus size={13} />
       </button>

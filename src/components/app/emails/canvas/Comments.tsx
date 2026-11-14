@@ -61,7 +61,7 @@ function CommentBox({ placeholder, submit, onSubmit, onCancel }: { placeholder: 
         rows={2}
         aria-label={placeholder}
         placeholder={placeholder}
-        className="min-h-[56px] w-full resize-none rounded-lg bg-card px-2.5 py-2 text-[13px] text-ink shadow-input outline-none placeholder:text-faint focus:shadow-focus"
+        className="min-h-[56px] w-full resize-none rounded-lg bg-card px-2.5 py-2 text-[13px] text-ink shadow-input outline-none placeholder:text-faint"
       />
       <div className="flex flex-wrap justify-end gap-1.5">
         {onCancel ? (

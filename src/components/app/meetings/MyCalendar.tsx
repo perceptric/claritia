@@ -325,7 +325,7 @@ function ProfilePanel({ session, ws, email, saved, onSaved }: { session: ViewPro
             <Input value={draft.photo_url ?? ""} maxLength={1000} placeholder="https://" onChange={(e) => setDraft({ ...draft, photo_url: e.target.value })} />
           </Labeled>
           <Labeled label="Link">
-            <span className="flex h-10 min-w-0 items-center rounded-md bg-card shadow-input focus-within:shadow-focus">
+            <span className="flex h-10 min-w-0 items-center rounded-md bg-card shadow-input">
               <span className="max-w-[50%] shrink-0 truncate pl-3 font-mono text-[12px] text-faint">/book/{wsSlug.data ?? "…"}/</span>
               <input
                 aria-label="Link"

@@ -94,7 +94,7 @@ export function ImportSheet({ session, ws, list, onClose, onDone }: { session: S
     >
       <div className="flex flex-col gap-4 p-5">
         {mode === "paste" ? (
-          <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder={"ana@example.com, Ana, Diaz\nben@example.com, Ben"} aria-label="People, one a line" rows={12} className="w-full rounded-lg bg-card p-3 font-mono text-[12.5px] text-ink shadow-input outline-none focus:shadow-focus" />
+          <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder={"ana@example.com, Ana, Diaz\nben@example.com, Ben"} aria-label="People, one a line" rows={12} className="w-full rounded-lg bg-card p-3 font-mono text-[12.5px] text-ink shadow-input outline-none" />
         ) : !file ? (
           <>
             <button

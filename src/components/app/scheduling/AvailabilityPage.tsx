@@ -262,9 +262,9 @@ function WeekColumn({
   const setDay = (d: Day, ranges: Range[]) => setDraft((a) => ({ ...a, weekly: { ...a.weekly, [d]: ranges } }));
   const [mode, setModeRaw] = useState<"paint" | "times">(() => {
     try {
-      return localStorage.getItem("claritia:hours-mode") === "times" ? "times" : "paint";
+      return localStorage.getItem("claritia:hours-mode") === "paint" ? "paint" : "times";
     } catch {
-      return "paint";
+      return "times";
     }
   });
   const setMode = (m: "paint" | "times") => {
@@ -293,8 +293,8 @@ function WeekColumn({
           label="Edit hours"
           value={mode}
           options={[
-            { value: "paint", label: "Paint" },
             { value: "times", label: "Exact times" },
+            { value: "paint", label: "Time Grid" },
           ]}
           onChange={setMode}
         />

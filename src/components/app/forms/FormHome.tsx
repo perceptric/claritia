@@ -232,7 +232,7 @@ export function FormHome(props: ViewProps & { folder?: string }) {
   ) : (
     <div className="min-h-0 flex-1 overflow-y-auto px-[16px] pt-[16px] pb-[24px] sm:px-[clamp(16px,2.5vw,28px)]">
       <div className="mb-[14px] flex flex-wrap items-center gap-[10px]">
-        <label className="flex h-[32px] w-[260px] max-w-full items-center gap-[8px] rounded-sm border border-line bg-card px-[10px] text-muted focus-within:shadow-focus">
+        <label className="flex h-[32px] w-[260px] max-w-full items-center gap-[8px] rounded-sm border border-line bg-card px-[10px] text-muted">
           <Ic n="search" />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search forms" aria-label="Search forms" className="min-w-0 flex-1 bg-transparent text-[13px] text-ink outline-none placeholder:text-muted" />
         </label>

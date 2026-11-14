@@ -382,7 +382,7 @@ function ChildPanel({ session, ws, r, d, who, onDone, onCancel }: Pick<ViewProps
                     setFix({ ...fix, [f.key]: e.target.value });
                     setStale(true);
                   }}
-                  className="h-[30px] w-full rounded-md bg-card shadow-input px-2.5 font-normal text-ink outline-none placeholder:text-faint focus:shadow-focus"
+                  className="h-[30px] w-full rounded-md bg-card shadow-input px-2.5 font-normal text-ink outline-none placeholder:text-faint"
                 />
               </label>
             );
@@ -498,7 +498,7 @@ function AssignPanel({ session, ws, r, d, who, review, onDone, onCancel }: Pick<
         </Line>
       ) : null}
       <div className="border-t border-line px-4 py-2.5">
-        <input aria-label="Reason" placeholder="Reason" value={reason} onChange={(e) => setReason(e.target.value.slice(0, 300))} className="h-[30px] w-full rounded-md bg-card shadow-input px-2.5 text-ink outline-none placeholder:text-faint focus:shadow-focus" />
+        <input aria-label="Reason" placeholder="Reason" value={reason} onChange={(e) => setReason(e.target.value.slice(0, 300))} className="h-[30px] w-full rounded-md bg-card shadow-input px-2.5 text-ink outline-none placeholder:text-faint" />
       </div>
       {error ? (
         <div className="border-t border-line px-4 py-2.5">
