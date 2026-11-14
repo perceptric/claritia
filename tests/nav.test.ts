@@ -23,7 +23,7 @@ test("the sidebar is Forms, Meetings and Email (Workflows, Audiences, Templates,
     ["main", "settings"],
   );
   const by = (g: string) => NAV.filter((n) => n.group === g).map((n) => n.label);
-  assert.deepEqual(NAV.map((n) => n.label), ["Forms", "Meeting types", "Upcoming", "Availability", "Booking page", "Links and polls", "Meeting settings", "Workflows", "Audiences", "Templates", "Brand", "Settings"]);
+  assert.deepEqual(NAV.map((n) => n.label), ["Forms", "Meeting types", "Upcoming", "Availability", "Booking page", "Links and polls", "Workflows", "Audiences", "Templates", "Brand", "Settings"]);
   assert.deepEqual(NAV.filter((n) => n.section === "meetings").map((n) => n.page), SCHEDULING_TABS.map((t) => t.value), "every Meetings page is an item");
   assert.deepEqual(NAV.filter((n) => n.section === "emails").map((n) => n.page || "campaigns"), EMAILS_TABS.map((t) => t.value), "every Emails page is an item");
   assert.deepEqual(EMAILS_TABS.map((t) => t.label), ["Workflows", "Audiences", "Templates", "Brand"]);
@@ -35,7 +35,7 @@ test("the sidebar is Forms, Meetings and Email (Workflows, Audiences, Templates,
   assert.equal(new Set(NAV.map((n) => `${n.route}/${n.page}`)).size, NAV.length, "one item per page");
   assert.equal(new Set(NAV.map((n) => n.key)).size, NAV.length, "keys are unique");
   assert.deepEqual(ROUTING_TABS.map((t) => t.label), ["Policies", "Teams", "Activity"]);
-  assert.deepEqual(SCHEDULING_TABS.map((t) => t.label), ["Meeting types", "Upcoming", "Availability", "Booking page", "Links and polls", "Settings"]);
+  assert.deepEqual(SCHEDULING_TABS.map((t) => t.label), ["Meeting types", "Upcoming", "Availability", "Booking page", "Links and polls"]);
   assert.equal(NAV.find((n) => n.route === "scheduling")?.page, "types", "Meetings starts at Meeting types, at its old address");
 });
 
@@ -79,7 +79,7 @@ test("old addresses open their new home", () => {
   assert.deepEqual(resolveRoute("meetings", `types/${id}`), { route: "scheduling", id: `types/${id}` });
   assert.deepEqual(resolveRoute("settings", "calendar"), { route: "scheduling", id: "availability/calendars" });
   assert.deepEqual(resolveRoute("settings", "calendars"), { route: "scheduling", id: "availability/team" });
-  assert.deepEqual(resolveRoute("settings", "payments"), { route: "scheduling", id: "settings/payments" });
+  assert.deepEqual(resolveRoute("settings", "payments"), { route: "settings", id: "sources" }, "Stripe is a card in Integrations");
   assert.deepEqual(resolveRoute("settings", "lead_scoring"), { route: "settings", id: "lead_scoring" }, "Settings opens Integrations for it");
   assert.deepEqual(resolveRoute("settings", "team"), { route: "settings", id: "team" });
 });
@@ -179,15 +179,13 @@ test("scheduling tabs", () => {
   assert.deepEqual(schedulingPage("types/new/all"), { page: "types", sub: "new", id: "types/new" });
   for (const p of ["booking", "links", "upcoming"]) assert.equal(schedulingPage(p).page, p);
   assert.ok(SCHEDULING_TABS.every((t) => t.icon), "every tab has its icon");
-  // Payments and Webhooks moved into Settings; their old addresses open there. Reminders are a workflow now.
-  assert.deepEqual(schedulingPage("settings"), { page: "settings", sub: "payments", id: "settings" });
-  assert.deepEqual(schedulingPage("settings/nope"), { page: "settings", sub: "payments", id: "settings" });
+  // Meeting settings is gone: Stripe is in Settings › Integrations, webhooks in Settings › Webhooks. Reminders are a workflow.
+  assert.equal(SCHEDULING_TABS.some((t) => (t.value as string) === "settings"), false);
+  assert.equal(schedulingPage("settings").page, "types");
   assert.deepEqual(resolveRoute("scheduling", "settings/reminders"), { route: "emails", id: "automations" });
   assert.deepEqual(resolveRoute("scheduling", "reminders"), { route: "emails", id: "automations" });
-  for (const p of ["payments", "webhooks"]) {
-    assert.deepEqual(schedulingPage(p), { page: "settings", sub: p, id: `settings/${p}` });
-    assert.deepEqual(schedulingPage(`settings/${p}`), { page: "settings", sub: p, id: `settings/${p}` });
-  }
+  for (const old of ["settings", "settings/payments", "payments"]) assert.deepEqual(resolveRoute("scheduling", old), { route: "settings", id: "sources" }, old);
+  for (const old of ["settings/webhooks", "webhooks"]) assert.deepEqual(resolveRoute("scheduling", old), { route: "settings", id: "webhooks" }, old);
   for (const gone of ["forms", "ai", "notetaker"]) assert.equal(schedulingPage(gone).page, "types");
 });
 
@@ -196,7 +194,6 @@ test("every page lights its one sidebar item", () => {
   assert.equal(activeItem("scheduling", "")?.label, "Meeting types");
   assert.equal(activeItem("scheduling", "types/11111111-1111-4111-8111-111111111111/all")?.label, "Meeting types");
   assert.equal(activeItem("scheduling", "availability/team")?.label, "Availability");
-  assert.equal(activeItem("scheduling", "settings/webhooks")?.label, "Meeting settings");
   assert.equal(activeItem("scheduling", "links")?.label, "Links and polls");
   assert.equal(activeItem("emails", "")?.label, "Workflows", "the old Emails address opens Workflows");
   assert.equal(activeItem("emails", "campaigns/group/11111111-1111-4111-8111-111111111111")?.label, "Workflows", "an email on the canvas belongs to Workflows");

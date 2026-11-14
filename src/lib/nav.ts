@@ -40,7 +40,6 @@ export const NAV: NavItem[] = [
   pageItem("meetings", "scheduling", "availability", "Availability"),
   pageItem("meetings", "scheduling", "booking", "Booking page"),
   pageItem("meetings", "scheduling", "links", "Links and polls"),
-  pageItem("meetings", "scheduling", "settings", "Meeting settings"),
   pageItem("emails", "emails", "automations", "Workflows"),
   pageItem("emails", "emails", "audiences", "Audiences"),
   pageItem("emails", "emails", "templates", "Templates"),
@@ -133,17 +132,16 @@ export function teamsPage(sub: string): { page: "list" | "team" | "availability"
   return { page: "availability", sub: tab };
 }
 
-export type SchedulingPageKey = "types" | "upcoming" | "availability" | "booking" | "links" | "settings";
+export type SchedulingPageKey = "types" | "upcoming" | "availability" | "booking" | "links";
 export type AvailabilityTab = "schedules" | "calendars" | "team" | "days-off";
 /** The icon beside each Meetings tab (the screen draws it, from src/components/Icons.tsx). */
-export type SchedulingTabIcon = "grid" | "monitor" | "calendar" | "link" | "gear";
+export type SchedulingTabIcon = "grid" | "monitor" | "calendar" | "link";
 export const SCHEDULING_TABS: (Tab<SchedulingPageKey> & { icon: SchedulingTabIcon })[] = [
   { value: "types", label: "Meeting types", icon: "grid" },
   { value: "upcoming", label: "Upcoming", icon: "calendar" },
   { value: "availability", label: "Availability", icon: "calendar" },
   { value: "booking", label: "Booking page", icon: "monitor" },
   { value: "links", label: "Links and polls", icon: "link" },
-  { value: "settings", label: "Settings", icon: "gear" },
 ];
 
 export type EmailsPageKey = "campaigns" | "automations" | "audiences" | "templates" | "brand";
@@ -175,22 +173,14 @@ export function emailsPage(id: string): { page: EmailsPageKey; id: string; open?
   return { page: "automations", id: "automations" };
 }
 
-/** Meetings › Settings: the things set once, listed on the left. */
-/** Meetings › Settings. Reminders moved to Workflows (docs/workflows.md); their old addresses open there. */
-export type CalendarSettingsKey = "payments" | "webhooks";
-export const CALENDAR_SETTINGS: Tab<CalendarSettingsKey>[] = [
-  { value: "payments", label: "Payments" },
-  { value: "webhooks", label: "Webhooks" },
-];
-const SETTINGS_KEYS = new Set<string>(CALENDAR_SETTINGS.map((t) => t.value));
 
 /**
  * Meetings' tabs (route "scheduling", once Calendar): Meetings with one type open in the panel ("types/<id>" or
  * "types/new") or in the full editor ("types/<id>/all"), Upcoming (the meetings on the calendar, once CRM ›
  * Meetings), Availability (everyone's hours, calendars and who's away, read by forms and booking pages alike:
- * "availability", "availability/team"...), Booking page, Links and polls, and Settings with Reminders, Payments and
- * Webhooks ("settings/payments"). The old Reminders, Payments and Webhooks tabs open inside Settings; Routing ›
- * Teams' old availability addresses open here (see resolveRoute).
+ * "availability", "availability/team"...), Booking page, and Links and polls. Meeting settings is gone: its old
+ * addresses open Settings › Integrations (Stripe) and Settings › Webhooks (see resolveRoute); Routing › Teams' old
+ * availability addresses open here.
  * Anything else opens Meetings.
  */
 export function schedulingPage(id: string): { page: SchedulingPageKey; sub: string; id: string } {
@@ -203,8 +193,6 @@ export function schedulingPage(id: string): { page: SchedulingPageKey; sub: stri
     const tab = (["calendars", "team", "days-off"] as string[]).includes(b) ? b : "";
     return { page: "availability", sub: tab, id: tab ? `availability/${tab}` : "availability" };
   }
-  if (a === "settings") return SETTINGS_KEYS.has(b) ? { page: "settings", sub: b, id: `settings/${b}` } : { page: "settings", sub: "payments", id: "settings" };
-  if (SETTINGS_KEYS.has(a)) return { page: "settings", sub: a, id: `settings/${a}` };
   if (a === "booking" || a === "links" || a === "upcoming") return { page: a, sub: "", id: a };
   return { page: "types", sub: "", id: "types" };
 }
@@ -236,7 +224,7 @@ const REPORTS: Record<string, { route: Route; id: string }> = {
 const SETTINGS_MOVED: Record<string, { route: Route; id: string }> = {
   calendar: { route: "scheduling", id: "availability/calendars" },
   calendars: { route: "scheduling", id: "availability/team" },
-  payments: { route: "scheduling", id: "settings/payments" },
+  payments: { route: "settings", id: "sources" },
 };
 
 /**
@@ -262,6 +250,9 @@ export function resolveRoute(first: string, id: string): { route: Route; id: str
   if (first === "settings" && SETTINGS_MOVED[a]) return SETTINGS_MOVED[a];
   // Meeting reminders are a workflow now.
   if (first === "scheduling" && (a === "reminders" || (a === "settings" && rest[0] === "reminders"))) return { route: "emails", id: "automations" };
+  // Meeting settings is gone: Stripe is a card in Settings › Integrations, webhooks are Settings › Webhooks.
+  if (first === "scheduling" && (a === "webhooks" || (a === "settings" && rest[0] === "webhooks"))) return { route: "settings", id: "webhooks" };
+  if (first === "scheduling" && (a === "settings" || a === "payments")) return { route: "settings", id: "sources" };
   if (first === "reports") return REPORTS[a] ?? REPORTS[""]!;
   // Workflows live in Emails › Automations: folders of workflows, one open beside them (/emails/automations/<id>);
   // /emails/automations/new picks a template. Old /workflows addresses, and links made with the "workflows" route,

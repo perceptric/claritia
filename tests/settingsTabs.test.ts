@@ -20,6 +20,8 @@ test("old and unknown settings addresses land on a real page", () => {
   assert.equal(settingsTab("team"), "team");
   assert.equal(settingsTab("suite"), "sources");
   assert.equal(settingsTab("domains"), "sending");
+  assert.equal(settingsTab("webhooks"), "webhooks", "meeting webhooks moved here from Meeting settings");
+  assert.equal(settingsTab("payments"), "sources", "Stripe is a card in Integrations");
   assert.equal(settingsTab("github"), "sources");
   assert.equal(settingsTab(""), "sources");
 });

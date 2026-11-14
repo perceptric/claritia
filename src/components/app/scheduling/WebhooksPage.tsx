@@ -8,8 +8,7 @@ import { EVENT_LABEL, type WebhookEvent } from "@/lib/meetings/webhookEvents";
 import { ChevronRight, Plug, Plus } from "../../Icons";
 import { askConfirm } from "../Dialogs";
 import { MoreMenu } from "../StatCards";
-import { ToolIntro } from "../ToolIntro";
-import { Badge, Button, Empty, ErrorNote, errorText, Input, Loading, Page, Toggle, type Tone, useQuery, type ViewProps } from "../ui";
+import { Badge, Button, Empty, ErrorNote, errorText, Input, Loading, Toggle, type Tone, useQuery, type ViewProps } from "../ui";
 import { CopyButton, meetingsApi, Modal } from "../meetings/parts";
 
 type Endpoint = {
@@ -59,7 +58,17 @@ function state(e: Endpoint): { label: string; tone: Tone } {
   return { label: "Active", tone: "green" };
 }
 
-export function WebhooksPage({ session, ws }: ViewProps) {
+/** Settings › Webhooks: the page sits inside Settings, so it draws no header of its own and no drawing. */
+function Shell({ actions, children }: { title?: string; actions?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="flex w-full min-w-0 flex-col gap-4">
+      {actions ? <div className="flex flex-wrap justify-end gap-2">{actions}</div> : null}
+      {children}
+    </div>
+  );
+}
+
+export function WebhooksPage({ session, ws }: Pick<ViewProps, "session" | "ws">) {
   const api = <T,>(action: string, body: object = {}) => meetingsApi<T>(session, ws.id, "webhooks", { action, ...body });
   const data = useQuery(`meeting_webhooks:${ws.id}`, () => api<List>("list"));
   const [editing, setEditing] = useState<Endpoint | "new" | null>(null);
@@ -111,34 +120,31 @@ export function WebhooksPage({ session, ws }: ViewProps) {
 
   if (!d)
     return (
-      <Page title="Webhooks">
+      <Shell title="Webhooks">
         <ErrorNote message={data.error} />
         {data.error ? null : <Loading />}
-      </Page>
+      </Shell>
     );
   if (!d.owner)
     return (
-      <Page title="Webhooks">
+      <Shell title="Webhooks">
         <Empty icon={<Plug size={18} />} title="No access">
           A workspace owner can set up webhooks.
         </Empty>
-      </Page>
+      </Shell>
     );
   if (!d.endpoints.length)
     return (
-      <Page title="Webhooks" actions={add}>
+      <Shell title="Webhooks" actions={add}>
         {dialogs}
-        <ToolIntro
-          sketch="signpost"
-          title={"Send each meeting\nto your other tools"}
-          lead="Claritia posts to your address when a meeting is booked, rescheduled, canceled, held or missed. Each post is signed, and failed posts are tried again."
-          action={add}
-        />
-      </Page>
+        <Empty icon={<Plug size={18} />} title="No webhooks yet">
+          Claritia posts to your address when a meeting is booked, moved, canceled, held or missed.
+        </Empty>
+      </Shell>
     );
 
   return (
-    <Page title="Webhooks" actions={d.endpoints.length < 10 ? add : undefined}>
+    <Shell title="Webhooks" actions={d.endpoints.length < 10 ? add : undefined}>
       {dialogs}
       <div className="flex w-full max-w-[720px] flex-col gap-3">
         <ErrorNote message={error} />
@@ -245,7 +251,7 @@ export function WebhooksPage({ session, ws }: ViewProps) {
           );
         })}
       </div>
-    </Page>
+    </Shell>
   );
 }
 

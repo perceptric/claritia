@@ -1,11 +1,12 @@
 "use client";
 
-// Payments (Settings → Workspace → Payments; docs/meetings-scheduler.md 1.8b): the workspace's own Stripe account for
-// paid meeting types, connected through Stripe's page. Guests pay the team directly; Claritia never holds the money.
+// Stripe (Settings › Integrations; docs/meetings-scheduler.md 1.8b): the workspace's own Stripe account for paid
+// meeting types, connected through Stripe's page. Guests pay the team directly; Claritia never holds the money.
+// Drawn as one card in the Integrations grid, like the other tools.
 
 import { useEffect, useState } from "react";
 import { BrandLogo } from "../BrandLogo";
-import { Badge, Button, CardHead, ErrorNote, errorText, Loading, must, Panel, postJson, useLoad, type Role, type ViewProps } from "../ui";
+import { Badge, Button, ErrorNote, errorText, must, postJson, useLoad, type Role, type ViewProps } from "../ui";
 
 type Account = { stripe_account: string; ready: boolean };
 
@@ -38,43 +39,33 @@ export function Payments({ sb, session, ws, role }: Pick<ViewProps, "sb" | "sess
   };
 
   const a = acct.data?.a;
+  const owner = role === "owner";
   return (
-    <Panel className="overflow-hidden">
-      <CardHead label="Payments" />
-      <div className="flex flex-col gap-4 p-5">
-        <ErrorNote message={acct.error || error} />
-        {!acct.data ? (
-          acct.error ? null : <Loading />
-        ) : !a ? (
-          <div className="flex items-center gap-3">
-            <BrandLogo domain="stripe.com" name="Stripe" size={28} />
-            <span className="min-w-0 flex-1 text-[13.5px] font-medium">Stripe</span>
-            {role === "owner" ? (
-              <Button onClick={connect} disabled={busy}>
-                {busy ? "Opening Stripe…" : "Connect Stripe"}
-              </Button>
-            ) : (
-              <Badge>Not connected</Badge>
-            )}
-          </div>
-        ) : (
-          <div className="flex items-center gap-3">
-            <BrandLogo domain="stripe.com" name="Stripe" size={28} />
-            <span className="flex min-w-0 flex-1 flex-col">
-              <span className="text-[13.5px] font-medium">Stripe</span>
-              <span className="font-mono text-[12px] text-muted">{a.stripe_account}</span>
-            </span>
-            <Badge tone={a.ready ? "green" : "amber"} dot>
-              {a.ready ? "Taking payments" : "Finish on Stripe"}
-            </Badge>
-            {role === "owner" && !a.ready ? (
-              <Button variant="ghost" size="sm" onClick={connect} disabled={busy}>
-                {busy ? "Opening Stripe…" : "Continue on Stripe"}
-              </Button>
-            ) : null}
-          </div>
-        )}
+    <div className="flex min-w-0 flex-col gap-3 rounded-lg bg-card shadow-rest px-4 py-3.5 text-[13px]">
+      <div className="flex min-w-0 items-center gap-3">
+        <BrandLogo domain="stripe.com" name="Stripe" size={24} />
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="font-medium">Stripe</span>
+          {a ? <span className="truncate font-mono text-[11px] text-faint">{a.stripe_account}</span> : null}
+        </span>
+        {!acct.data ? null : a ? (
+          <Badge tone={a.ready ? "green" : "amber"} dot>
+            {a.ready ? "Connected" : "Finish on Stripe"}
+          </Badge>
+        ) : owner ? (
+          <Button variant="ghost" size="sm" onClick={connect} disabled={busy}>
+            {busy ? "Opening Stripe…" : "Connect"}
+          </Button>
+        ) : null}
       </div>
-    </Panel>
+      {a && !a.ready && owner ? (
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={connect} disabled={busy}>
+            {busy ? "Opening Stripe…" : "Continue on Stripe"}
+          </Button>
+        </div>
+      ) : null}
+      <ErrorNote message={acct.error || error} />
+    </div>
   );
 }

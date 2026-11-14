@@ -14,6 +14,7 @@ import { MyCalendar } from "../meetings/MyCalendar";
 import { Payments } from "../meetings/Payments";
 import { TeamCalendars } from "../meetings/TeamCalendars";
 import { SourcesSettings } from "./SourcesSettings";
+import { WebhooksPage } from "../scheduling/WebhooksPage";
 import { Avatar, Badge, Button, CardHead, ErrorNote, errorText, Loading, must, Page, Panel, postJson, timeAgo, useQuery, type ViewProps } from "../ui";
 import { CopyButton } from "../CopyButton";
 import { ToolIntro } from "../ToolIntro";
@@ -158,6 +159,7 @@ export function SettingsView({ sb, session, ws, role, id, onWorkspace }: ViewPro
 
   const pages: Record<SettingsTab, React.ReactNode> = {
     sources: <SourcesSettings sb={sb} session={session} ws={ws} role={role} />,
+    webhooks: <WebhooksPage session={session} ws={ws} />,
     sending: <SendingSettings sb={sb} session={session} ws={ws} role={role} />,
     sender: <SendingSettings sb={sb} session={session} ws={ws} role={role} part="sender" />,
     team: <TeamPanel sb={sb} ws={ws} role={role} session={session} />,

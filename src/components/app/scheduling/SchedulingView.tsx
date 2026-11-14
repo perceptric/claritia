@@ -3,7 +3,7 @@
 // Inbound › Meetings (route "scheduling", once Calendar): Meetings (what people can book, one card each; a card opens
 // its panel, or the full editor at types/<id>/all), Upcoming (every meeting on the calendar, once CRM › Meetings),
 // Availability (everyone's hours, calendars and who's away, which forms and booking pages both read), Booking page,
-// Links and polls, and Settings (Payments and Webhooks). Get set up (then Connect your calendar) is one slim line
+// and Links and polls (Stripe and webhooks live in Settings). Get set up (then Connect your calendar) is one slim line
 // under the tabs until it's done.
 
 import { NAV, schedulingPage } from "@/lib/nav";
@@ -15,7 +15,6 @@ import { BookingPage } from "./BookingPage";
 import { SetupLine } from "./Setup";
 import { MailLine } from "../meetings/MailHealth";
 import { LinksPage } from "./LinksPage";
-import { SettingsPage } from "./SettingsPage";
 import { TypesPage } from "./TypesPage";
 
 export function SchedulingView(props: ViewProps) {
@@ -44,7 +43,5 @@ function body(props: ViewProps, p: ReturnType<typeof schedulingPage>) {
       return <BookingPage {...props} />;
     case "links":
       return <LinksPage {...props} />;
-    case "settings":
-      return <SettingsPage {...props} sub={p.sub} />;
   }
 }
