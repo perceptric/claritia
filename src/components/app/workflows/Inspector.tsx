@@ -196,7 +196,9 @@ export function TriggerPanel({ body, names, onChange, readOnly, problems = [] }:
       {t.kind === "meeting" ? (
         <>
           <Group name="Status">
-            <Pills
+            <Select
+              value=""
+              many={{ values: t.events, onChange: (events) => set({ events: events as typeof t.events }), allLabel: "Any status" }}
               options={[
                 { value: "booked", label: "Booked" },
                 { value: "rescheduled", label: "Moved" },
@@ -204,8 +206,10 @@ export function TriggerPanel({ body, names, onChange, readOnly, problems = [] }:
                 { value: "held", label: "Held" },
                 { value: "no_show", label: "No-show" },
               ]}
-              value={t.events}
-              onChange={(events) => set({ events: events as typeof t.events })}
+              onChange={() => {}}
+              placeholder="Pick a status"
+              ariaLabel="Status"
+              className="h-9 w-full rounded-md bg-card px-3 text-[13px] text-ink shadow-input"
               disabled={readOnly}
             />
           </Group>
