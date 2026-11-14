@@ -93,7 +93,7 @@ export function ensureConnectWebhook(stripe: Stripe) {
 
 /**
  * Where an owner goes to connect (or finish connecting) the workspace's Stripe account. The account is made the
- * first time; Stripe sends them back to Settings → Payments.
+ * first time; Stripe sends them back to Settings › Integrations.
  */
 export async function connectLink(rpc: Rpc, stripe: Stripe, ws: string, existing: string | null): Promise<string> {
   await ensureConnectWebhook(stripe).catch(() => {});
@@ -104,7 +104,7 @@ export async function connectLink(rpc: Rpc, stripe: Stripe, ws: string, existing
     const { error } = await rpc("payment_account_set", { p_ws: ws, p_account: account, p_ready: !!a.charges_enabled });
     if (error) throw new Error(error.message);
   }
-  const back = `${appBase()}/scheduling/payments`;
+  const back = `${appBase()}/settings/sources`;
   const link = await stripe.accountLinks.create({ account, type: "account_onboarding", refresh_url: `${back}?stripe=retry`, return_url: `${back}?stripe=done` });
   return link.url;
 }

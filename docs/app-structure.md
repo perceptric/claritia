@@ -100,7 +100,8 @@ through `MOVED` in `src/lib/nav.ts`.
 | Links and polls | `/scheduling/links` | — |
 | Booking forms | `/scheduling/forms` | — |
 | Reminders | `/scheduling/reminders` | — |
-| Payments | `/scheduling/payments` | `/settings/payments` |
+| Payments (Stripe) | `/settings/sources` (a card in Integrations) | `/settings/payments`, `/scheduling/payments`, `/scheduling/settings` |
+| Meeting webhooks | `/settings/webhooks` | `/scheduling/webhooks`, `/scheduling/settings/webhooks` |
 
 The calendar sign-in callback (`/api/calendar/callback`) sends people back to `/scheduling/availability`; Stripe's
 return goes to `/scheduling/payments`.

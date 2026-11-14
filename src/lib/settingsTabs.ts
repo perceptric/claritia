@@ -1,13 +1,20 @@
-// Settings pages, grouped the way the Settings sidebar shows them (same layout as Arrowsterr). Calendar, Calendars and
-// Payments live in Meetings (src/lib/nav.ts forwards them). The CRM's pages (imports, sync log, data model), Visitors'
+// Settings pages, grouped the way the Settings sidebar shows them (same layout as Arrowsterr). Calendar and Calendars
+// live in Meetings › Availability (src/lib/nav.ts forwards them); Stripe is a card in Integrations, and meeting
+// webhooks are Settings › Webhooks (Meeting settings is gone). The CRM's pages (imports, sync log, data model), Visitors'
 // (sites, identity, account alerts) and Scoring's are gone; their old addresses open Integrations.
 
-export type SettingsTab = "sources" | "sending" | "sender" | "team" | "calendars" | "workspace" | "payments" | "keys" | "profile" | "calendar" | "brand" | "link_domain" | "billing";
+export type SettingsTab = "sources" | "webhooks" | "sending" | "sender" | "team" | "calendars" | "workspace" | "payments" | "keys" | "profile" | "calendar" | "brand" | "link_domain" | "billing";
 /** `line` sits under the page title: one short line, like Twenty. */
 export type SettingsGroup = { label: string; tabs: { id: SettingsTab; label: string; line: string }[] };
 
 export const SETTINGS_GROUPS: SettingsGroup[] = [
-  { label: "Integrations", tabs: [{ id: "sources", label: "Integrations", line: "The tools your forms send leads to" }] },
+  {
+    label: "Integrations",
+    tabs: [
+      { id: "sources", label: "Integrations", line: "The tools your forms and meetings connect to" },
+      { id: "webhooks", label: "Webhooks", line: "Send each meeting to your own address" },
+    ],
+  },
   {
     label: "Email",
     tabs: [
@@ -31,7 +38,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
 
 /** The page for an address: old names land on their new pages, unknown ones on the first. */
 export function settingsTab(id: string): SettingsTab {
-  const moved: Record<string, SettingsTab> = { suite: "sources", tools: "sources", domains: "sending" };
+  const moved: Record<string, SettingsTab> = { suite: "sources", tools: "sources", domains: "sending", payments: "sources" };
   const all = SETTINGS_GROUPS.flatMap((g) => g.tabs.map((t) => t.id));
   return (all as string[]).includes(id) ? (id as SettingsTab) : (moved[id] ?? "sources");
 }

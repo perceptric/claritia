@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 const read = (f: string) => readFileSync(new URL(`../src/components/app/${f}`, import.meta.url), "utf8");
-const TABS = ["meetings/Calendar.tsx", "scheduling/LinksPage.tsx", "scheduling/TypesPage.tsx", "scheduling/AvailabilityPage.tsx", "scheduling/BookingPage.tsx", "scheduling/SettingsPage.tsx", "scheduling/WebhooksPage.tsx"];
+const TABS = ["meetings/Calendar.tsx", "scheduling/LinksPage.tsx", "scheduling/TypesPage.tsx", "scheduling/AvailabilityPage.tsx", "scheduling/BookingPage.tsx", "scheduling/WebhooksPage.tsx"];
 
 test("no Meetings tab centers its own narrower column", () => {
   for (const f of TABS) assert.ok(!/mx-auto[^"`]*max-w-|max-w-[^"`]*mx-auto/.test(read(f)), `${f} centers a column`);

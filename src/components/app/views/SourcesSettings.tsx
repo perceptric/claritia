@@ -2,7 +2,8 @@
 
 // Settings › Integrations: the tools a form sends its leads to (Form › Sync and Form Studio's Send to), and the form
 // and meeting tools whose webhooks come in (fills from Typeform, Tally and Webflow; bookings from Calendly and Cal.com,
-// linked to the fill they followed). Connected in one click where the tool allows it, and disconnected here.
+// linked to the fill they followed), and Stripe for paid meeting types. Connected in one click where the tool allows
+// it, and disconnected here.
 // Zapier and Make connect from their own side (src/lib/oauth/apps.ts); signing in there makes an API key
 // with the app's name, and Disconnect here revokes it, which also removes the app's hooks.
 
@@ -15,6 +16,7 @@ import { BrandLogo } from "../BrandLogo";
 import { askConfirm } from "../Dialogs";
 import { Badge, Button, ErrorNote, errorText, Field, Input, must, postJson, useLoad, type ViewProps } from "../ui";
 import { Sheet } from "../Sheet";
+import { Payments } from "../meetings/Payments";
 
 type Source = { id: string; kind: string; name: string; account: string | null; status: string };
 
@@ -77,6 +79,7 @@ export function SourcesSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
     <div className="flex flex-col gap-5">
       <ErrorNote message={error} />
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        <Payments sb={sb} session={session} ws={ws} role={role} />
         {SENDS.map((e) => {
           const on = connected.get(e.kind);
           return (
