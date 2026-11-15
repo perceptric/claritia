@@ -5,9 +5,10 @@
 // the account row. Folded to icons, a thin line stands in for each label. Items can show a count. The
 // open item is a white chip on a ring shadow with a green icon. Folds to icons between 768 and 1,280 px, and on wider
 // screens when the person folds it (kept on this computer) or while Form Studio is open (docs/studio-v2-plan.md,
-// Part 1: the Studio sends "claritia:studio"; leaving it puts the sidebar back the way it was).
+// Part 1: the Studio sends "claritia:studio"; leaving it puts the sidebar back the way it was). Folded, it opens
+// over the page while the pointer is on it and folds again when the pointer leaves.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { activeItem, NAV, SECTION_LABEL, type NavItem, type NavSection, type Route as NavRoute } from "@/lib/nav";
 import {
   Box,
@@ -89,6 +90,42 @@ function useRail(): [boolean, () => void] {
   return [rail, toggle];
 }
 
+/** True on screens 1,280 px and wider, where the sidebar can stay open. */
+function useWideScreen(): boolean {
+  const q = "(min-width: 1280px)";
+  const [on, setOn] = useState(() => typeof window !== "undefined" && window.matchMedia(q).matches);
+  useEffect(() => {
+    const m = window.matchMedia(q);
+    const change = () => setOn(m.matches);
+    change();
+    m.addEventListener("change", change);
+    return () => m.removeEventListener("change", change);
+  }, []);
+  return on;
+}
+
+/** Open while the pointer is on the folded sidebar, folded again when it leaves. A short wait on each side stops flicker. */
+function usePeek(): [boolean, { onPointerEnter: (e: React.PointerEvent) => void; onPointerLeave: (e: React.PointerEvent) => void; onFocus: () => void; onBlur: (e: React.FocusEvent) => void }] {
+  const [peek, setPeek] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const later = (v: boolean, ms: number) => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setPeek(v), ms);
+  };
+  useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
+  return [
+    peek,
+    {
+      onPointerEnter: (e) => e.pointerType !== "touch" && later(true, 80),
+      onPointerLeave: (e) => e.pointerType !== "touch" && later(false, 180),
+      onFocus: () => later(true, 0),
+      onBlur: (e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) later(false, 0);
+      },
+    },
+  ];
+}
+
 const SECTIONS_KEY = "claritia:nav-closed";
 
 /** Which of Meetings and Emails are folded on the wide sidebar (kept on this computer). */
@@ -141,20 +178,31 @@ export type SidebarProps = {
 
 export function Sidebar(p: SidebarProps) {
   const active = activeItem(p.route as NavRoute, p.id);
-  const [rail, toggleRail] = useRail();
+  const [railPref, toggleRail] = useRail();
   const [closed, toggleSection] = useSections();
-  // Wide-screen classes apply only when the sidebar isn't folded to icons.
-  const xl = (c: string) => (rail ? "" : c);
+  const wideScreen = useWideScreen();
+  const [peek, peekOn] = usePeek();
+  // Pinned open: a wide screen and not folded. Folded, it opens over the page while the pointer is on it.
+  const pinned = wideScreen && !railPref;
+  const wide = pinned || peek;
+  const rail = !wide;
+  // On phones the sidebar is a top row with labels; from 768 px it shows labels only when open.
+  const md = (c: string) => (wide ? "" : c);
 
   return (
-    <aside className={`flex shrink-0 flex-col gap-2.5 p-3 transition-[width] duration-200 md:h-full md:w-[68px] md:py-4 ${xl("xl:w-60")}`}>
+    // The holder keeps the folded width in the page, so the open sidebar sits over the page instead of pushing it.
+    <div className={`relative shrink-0 transition-[width] duration-200 md:h-full ${pinned ? "md:w-60" : "md:w-[68px]"}`}>
+    <aside
+      {...peekOn}
+      className={`flex flex-col gap-2.5 p-3 transition-[width] duration-200 md:absolute md:inset-y-0 md:left-0 md:z-40 md:py-4 ${wide ? "md:w-60" : "md:w-[68px]"} ${peek && !pinned ? "bg-paper-deep md:border-r md:border-line" : ""}`}
+    >
       {/* The mark and the name, never cut; the workspace on its own line, in full. Folded to icons: the mark alone. */}
-      <div className={`flex flex-col gap-1 px-2 md:items-center ${xl("xl:items-stretch")}`}>
-        <Logo nameClass={`md:hidden ${xl("xl:inline")}`} />
+      <div className={`flex flex-col gap-1 px-2 ${md("md:items-center")}`}>
+        <Logo nameClass={md("md:hidden")} />
         {p.wsName && (p.workspaces?.length ?? 0) > 1 && p.onPickWorkspace ? (
-          <WorkspaceSwitch name={p.wsName} current={p.wsId ?? ""} workspaces={p.workspaces!} onPick={p.onPickWorkspace} className={`md:hidden ${xl("xl:flex")}`} />
+          <WorkspaceSwitch name={p.wsName} current={p.wsId ?? ""} workspaces={p.workspaces!} onPick={p.onPickWorkspace} className={`flex ${md("md:hidden")}`} />
         ) : p.wsName ? (
-          <span className={`text-[12px] leading-snug text-faint [overflow-wrap:anywhere] md:hidden ${xl("xl:block")}`}>{p.wsName}</span>
+          <span className={`text-[12px] leading-snug text-faint [overflow-wrap:anywhere] ${md("md:hidden")}`}>{p.wsName}</span>
         ) : null}
       </div>
       <CreateButton items={p.create} rail={rail} />
@@ -162,11 +210,11 @@ export function Sidebar(p: SidebarProps) {
         type="button"
         onClick={p.onSearch}
         aria-label="Search"
-        className={`hidden h-8 items-center gap-2 rounded-md bg-card px-2.5 text-[13px] text-muted shadow-chip transition-[color,box-shadow] duration-[150ms] hover:text-ink hover:shadow-pill md:flex md:justify-center ${xl("xl:justify-start")}`}
+        className={`hidden h-8 items-center gap-2 rounded-md bg-card px-2.5 text-[13px] text-muted shadow-chip transition-[color,box-shadow] duration-[150ms] hover:text-ink hover:shadow-pill md:flex ${md("md:justify-center")}`}
       >
         <Search size={14} />
-        <span className={`flex-1 text-left md:hidden ${xl("xl:inline")}`}>Search</span>
-        <kbd className={`text-[12px] text-faint md:hidden ${xl("xl:inline")}`}>⌘K</kbd>
+        <span className={`flex-1 whitespace-nowrap text-left ${md("md:hidden")}`}>Search</span>
+        <kbd className={`text-[12px] text-faint ${md("md:hidden")}`}>⌘K</kbd>
       </button>
       <nav aria-label="Main" className="-mx-1 flex gap-1 overflow-x-auto px-1 md:mt-3 md:min-h-0 md:flex-1 md:flex-col md:gap-0.5 md:overflow-y-auto md:overflow-x-hidden">
         {NAV.filter((n) => !n.section || NAV.find((m) => m.section === n.section) === n).map((n) => {
@@ -178,7 +226,7 @@ export function Sidebar(p: SidebarProps) {
               // Settings sits at the bottom of the sidebar on wider screens; on phones it stays in the row.
               <span key={n.key} className={n.group === "settings" ? "contents md:hidden" : "contents"}>
                 {link(n)}
-                {p.under?.[n.key] && !rail ? <span className="hidden xl:contents">{p.under[n.key]}</span> : null}
+                {p.under?.[n.key] && wide ? <span className="hidden md:contents">{p.under[n.key]}</span> : null}
               </span>
             );
           const sec = n.section;
@@ -191,12 +239,11 @@ export function Sidebar(p: SidebarProps) {
                   <span aria-hidden="true" className="mx-2 my-2 h-px shrink-0 bg-line" />
                 ) : (
                   <>
-                    <span aria-hidden="true" className="mx-2 my-2 h-px shrink-0 bg-line xl:hidden" />
                     <button
                       type="button"
                       aria-expanded={!shut}
                       onClick={() => toggleSection(sec)}
-                      className="hidden h-8 shrink-0 items-center gap-2.5 rounded-md px-2 text-[13.5px] text-body transition-[background-color,color] duration-[150ms] hover:bg-hover hover:text-ink xl:flex"
+                      className="hidden h-8 shrink-0 items-center gap-2.5 rounded-md px-2 text-[13.5px] text-body transition-[background-color,color] duration-[150ms] hover:bg-hover hover:text-ink md:flex"
                     >
                       <span aria-hidden="true" className={`flex size-5 shrink-0 items-center justify-center ${shut && inside ? "text-signal" : "text-muted"}`}>
                         {sec === "meetings" ? <CalendarIcon size={14} /> : <Mail size={14} />}
@@ -209,44 +256,45 @@ export function Sidebar(p: SidebarProps) {
                   </>
                 )}
               </span>
-              <span className={rail ? "contents" : `contents xl:ml-[18px] xl:flex xl:flex-col xl:gap-[1px] xl:border-l xl:border-line xl:pl-[6px] ${shut ? "xl:hidden" : ""}`}>{items.map(link)}</span>
+              <span className={rail ? "contents" : `contents md:ml-[18px] md:flex md:flex-col md:gap-[1px] md:border-l md:border-line md:pl-[6px] ${shut ? "md:hidden" : ""}`}>{items.map(link)}</span>
             </span>
           );
         })}
       </nav>
-      {p.start}
+      {wide ? p.start : null}
       <div className="hidden flex-col gap-0.5 md:flex">
         {NAV.filter((n) => n.group === "settings").map((n) => (
           <NavLink key={n.key} n={n} on={active?.key === n.key} count={p.counts[n.key]} dot={!!p.dots?.[n.key]} navigate={p.navigate} preload={p.onPreload} rail={rail} />
         ))}
       </div>
-      <div className={`hidden items-center gap-1 px-1 pt-1 md:flex md:flex-col ${xl("xl:flex-row")}`}>
+      <div className={`hidden items-center gap-1 px-1 pt-1 md:flex ${md("md:flex-col")}`}>
         {/* The account as its avatar, the email on hover: nothing cut short. */}
         <span title={p.email} aria-label={p.email} role="img" className="inline-flex">
           <Avatar label={p.email} size={28} />
         </span>
-        <span className={`flex-1 md:hidden ${xl("xl:block")}`} />
+        <span className={`flex-1 ${md("md:hidden")}`} />
         <button type="button" aria-label={p.theme === "dark" ? "Light mode" : "Dark mode"} title={p.theme === "dark" ? "Light mode" : "Dark mode"} onClick={p.onTheme} className="press rounded-full p-2 text-muted hover:bg-hover hover:text-ink">
           {p.theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
         </button>
         <button type="button" aria-label="Sign out" title="Sign out" onClick={p.onSignOut} className="press rounded-full p-2 text-muted hover:bg-hover hover:text-ink">
           <LogOut size={15} />
         </button>
-        <button type="button" aria-label={rail ? "Expand the sidebar" : "Collapse the sidebar"} title={rail ? "Expand the sidebar" : "Collapse the sidebar"} aria-expanded={!rail} onClick={toggleRail} className="press hidden rounded-full p-2 text-muted hover:bg-hover hover:text-ink xl:block">
+        <button type="button" aria-label={pinned ? "Collapse the sidebar" : "Keep the sidebar open"} title={pinned ? "Collapse the sidebar" : "Keep the sidebar open"} aria-expanded={pinned} onClick={toggleRail} className={`press rounded-full p-2 text-muted hover:bg-hover hover:text-ink ${wideScreen && wide ? "block" : "hidden"}`}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <rect x="3" y="4" width="18" height="16" rx="2" />
             <path d="M9 4v16" />
-            <path d={rail ? "m13 10 2 2-2 2" : "m16 10-2 2 2 2"} />
+            <path d={pinned ? "m16 10-2 2 2 2" : "m13 10 2 2-2 2"} />
           </svg>
         </button>
       </div>
     </aside>
+    </div>
   );
 }
 
 function NavLink({ n, on, count, dot, navigate, icon, preload, rail }: { n: NavItem; on: boolean; count?: number; dot?: boolean; navigate: SidebarProps["navigate"]; icon?: React.ReactNode; preload?: SidebarProps["onPreload"]; rail?: boolean }) {
   const glyph = icon ?? NAV_ICONS[n.key] ?? NAV_ICONS[n.route];
-  const xl = (c: string) => (rail ? "" : c);
+  const md = (c: string) => (rail ? c : "");
   return (
     <a
       href={`/${n.route}${n.page ? `/${n.page}` : ""}`}
@@ -258,16 +306,16 @@ function NavLink({ n, on, count, dot, navigate, icon, preload, rail }: { n: NavI
       onFocus={preload ? () => preload(n.route as Route) : undefined}
       aria-current={on ? "page" : undefined}
       title={n.label}
-      className={`flex h-8 shrink-0 items-center gap-2.5 rounded-md px-2 text-[13.5px] transition-[background-color,color,box-shadow] duration-[150ms] md:justify-center ${xl("xl:justify-start")} ${on ? "bg-card font-medium text-ink shadow-chip" : "text-body hover:bg-hover hover:text-ink"}`}
+      className={`flex h-8 shrink-0 items-center gap-2.5 rounded-md px-2 text-[13.5px] transition-[background-color,color,box-shadow] duration-[150ms] ${md("md:justify-center")} ${on ? "bg-card font-medium text-ink shadow-chip" : "text-body hover:bg-hover hover:text-ink"}`}
     >
       <span aria-hidden="true" className={`relative flex size-5 shrink-0 items-center justify-center ${on ? "text-signal" : "text-muted"}`}>
         {glyph}
-        {dot ? <span className={`absolute -top-0.5 -right-0.5 hidden size-1.5 rounded-full bg-butter md:block ${xl("xl:hidden")}`} /> : null}
+        {dot && rail ? <span className="absolute -top-0.5 -right-0.5 hidden size-1.5 rounded-full bg-butter md:block" /> : null}
       </span>
-      <span className={`whitespace-nowrap md:hidden ${xl("xl:inline")}`}>{n.label}</span>
-      {dot ? <span role="img" aria-label="Needs a step" title="Needs a step" className={`ml-auto size-1.5 shrink-0 rounded-full bg-butter md:hidden ${xl("xl:block")}`} /> : null}
+      <span className={`whitespace-nowrap ${md("md:hidden")}`}>{n.label}</span>
+      {dot ? <span role="img" aria-label="Needs a step" title="Needs a step" className={`ml-auto size-1.5 shrink-0 rounded-full bg-butter ${md("md:hidden")}`} /> : null}
       {count ? (
-        <span className={`${dot ? "ml-1.5" : "ml-auto"} px-1 text-[12px] font-normal tabular-nums text-muted md:hidden ${xl("xl:inline")}`}>{count > 99 ? "99+" : count}</span>
+        <span className={`${dot ? "ml-1.5" : "ml-auto"} px-1 text-[12px] font-normal tabular-nums text-muted ${md("md:hidden")}`}>{count > 99 ? "99+" : count}</span>
       ) : null}
     </a>
   );
@@ -294,8 +342,8 @@ function CreateButton({ items, rail }: { items: CreateItem[]; rail?: boolean }) 
         className="press flex h-8 items-center justify-center gap-1.5 rounded-full bg-brand px-3.5 text-[13px] font-medium text-on-brand shadow-primary transition-colors duration-[150ms] hover:bg-brand-hover"
       >
         <Plus size={14} />
-        <span className={rail ? "md:hidden" : "md:hidden xl:inline"}>Create</span>
-        <ChevronDown size={12} className={rail ? "md:hidden" : "md:hidden xl:inline"} />
+        <span className={rail ? "md:hidden" : ""}>Create</span>
+        <ChevronDown size={12} className={rail ? "md:hidden" : ""} />
       </button>
       {open ? (
         <Popover anchor={anchor} onClose={() => setOpen(false)} width={240}>

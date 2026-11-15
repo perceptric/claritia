@@ -47,7 +47,7 @@ export function FormsView(props: ViewProps) {
     );
   if (props.id.startsWith("folder:")) return <FormHome key={props.id} {...props} folder={props.id.slice(7)} />;
   if (props.id && props.id !== "overview") return <FormPage key={props.id} {...props} />;
-  return <FormHome {...props} />;
+  return <FormHome {...props} studio={<StudioPage key="first" {...props} />} />;
 }
 
 export type FormData = {

@@ -30,7 +30,6 @@ import { WAVE3_BOOKING, WAVE3_MONEY } from "./templates/wave3-booking.ts";
 import { WAVE4_CALC_HOME } from "./templates/wave4-calc-home.ts";
 import { WAVE4_CALC_MORE } from "./templates/wave4-calc-more.ts";
 import { defaultThemes } from "./themes.ts";
-import { withPhotos } from "./photos/index.ts";
 import { INDUSTRIES, type FormTemplate, type Industry, type UseCase } from "./types.ts";
 
 const RAW: FormTemplate[] = [
@@ -102,8 +101,8 @@ export function withMenus(t: FormTemplate): FormTemplate {
   };
 }
 
-/** Every template, with its menus. */
-export const TEMPLATES: FormTemplate[] = RAW.map(withMenus).map(withPhotos);
+/** Every template, with its menus. Plain forms only: no welcome photos or picture answers. */
+export const TEMPLATES: FormTemplate[] = RAW.map(withMenus);
 
 const BY_ID = new Map(TEMPLATES.map((t) => [t.id, t]));
 const THEME_OF = defaultThemes(TEMPLATES);

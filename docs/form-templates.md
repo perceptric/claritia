@@ -41,8 +41,7 @@ templates that come wired with their meeting and follow-up. It lives on the webs
 A value shows once 4 templates have it (`MIN_SHOWN`).
 
 **The mix.** Browsing with no words typed, the grid is mixed (`mixTemplates` in `filter.ts`): neighbors come from
-different groups and industries, a form with a welcome photo and a plain one take turns (never three of a kind in a
-row), styles and layouts vary, and a form with a feature not shown just before (a calculator, a payment, a score, a
+different groups and industries, styles and layouts vary, and a form with a feature not shown just before (a calculator, a payment, a score, a
 signature) comes up sooner. Templates with real use keep their place first, and earlier templates still win when
 they fit. The first 30 cards cover 9 of the 10 groups and 16 styles. A search keeps its best match first. Two values in one menu widen the results; two menus narrow
 them. Each count is what that pick would show.

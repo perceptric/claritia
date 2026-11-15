@@ -43,7 +43,7 @@ export type ListRow = {
 const GIMPORT = "clr-gimport-link";
 type KitLite = { id: string; tokens: Partial<Tokens>; source_url: string | null; scan_status: string | null; logo_url?: string | null; logo_svg?: string | null };
 
-export function FormHome(props: ViewProps & { folder?: string }) {
+export function FormHome(props: ViewProps & { folder?: string; studio?: React.ReactNode }) {
   const { sb, session, ws, navigate, folder = "" } = props;
   const fq = useFormFolders(sb, ws.id);
   const folders = fq.data?.folders ?? [];
@@ -218,8 +218,8 @@ export function FormHome(props: ViewProps & { folder?: string }) {
     </div>
   );
 
-  // No forms yet: Form Studio is the first screen.
-  if (list.data && !rows?.length) return <Studio {...props} />;
+  // No forms yet: Form Studio is the first screen, with its header (name, Preview, Publish).
+  if (list.data && !rows?.length) return props.studio ?? <Studio {...props} />;
 
   const body = !list.data ? (
     list.error ? (
