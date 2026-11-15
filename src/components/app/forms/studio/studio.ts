@@ -699,7 +699,7 @@ export const STUDIO_HTML = `
         <button class="ib" id="d-phone" data-tip="Phone" aria-label="Phone" aria-pressed="false">${SVG(P.phone)}</button>
       </div>
       <button class="langbtn" id="langBtn" data-tip="Languages" aria-label="Languages" aria-haspopup="menu"></button>
-      <span class="vsep"></span>
+      <span class="vsep" id="devSep"></span>
       <button class="ib" id="undo" data-tip="Undo" aria-label="Undo" disabled>${SVG(P.undo)}</button><button class="ib" id="redo" data-tip="Redo" aria-label="Redo" disabled>${SVG(P.redo)}</button>
     </div>
     <div class="work" id="work">
@@ -995,7 +995,7 @@ ${CAL_CSS}
     $("empty").hidden = has || !cur;
     host.hidden = !has;
     root.innerHTML = "";
-    if (!has) { $("stepBar").hidden = true; $("stepDock").hidden = !cur || S.mode === "code" || S.mode === "preview"; if (cur) { emptyUi(); void tplLoad(); } runCheck(); return overlay(); }
+    if (!has) { $("stepBar").hidden = true; $("stepDock").hidden = !cur || S.mode === "code" || S.mode === "preview"; chromeUi(); if (cur) { emptyUi(); void tplLoad(); } runCheck(); return overlay(); }
     const st = document.createElement("style");
     st.textContent = `${BASE}\n/* brand */\n${cssFor(PK ? PK.brand : brandOf(cur)?.css || S.hold)}\n/* form */\n${cssFor(PK ? PK.css : body().css)}`;
     const wrap = h("div", { class: S.mode === "edit" ? "cl-root cl-edit" : "cl-root" });
@@ -1504,10 +1504,8 @@ ${CAL_CSS}
     bar.hidden = !cur || !built() || S.mode === "code";
     // The Tia box sits under the form in every view but Code; the editing tools over it only while editing.
     $("stepDock").hidden = !cur || S.mode === "code";
-    $("tools").hidden = S.mode !== "edit" || !built();
-    $("panel").hidden = S.mode !== "edit" || !!S.logic || !built();
     $("stepDock").hidden = $("stepDock").hidden || S.mode === "preview";
-    $("undo").hidden = $("redo").hidden = S.mode === "preview";
+    chromeUi();
     $("designBtn").setAttribute("aria-pressed", String(!!S.design && S.mode === "edit"));
     if (bar.hidden) { $("pageTools").innerHTML = ""; return; }
     const editing = S.mode === "edit";
@@ -1561,6 +1559,26 @@ ${CAL_CSS}
     if (thanks) { bar.append(h("div", { class: "psep", text: "Ending" })); bar.append(tab(SVG(P.check, 12), endKindName(), "thanks", null, undefined, "end")); }
     pageTools();
     logicUi();
+  }
+  /**
+   * What shows around the canvas. The pages, Add field, Design, Logic, the panel and the devices wait for a form: the
+   * templates get the whole width, with Start blank as their one way to begin without a template. Undo and redo stay
+   * while editing (undoing back to the templates can be redone).
+   */
+  function chromeUi() {
+    const has = built();
+    $("chat").hidden = !has;
+    $("tools").hidden = S.mode !== "edit" || !has;
+    $("panel").hidden = S.mode !== "edit" || !!S.logic || !has;
+    $("devGrp").hidden = !has;
+    $("undo").hidden = $("redo").hidden = S.mode === "preview";
+    $("devSep").hidden = !has || S.mode === "preview";
+    if (has) return;
+    // Logic or Design left on when the form went empty never comes back over the templates or a new form.
+    S.logic = false; S.design = false;
+    $("logicView").hidden = true;
+    $("logicBtn").setAttribute("aria-pressed", "false");
+    if (S.mode !== "code") $("canvas").hidden = false;
   }
   const endKindName = () => { const k = body().after?.kind; return k === "page" ? "Redirect" : k === "meeting" ? "Booking page" : "Thank-you page"; };
   let dragPage = null, renaming = null;
@@ -2613,7 +2631,7 @@ ${CAL_CSS}
     if (!cur) return;
     snap();
     cur.brandId = ""; body().style = id; body().styleCss = styleCssById(id);
-    changed(); brandUi(); chatHead(); draw(); refresh();
+    changed(); brandUi(); chatHead(); draw(); refresh(); renderLog();
     toast(`${styleName(id)} applied. Undo with Cmd+Z.`);
   }
   // The styles grid: the look menu under the brand button shows it (the Theme tab keeps the changes on top of it).
@@ -2914,12 +2932,14 @@ ${CAL_CSS}
     Hd.append(hidden.length ? chips : h("p", { class: "hint0", text: "None" }), add);
     p.append(Hd);
   }
-  // Start blank: an email question and a send button in the brand's look, with no AI.
+  // Start blank: an email question and a send button in the brand's look, with no AI, and the Add list open on it.
+  // With no brand or style picked yet, it starts in the first style, so it can publish and Tia can change it.
   function startBlank(quiet) {
     const f = checkForm({ ...emptyForm(), title: "New form" });
     if ("errors" in f) return false;
     const conv = formToPage(f.form);
     snap();
+    if (!brandOf(cur)) { cur.brandId = ""; body().style = THEMES[0].id; body().styleCss = styleCssById(THEMES[0].id); }
     setSource(conv.html);
     body().css = conv.css;
     body().html = sourceHtml();
@@ -2927,7 +2947,8 @@ ${CAL_CSS}
     setSide("build");
     S.sub = "add"; sideUi();
     setMode("edit");
-    if (!quiet) toast("Blank form created. Add fields from the Build panel.");
+    renderLog();
+    if (!quiet) addsOpen(true);
     return true;
   }
   $("blankBtn").onclick = () => startBlank();
@@ -3068,7 +3089,7 @@ ${CAL_CSS}
   // ── Undo, redo, commit ────────────────────────────────────────────────────────────────────────────────
   const state = () => ({ html: sourceHtml(), css: body().css, after: JSON.stringify(body().after), langs: JSON.stringify({ langs: body().langs || {}, from: body().langFrom || {} }), look: JSON.stringify({ b: cur?.brandId || "", s: body().style || "", c: body().styleCss || "" }) });
   function snap() { const s = H(); s.past.push(state()); if (s.past.length > 80) s.past.shift(); s.future.length = 0; buttons(); }
-  function restore(x) { if (x.look) { const l = JSON.parse(x.look); cur.brandId = l.b; if (l.s) { body().style = l.s; body().styleCss = l.c; } else { delete body().style; delete body().styleCss; } brandUi(); chatHead(); } body().css = x.css; body().after = JSON.parse(x.after); if (x.langs) { const l = JSON.parse(x.langs); body().langs = l.langs; body().langFrom = l.from; if (S.lang && !l.langs[S.lang]) S.lang = ""; } setSource(x.html); body().html = x.html; S.sel = null; changed(); draw(); refresh(); }
+  function restore(x) { if (x.look) { const l = JSON.parse(x.look); cur.brandId = l.b; if (l.s) { body().style = l.s; body().styleCss = l.c; } else { delete body().style; delete body().styleCss; } brandUi(); chatHead(); renderLog(); } body().css = x.css; body().after = JSON.parse(x.after); if (x.langs) { const l = JSON.parse(x.langs); body().langs = l.langs; body().langFrom = l.from; if (S.lang && !l.langs[S.lang]) S.lang = ""; } setSource(x.html); body().html = x.html; S.sel = null; changed(); draw(); refresh(); }
   function undo() { const s = H(); if (!s.past.length) return; s.future.push(state()); restore(s.past.pop()); }
   function redo() { const s = H(); if (!s.future.length) return; s.past.push(state()); restore(s.future.pop()); }
   function buttons() { $("undo").disabled = !H().past.length; $("redo").disabled = !H().future.length; }
@@ -3209,16 +3230,20 @@ ${CAL_CSS}
     box.append(h("div", { class: "sec" }, h("h4", { text: "Display condition" }), h("p", { class: "hint0", text: own ? ifWords(own) : "Always shown" }), h("div", {}, h("button", { class: "pill", text: "Edit display condition", onclick: () => { S.logic = false; S.view = i; setMode("edit"); select(st.getAttribute("data-k")); panel(); } }))));
   }
 
-  // Ask Tia: the chat opens with the question sent; while Tia works the button stops it.
+  // Ask Tia: the chat opens with the question sent; while Tia works the button stops it. With no brand or style yet,
+  // the bar opens the theme gallery: Tia builds in a look.
+  const noLook = () => loaded && !!cur && !brandOf(cur);
   $("askBox").addEventListener("submit", (e) => {
     e.preventDefault();
     if (S.busy) return ctl?.abort();
+    if (noLook()) return themeGallery();
     const t = $("askIn").value.trim();
     setSide("ai");
     if (t || pending.length) void send(t);
     else $("askIn").focus();
   });
-  $("askIn").addEventListener("focus", () => { if (TH.open?.messages.length || !built()) setSide("ai"); });
+  $("askIn").addEventListener("focus", () => { if (!noLook() && (TH.open?.messages.length || !built())) setSide("ai"); });
+  $("askIn").addEventListener("click", () => { if (noLook()) themeGallery(); });
   function setDevice(d) { S.device = d; $("frame").className = `frame${d === "tab" ? " tablet" : d === "phone" ? " phone" : ""}`; for (const [id, v] of [["d-desk", "desk"], ["d-tab", "tab"], ["d-phone", "phone"]]) $(id).setAttribute("aria-pressed", String(d === v)); setTimeout(overlay, 340); }
   $("d-desk").onclick = () => setDevice("desk"); $("d-tab").onclick = () => setDevice("tab"); $("d-phone").onclick = () => setDevice("phone");
 
@@ -4159,7 +4184,7 @@ ${CAL_CSS}
       const g = h("div", { class: "msg ai" }, h("div", { class: "who", html: `${tiaSvg(18)}<span>Tia</span>` }));
       if (S.hello) g.append(h("div", { class: "text", text: S.hello }));
       for (const m of log) if (m.who === "ai" && m.text) g.append(h("div", { class: "text", text: m.text }));
-      g.append(h("div", { class: "text", text: !b ? "Pick your brand or a style to start." : built() ? `What should we change on ${cur.name}?` : `What do you want to build for ${b.name}?` }));
+      g.append(h("div", { class: "text", text: !b ? "Pick your brand or a style to start." : built() ? `What should we change on ${cur.name}?` : b.style ? "What do you want to build?" : `What do you want to build for ${b.name}?` }));
       // Before anything is built (no Design panel yet): the look is picked here, and the industry fixed in one click.
       if (!b && loaded) g.append(h("div", {}, h("button", { class: "pill", id: "pickTheme", text: "Pick your brand or a style", onclick: themeGallery })));
       if (b?.profile && !built()) { const pb = h("button", { class: "profile", id: "profileBtn", "aria-haspopup": "menu", "aria-label": "Industry, country and language" }, h("span", { text: profileWords(b.profile) }), h("span", { html: SVG(P.chev, 12), style: "display:inline-flex;color:var(--muted)" })); pb.onclick = () => profileMenu(pb); g.append(pb); }

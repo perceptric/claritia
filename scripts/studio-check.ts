@@ -4,8 +4,8 @@
 // question. Edit works right on the form (pick, type, the floating bar, undo) with nothing covering the bar; Code, On
 // submission and Publish work, the published page runs in the form script, each form keeps its own chats with Tia
 // (one bar under the form, chats that slide up from it), the look is one card with one gallery, and the Welcome screen
-// is edited like any page (its photo is its photo, never a field from Page 1). The page's header holds the one
-// Preview (and Back to editor) and the one ⋯; Restart sits in Preview.
+// is edited like any page (its photo is its photo, never a field from Page 1). Before there's a form the templates have
+// the whole width; the page's header holds the one Preview (and Back to editor) and the one ⋯; Restart sits in Preview.
 //   CHROMIUM_PATH=… node scripts/studio-check.ts   (SHOTS=dir saves screenshots)
 
 import { readFileSync } from "node:fs";
@@ -86,6 +86,7 @@ try {
   // 1. A new workspace opens on the templates: every one, by family and search, with nothing covering them
   await $("#tplGrid .tpl").first().waitFor();
   check((await $("#brandDlg").count()) === 0 && (await $("#tpls").isVisible()), "an empty form shows the templates, with no dialog over them");
+  check((await $("#chat").isHidden()) && (await $("#tools").isHidden()) && (await $("#panel").isHidden()) && (await $("#devGrp").isHidden()) && (await p.locator("#hdrPreview").isDisabled()), "the templates have the whole width: no pages, Add field, Design, Logic, panel, devices or Preview before there's a form");
   const tplAll = await $("#tplGrid .tpl").count();
   check(tplAll === 48 && /^Search [1-9]\d{2,} /.test((await $("#tplQ").getAttribute("placeholder"))!), "the templates show 48 at a time, out of hundreds");
   await $("#tplMore").click();
@@ -117,10 +118,9 @@ try {
   // 1b. No brand yet: the bar waits, and the empty chat's button opens the one theme gallery: your brands, then styles
   check((await $("#askIn").getAttribute("placeholder")) === "Pick your brand or a style to start" && (await $("#send").isDisabled()) && !(await $("#thread").isVisible()), "the bar waits for a brand, and the chat starts folded over the templates");
   await $("#askIn").click();
-  check(await $("#thread").isVisible(), "a click on the bar opens the chat");
-  check((await $("#chat #msgs").count()) === 0 && (await $("#tDock #thread").count()) === 1 && (await $("#chat").getAttribute("aria-label")) === "Pages", "there's no chat column: Tia's chat lives in the bar under the form");
-  await $("#pickTheme").click();
   await $("#ownSite").waitFor();
+  check(!(await $("#thread").isVisible()), "with no look yet, a click on the bar opens the theme gallery itself");
+  check((await $("#chat #msgs").count()) === 0 && (await $("#tDock #thread").count()) === 1 && (await $("#chat").getAttribute("aria-label")) === "Pages", "there's no chat column: Tia's chat lives in the bar under the form");
   check((await $("#themeDlg .tsec").first().textContent()) === "Your brands" && (await $("#themeDlg .tcard").count()) >= 18, "the theme gallery puts your brands first, then every style");
   if (shots) await p.screenshot({ path: `${shots}/0-look-menu.png` });
 
@@ -153,6 +153,8 @@ try {
   await p.waitForFunction(() => !document.querySelector("#studio")!.shadowRoot!.getElementById("send")!.hasAttribute("disabled"));
   check((await calls()).some((c) => c.mode === "look"), "the look is read after confirming");
   check((await $("#msgs").textContent())!.includes("soft green"), "what Tia found in the look shows in the chat");
+  await $("#askIn").click();
+  check((await $("#thread").isVisible()) && (await $("#askIn").getAttribute("placeholder")) === "Describe the form", "once there's a look, the bar is ready and a click opens Tia's chat");
   check((await $(".starts button").first().textContent()) === "A new patient booking form", "an empty chat offers the industry's starting ideas");
   check((await $("#profileBtn").textContent())!.includes("Healthcare and dental in United States, English and Spanish"), "the site's industry, country and languages show under the brand");
   await $("#profileBtn").click();
@@ -877,9 +879,13 @@ try {
   await $("#blankBtn").waitFor();
   check(!(await form.locator("#title").count()) && (await $(".starts button").count()) > 0, "a new form starts empty, with ideas");
   await $("#blankBtn").click();
-  check((await form.locator("input[type='email']").count()) === 1 && (await form.locator("[type=submit]").count()) === 1 && (await $("#tools").isVisible()), "Start blank makes an email question and a send button, and opens Edit with the Add list");
+  check((await form.locator("input[type='email']").count()) === 1 && (await form.locator("[type=submit]").count()) === 1 && (await $("#tools").isVisible()) && (await $("#adds").isVisible()), "Start blank makes an email question and a send button, and opens Edit with the Add list");
+  await p.keyboard.press("Escape");
+  await $("#undo").click();
+  check((await $("#tpls").isVisible()) && (await $("#tools").isHidden()) && (await $("#chat").isHidden()) && !(await $("#redo").isDisabled()), "undo takes Start blank back to the templates, and redo is there");
+  await $("#redo").click();
   // The new fields: 39 in the Add list, each added in one click
-  await $("#addFieldBtn").click();
+  await addField();
   check((await $("#addList [data-add]").count()) === 79, "the Add list has 79 fields");
   await addField();
   await $("#addList [data-add='nps']").click();
@@ -1063,6 +1069,26 @@ try {
   await $("#layer button[aria-label='Delete Finch']").click();
   await $("#layer .mdel button").filter({ hasText: "Delete" }).click();
   check((await calls()).some((c) => c.mode === "delete"), "a brand can be deleted from the gallery");
+  // 11. A new workspace with no brand: a style picked from the bar readies Tia at once, and Start blank with no look at
+  // all starts in the first style, so it can publish.
+  const newWorkspace = async () => {
+    const np = await browser.newPage({ viewport: { width: 1360, height: 860 } });
+    np.on("pageerror", (e) => errors.push(`fresh: ${e.message}`));
+    await np.goto(`http://localhost:${port}/`);
+    await np.locator("#studio #tplGrid .tpl").first().waitFor();
+    return np;
+  };
+  const n1 = await newWorkspace();
+  await n1.locator("#studio #askIn").click();
+  await n1.locator("#studio #themeDlg .tcard").filter({ hasText: "Grove" }).click();
+  check((await n1.locator("#studio #askIn").getAttribute("placeholder")) === "Describe the form" && !(await n1.locator("#studio #send").isDisabled()), "a style picked from the bar readies Tia's bar at once");
+  await n1.close();
+  const n2 = await newWorkspace();
+  await n2.locator("#studio #blankBtn").click();
+  await n2.waitForFunction(() => !!(window as unknown as { studioState: { canPublish: boolean } | null }).studioState?.canPublish);
+  check((await n2.locator("#studio #askIn").getAttribute("placeholder")) === "Ask Tia to change anything" && !(await n2.locator("#hdrAction").isDisabled()), "Start blank with no look starts in the first style: Publish and Tia are ready");
+  await n2.close();
+
   void sh;
   check(errors.length === 0, `no page errors${errors.length ? `: ${errors.join("; ")}` : ""}`);
 } finally {
