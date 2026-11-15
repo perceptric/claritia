@@ -55,7 +55,8 @@ What was planned:
 
 Built in `studio.ts`: the steps moved into the bar (`#stepBar`, centered, scrolling sideways when long), and ⋯
 (`#moreBtn`) holds Back to step 1, Open the live form (once live) and Layers (in Edit). `scripts/studio-check.ts`
-checks the one row, at most 11 controls, and Layers from ⋯.
+checks the one row, at most 11 controls, and Layers from ⋯. Since docs/studio-v2-plan.md Part 14 the Studio has no ⋯
+of its own: Restart sits in the bar in Preview, and Open the live form is in the page header's ⋯.
 
 What was planned:
 

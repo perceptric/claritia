@@ -303,7 +303,8 @@ Everything a form needs can be made in Edit without Tia (`src/lib/studio/builder
   width and the progress bar, written into the form's own CSS over the theme's.
 - **Pages as steps**: the bar shows the pages as numbered steps joined by a line, the thank-you last with a tick, and
   All pages as an icon; in Preview the pages already passed show done.
-- **Start blank**: an email question and a send button in the brand's look, with no AI.
+- **Start blank**: an email question and a send button in the brand's look, with no AI, and the Add list open on it.
+  With no brand or style picked yet, it starts in the first style (Paper), so it can publish and Tia can change it.
 - **Templates on an empty form**: a new form's canvas shows every gallery template (`studioList.ts`), mixed as
   Forms › Templates mixes them, with the families as chips, search, and Start blank. Each card is drawn in its style's colors. Picking one
   makes the form the way Forms › Templates does (`/api/forms/templates`), in the chat's brand or style, or the
@@ -329,8 +330,8 @@ Claude calls.
 What the owner asked for after the demo (claude.ai/artifact/UH7dnJR97Rc8hjVcsSog2Q): Tia and the look were each in
 too many places. Now there's one place for each.
 
-- **One place to talk to Tia.** The chat column is gone; the left column is only the form's mark, its name and its
-  pages. The "Build with Tia" bar under the form is the only place to type. Sending opens Tia's chat, which slides up
+- **One place to talk to Tia.** The chat column is gone; the left column is only the pages (since Part 14 the form's
+  name shows once, in the page's header). The "Build with Tia" bar under the form is the only place to type. Sending opens Tia's chat, which slides up
   from the bar over the form: its name, who started it, the messages with Tia's sparkle and a fold button. A click
   away (or the fold) folds it; an answer that lands while it's folded lights the dot on Tia's face. The chat starts
   folded, so an empty form's templates show whole; a click on the bar opens it.
@@ -361,6 +362,43 @@ messages, names and Tia's turns are in `src/lib/studio/threads.ts` (`tests/studi
 
 Running cost: $0 a month at Beta (50 teams) and Growth (500 teams). A few rows per form in the Postgres database on
 the VPS, which is already paid; Tia's calls are the same, and a new chat sends fewer past turns.
+
+## Part 14. One of each, and nothing before it works (UX pass, Nov 15)
+
+An exploratory pass through the Studio found controls doing the same job in two places and controls shown before
+they could do anything. Each now has one place (`studio.ts`, `FormsView.tsx`, checked in `scripts/studio-check.ts`).
+
+- **One ⋯ and one Back to editor.** The Studio's bar had its own ⋯ under the page header's ⋯, and Preview showed Back
+  to editor twice. Now the page header holds both: its Preview turns into Back to editor, and its ⋯ gains Open the live
+  form once the form is live. In Preview the Studio's bar shows **Restart** (the form from its first screen, nothing
+  typed) in place of the old ⋯ › Back to page 1. Preview waits (disabled) while there's no form: on the templates and
+  while a template is open for a look, which has its own bar.
+- **The templates have the whole width.** Before there's a form the canvas shows only the templates, Start blank and
+  Tia's bar. The pages column, Add field, Design, Logic, the panel and the devices show once there's a form. Before,
+  they showed on the empty canvas: Logic did nothing (and left Start blank opening in Logic), Design hid the whole
+  toolbar, and the form panel's hidden field and welcome switch acted on a form that didn't exist. Undo and redo stay,
+  so a Start blank undone back to the templates can be redone.
+- **Tia's bar with no look** opens the theme gallery itself (it said "Pick your brand or a style to start", then opened
+  a chat that said it again with a button). A style picked there readies the bar at once (it used to stay disabled
+  until something else redrew it), and undo of a look does the same.
+- **The Welcome screen is a page.** It's added from Add page (first in its menu, until there is one) and deleted from
+  its page's ⋯, like every other page. The form's settings (nothing picked) no longer hold a Welcome screen switch.
+- **The pages column is headed Pages**, with Add page beside it, in line with the bar. It no longer repeats the
+  form's name under the header that shows it.
+- **Same words for the Ending**: Ending type is Thank-you page, Redirect or Booking page, as the pages column names it
+  (it said Message and Book a meeting).
+- **Smaller fixes**: Logic on a one-page form says "Skip rules need two pages or more." with Add page (its side was
+  blank); the pick's tag names a part as the panel does (a new Short answer was tagged "Box"); Use this template sits
+  at the right end of the template's bar; Tia's greeting for a style no longer says "for Grove style"; under 900px
+  wide the page is one scrolling column where the panel no longer sits over the form, the top of a tall page (the
+  template search) can be reached, and the Add list stays inside the form's box.
+
+Left as they are: Design's Photo is the photo of the screen in view, so it stays in Design next to the look; the form
+check opens from Publish (with its count) and from the header's ⋯ (to read warnings on a live form), which is one
+list in two natural places.
+
+Running cost: $0 a month at Beta (50 teams) and Growth (500 teams). These are screen changes in the browser; nothing
+is bought and no new Claude calls are made.
 
 ## Tokens and files (after launch)
 

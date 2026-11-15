@@ -61,8 +61,9 @@ the form picks the meeting type, the meeting picks the person.
 - **Pages** (`stepUi` in `src/components/app/forms/studio/studio.ts`): the sidebar lists Welcome, each page and the
   Ending. A page drags to a new place; its ⋯ renames it (`data-cl-page`, else "Page N"), duplicates, copies
   (kept on this computer, pasted from Add page into this form or another), sets a timer, or deletes it. **Add page**
-  adds a page, a payment page (a page with the payment block) or the scheduling page (the Ending books a meeting).
-- **Confetti**: a switch on the Ending (Message and Book a meeting) puts `data-cl-confetti` on the thank-you; the form
+  adds the Welcome screen (until there is one), a page, a payment page (a page with the payment block) or the
+  scheduling page (the Ending books a meeting).
+- **Confetti**: a switch on the Ending (Thank-you page and Booking page) puts `data-cl-confetti` on the thank-you; the form
   script (`confetti` in `src/lib/studio/runtime.ts`) drops confetti over the form once when it shows, and none for
   people who ask for less motion. Pages slide in as people move through them, and back slides the other way.
 - **Design** (the Design button): the brand, the theme (changed from a gallery of every style and the workspace's
