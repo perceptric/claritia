@@ -331,10 +331,11 @@ What the owner asked for after the demo (claude.ai/artifact/UH7dnJR97Rc8hjVcsSog
 too many places. Now there's one place for each.
 
 - **One place to talk to Tia.** The chat column is gone; the left column is only the pages (since Part 14 the form's
-  name shows once, in the page's header). The "Build with Tia" bar under the form is the only place to type. Sending opens Tia's chat, which slides up
-  from the bar over the form: its name, who started it, the messages with Tia's sparkle and a fold button. A click
-  away (or the fold) folds it; an answer that lands while it's folded lights the dot on Tia's face. The chat starts
-  folded, so an empty form's templates show whole; a click on the bar opens it.
+  name shows once, in the page's header). The "Build with Tia" bar under the form is the only place to type. Sending opens Tia's chat as a column beside
+  the form, in the right panel's place (since Part 15; it used to slide up over the form): its name, who started it,
+  the messages with Tia's sparkle and a close button. Closing it, picking a part of the form or going to Preview brings
+  the panel back; the panel's Chat button opens it again. The chat starts closed, so an empty form's templates show
+  whole; a click on the bar opens it.
 - **Chats on this form.** The bar's clock lists this form's chats, newest first, each with who started it and when,
   with New chat on top and a delete on each row (the app's own confirm; the form stays). Switching chats never changes
   the form. A new chat starts Tia's memory fresh, but Tia still reads the form as it is now, so it knows what's built.
@@ -400,6 +401,18 @@ list in two natural places.
 
 Running cost: $0 a month at Beta (50 teams) and Growth (500 teams). These are screen changes in the browser; nothing
 is bought and no new Claude calls are made.
+
+## Part 15. Tia's chat beside the form (Nov 15)
+
+The chat slid up from the bar and covered half the form, often the part being changed. Now:
+
+- The chat is a column on the right, in the element panel's place, the same width. The form stays whole while Tia works.
+- The panel has a Chat button at its top right; the chat has a close button. Picking a part of the form shows its
+  panel. Preview closes the chat.
+- An answer that lands while the chat is closed shows as one line above the bar (what Tia did, or its first sentence)
+  with Open chat, and lights the dot on Tia's face.
+- Under 900 px the chat is a block in the one scrolling column, like the panel.
+- Running cost: $0 at Beta and at Growth (no new calls).
 
 ## Tokens and files (after launch)
 

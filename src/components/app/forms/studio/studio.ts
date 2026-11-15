@@ -202,10 +202,17 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .askbox { width: 100%; display: flex; align-items: center; gap: 4px; padding: 5px 5px 5px 14px; border-radius: 999px; background: var(--bg); box-shadow: 0 0 0 1px var(--line), 0 8px 24px -12px rgb(0 0 0 / .2); }
 .askbox.drop { box-shadow: 0 0 0 2px var(--signal); }
 .askbox .ib { width: 32px; height: 32px; }
-/* Tia's chat: it slides up from the bar over the form, and folds back down. */
-.thread { position: absolute; left: 0; right: 0; bottom: calc(100% + 8px); z-index: 30; display: flex; flex-direction: column; max-height: min(52vh, 460px); min-height: 0; background: var(--bg); border-radius: 16px; box-shadow: 0 0 0 1px var(--line), 0 16px 40px -16px rgb(0 0 0 / .28); transform-origin: bottom center; animation: thup .22s var(--ease) both; }
-@keyframes thup { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
-.thhead { flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 14px; border-bottom: 1px solid var(--line); }
+/* Tia's chat: a column beside the form, in the panel's place, so it never covers the form. */
+.thread { flex: none; width: 380px; border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; background: var(--bg); animation: thin .2s var(--ease) both; }
+@keyframes thin { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: none; } }
+.thhead { flex: none; min-height: 44px; display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 14px; border-bottom: 1px solid var(--line); }
+/* Tia's last reply, one line above the bar while the chat is closed. */
+.lastline { align-self: center; max-width: 100%; display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 12px; border-radius: 12px; background: var(--bg); box-shadow: 0 0 0 1px var(--line); font-size: 12.5px; color: var(--body); }
+.lastline .llic { display: inline-flex; color: var(--signal); flex: none; }
+.lastline .lltx { min-width: 0; overflow-wrap: anywhere; }
+.lastline .llopen { flex: none; height: 26px; padding: 0 10px; border: 0; border-radius: 999px; background: var(--paper-deep); color: var(--ink); font: inherit; font-weight: 500; cursor: pointer; }
+.lastline .llopen:hover { background: var(--hover, var(--paper-deep)); }
+.ptabs .chattab { margin-left: auto; flex: none; }
 .thtitle { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
 .thtitle b { font-weight: 600; font-size: 13px; overflow-wrap: anywhere; }
 .thtitle small { color: var(--muted); font-size: 12px; }
@@ -626,7 +633,7 @@ input, textarea { user-select: text; -webkit-user-select: text; }
   .navi { width: auto; border-right: 0; border-bottom: 1px solid var(--line); max-height: 220px; }
   .adds { width: auto; border-right: 0; border-bottom: 1px solid var(--line); max-height: 220px; }
   .canvas { flex: none; height: 70vh; min-height: 0; padding: 12px; }
-  .panel { width: auto; flex: none; min-height: 50vh; border-left: 0; border-top: 1px solid var(--line); }
+  .panel, .thread { width: auto; flex: none; min-height: 50vh; border-left: 0; border-top: 1px solid var(--line); }
   .pscroll { overflow: visible; }
   .chat { min-height: 0; }
   .pagesec { flex: none; max-height: 260px; }
@@ -717,14 +724,15 @@ export const STUDIO_HTML = `
         <div><button class="pill primary" id="codeApply">Apply</button></div>
       </div>
       <div class="stepdock" id="stepDock"><div class="tdock" id="tDock">
-        <section class="thread" id="thread" aria-label="Chat with Tia" hidden><div class="thhead"><span class="thtitle"><b id="thTitle"></b><small id="thWho"></small></span><button class="ib tipleft" type="button" id="thFold" data-tip="Fold the chat" aria-label="Fold the chat">${SVG(P.minus, 15)}</button></div><div class="msgs" id="msgs" aria-live="polite"></div></section>
+        <div class="lastline" id="lastLine" hidden><span class="llic" aria-hidden="true">${SVG(P.check, 13)}</span><span class="lltx" id="lastText"></span><button type="button" class="llopen" id="lastOpen">Open chat</button></div>
         <div class="about" id="about" hidden><span id="aboutText"></span><button type="button" id="aboutX" aria-label="Not about this element">${SVG(P.x, 12)}</button></div>
         <div class="chips" id="attached" hidden></div>
         <form class="askbox" id="askBox"><span class="tia" aria-hidden="true">${tiaSvg(18)}<span class="mdot" id="aiDot" hidden></span></span><input id="askIn" autocomplete="off" placeholder="Build with Tia: add questions, logic, design…" aria-label="Ask Tia"><button class="ib tipup" type="button" id="attachBtn" data-tip="Attach a picture, PDF or text file" aria-label="Attach a file">${SVG(P.clip, 16)}</button><input type="file" id="fileIn" multiple accept="image/png,image/jpeg,image/webp,image/gif,application/pdf,.txt,.csv,.md,.json,text/plain,text/csv,text/markdown" hidden><button class="ib tipup" type="button" id="histBtn" data-tip="Chats on this form" aria-label="Chats on this form" aria-haspopup="menu" aria-expanded="false">${SVG(P.time, 16)}</button><button class="pill" type="submit" id="send">${SVG(P.send, 14)}Ask</button></form>
       </div></div>
       </div>
+      <section class="thread" id="thread" aria-label="Chat with Tia" hidden><div class="thhead"><span class="thtitle"><b id="thTitle"></b><small id="thWho"></small></span><button class="ib tipleft" type="button" id="thFold" data-tip="Close the chat" aria-label="Close the chat">${SVG(P.x, 14)}</button></div><div class="msgs" id="msgs" aria-live="polite"></div></section>
       <aside class="panel" id="panel" aria-label="Element" hidden>
-        <div class="ptabs"><span class="who2" id="selName"></span></div>
+        <div class="ptabs"><span class="who2" id="selName"></span><button class="pt chattab" type="button" id="chatTab" aria-label="Chat with Tia">${tiaSvg(14)}Chat</button></div>
         <div class="pscroll" id="pscroll"></div>
       </aside>
     </div>
@@ -1362,6 +1370,7 @@ ${CAL_CSS}
     if (!el || el.isContentEditable) return;
     e.preventDefault(); e.stopPropagation();
     const k = el.getAttribute("data-k");
+    if (S.side === "ai") setSide("build");
     if (k === S.sel && leaf(el)) return typeIn(el);
     select(k);
   }, true);
@@ -1565,7 +1574,7 @@ ${CAL_CSS}
     const has = built();
     $("chat").hidden = !has;
     $("tools").hidden = S.mode !== "edit" || !has;
-    $("panel").hidden = S.mode !== "edit" || !!S.logic || !has;
+    $("panel").hidden = S.mode !== "edit" || !!S.logic || !has || S.side === "ai";
     $("devGrp").hidden = !has;
     $("bar").hidden = !has && !PK;
     if (has) return;
@@ -3105,6 +3114,8 @@ ${CAL_CSS}
     if (PK && m !== "preview") { PK = null; setSource(""); peekUi(); }
     const was = S.mode;
     S.mode = m;
+    // Preview shows the form alone: the chat closes, and opens again from the bar.
+    if (m === "preview") S.side = "build";
     $("canvas").hidden = m === "code";
     // On submission shows the end page as it runs (the thank-you, the redirect or the booking page) beside its settings.
     if (m === "after") { S.view = "thanks"; m = "edit"; S.mode = "edit"; }
@@ -3124,25 +3135,25 @@ ${CAL_CSS}
   }
   // Preview's Restart: the form from its first screen again, with nothing typed (Back to editor is in the page's header).
   $("restartBtn").onclick = () => { stepAt = 0; done = false; coverOn = true; draw(); };
-  // Tia's chat ("ai") slides up from the bar under the form and folds back down ("build").
+  // Tia's chat ("ai") is a column beside the form, in the panel's place; closed ("build"), the panel is back. While
+  // it's closed, Tia's last reply shows as one line above the bar, with Open chat.
   S.side = "build";
   S.sub = "add";
+  S.last = "";
   function sideUi() {
     const build = S.side === "build";
-    $("thread").hidden = build;
-    if (!build) $("aiDot").hidden = true;
+    $("thread").hidden = build || S.mode !== "edit";
+    if (!build) { $("aiDot").hidden = true; S.last = ""; }
+    lastUi();
     S.nav = false;
+    chromeUi();
     if (build) endUi();
   }
+  function lastUi() { $("lastLine").hidden = !S.last || S.side === "ai"; $("lastText").textContent = S.last; }
   function setSide(v) { S.side = v; sideUi(); setTimeout(overlay, 0); }
   $("thFold").onclick = () => setSide("build");
-  // A click away from the bar and the chat folds the chat (menus, dialogs and the picked part's bar don't).
-  listen(document, "pointerdown", (e) => {
-    if (!alive || S.side !== "ai") return;
-    const path = e.composedPath();
-    if (path.includes($("tDock")) || path.includes($("layer")) || path.includes($("fbar"))) return;
-    setSide("build");
-  });
+  $("chatTab").onclick = () => setSide("ai");
+  $("lastOpen").onclick = () => setSide("ai");
   // Add field: the fields list opens over the form, and closes once one is added or dragged out.
   function addsOpen(on) {
     $("adds").hidden = !on;
@@ -4248,6 +4259,7 @@ ${CAL_CSS}
   }
   function finish(c, t, reply, wasBuilt) {
     if (S.side !== "ai") $("aiDot").hidden = false;
+    queueMicrotask(() => { if (!alive || S.side === "ai" || cur !== c) return; S.last = reply.did || String(reply.text || "").split(/(?<=[.!?])\s/)[0] || ""; lastUi(); });
     const say = tagOf(t, "say"), ask = tagOf(t, "ask"), fh = tagOf(t, "form_html"), fc = tagOf(t, "form_css"), add = tagOf(t, "css_add"), did = tagOf(t, "did"), af = tagOf(t, "after");
     reply.text = say ? say.body.trim() : reply.text;
     const here = cur === c;

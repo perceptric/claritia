@@ -120,7 +120,7 @@ try {
   await $("#askIn").click();
   await $("#ownSite").waitFor();
   check(!(await $("#thread").isVisible()), "with no look yet, a click on the bar opens the theme gallery itself");
-  check((await $("#chat #msgs").count()) === 0 && (await $("#tDock #thread").count()) === 1 && (await $("#chat").getAttribute("aria-label")) === "Pages", "there's no chat column: Tia's chat lives in the bar under the form");
+  check((await $("#chat #msgs").count()) === 0 && (await $("#work > #thread").count()) === 1 && (await $("#chat").getAttribute("aria-label")) === "Pages", "Tia's chat is a column beside the form, in the panel's place");
   check((await $("#themeDlg .tsec").first().textContent()) === "Your brands" && (await $("#themeDlg .tcard").count()) >= 18, "the theme gallery puts your brands first, then every style");
   if (shots) await p.screenshot({ path: `${shots}/0-look-menu.png` });
 
@@ -227,14 +227,17 @@ try {
 
   // 6. Edit: pick, type in place, the floating bar, undo, and nothing covers anything
   await toEdit();
-  check(!(await $("#thread").isVisible()), "a click away from the bar folds Tia's chat");
+  check(!(await $("#thread").isVisible()), "Preview closes Tia's chat");
   await $("#askBox button[type=submit]").click();
-  check(await $("#thread").isVisible(), "the bar opens the chat again");
-  const thBox = await $("#thread").boundingBox(), tiaBar = await $("#askBox").boundingBox();
-  check(!!thBox && !!tiaBar && thBox.y + thBox.height <= tiaBar.y + 1, "the chat slides up above the bar");
+  check((await $("#thread").isVisible()) && (await $("#panel").isHidden()), "the bar opens the chat again, in the panel's place");
+  const thBox = await $("#thread").boundingBox(), cvBox = await $("#canvas").boundingBox();
+  check(!!thBox && !!cvBox && thBox.x >= cvBox.x + cvBox.width - 1, "the chat sits beside the form and covers none of it");
   if (shots) { await p.waitForTimeout(400); await p.screenshot({ path: `${shots}/2c-tia-chat.png` }); }
   await $("#thFold").click();
-  check(!(await $("#thread").isVisible()) && (await $("#stepBar").isVisible()) && (await $("#adds").isHidden()), "folding the chat leaves the pages; the fields wait behind Add field");
+  check(!(await $("#thread").isVisible()) && (await $("#panel").isVisible()) && (await $("#stepBar").isVisible()) && (await $("#adds").isHidden()), "closing the chat brings the panel back; the fields wait behind Add field");
+  await $("#chatTab").click();
+  check((await $("#thread").isVisible()) && (await $("#panel").isHidden()), "the panel's Chat button opens the chat");
+  await $("#thFold").click();
   check((await $("#askBox #askIn").count()) === 1 && (await $("#tools #addFieldBtn").count()) === 1 && (await $("#tools #designBtn").count()) === 1, "Add field and Design sit over the form, the Tia box under it");
   // Pages as tabs: one at a time, the Ending, or all with dividers
   const tabs = async () => (await $("#stepBar .pg .sp span:last-child").allTextContents()).map((x) => x.trim());
