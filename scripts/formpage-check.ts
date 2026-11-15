@@ -90,7 +90,7 @@ try {
   await page.keyboard.press("Enter");
   // Preview sits beside Publish in the page's header; again goes back to the editor.
   await page.locator("[data-form-preview]").click();
-  check((await $s("#exitPrev").isVisible()) && ((await page.locator("[data-form-preview]").textContent()) ?? "").includes("Back to editor"), "Preview in the header shows the form on the whole Studio, and turns into Back to editor");
+  check((await $s("#restartBtn").isVisible()) && ((await page.locator("[data-form-preview]").textContent()) ?? "").includes("Back to editor"), "Preview in the header shows the form on the whole Studio (with Restart), and turns into Back to editor");
   await page.locator("[data-form-preview]").click();
   await page.waitForFunction(() => document.querySelector("[data-form-action]")?.textContent?.trim() === "Publish changes");
   check(await page.getByText("Changes not live").isVisible(), "an edit in the Studio: Changes not live, and Publish changes");

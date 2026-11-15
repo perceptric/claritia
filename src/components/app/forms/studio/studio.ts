@@ -261,11 +261,10 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .tipup.tipleft[data-tip]::after { transform: translateY(2px); }
 .tipup[data-tip]:hover::after, .tipup[data-tip]:focus-visible::after { transform: translateX(-50%); }
 .tipup.tipleft[data-tip]:hover::after, .tipup.tipleft[data-tip]:focus-visible::after { transform: none; }
-.exitprev { display: inline-flex; align-items: center; gap: 6px; }
 .peekbar { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
 .peeknm { font-weight: 600; color: var(--ink); min-width: 0; overflow-wrap: anywhere; }
 .peekbar .primary { margin-inline-start: auto; }
-.peekbar:not([hidden]) + .spacer { display: none; }
+.peekbar:not([hidden]) ~ .spacer { display: none; }
 .addlist { flex: 1; min-height: 0; overflow-y: auto; padding: 0 6px 12px; display: flex; flex-direction: column; gap: 1px; }
 .addlist .ag { font-size: 11px; color: var(--faint); padding: 8px 6px 3px; }
 .addlist button { flex: none; height: 32px; border: 0; background: transparent; border-radius: 7px; display: flex; align-items: center; gap: 9px; padding: 0 6px; text-align: left; font-size: 12.5px; color: var(--ink); cursor: grab; }
@@ -690,11 +689,11 @@ export const STUDIO_HTML = `
   </section>
   <section class="stage" aria-label="Form">
     <div class="bar">
-      <button class="pill exitprev" id="exitPrev" hidden>${SVG(P.back, 14)}Back to editor</button>
+      <button class="pill" id="restartBtn" hidden>${SVG(P.restart, 14)}Restart</button>
       <div class="peekbar" id="peekBar" hidden><button class="pill" id="peekBack">${SVG(P.back, 14)}All templates</button><span class="peeknm" id="peekName"></span><button class="pill primary" id="peekUse">Use this template</button></div>
       <div class="tools" id="tools"><button class="pill primary" id="addFieldBtn" aria-haspopup="true" aria-expanded="false">${SVG(P.plus, 14)}Add field</button><button class="pill" id="designBtn" aria-pressed="false">${SVG(P.brush, 14)}Design</button><button class="pill" id="logicBtn" aria-pressed="false">${SVG('<circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="12" r="2.5"/><path d="M6 8.5v7M8.3 7l7.4 3.8M8.3 17l7.4-3.8"/>', 14)}Logic</button></div>
       <span class="spacer"></span>
-      <div class="grp" role="group" aria-label="Device">
+      <div class="grp" id="devGrp" role="group" aria-label="Device">
         <button class="ib" id="d-desk" data-tip="Desktop" aria-label="Desktop" aria-pressed="true">${SVG(P.desk)}</button>
         <button class="ib" id="d-tab" data-tip="Tablet" aria-label="Tablet" aria-pressed="false">${SVG(P.tab)}</button>
         <button class="ib" id="d-phone" data-tip="Phone" aria-label="Phone" aria-pressed="false">${SVG(P.phone)}</button>
@@ -702,7 +701,6 @@ export const STUDIO_HTML = `
       <button class="langbtn" id="langBtn" data-tip="Languages" aria-label="Languages" aria-haspopup="menu"></button>
       <span class="vsep"></span>
       <button class="ib" id="undo" data-tip="Undo" aria-label="Undo" disabled>${SVG(P.undo)}</button><button class="ib" id="redo" data-tip="Redo" aria-label="Redo" disabled>${SVG(P.redo)}</button>
-      <button class="ib tipleft" id="moreBtn" data-tip="More" aria-label="More" aria-haspopup="menu">${SVG(P.more)}</button>
     </div>
     <div class="work" id="work">
       <div class="mid" id="mid">
@@ -842,7 +840,7 @@ export type StudioApi = {
 
 export type StudioIssue = { level: "error" | "warning"; text: string; fix?: string; after?: boolean };
 /** What the header shows: the open chat and its form, whether it can publish, and the form check. */
-export type StudioState = { ready: boolean; chatId: string; formId: string; name: string; state: "new" | "draft" | "live" | "changed"; canPublish: boolean; publishing: boolean; issues: StudioIssue[]; canFix: boolean; msg: string; previewing?: boolean };
+export type StudioState = { ready: boolean; chatId: string; formId: string; name: string; state: "new" | "draft" | "live" | "changed"; canPublish: boolean; publishing: boolean; issues: StudioIssue[]; canFix: boolean; msg: string; previewing?: boolean; canPreview?: boolean };
 /** What the header can ask of the Studio. */
 export type StudioControl = {
   stop(): void;
@@ -3018,7 +3016,7 @@ ${CAL_CSS}
     $("peekName").textContent = PK ? PK.t.name : "";
     $("peekUse").disabled = !!TG.making;
     $("peekUse").textContent = TG.making ? "Creating form" : "Use this template";
-    if (PK) $("exitPrev").hidden = true;
+    if (PK) $("restartBtn").hidden = true;
   }
   $("peekBack").onclick = () => setMode("edit");
   $("peekUse").onclick = () => { if (PK) void useTpl(PK.t); };
@@ -3101,7 +3099,7 @@ ${CAL_CSS}
 
     $("panel").hidden = m !== "edit" || !!S.logic;
     $("chat").classList.toggle("prev", m === "preview");
-    $("exitPrev").hidden = m !== "preview" || !!PK;
+    $("restartBtn").hidden = m !== "preview" || !!PK;
     if (m !== "edit") { S.sel = null; $("hov").hidden = true; }
     if (m === "edit" && was === "preview") S.view = done ? (src.querySelector("[data-cl-thanks]") ? "thanks" : 0) : coverOn && src.querySelector("[data-cl-cover]") ? "cover" : oneMap.length ? (oneMap[stepAt] ?? 0) : stepAt;
     if (m === "preview" && was !== "preview") { stepAt = typeof S.view === "number" ? S.view : 0; previewFrom = typeof S.view === "number" ? S.view : null; done = S.view === "thanks"; coverOn = S.view === "cover"; }
@@ -3111,7 +3109,8 @@ ${CAL_CSS}
     refresh();
     emit();
   }
-  $("exitPrev").onclick = () => setMode("edit");
+  // Preview's Restart: the form from its first screen again, with nothing typed (Back to editor is in the page's header).
+  $("restartBtn").onclick = () => { stepAt = 0; done = false; coverOn = true; draw(); };
   // Tia's chat ("ai") slides up from the bar under the form and folds back down ("build").
   S.side = "build";
   S.sub = "add";
@@ -3222,20 +3221,6 @@ ${CAL_CSS}
   $("askIn").addEventListener("focus", () => { if (TH.open?.messages.length || !built()) setSide("ai"); });
   function setDevice(d) { S.device = d; $("frame").className = `frame${d === "tab" ? " tablet" : d === "phone" ? " phone" : ""}`; for (const [id, v] of [["d-desk", "desk"], ["d-tab", "tab"], ["d-phone", "phone"]]) $(id).setAttribute("aria-pressed", String(d === v)); setTimeout(overlay, 340); }
   $("d-desk").onclick = () => setDevice("desk"); $("d-tab").onclick = () => setDevice("tab"); $("d-phone").onclick = () => setDevice("phone");
-  // The bar's ⋯: Back to step 1, the live form, Layers (docs/form-ui-plan.md step 2).
-  function moreMenu() {
-    const live = !!cur?.formId && cur.state !== "new" && cur.state !== "draft";
-    const item = (id, ic, text, fn, extra = {}) => {
-      const b = h("button", { id, class: "mi small", role: "menuitem", html: `${SVG(ic, 15)}<span class="nm"></span>`, onclick: () => { closeMenu(); fn(); }, ...extra });
-      b.querySelector(".nm").textContent = text;
-      return b;
-    };
-    openMenu($("moreBtn"), [
-      item("restart", P.restart, "Back to page 1", () => { if (S.mode !== "preview") setMode("preview"); stepAt = 0; done = false; coverOn = true; draw(); }),
-      live ? item("openBtn", P.open, "Open the live form", () => window.open(api.formUrl(cur.formId), "_blank", "noopener")) : null,
-    ].filter(Boolean), 220);
-  }
-  $("moreBtn").onclick = () => (menuEl && menuFor === $("moreBtn") ? closeMenu() : moreMenu());
 
   function showCode() { for (const [id, f] of [["c-html", "html"], ["c-css", "css"], ["c-brand", "brand"]]) $(id).setAttribute("aria-pressed", String(S.file === f)); $("codeText").value = S.file === "html" ? sourceHtml() : S.file === "css" ? body().css : brandOf(cur)?.css || ""; }
   for (const [id, f] of [["c-html", "html"], ["c-css", "css"], ["c-brand", "brand"]]) $(id).onclick = () => { S.file = f; showCode(); };
@@ -3678,6 +3663,7 @@ ${CAL_CSS}
       canFix: !!brandOf(cur)?.css && !S.busy,
       msg: S.pubMsg,
       previewing: S.mode === "preview" && !PK,
+      canPreview: !!cur && built() && !PK,
     });
   }
 

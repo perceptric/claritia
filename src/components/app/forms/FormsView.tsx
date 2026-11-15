@@ -107,7 +107,7 @@ function StudioPage(props: ViewProps & { fresh?: boolean }) {
       : { label: pill === "changed" ? "Publish changes" : "Publish", onClick: () => void run(), disabled: !st?.canPublish, problems: st?.issues.filter((i) => i.level === "error").length };
   return (
     <div className="relative flex h-full min-h-0 flex-col bg-card">
-      <FormHeader navigate={navigate} name={st?.name || "New form"} onRename={st?.ready ? (n) => control.current?.rename(n) : undefined} state={pill} tab="build" onTab={go} tabs={!!st?.formId} tools={<PreviewButton previewing={!!st?.previewing} onClick={() => control.current?.preview()} />} action={action} actionRef={actionRef} />
+      <FormHeader navigate={navigate} name={st?.name || "New form"} onRename={st?.ready ? (n) => control.current?.rename(n) : undefined} state={pill} tab="build" onTab={go} tabs={!!st?.formId} tools={<PreviewButton previewing={!!st?.previewing} disabled={!st?.canPreview} onClick={() => control.current?.preview()} />} action={action} actionRef={actionRef} />
       {st?.msg && !/first$/.test(st.msg) ? (
         <div className="shrink-0 border-b border-line px-[16px] py-[8px]">
           <ErrorNote message={st.msg} />
@@ -536,7 +536,7 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
         build={isStudio}
         subs={data.subs}
         folder={inFolder ? { name: inFolder.name, open: () => navigate("forms", folderPage(inFolder.id)) } : null}
-        tools={tab === "build" && isStudio ? <PreviewButton previewing={!!studio?.previewing} onClick={() => control.current?.preview()} /> : undefined}
+        tools={tab === "build" && isStudio ? <PreviewButton previewing={!!studio?.previewing} disabled={!studio?.canPreview} onClick={() => control.current?.preview()} /> : undefined}
         syncDot={failedWeek ? `${failedWeek} ${failedWeek === 1 ? "lead didn't" : "leads didn't"} reach the CRM` : undefined}
         more={
           <button type="button" className={IB} onClick={(e) => setMenu(menu ? null : e.currentTarget)} title="More" aria-label="More" aria-haspopup="menu" aria-expanded={!!menu}>
@@ -552,6 +552,8 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
           onClose={() => setMenu(null)}
           items={[
             ...(isStudio ? [{ icon: "check", label: studio?.issues.length ? `Form check (${studio.issues.length})` : "Form check", disabled: !studio, run: () => setCheckAt(actionRef.current) }] : []),
+            // The form's one menu (the Studio has none of its own): the live form opens in a new tab once it's published.
+            ...(row.version ? [{ icon: "ext", label: "Open the live form", run: () => void window.open(`${window.location.origin}/f/${row.id}`, "_blank", "noopener") }] : []),
             { icon: "dup", label: "Duplicate", run: () => void duplicate() },
             row.status === "paused" ? { icon: "eye", label: "Resume the form", run: () => void setStatus("live") } : { icon: "eye", label: "Pause the form", disabled: !isLive, run: () => void setStatus("paused") },
             "hr",
@@ -645,10 +647,13 @@ function PublishDialog({ checks, live, onClose, onPublish, onFix, error }: { che
   );
 }
 
-/** Preview beside Publish: the form on the whole screen, as a visitor fills it; again goes back to the editor. */
-function PreviewButton({ previewing, onClick }: { previewing: boolean; onClick: () => void }) {
+/**
+ * Preview beside Publish: the form on the whole screen, as a visitor fills it; again goes back to the editor (the one
+ * Back to editor). It waits while there's no form yet (the templates, or a template open for a look).
+ */
+function PreviewButton({ previewing, disabled, onClick }: { previewing: boolean; disabled?: boolean; onClick: () => void }) {
   return (
-    <button type="button" data-form-preview="" className={GHOST} aria-pressed={previewing} onClick={onClick}>
+    <button type="button" data-form-preview="" className={GHOST} aria-pressed={previewing} disabled={disabled && !previewing} onClick={onClick}>
       <Ic n={previewing ? "back" : "eye"} />
       {previewing ? "Back to editor" : "Preview"}
     </button>

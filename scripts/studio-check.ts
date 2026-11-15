@@ -4,7 +4,8 @@
 // question. Edit works right on the form (pick, type, the floating bar, undo) with nothing covering the bar; Code, On
 // submission and Publish work, the published page runs in the form script, each form keeps its own chats with Tia
 // (one bar under the form, chats that slide up from it), the look is one card with one gallery, and the Welcome screen
-// is edited like any page (its photo is its photo, never a field from Page 1).
+// is edited like any page (its photo is its photo, never a field from Page 1). The page's header holds the one
+// Preview (and Back to editor) and the one ⋯; Restart sits in Preview.
 //   CHROMIUM_PATH=… node scripts/studio-check.ts   (SHOTS=dir saves screenshots)
 
 import { readFileSync } from "node:fs";
@@ -70,8 +71,9 @@ try {
   const idle = () => p.waitForFunction(() => !document.querySelector("#studio")!.shadowRoot!.querySelector(".msg.ai .tia.working"), null, { timeout: 15000 });
   const form = p.locator("#studio").locator("#host");
   // The views: the editor (always), Preview from the page's header, and On submission as the last step.
-  const toPreview = async () => { if (!(await $("#exitPrev").isVisible())) await p.locator("#hdrPreview").click(); };
-  const toEdit = async () => { if (await $("#exitPrev").isVisible()) await $("#exitPrev").click(); };
+  const previewing = () => p.evaluate(() => !!(window as unknown as { studioState: { previewing?: boolean } | null }).studioState?.previewing);
+  const toPreview = async () => { if (!(await previewing())) await p.locator("#hdrPreview").click(); };
+  const toEdit = async () => { if (await previewing()) await p.locator("#hdrPreview").click(); };
   // The Ending page holds what happens after the send: Ending type in the sidebar, Team meeting's rules in the center.
   const toAfter = async () => { await toEdit(); if (await $("#thread").isVisible()) await $("#thFold").click(); await $("#stepBar .pg.end .sp").click(); };
   const addField = async () => { if (await $("#adds").isHidden()) await $("#addFieldBtn").click(); };
@@ -106,7 +108,7 @@ try {
   await $("#peekBar").waitFor();
   check((await $("#peekName").textContent()) === peekName && (await form.locator("input, select, textarea").count()) > 1, "a template opens in full before it's used");
   check(!(await calls()).some((c) => c.mode === "useTemplate") && !(await calls()).some((c) => c.mode === "saveChat" && JSON.stringify(c.body).includes("data-cl")), "opening a template makes nothing and saves nothing");
-  check(await $("#exitPrev").isHidden(), "the template's bar replaces Back to editor");
+  check((await p.locator("#hdrPreview").isDisabled()) && (await $("#restartBtn").isHidden()) && (await $("#chat").isVisible()), "a template open for a look has its own bar and its pages; the header's Preview waits for a form");
   if (shots) await p.screenshot({ path: `${shots}/0b-peek.png` });
   await $("#peekBack").click();
   await $("#tplGrid .tpl").first().waitFor();
@@ -205,9 +207,9 @@ try {
   await $("#undo").click();
 
   // 5. The preview still runs: required, steps, show-if, the booking calendar
-  check(!(await $("#exitPrev").isVisible()) && (await $("#panel").isVisible()), "the Studio opens in the editor, with no view tabs");
+  check(!(await previewing()) && (await $("#panel").isVisible()), "the Studio opens in the editor, with no view tabs");
   await toPreview();
-  check((await $("#exitPrev").isVisible()) && (await $("#stepBar").isVisible()) && !(await $("#thread").isVisible()) && !(await $("#panel").isVisible()) && (await $("#tools").isHidden()), "Preview shows the form and its pages, with Back to editor, and no editing tools");
+  check((await p.locator("#hdrPreview").textContent()) === "Back to editor" && (await $("button").filter({ hasText: "Back to editor" }).count()) === 0 && (await $("#restartBtn").isVisible()) && (await $("#stepBar").isVisible()) && !(await $("#thread").isVisible()) && !(await $("#panel").isVisible()) && (await $("#tools").isHidden()), "Preview shows the form and its pages, with Restart, one Back to editor (the header's) and no editing tools");
   await form.locator("[data-cl-next]").click();
   check(((await form.locator('[data-cl-error-for="name"]').textContent()) ?? "").length > 0, "a required answer stops the next step");
   await form.locator("#nm").fill("Sam");
@@ -406,8 +408,7 @@ try {
   const skipped = await form.locator("section[data-cl-step]").nth(1).getAttribute("data-cl-show-if");
   check(skipped === "mood != 'tender'", `the page a jump skips shows only for other answers (${skipped})`);
   await toPreview();
-  await $("#moreBtn").click();
-  await $("#layer #restart").click();
+  await $("#restartBtn").click();
   await form.locator("#nm").fill("Sam");
   check(((await form.locator("#title").textContent()) ?? "").endsWith("Sam"), "in Preview the text shows what they typed");
   await form.locator('label:has(input[value="tender"])').first().click();
@@ -517,9 +518,7 @@ try {
   const controls = await p.evaluate(() => [...document.querySelector("#studio")!.shadowRoot!.querySelectorAll("section.stage > .bar > button, section.stage > .bar > a, section.stage > .bar > .grp > button")].filter((b) => !(b as HTMLElement).hidden).length);
   if (shots) await p.screenshot({ path: `${shots}/bars.png` });
   check(controls <= 13, `the bar holds at most 13 controls (${controls})`);
-  await $("#moreBtn").click();
-  check((await $("#layer .menu").textContent())!.includes("Back to page 1"), "⋯ holds Back to page 1");
-  await $("#moreBtn").click();
+  check((await $("#moreBtn").count()) === 0 && (await $("#restartBtn").isHidden()), "the bar has no ⋯ of its own (the form's menu is the header's), and Restart waits for Preview");
   check((await $("#s-layers").count()) + (await $("#navi").count()) === 0, "no Layers");
   await $("#stepBar .sp").nth(1).click();
   await form.locator("#photo").click();
@@ -780,9 +779,6 @@ try {
   const pub = (await calls()).find((c) => c.mode === "publish")!.body as { html: string; css: string; brand: string; after: PageAfter; name: string };
   check(pub.name === "Daily check-in" && pub.html.includes("data-cl-step") && pub.brand.includes("--finch-mint"), "Publish sends the form's name, page and brand CSS");
   check(Object.keys((pub as unknown as { langs: Record<string, string> }).langs).sort().join() === "ar,fr" && (pub as unknown as { lang: string }).lang === "en", "Publish sends the form's languages");
-  await $("#moreBtn").click();
-  check(await $("#layer .menu #openBtn").isVisible(), "a published form links to its page, from the bar's ⋯");
-  await $("#moreBtn").click();
   await p.locator("#hdrAction").click();
   check((await calls()).some((c) => c.mode === "openShare" && c.body === "33333333-3333-4333-8333-333333333333"), "once live, the one button is Share, for the published form");
   await p.waitForFunction(() => Object.values((window as unknown as { saved: Record<string, { formId: string; state: string }> }).saved).some((c) => c.formId && c.state === "live"));

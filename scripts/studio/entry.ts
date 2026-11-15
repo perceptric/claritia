@@ -189,8 +189,8 @@ const el = document.getElementById("studio")!;
 const shell = el.attachShadow({ mode: "open" });
 shell.innerHTML = `<style>${STUDIO_CSS}</style>${STUDIO_HTML}`;
 
-// A stand-in for the page's header (FormHeader): the one button, its problem count, the form check and the message,
-// driven the same way, through the Studio's state and control.
+// A stand-in for the page's header (FormHeader): Preview (and Back to editor), the one button, its problem count, the
+// form check and the message, driven the same way, through the Studio's state and control.
 const hdr = document.createElement("div");
 hdr.id = "hdr";
 hdr.innerHTML = `<button id="hdrPreview">Preview</button><button id="hdrAction"></button><span id="hdrMsg"></span><div id="hdrCheck" hidden></div>`;
@@ -203,6 +203,10 @@ function drawHeader() {
   b.dataset.problems = String(errs);
   b.disabled = !!st?.publishing || (st?.state !== "live" && !st?.canPublish);
   document.getElementById("hdrMsg")!.textContent = st?.msg ?? "";
+  // Preview is the one way in and out of Preview, as FormHeader's: Back to editor while previewing, waiting with no form.
+  const pv = document.getElementById("hdrPreview") as HTMLButtonElement;
+  pv.textContent = st?.previewing ? "Back to editor" : "Preview";
+  pv.disabled = !st?.canPreview && !st?.previewing;
 }
 function drawCheck() {
   const box = document.getElementById("hdrCheck")!;
