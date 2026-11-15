@@ -53,17 +53,9 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 /* Chat */
 .chat { flex: none; width: 260px; display: flex; flex-direction: column; border-right: 1px solid var(--line); min-height: 0; }
 .chat.prev .ptools { visibility: hidden; }
-.chathead { height: 52px; flex: none; display: flex; align-items: center; gap: 6px; padding: 0 8px 0 10px; border-bottom: 1px solid var(--line); }
-.chatpick { flex: 1; min-width: 0; height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; text-align: left; }
-.chatpick.static { cursor: default; }
-.chatpick .nm { font-weight: 600; font-size: 13.5px; min-width: 0; overflow-wrap: anywhere; text-align: start; }
-.bmark { height: 20px; max-width: 64px; flex: none; object-fit: contain; object-position: left; }
-.smark { width: 22px; height: 20px; border-radius: 5px; box-shadow: 0 0 0 1px var(--line); display: inline-flex; align-items: center; justify-content: center; flex: none; overflow: hidden; }
-.smark i { width: 64%; height: 58%; border-radius: 2px; display: flex; align-items: flex-end; padding: 2px; box-sizing: border-box; }
-.smark u { width: 60%; height: 2px; border-radius: 2px; }
+.chathead { height: 52px; flex: none; display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 0 10px 0 16px; border-bottom: 1px solid var(--line); }
+.chathead .phtitle { font-size: 13px; font-weight: 600; color: var(--ink); }
 .bempty { width: 20px; height: 20px; border-radius: 999px; border: 1px dashed var(--line-strong); color: var(--muted); display: inline-flex; align-items: center; justify-content: center; flex: none; font-size: 10.5px; font-weight: 600; }
-.badge { height: 20px; padding: 0 8px; border-radius: 999px; font-size: 11px; font-weight: 500; display: inline-flex; align-items: center; flex: none; background: var(--paper-deep); color: var(--muted); }
-.badge.live { background: var(--signal-soft); color: var(--signal); }
 .ib { width: 30px; height: 30px; border-radius: 999px; border: 0; background: transparent; color: var(--muted); display: inline-flex; align-items: center; justify-content: center; flex: none; position: relative; }
 .ib:hover:not(:disabled) { background: var(--hover); color: var(--ink); }
 .brandrow { flex: none; padding: 10px 12px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
@@ -189,7 +181,6 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .addlist.grid button .nm { overflow-wrap: anywhere; }
 .ptools { display: flex; align-items: center; gap: 2px; min-width: 0; }
 .pagesec { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; padding: 10px 10px 16px; gap: 6px; }
-.phead { display: flex; align-items: center; justify-content: space-between; padding: 4px 4px 2px; font-size: 12px; color: var(--muted); }
 .steps { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .steps .psep { font-size: 12px; color: var(--muted); padding: 12px 4px 2px; }
 .steps .pg { position: relative; display: flex; align-items: center; gap: 2px; min-width: 0; border-radius: 10px; background: var(--bg); box-shadow: 0 0 0 1px var(--line); padding-inline-end: 4px; }
@@ -684,8 +675,8 @@ const METHOD_LABEL = { rr: "Round robin", weighted: "Weighted round robin", load
 export const STUDIO_HTML = `
 <div class="app" id="app">
   <section class="chat" id="chat" aria-label="Pages">
-    <div class="chathead"><div class="chatpick static" id="chatPick"></div></div>
-    <div class="pagesec" id="pageSec"><div class="phead"><span>Pages</span><div class="ptools" id="pageTools" role="toolbar" aria-label="Add page"></div></div><div class="steps" id="stepBar" role="list" aria-label="Pages" hidden></div></div>
+    <div class="chathead"><span class="phtitle">Pages</span><div class="ptools" id="pageTools" role="toolbar" aria-label="Add page"></div></div>
+    <div class="pagesec" id="pageSec"><div class="steps" id="stepBar" role="list" aria-label="Pages" hidden></div></div>
   </section>
   <section class="stage" aria-label="Form">
     <div class="bar">
@@ -1397,7 +1388,8 @@ ${CAL_CSS}
     const f = $("frame").getBoundingClientRect(), r = el.getBoundingClientRect();
     if (!r.width && !r.height) { box.hidden = true; return null; }
     Object.assign(box.style, { left: `${r.left - f.left}px`, top: `${r.top - f.top}px`, width: `${r.width}px`, height: `${r.height}px` });
-    if (tag) tag.textContent = nameOf(el);
+    // Named from the form's source, as the panel names it (the drawn copy can differ, a Claritia block for one).
+    if (tag) { const k = el.getAttribute?.("data-k"); tag.textContent = nameOf((k && byK(k)) || el); }
     box.hidden = false;
     return { top: r.top - f.top, left: r.left - f.left, width: r.width, height: r.height };
   }
@@ -1582,7 +1574,10 @@ ${CAL_CSS}
   }
   const endKindName = () => { const k = body().after?.kind; return k === "page" ? "Redirect" : k === "meeting" ? "Booking page" : "Thank-you page"; };
   let dragPage = null, renaming = null;
-  /** Add page: a plain page, a payment page, the scheduling page (the Ending books a meeting), or a page copied before. */
+  /**
+   * Add page: the Welcome screen (until there is one), a plain page, a payment page, the scheduling page (the Ending
+   * books a meeting), or a page copied before.
+   */
   function pageTools() {
     const box = $("pageTools");
     box.innerHTML = "";
@@ -1590,6 +1585,7 @@ ${CAL_CSS}
     const item = (ic, text, fn) => { const b = h("button", { class: "mi small", role: "menuitem", html: `${SVG(ic, 15)}<span class="nm"></span>`, onclick: () => { closeMenu(); fn(); } }); b.querySelector(".nm").textContent = text; return b; };
     const b = h("button", { class: "ib", "data-add-page": "", "aria-label": "Add page", "data-tip": "Add page", "aria-haspopup": "menu", html: SVG(P.plus, 15) });
     b.onclick = () => { const copied = store.get("clr-studio-page", ""); openMenu(b, [
+      ...(src.querySelector("[data-cl-cover]") ? [] : [item(P.rating, "Welcome screen", addCover)]),
       item(P.section, "Page", addPage),
       item(P.payment, "Payment page", addPaymentPage),
       item(P.cal, "Scheduling page", addSchedulingPage),
@@ -2631,7 +2627,7 @@ ${CAL_CSS}
     if (!cur) return;
     snap();
     cur.brandId = ""; body().style = id; body().styleCss = styleCssById(id);
-    changed(); brandUi(); chatHead(); draw(); refresh(); renderLog();
+    changed(); brandUi(); draw(); refresh(); renderLog();
     toast(`${styleName(id)} applied. Undo with Cmd+Z.`);
   }
   // The styles grid: the look menu under the brand button shows it (the Theme tab keeps the changes on top of it).
@@ -2648,25 +2644,18 @@ ${CAL_CSS}
     const st = stepsIn(src);
     return st.length ? st[v] || null : src.querySelector("form");
   }
-  /** Welcome screen: a first screen with the title, a line and Start, before the questions. */
-  function welcomeSec(p) {
-    const cov = src.querySelector("[data-cl-cover]");
-    const W = h("div", { class: "sec" }, h("h4", { text: "Welcome screen" }));
-    W.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Show first" }), h("div", {}, h("button", { class: "sw", role: "switch", "aria-checked": String(!!cov), "aria-label": "Welcome screen", onclick: () => {
-      snap();
-      if (cov) { cov.remove(); S.view = 0; }
-      else {
-        const title = (src.querySelector("h1")?.textContent || cur?.name || "Welcome").trim().slice(0, 120);
-        const el = clean('<section data-cl-cover><h1 class="heading"></h1><p class="text"></p><button type="button" class="btn" data-cl-start>Start</button></section>').firstElementChild;
-        el.querySelector("h1").textContent = title;
-        el.querySelector("p").textContent = (src.querySelector("header .text")?.textContent || "").trim().slice(0, 300) || "It takes about a minute.";
-        [el, ...el.querySelectorAll("*")].forEach((x) => x.setAttribute("data-k", String(++kSeq)));
-        (src.querySelector(".page") || src).prepend(el);
-        S.view = "cover";
-      }
-      commit(); panel();
-    } }))));
-    p.append(W);
+  /** Welcome screen (Add page's first item): a first screen with the title, a line and Start, before the questions. */
+  function addCover() {
+    if (src.querySelector("[data-cl-cover]")) return;
+    snap();
+    const title = (src.querySelector("h1")?.textContent || cur?.name || "Welcome").trim().slice(0, 120);
+    const el = clean('<section data-cl-cover><h1 class="heading"></h1><p class="text"></p><button type="button" class="btn" data-cl-start>Start</button></section>').firstElementChild;
+    el.querySelector("h1").textContent = title;
+    el.querySelector("p").textContent = (src.querySelector("header .text")?.textContent || "").trim().slice(0, 300) || "It takes about a minute.";
+    [el, ...el.querySelectorAll("*")].forEach((x) => x.setAttribute("data-k", String(++kSeq)));
+    (src.querySelector(".page") || src).prepend(el);
+    S.view = "cover"; S.sel = null; S.design = false;
+    commit(); panel();
   }
   /** The library's photos to pick from, an upload first. */
   function photoGrid(current, choose) {
@@ -2882,7 +2871,7 @@ ${CAL_CSS}
             g.append(h("div", { class: "tcell" }, h("div", { class: "mdel" }, h("span", { class: "q", text: `Delete ${x.name}?` }), h("div", {}, h("button", { class: "pill primary", text: "Delete", onclick: async () => {
               try { await api.deleteBrand(x.id); } catch (e) { galleryDel = ""; toast(e?.message || "Couldn't delete the brand."); return fill(); }
               brands = brands.filter((y) => y.id !== x.id); galleryDel = "";
-              brandUi(); chatHead(); draw(); renderLog(); fill();
+              brandUi(); draw(); renderLog(); fill();
             } }), h("button", { class: "pill", text: "Keep", onclick: () => { galleryDel = ""; fill(); } })))));
             continue;
           }
@@ -2910,7 +2899,6 @@ ${CAL_CSS}
     oneSec(p);
   }
   function formSettings(p) {
-    welcomeSec(p);
     // Hidden values from the link: ?utm_source=… or ?ref=… kept with each fill.
     const Hd = h("div", { class: "sec" }, h("h4", { text: "Hidden fields" }));
     const hidden = [...src.querySelectorAll('[data-cl-field="hidden"][data-cl-from="param"]')];
@@ -3089,11 +3077,11 @@ ${CAL_CSS}
   // ── Undo, redo, commit ────────────────────────────────────────────────────────────────────────────────
   const state = () => ({ html: sourceHtml(), css: body().css, after: JSON.stringify(body().after), langs: JSON.stringify({ langs: body().langs || {}, from: body().langFrom || {} }), look: JSON.stringify({ b: cur?.brandId || "", s: body().style || "", c: body().styleCss || "" }) });
   function snap() { const s = H(); s.past.push(state()); if (s.past.length > 80) s.past.shift(); s.future.length = 0; buttons(); }
-  function restore(x) { if (x.look) { const l = JSON.parse(x.look); cur.brandId = l.b; if (l.s) { body().style = l.s; body().styleCss = l.c; } else { delete body().style; delete body().styleCss; } brandUi(); chatHead(); renderLog(); } body().css = x.css; body().after = JSON.parse(x.after); if (x.langs) { const l = JSON.parse(x.langs); body().langs = l.langs; body().langFrom = l.from; if (S.lang && !l.langs[S.lang]) S.lang = ""; } setSource(x.html); body().html = x.html; S.sel = null; changed(); draw(); refresh(); }
+  function restore(x) { if (x.look) { const l = JSON.parse(x.look); cur.brandId = l.b; if (l.s) { body().style = l.s; body().styleCss = l.c; } else { delete body().style; delete body().styleCss; } brandUi(); renderLog(); } body().css = x.css; body().after = JSON.parse(x.after); if (x.langs) { const l = JSON.parse(x.langs); body().langs = l.langs; body().langFrom = l.from; if (S.lang && !l.langs[S.lang]) S.lang = ""; } setSource(x.html); body().html = x.html; S.sel = null; changed(); draw(); refresh(); }
   function undo() { const s = H(); if (!s.past.length) return; s.future.push(state()); restore(s.past.pop()); }
   function redo() { const s = H(); if (!s.future.length) return; s.past.push(state()); restore(s.future.pop()); }
   function buttons() { $("undo").disabled = !H().past.length; $("redo").disabled = !H().future.length; }
-  function changed() { langUi(); if (cur.state === "live") cur.state = "changed"; if (cur.state === "new" && built()) cur.state = "draft"; S.pubMsg = ""; pubUi(); chatHead(); buttons(); save(); }
+  function changed() { langUi(); if (cur.state === "live") cur.state = "changed"; if (cur.state === "new" && built()) cur.state = "draft"; S.pubMsg = ""; pubUi(); buttons(); save(); }
   function commit() { compileJumps(); syncPipes(); syncQuiz(); body().html = sourceHtml(); changed(); draw(); refresh(); }
   /** A quiz's score adds up every quiz question on the form. */
   function syncQuiz() {
@@ -3218,7 +3206,8 @@ ${CAL_CSS}
     if (S.lsel === "cover") { $("ltitle").textContent = "Welcome"; box.append(h("p", { class: "hint0", text: "Everyone starts here." })); return; }
     const i = typeof S.lsel === "number" ? S.lsel : 0, st = steps[i];
     $("ltitle").textContent = `After ${st ? stepName(st, i) : "Page 1"}`;
-    if (!st) return;
+    // One page: nothing to skip yet, so one line and the way to a second page (Logic stays open on the new flow).
+    if (!st) return void box.append(h("p", { class: "hint0", text: "Skip rules need two pages or more." }), h("div", {}, h("button", { class: "pill", id: "logicAddPage", html: `${SVG(P.plus, 13)}<span>Add page</span>`, onclick: () => addPage() })));
     const seen = new Set();
     st.querySelectorAll('input[type="radio"],select').forEach((c) => {
       const n = c.name; if (!n || seen.has(n)) return; seen.add(n);
@@ -3282,7 +3271,7 @@ ${CAL_CSS}
     const a = body().after;
     const set = (p) => { snap(); if (p.kind === "meeting") bookSpot(); body().after = { ...a, ...p }; changed(); stepUi(); runCheck(); draw(); endUi(); };
     const seg = choice;
-    const c1 = h("div", { class: "sec" }, h("h4", { text: "Ending type" }), seg("Ending type", [["thanks", "Message"], ["page", "Redirect"], ["meeting", "Book a meeting"]], a.kind, (k) => set({ kind: k, ...(k === "meeting" && !a.meeting && MEETINGS[0] ? { meeting: MEETINGS[0].id } : {}) })));
+    const c1 = h("div", { class: "sec" }, h("h4", { text: "Ending type" }), seg("Ending type", [["thanks", "Thank-you page"], ["page", "Redirect"], ["meeting", "Booking page"]], a.kind, (k) => set({ kind: k, ...(k === "meeting" && !a.meeting && MEETINGS[0] ? { meeting: MEETINGS[0].id } : {}) })));
     if (a.kind === "page") { const i = h("input", { class: "in", placeholder: "https://yourcompany.com/thanks", value: a.url || "", "aria-label": "Page address", style: "height:34px" }); i.addEventListener("change", () => set({ url: i.value.trim() })); c1.append(i); }
     // Confetti over the thank-you once it's sent (data-cl-confetti on the thank-you, run by the form script).
     const tk = src.querySelector("[data-cl-thanks]");
@@ -3538,7 +3527,7 @@ ${CAL_CSS}
       const r = await api.saveDraft({ formId: null, name: c.name, html: sourceHtml(), css: c.body.css, brand: brandOf(c)?.css || "", after: c.body.after, kitId: c.brandId, lang: mainLang(), langs: c.body.langs || {} });
       c.formId = r.formId;
       if (c.state === "new") c.state = "draft";
-      save(true); pubUi(); chatHead();
+      save(true); pubUi();
       return r.formId;
     } catch (e) {
       toast(e?.message || "Couldn't save the form. Try again.");
@@ -3769,29 +3758,11 @@ ${CAL_CSS}
       S.pubMsg = e?.message || "Couldn't publish. Try again.";
     } finally {
       S.publishing = false;
-      if (alive) { pubUi(); chatHead(); save(true); }
+      if (alive) { pubUi(); save(true); }
     }
     return ok;
   }
 
-  // ── The pages column: the form's mark and name over its pages ──────────────────────────────────────────────
-  // A brand's mark: its logo (each way to show it tried in turn, so a picture the site won't share never shows broken),
-  // else its first letter. A style shows its own colors: page, card and button.
-  const letter = (b) => h("span", { class: "bempty", text: b ? b.name.charAt(0) : "+" });
-  const styleMark = (id) => {
-    const th = THEMES.find((t) => t.id === id) || THEMES[0];
-    return h("span", { class: "smark", style: `background:${th.bg}`, "aria-hidden": "true" }, h("i", { style: `background:${th.card}` }, h("u", { style: `background:${th.accent}` })));
-  };
-  const mark = (b) => {
-    if (b?.style) return styleMark(b.style);
-    const list = logoList(b);
-    if (!list.length) return letter(b);
-    const img = h("img", { class: "bmark", alt: "" });
-    tryLogo(img, list, () => img.replaceWith(letter(b)));
-    return img;
-  };
-  const stateBadge = (c) => h("span", { class: `badge${c.state === "live" ? " live" : ""}`, text: c.state === "live" ? "Live" : c.state === "changed" ? "Changes not live" : "Draft" });
-  function chatHead() { const b = $("chatPick"); b.innerHTML = ""; if (!cur) return; b.append(mark(brandOf(cur)), h("span", { class: "nm", text: cur.name })); }
   function newChat(silent) {
     const c = blank(cur?.brandId && brandOf(cur) ? cur.brandId : brands[0]?.id || "");
     chats.unshift(c);
@@ -3814,7 +3785,7 @@ ${CAL_CSS}
     S.side = "build";
     if (S.mode !== "edit") S.mode = "edit";
     S.view = 0;
-    aboutUi(); chatHead(); brandUi(); renderLog(); sideUi(); setMode("edit"); pubUi(); buttons(); langUi();
+    aboutUi(); brandUi(); renderLog(); sideUi(); setMode("edit"); pubUi(); buttons(); langUi();
     const b = brandOf(c);
     if (b && !b.css) void readLook(b);
   }
@@ -3835,7 +3806,7 @@ ${CAL_CSS}
     // A built form asks first, keeps its look until the new one is ready, then Tia moves it over in one change.
     if (built() && old && old.id !== id) return switchDialog(old, b);
     if (cur.brandId !== id || cur.body.style) { snap(); cur.brandId = id; delete cur.body.style; delete cur.body.styleCss; changed(); }
-    brandUi(); chatHead(); draw(); renderLog();
+    brandUi(); draw(); renderLog();
     return b.css ? Promise.resolve() : readLook(b);
   }
   function switchDialog(old, b) {
@@ -3848,7 +3819,7 @@ ${CAL_CSS}
     const c = cur;
     S.hold = old.css || "";
     snap(); c.brandId = b.id; delete c.body.style; delete c.body.styleCss; changed();
-    brandUi(); chatHead(); draw(); renderLog();
+    brandUi(); draw(); renderLog();
     if (!b.css) await readLook(b);
     S.hold = "";
     if (!alive || cur !== c) return;
@@ -4302,7 +4273,7 @@ ${CAL_CSS}
       if (fh?.closed) { stepAt = 0; done = false; }
       setSource(html);
       S.sel = null;
-      draw(); refresh(); pubUi(); chatHead(); buttons();
+      draw(); refresh(); pubUi(); buttons();
     }
   }
   function busyUi(b) {
@@ -4405,7 +4376,7 @@ ${CAL_CSS}
     rename(name) {
       const n = String(name || "").trim().slice(0, 120);
       if (!cur || !n || n === cur.name) return;
-      cur.name = n; chatHead(); save(); emit();
+      cur.name = n; save(); emit();
     },
   };
 }

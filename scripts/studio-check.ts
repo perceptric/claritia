@@ -149,7 +149,7 @@ try {
   await $("#learnDone").click();
   await $("#brandDlg").waitFor({ state: "detached" });
   check((await calls()).some((c) => c.mode === "confirm" && (c.body as { logoUrl: string }).logoUrl === "https://finch.care/logo.png"), "confirming saves the name and the logo's address");
-  check((await $("#chatPick img.bmark").count()) === 1, "the brand shows as its logo beside the form's name");
+  check((await $("#chatPick").count()) === 0 && ((await $("#chat .chathead").textContent()) ?? "").trim() === "Pages", "the pages column is headed Pages: the form's name shows once, in the page's header");
   await p.waitForFunction(() => !document.querySelector("#studio")!.shadowRoot!.getElementById("send")!.hasAttribute("disabled"));
   check((await calls()).some((c) => c.mode === "look"), "the look is read after confirming");
   check((await $("#msgs").textContent())!.includes("soft green"), "what Tia found in the look shows in the chat");
@@ -175,7 +175,7 @@ try {
   check((await form.locator("#photo .cl-drop").count()) === 1 && (await form.locator("#photo .label").textContent())!.includes("A photo of your day"), "a Claritia block shows in the preview with its label, as a drop zone");
   const logo = await p.evaluate(() => (document.querySelector("#studio")!.shadowRoot!.getElementById("host")!.shadowRoot!.querySelector("img[data-cl-logo]") as HTMLImageElement | null)?.src ?? "");
   check(logo.startsWith("data:image/png"), "the form shows the brand's real logo");
-  check((await $("#chatPick").textContent())!.includes("Daily check-in"), "the chat takes the form's name");
+  check((await p.evaluate(() => (window as unknown as { studioState: { name: string } }).studioState.name)) === "Daily check-in", "the chat takes the form's name");
   check((await $(".msg.ai .who").first().textContent())!.includes("Tia") && !(await $("#app").textContent())!.includes("Claude"), "the chat is Tia, and Claude isn't named");
   await p.waitForFunction(() => Object.values((window as unknown as { saved: Record<string, { body?: { html: string } }> }).saved).some((c) => c.body?.html.includes('id="title"')));
   check(true, "the form is saved");
@@ -539,7 +539,7 @@ try {
   await $("#pscroll button[aria-label='Ending type']").click();
   const kinds = (await $("#layer .menu").textContent())!;
   await p.keyboard.press("Escape");
-  check(after.includes("Ending type") && ["Message", "Redirect", "Book a meeting"].every((x) => kinds.includes(x)) && after.includes("Team meeting"), "Ending type is Message, Redirect or Book a meeting, and a meeting is Individual or Team meeting");
+  check(after.includes("Ending type") && ["Thank-you page", "Redirect", "Booking page"].every((x) => kinds.includes(x)) && after.includes("Team meeting"), "Ending type is Thank-you page, Redirect or Booking page (the pages column's words), and a meeting is Individual or Team meeting");
   // Team meeting: the rules are edited in Logic, beside the form's flow.
   await $("#pscroll .pill").filter({ hasText: "Edit rules in Logic" }).click();
   check((await $("#logicView").isVisible()) && (await $("#canvas").isHidden()) && (await $("#flow").isVisible()) && (await $("#flow").textContent())!.includes("Otherwise"), "Edit rules in Logic opens the flow with the team's rules");
@@ -572,7 +572,7 @@ try {
   check((await form.locator(".cl-rdr-url").textContent()) === "https://acme.dev/welcome" && (await calls()).some((c) => c.mode === "page" && c.body === "https://acme.dev/welcome"), "Redirect draws the page people land on, with its address");
   if (shots) await p.screenshot({ path: `${shots}/4c-redirect.png` });
   await $("#pscroll button[aria-label='Ending type']").click();
-  await $("#layer .menu .mi").filter({ hasText: "Book a meeting" }).click();
+  await $("#layer .menu .mi").filter({ hasText: "Booking page" }).click();
   // Book with is one dropdown, each scheduler with its logo, the picked one's in the button.
   const bookWith = $("#pscroll button[aria-label='Book with']");
   check(((await bookWith.textContent()) ?? "").includes("Claritia calendar") && (await bookWith.locator(".logo").count()) === 1, "Book with is a dropdown showing the picked scheduler with its logo");
@@ -884,6 +884,13 @@ try {
   await $("#undo").click();
   check((await $("#tpls").isVisible()) && (await $("#tools").isHidden()) && (await $("#chat").isHidden()) && !(await $("#redo").isDisabled()), "undo takes Start blank back to the templates, and redo is there");
   await $("#redo").click();
+  // Logic on a one-page form: one line and Add page, and Logic stays open on the new flow
+  await $("#logicBtn").click();
+  check(((await $("#lbody").textContent()) ?? "").includes("Skip rules need two pages or more") && (await $("#logicAddPage").isVisible()), "Logic on a one-page form says skip rules need two pages, with Add page");
+  await $("#logicAddPage").click();
+  check((await $("#logicView").isVisible()) && ((await $("#lgraph").textContent()) ?? "").includes("Page 2"), "Add page from Logic adds the page and keeps Logic open");
+  await $("#logicBtn").click();
+  await $("#undo").click();
   // The new fields: 39 in the Add list, each added in one click
   await addField();
   check((await $("#addList [data-add]").count()) === 79, "the Add list has 79 fields");
@@ -973,8 +980,15 @@ try {
   // its words are kept, an upload goes in, and Preview starts on it until Start
   await toEdit();
   await $("#stepBar .sp").first().click();
-  await $("#pscroll button[aria-label='Welcome screen']").click();
-  check((await form.locator("[data-cl-cover] [data-cl-start]").count()) === 1 && (await $("#stepBar .sp span:last-child").first().textContent()) === "Welcome" && (await $("#stepBar .sp").first().getAttribute("aria-pressed")) === "true", "the Welcome screen switch adds a first screen with Start, shown in Edit");
+  await $("#canvas").click({ position: { x: 6, y: 6 } });
+  check((await $("#selName").textContent()) === "Form" && (await $("#pscroll button[aria-label='Welcome screen']").count()) === 0, "the form's settings hold no Welcome screen switch: the Welcome screen is a page");
+  await $("#pageTools [data-add-page]").click();
+  check(((await $(".menu .mi").first().textContent()) ?? "").includes("Welcome screen"), "Add page offers the Welcome screen first");
+  await $(".menu .mi").filter({ hasText: "Welcome screen" }).click();
+  check((await form.locator("[data-cl-cover] [data-cl-start]").count()) === 1 && (await $("#stepBar .sp span:last-child").first().textContent()) === "Welcome" && (await $("#stepBar .sp").first().getAttribute("aria-pressed")) === "true", "Add page › Welcome screen adds a first screen with Start, shown in Edit");
+  await $("#pageTools [data-add-page]").click();
+  check((await $(".menu .mi").filter({ hasText: "Welcome screen" }).count()) === 0, "and only once");
+  await p.keyboard.press("Escape");
   // The photo is part of Design.
   await $("#designBtn").click();
   await $("#pscroll button").filter({ hasText: "Add photo" }).click();
