@@ -682,7 +682,7 @@ export const STUDIO_HTML = `
     <div class="pagesec" id="pageSec"><div class="steps" id="stepBar" role="list" aria-label="Pages" hidden></div></div>
   </section>
   <section class="stage" aria-label="Form">
-    <div class="bar">
+    <div class="bar" id="bar">
       <button class="pill" id="restartBtn" hidden>${SVG(P.restart, 14)}Restart</button>
       <div class="peekbar" id="peekBar" hidden><button class="pill" id="peekBack">${SVG(P.back, 14)}All templates</button><span class="peeknm" id="peekName"></span><button class="pill primary" id="peekUse">Use this template</button></div>
       <div class="tools" id="tools"><button class="pill primary" id="addFieldBtn" aria-haspopup="true" aria-expanded="false">${SVG(P.plus, 14)}Add field</button><button class="pill" id="designBtn" aria-pressed="false">${SVG(P.brush, 14)}Design</button><button class="pill" id="logicBtn" aria-pressed="false">${SVG('<circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="12" r="2.5"/><path d="M6 8.5v7M8.3 7l7.4 3.8M8.3 17l7.4-3.8"/>', 14)}Logic</button></div>
@@ -693,8 +693,6 @@ export const STUDIO_HTML = `
         <button class="ib" id="d-phone" data-tip="Phone" aria-label="Phone" aria-pressed="false">${SVG(P.phone)}</button>
       </div>
       <button class="langbtn" id="langBtn" data-tip="Languages" aria-label="Languages" aria-haspopup="menu"></button>
-      <span class="vsep" id="devSep"></span>
-      <button class="ib" id="undo" data-tip="Undo" aria-label="Undo" disabled>${SVG(P.undo)}</button><button class="ib" id="redo" data-tip="Redo" aria-label="Redo" disabled>${SVG(P.redo)}</button>
     </div>
     <div class="work" id="work">
       <div class="mid" id="mid">
@@ -834,7 +832,7 @@ export type StudioApi = {
 
 export type StudioIssue = { level: "error" | "warning"; text: string; fix?: string; after?: boolean };
 /** What the header shows: the open chat and its form, whether it can publish, and the form check. */
-export type StudioState = { ready: boolean; chatId: string; formId: string; name: string; state: "new" | "draft" | "live" | "changed"; canPublish: boolean; publishing: boolean; issues: StudioIssue[]; canFix: boolean; msg: string; previewing?: boolean; canPreview?: boolean };
+export type StudioState = { ready: boolean; chatId: string; formId: string; name: string; state: "new" | "draft" | "live" | "changed"; canPublish: boolean; publishing: boolean; issues: StudioIssue[]; canFix: boolean; msg: string; previewing?: boolean; canPreview?: boolean; canUndo?: boolean; canRedo?: boolean };
 /** What the header can ask of the Studio. */
 export type StudioControl = {
   stop(): void;
@@ -846,6 +844,8 @@ export type StudioControl = {
   openAfter(): void;
   /** Preview the form on the whole screen, or go back to the editor. */
   preview(): void;
+  undo(): void;
+  redo(): void;
   rename(name: string): void;
 };
 
@@ -1557,8 +1557,9 @@ ${CAL_CSS}
   }
   /**
    * What shows around the canvas. The pages, Add field, Design, Logic, the panel and the devices wait for a form: the
-   * templates get the whole width, with Start blank as their one way to begin without a template. Undo and redo stay
-   * while editing (undoing back to the templates can be redone).
+   * templates get the whole width, with Start blank as their one way to begin without a template, and no bar over
+   * them. Undo and redo are in the page's header (the state's canUndo and canRedo), so undoing back to the templates
+   * can be redone.
    */
   function chromeUi() {
     const has = built();
@@ -1566,8 +1567,7 @@ ${CAL_CSS}
     $("tools").hidden = S.mode !== "edit" || !has;
     $("panel").hidden = S.mode !== "edit" || !!S.logic || !has;
     $("devGrp").hidden = !has;
-    $("undo").hidden = $("redo").hidden = S.mode === "preview";
-    $("devSep").hidden = !has || S.mode === "preview";
+    $("bar").hidden = !has && !PK;
     if (has) return;
     // Logic or Design left on when the form went empty never comes back over the templates or a new form.
     S.logic = false; S.design = false;
@@ -3029,6 +3029,7 @@ ${CAL_CSS}
     $("peekUse").disabled = !!TG.making;
     $("peekUse").textContent = TG.making ? "Creating form" : "Use this template";
     if (PK) $("restartBtn").hidden = true;
+    $("bar").hidden = !PK && !built();
   }
   $("peekBack").onclick = () => setMode("edit");
   $("peekUse").onclick = () => { if (PK) void useTpl(PK.t); };
@@ -3083,7 +3084,8 @@ ${CAL_CSS}
   function restore(x) { if (x.look) { const l = JSON.parse(x.look); cur.brandId = l.b; if (l.s) { body().style = l.s; body().styleCss = l.c; } else { delete body().style; delete body().styleCss; } brandUi(); renderLog(); } body().css = x.css; body().after = JSON.parse(x.after); if (x.langs) { const l = JSON.parse(x.langs); body().langs = l.langs; body().langFrom = l.from; if (S.lang && !l.langs[S.lang]) S.lang = ""; } setSource(x.html); body().html = x.html; S.sel = null; changed(); draw(); refresh(); }
   function undo() { const s = H(); if (!s.past.length) return; s.future.push(state()); restore(s.past.pop()); }
   function redo() { const s = H(); if (!s.future.length) return; s.past.push(state()); restore(s.future.pop()); }
-  function buttons() { $("undo").disabled = !H().past.length; $("redo").disabled = !H().future.length; }
+  /** Undo and redo live in the page's header: it reads canUndo and canRedo from the state. */
+  function buttons() { emit(); }
   function changed() { langUi(); if (cur.state === "live") cur.state = "changed"; if (cur.state === "new" && built()) cur.state = "draft"; S.pubMsg = ""; pubUi(); buttons(); save(); }
   function commit() { compileJumps(); syncPipes(); syncQuiz(); body().html = sourceHtml(); changed(); draw(); refresh(); }
   /** A quiz's score adds up every quiz question on the form. */
@@ -3095,7 +3097,6 @@ ${CAL_CSS}
     scores.forEach((c) => c.getAttribute("data-cl-formula") !== f && c.setAttribute("data-cl-formula", f));
   }
   function refresh() { if (S.mode === "edit") { panel(); tree(); } if (S.mode === "code") showCode(); endUi(); }
-  $("undo").onclick = undo; $("redo").onclick = redo;
 
   // ── Views and devices ─────────────────────────────────────────────────────────────────────────────────
   // The views: Edit (always, with the editor sidebar and the panel), Preview (the whole screen, from the page's
@@ -3681,6 +3682,8 @@ ${CAL_CSS}
       msg: S.pubMsg,
       previewing: S.mode === "preview" && !PK,
       canPreview: !!cur && built() && !PK,
+      canUndo: S.mode !== "preview" && !!cur && !!H().past.length,
+      canRedo: S.mode !== "preview" && !!cur && !!H().future.length,
     });
   }
 
@@ -4376,6 +4379,8 @@ ${CAL_CSS}
     },
     openAfter() { S.view = "thanks"; setMode("edit"); },
     preview() { if (PK) return; setMode(S.mode === "preview" ? "edit" : "preview"); },
+    undo() { if (S.mode !== "preview") undo(); },
+    redo() { if (S.mode !== "preview") redo(); },
     rename(name) {
       const n = String(name || "").trim().slice(0, 120);
       if (!cur || !n || n === cur.name) return;

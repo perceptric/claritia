@@ -107,7 +107,7 @@ function StudioPage(props: ViewProps & { fresh?: boolean }) {
       : { label: pill === "changed" ? "Publish changes" : "Publish", onClick: () => void run(), disabled: !st?.canPublish, problems: st?.issues.filter((i) => i.level === "error").length };
   return (
     <div className="relative flex h-full min-h-0 flex-col bg-card">
-      <FormHeader navigate={navigate} name={st?.name || "New form"} onRename={st?.ready ? (n) => control.current?.rename(n) : undefined} state={pill} tab="build" onTab={go} tabs={!!st?.formId} tools={<PreviewButton previewing={!!st?.previewing} disabled={!st?.canPreview} onClick={() => control.current?.preview()} />} action={action} actionRef={actionRef} />
+      <FormHeader navigate={navigate} name={st?.name || "New form"} onRename={st?.ready ? (n) => control.current?.rename(n) : undefined} state={pill} tab="build" onTab={go} tabs={!!st?.formId} tools={<StudioTools st={st} control={control} />} action={action} actionRef={actionRef} />
       {st?.msg && !/first$/.test(st.msg) ? (
         <div className="shrink-0 border-b border-line px-[16px] py-[8px]">
           <ErrorNote message={st.msg} />
@@ -536,7 +536,7 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
         build={isStudio}
         subs={data.subs}
         folder={inFolder ? { name: inFolder.name, open: () => navigate("forms", folderPage(inFolder.id)) } : null}
-        tools={tab === "build" && isStudio ? <PreviewButton previewing={!!studio?.previewing} disabled={!studio?.canPreview} onClick={() => control.current?.preview()} /> : undefined}
+        tools={tab === "build" && isStudio ? <StudioTools st={studio} control={control} /> : undefined}
         syncDot={failedWeek ? `${failedWeek} ${failedWeek === 1 ? "lead didn't" : "leads didn't"} reach the CRM` : undefined}
         more={
           <button type="button" className={IB} onClick={(e) => setMenu(menu ? null : e.currentTarget)} title="More" aria-label="More" aria-haspopup="menu" aria-expanded={!!menu}>
@@ -651,6 +651,25 @@ function PublishDialog({ checks, live, onClose, onPublish, onFix, error }: { che
  * Preview beside Publish: the form on the whole screen, as a visitor fills it; again goes back to the editor (the one
  * Back to editor). It waits while there's no form yet (the templates, or a template open for a look).
  */
+/** The Studio's buttons in the page's header: undo and redo while editing, then Preview. */
+function StudioTools({ st, control }: { st: StudioState | null; control: React.RefObject<StudioControl | null> }) {
+  return (
+    <>
+      {st?.previewing ? null : (
+        <span className="inline-flex items-center" role="group" aria-label="History">
+          <button type="button" data-studio-undo="" className={IB} title="Undo" aria-label="Undo" disabled={!st?.canUndo} onClick={() => control.current?.undo()}>
+            <Ic n="undo" />
+          </button>
+          <button type="button" data-studio-redo="" className={IB} title="Redo" aria-label="Redo" disabled={!st?.canRedo} onClick={() => control.current?.redo()}>
+            <Ic n="redo" />
+          </button>
+        </span>
+      )}
+      <PreviewButton previewing={!!st?.previewing} disabled={!st?.canPreview} onClick={() => control.current?.preview()} />
+    </>
+  );
+}
+
 function PreviewButton({ previewing, disabled, onClick }: { previewing: boolean; disabled?: boolean; onClick: () => void }) {
   return (
     <button type="button" data-form-preview="" className={GHOST} aria-pressed={previewing} disabled={disabled && !previewing} onClick={onClick}>

@@ -86,7 +86,7 @@ try {
   // 1. A new workspace opens on the templates: every one, by family and search, with nothing covering them
   await $("#tplGrid .tpl").first().waitFor();
   check((await $("#brandDlg").count()) === 0 && (await $("#tpls").isVisible()), "an empty form shows the templates, with no dialog over them");
-  check((await $("#chat").isHidden()) && (await $("#tools").isHidden()) && (await $("#panel").isHidden()) && (await $("#devGrp").isHidden()) && (await p.locator("#hdrPreview").isDisabled()), "the templates have the whole width: no pages, Add field, Design, Logic, panel, devices or Preview before there's a form");
+  check((await $("#chat").isHidden()) && (await $("#tools").isHidden()) && (await $("#panel").isHidden()) && (await $("#devGrp").isHidden()) && (await $("#bar").isHidden()) && (await p.locator("#hdrPreview").isDisabled()), "the templates have the whole width: no bar, pages, Add field, Design, Logic, panel, devices or Preview before there's a form");
   const tplAll = await $("#tplGrid .tpl").count();
   check(tplAll === 48 && /^Search [1-9]\d{2,} /.test((await $("#tplQ").getAttribute("placeholder"))!), "the templates show 48 at a time, out of hundreds");
   await $("#tplMore").click();
@@ -206,7 +206,7 @@ try {
   const third = ((await calls()).filter((c) => c.mode === "tia").at(-1)!.body as { content: string }[]).at(-1)!.content;
   check(opts3.files.length === 1 && opts3.files[0]!.name === "old-form.png" && opts3.files[0]!.type === "image/png" && opts3.files[0]!.data.length > 0, "the picture goes to Tia with the message");
   check(third.startsWith("Use old-form.png") && (await $(".msg.me .fchip").last().textContent())!.includes("old-form.png") && (await $("#attached").isHidden()), "the message names the file and the box clears");
-  await $("#undo").click();
+  await p.locator("#undo").click();
 
   // 5. The preview still runs: required, steps, show-if, the booking calendar
   check(!(await previewing()) && (await $("#panel").isVisible()), "the Studio opens in the editor, with no view tabs");
@@ -274,7 +274,7 @@ try {
   check(["Page", "Payment page", "Scheduling page", "Paste the copied page"].every((x) => addItems.includes(x)), "Add page offers a page, a payment page, the scheduling page and the copied page");
   await $(".menu .mi").filter({ hasText: "Paste the copied page" }).click();
   check((await $("#stepBar .pg").count()) === 5 && (await form.locator("input[name='email']").count()) === 1, "a copied page pastes back in, with its question names kept unique");
-  for (let i = 0; i < 6; i++) await $("#undo").click();
+  for (let i = 0; i < 6; i++) await p.locator("#undo").click();
   check((await $("#stepBar .pg").count()) === 3, "undo takes the new pages back out");
   await $("#stepBar .sp").nth(0).click();
   await form.locator("#title").click();
@@ -284,12 +284,12 @@ try {
   await p.keyboard.type("Your day");
   await p.keyboard.press("Enter");
   check((await form.locator("#title").textContent()) === "Your day", "text is typed right on the form");
-  await $("#undo").click();
+  await p.locator("#undo").click();
   check((await form.locator("#title").textContent()) === "How was today?", "undo puts it back");
   await form.locator("#title").click();
   await $("#fbar button[aria-label='Duplicate']").click();
   check((await form.locator("h1").count()) >= 2, "the floating bar duplicates");
-  await $("#undo").click();
+  await p.locator("#undo").click();
 
   // 6b. The no-code builder: Add (click, "/", drag), change type, limits, answers in text, jumps and the Form tab.
   const order = () => p.evaluate(() => [...document.querySelector("#studio")!.shadowRoot!.querySelector("#host")!.shadowRoot!.querySelectorAll("[data-k]")].map((e) => (e.getAttribute("name") || e.getAttribute("data-cl-error-for") ? `${e.tagName.toLowerCase()}:${e.getAttribute("name") || `err-${e.getAttribute("data-cl-error-for")}`}` : e.id ? `#${e.id}` : e.tagName.toLowerCase())));
@@ -337,7 +337,7 @@ try {
   await $("#typeBtn").click();
   await $("#layer .menu button").filter({ hasText: "Dropdown" }).click();
   check((await form.locator("select[name='mood'] option").count()) === 4, "a choice turns into a dropdown with the same options");
-  await $("#undo").click();
+  await p.locator("#undo").click();
   check((await form.locator("input[name='mood'][type='radio']").count()) === 3, "undo brings the choice back");
   // Limits on an answer.
   await form.locator("#nm").click();
@@ -450,7 +450,7 @@ try {
   await p.waitForFunction(() => Object.values((window as unknown as { saved: Record<string, { body?: { style?: string } }> }).saved).some((c) => c.body?.style === "midnight"));
   check(!styleBefore.includes("midnight"), "the picked theme is the form's style");
   check(((await $("#themeCard").textContent()) ?? "").includes("Midnight") && ((await $("#themeCard").textContent()) ?? "").includes("Style"), "the card shows the style picked");
-  await $("#undo").click();
+  await p.locator("#undo").click();
   await design.locator(".seg button").filter({ hasText: "Advanced" }).click();
   const adv = (await design.textContent())!;
   check(["Form", "Typography", "Inputs", "Choices", "Buttons", "Reset advanced settings"].every((x) => adv.includes(x)) && !adv.includes("Answers"), "Advanced holds Form, Typography, Inputs, Choices and Buttons");
@@ -470,9 +470,9 @@ try {
   check(true, "Basic's brand color goes into the form's own CSS");
   if (shots) await p.screenshot({ path: `${shots}/2b-builder.png` });
   // Back to the form as it was.
-  for (let i = 0; i < 30 && !(await $("#undo").isDisabled()); i++) {
+  for (let i = 0; i < 30 && !(await p.locator("#undo").isDisabled()); i++) {
     if (!(await form.locator("[name='details'],[name='yes_no'],[name='pick'],[name='mood_other'],[data-cl-field='date'],[data-cl-field='hidden'],[data-cl-field='ranking'],[data-cl-field='payment']").count()) && !(await form.locator("#title").getAttribute("data-cl-pipe")) && (await form.locator("section[data-cl-step]").count()) === 2 && !(await form.locator("#nm").getAttribute("maxlength")) && ((await form.locator("label:has(input[value='sunny'])").textContent()) ?? "").includes("Sunny") && (await form.locator("#q").textContent()) === "How are you feeling today?") break;
-    await $("#undo").click();
+    await p.locator("#undo").click();
   }
   await p.waitForTimeout(1600);
   const backTo = [(await form.locator("section[data-cl-step]").count()) === 2, (await form.locator("#title").textContent()) === "How was today?", !(await builtHtml()).includes("--brand-primary:#1e6bf0"), !(await builtHtml()).includes('name="details"')];
@@ -507,7 +507,7 @@ try {
   check(/^Style all \d+ /.test(swLabel ?? "") && !!swBefore && swBefore !== swAfter, `a part like others shows one switch to style all of them or only this one (${swLabel}: ${swBefore} then ${swAfter})`);
   if (await allSw.count()) await allSw.click();
   if (shots) await p.screenshot({ path: `${shots}/style.png` });
-  await $("#undo").click();
+  await p.locator("#undo").click();
   check((await $("#publish").count()) + (await $("#checkBtn").count()) + (await $("#shareBtn").count()) + (await $("#backBtn").count()) === 0, "Publish, the check, Share and Back live in the page's header, never in the Studio's bar");
   for (const id of ["d-desk", "d-tab", "d-phone"]) if (!(await $(`#${id}`).getAttribute("data-tip"))) check(false, `${id} has a tooltip`);
   check((await $("#t-edit").count()) + (await $("#t-preview").count()) + (await $("#t-after").count()) + (await $("#addBtn").count()) === 0, "no Preview, Edit and On submission tabs, and no Add button in the bar");
@@ -515,7 +515,7 @@ try {
   const canvasBox = await $("#canvas").boundingBox();
   const askBox = await $("#askBox").boundingBox();
   check(!!canvasBox && !!askBox && askBox.y >= canvasBox.y + canvasBox.height - 2, "the Tia box sits under the form");
-  check((await $(".bar #undo").count()) === 1 && (await $("#chat #pageTools [data-add-page]").count()) === 1, "undo sits over the form; Add page beside the pages");
+  check((await $(".bar #undo").count()) === 0 && (await p.locator("#hdr #undo").count()) === 1 && (await $("#chat #pageTools [data-add-page]").count()) === 1, "undo and redo are in the page's header, none in the Studio's bar; Add page beside the pages");
   check(await $("#stepBar .sp").first().evaluate((e) => parseFloat(getComputedStyle(e).fontSize) >= 13 && getComputedStyle(e).textOverflow !== "ellipsis"), "page names are 13 px and never cut short");
   const controls = await p.evaluate(() => [...document.querySelector("#studio")!.shadowRoot!.querySelectorAll("section.stage > .bar > button, section.stage > .bar > a, section.stage > .bar > .grp > button")].filter((b) => !(b as HTMLElement).hidden).length);
   if (shots) await p.screenshot({ path: `${shots}/bars.png` });
@@ -748,10 +748,10 @@ try {
   await idle();
   const fixAsk = ((await calls()).filter((c) => c.mode === "tia")[tiaBefore]!.body as { content: string }[]).at(-1)!.content;
   check(fixAsk.startsWith("Fix this:") && fixAsk.includes("send button"), "Fix sends the problem to Tia");
-  check(await $("#undo").isHidden(), "Preview shows no undo");
+  check(await p.locator("#undo").isHidden(), "Preview shows no undo");
   await toEdit();
-  await $("#undo").click();
-  await $("#undo").click();
+  await p.locator("#undo").click();
+  await p.locator("#undo").click();
   await p.waitForFunction(() => (window as unknown as { studioState: { issues: { level: string }[] } }).studioState.issues.every((i) => i.level !== "error"));
   check(true, "undo brings the send button back and the problem clears");
 
@@ -872,7 +872,7 @@ try {
   await $("#layer button[aria-label='Delete Make the button say Done']").click();
   await p.waitForFunction(() => (window as unknown as { calls: { mode: string }[] }).calls.some((c) => c.mode === "deleteThread"));
   check((await form.locator("#title").count()) === 1 && Object.values(await p.evaluate(() => (window as unknown as { threads: Record<string, unknown[]> }).threads)).some((l) => l.length === 1), "deleting a chat keeps the form and the other chats");
-  await $("#undo").click();
+  await p.locator("#undo").click();
   // A new form, as the Forms list opens it: it starts empty, with ideas.
   const firstChat = await p.evaluate(() => (window as unknown as { studioState: { chatId: string } | null }).studioState?.chatId ?? "");
   await p.evaluate(() => (window as unknown as { openStudio: (s: unknown) => void }).openStudio({ fresh: true }));
@@ -881,16 +881,16 @@ try {
   await $("#blankBtn").click();
   check((await form.locator("input[type='email']").count()) === 1 && (await form.locator("[type=submit]").count()) === 1 && (await $("#tools").isVisible()) && (await $("#adds").isVisible()), "Start blank makes an email question and a send button, and opens Edit with the Add list");
   await p.keyboard.press("Escape");
-  await $("#undo").click();
-  check((await $("#tpls").isVisible()) && (await $("#tools").isHidden()) && (await $("#chat").isHidden()) && !(await $("#redo").isDisabled()), "undo takes Start blank back to the templates, and redo is there");
-  await $("#redo").click();
+  await p.locator("#undo").click();
+  check((await $("#tpls").isVisible()) && (await $("#tools").isHidden()) && (await $("#chat").isHidden()) && !(await p.locator("#redo").isDisabled()), "undo takes Start blank back to the templates, and redo is there");
+  await p.locator("#redo").click();
   // Logic on a one-page form: one line and Add page, and Logic stays open on the new flow
   await $("#logicBtn").click();
   check(((await $("#lbody").textContent()) ?? "").includes("Skip rules need two pages or more") && (await $("#logicAddPage").isVisible()), "Logic on a one-page form says skip rules need two pages, with Add page");
   await $("#logicAddPage").click();
   check((await $("#logicView").isVisible()) && ((await $("#lgraph").textContent()) ?? "").includes("Page 2"), "Add page from Logic adds the page and keeps Logic open");
   await $("#logicBtn").click();
-  await $("#undo").click();
+  await p.locator("#undo").click();
   // The new fields: 39 in the Add list, each added in one click
   await addField();
   check((await $("#addList [data-add]").count()) === 79, "the Add list has 79 fields");
@@ -1027,9 +1027,9 @@ try {
   await $("#pscroll input[aria-label='Text']").fill("Let's go");
   await $("#pscroll input[aria-label='Text']").press("Enter");
   check((await form.locator("[data-cl-cover] [data-cl-start]").textContent()) === "Let's go", "Start's words change from the panel");
-  await $("#undo").click();
+  await p.locator("#undo").click();
   check((await form.locator("[data-cl-cover] [data-cl-start]").textContent()) === "Start", "undo works on the Welcome screen");
-  await $("#redo").click();
+  await p.locator("#redo").click();
   // The screen itself (its free space), and the page box around it: neither borrows a field from Page 1.
   await form.locator("[data-cl-cover]").dispatchEvent("click");
   const coverPanel = (await $("#pscroll").textContent()) ?? "";
@@ -1040,12 +1040,12 @@ try {
   await form.locator(".page > .cl-fig").click({ position: { x: 20, y: 20 } });
   await $("#fbar button[aria-label='Remove photo']").click();
   check(!(await form.locator("[data-cl-cover]").getAttribute("data-cl-media")) && (await form.locator("[data-cl-cover] [data-cl-start]").count()) === 1, "the photo's bar removes the photo, not the screen");
-  await $("#undo").click();
+  await p.locator("#undo").click();
   check(((await form.locator("[data-cl-cover]").getAttribute("data-cl-media")) ?? "").endsWith("bb.png"), "and undo puts it back");
   await $("#addFieldBtn").click();
   await $("#addList [data-add='text']").click();
   check((await form.locator("[data-cl-cover] [data-cl-start]").evaluate((b) => !!b.previousElementSibling && !b.previousElementSibling.matches("p.text"))) || (await form.locator("[data-cl-cover] > *").count()) > 3, "Add puts words on the Welcome screen, above Start");
-  await $("#undo").click();
+  await p.locator("#undo").click();
   await form.locator("[data-cl-cover] h1").click();
   await $("#fbar button[aria-label='Ask Tia about this']").click();
   check(((await $("#aboutText").textContent()) ?? "").startsWith("About: Heading") && (await $("#thread").isVisible()), "Ask Tia about this works on the Welcome screen");

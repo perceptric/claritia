@@ -376,8 +376,9 @@ they could do anything. Each now has one place (`studio.ts`, `FormsView.tsx`, ch
 - **The templates have the whole width.** Before there's a form the canvas shows only the templates, Start blank and
   Tia's bar. The pages column, Add field, Design, Logic, the panel and the devices show once there's a form. Before,
   they showed on the empty canvas: Logic did nothing (and left Start blank opening in Logic), Design hid the whole
-  toolbar, and the form panel's hidden field and welcome switch acted on a form that didn't exist. Undo and redo stay,
-  so a Start blank undone back to the templates can be redone.
+  toolbar, and the form panel's hidden field and welcome switch acted on a form that didn't exist. Undo and redo moved to
+  the page's header, left of Preview (hidden in Preview), so the templates have no bar over them and a Start blank
+  undone back to the templates can be redone.
 - **Tia's bar with no look** opens the theme gallery itself (it said "Pick your brand or a style to start", then opened
   a chat that said it again with a button). A style picked there readies the bar at once (it used to stay disabled
   until something else redrew it), and undo of a look does the same.

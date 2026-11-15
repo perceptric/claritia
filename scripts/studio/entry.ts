@@ -193,7 +193,7 @@ shell.innerHTML = `<style>${STUDIO_CSS}</style>${STUDIO_HTML}`;
 // form check and the message, driven the same way, through the Studio's state and control.
 const hdr = document.createElement("div");
 hdr.id = "hdr";
-hdr.innerHTML = `<button id="hdrPreview">Preview</button><button id="hdrAction"></button><span id="hdrMsg"></span><div id="hdrCheck" hidden></div>`;
+hdr.innerHTML = `<button id="undo">Undo</button><button id="redo">Redo</button><button id="hdrPreview">Preview</button><button id="hdrAction"></button><span id="hdrMsg"></span><div id="hdrCheck" hidden></div>`;
 el.before(hdr);
 function drawHeader() {
   const st = w.studioState;
@@ -207,6 +207,11 @@ function drawHeader() {
   const pv = document.getElementById("hdrPreview") as HTMLButtonElement;
   pv.textContent = st?.previewing ? "Back to editor" : "Preview";
   pv.disabled = !st?.canPreview && !st?.previewing;
+  // Undo and redo, as FormHeader's: hidden in Preview, off with nothing to take back.
+  const un = document.getElementById("undo") as HTMLButtonElement, re = document.getElementById("redo") as HTMLButtonElement;
+  un.hidden = re.hidden = !!st?.previewing;
+  un.disabled = !st?.canUndo;
+  re.disabled = !st?.canRedo;
 }
 function drawCheck() {
   const box = document.getElementById("hdrCheck")!;
@@ -234,6 +239,8 @@ let ctl = mountStudio(shell, api);
   ctl = mountStudio(shell, api);
 };
 document.getElementById("hdrPreview")!.onclick = () => ctl.preview();
+document.getElementById("undo")!.onclick = () => ctl.undo();
+document.getElementById("redo")!.onclick = () => ctl.redo();
 document.getElementById("hdrAction")!.onclick = async () => {
   if (w.studioState?.state === "live") return void calls.push({ mode: "openShare", body: w.studioState.formId });
   const r = await ctl.publish();
