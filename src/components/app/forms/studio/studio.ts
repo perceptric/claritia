@@ -614,7 +614,10 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 @media (prefers-reduced-motion: reduce) { .lcatch, .lpage, .lh1, .lbtn, .lform, .lform .fl, .lnav .links i, .lhero .ln i, .lsteps li { transition: none; animation: none; } .lscan { animation: none; display: none; } }
 
 @media (max-width: 900px) {
-  .app { flex-direction: column; height: auto; }
+  /* One column that scrolls: the pages, the bar, the form in a box of its own height with Tia's bar under it, then the
+     panel. Nothing sits over anything. */
+  .app { flex-direction: column; height: 100%; overflow-y: auto; }
+  .chat, .stage, .work, .mid { flex: none; }
   .chat, .chat.folded { width: auto; border-right: 0; border-bottom: 1px solid var(--line); }
   .chat.folded .chathead { justify-content: flex-start; padding: 0 12px; }
   .msgs { max-height: 40vh; }
@@ -622,7 +625,7 @@ input, textarea { user-select: text; -webkit-user-select: text; }
   .work { flex-direction: column; }
   .navi { width: auto; border-right: 0; border-bottom: 1px solid var(--line); max-height: 220px; }
   .adds { width: auto; border-right: 0; border-bottom: 1px solid var(--line); max-height: 220px; }
-  .canvas { min-height: 70vh; padding: 12px; }
+  .canvas { flex: none; height: 70vh; min-height: 0; padding: 12px; }
   .panel { width: auto; flex: none; min-height: 50vh; border-left: 0; border-top: 1px solid var(--line); }
   .pscroll { overflow: visible; }
   .chat { min-height: 0; }
@@ -630,8 +633,8 @@ input, textarea { user-select: text; -webkit-user-select: text; }
   .aibody { position: relative; inset: auto; height: 70vh; display: flex; flex-direction: column; }
   .aibody[hidden] { display: none; }
   .msgs { max-height: none; flex: 1; }
-  .adds.pop2 { left: 8px; width: calc(100% - 16px); }
-  .canvas { flex-direction: column; }
+  .adds.pop2 { left: 8px; width: calc(100% - 16px); max-height: calc(70vh - 16px); }
+  .canvas { flex-direction: column; justify-content: flex-start; }
   .logic { flex-direction: column; }
   .lside { width: auto; border-left: 0; border-top: 1px solid var(--line); }
 }
