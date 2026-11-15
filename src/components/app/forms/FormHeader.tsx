@@ -184,7 +184,7 @@ function NameInput({ value, onChange }: { value: string; onChange: (v: string) =
       }}
       onBlur={() => !text.trim() && setText(value)}
       onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-      className="-mx-[4px] max-w-[32vw] min-w-[60px] rounded-[4px] bg-transparent px-[4px] py-[2px] text-[14px] font-medium text-ink outline-none [field-sizing:content] hover:bg-hover focus:bg-card focus:shadow-[0_0_0_1px_var(--color-ink)] max-[860px]:max-w-[46vw]"
+      className="-mx-[4px] max-w-[32vw] min-w-[60px] rounded-[4px] bg-transparent px-[4px] py-[2px] text-[14px] font-medium text-ink outline-none [field-sizing:content] hover:bg-hover focus:bg-hover max-[860px]:max-w-[46vw]"
     />
   );
 }

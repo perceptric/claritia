@@ -276,7 +276,7 @@ export function TypePanel({
             disabled={isLocked("name")}
             placeholder="Name"
             onChange={(e) => set({ name: e.target.value, ...(slugTouched ? {} : { slug: slugify(e.target.value) || "" }) })}
-            className="mt-0.5 w-full min-w-0 bg-transparent p-0 text-[17px] font-semibold tracking-[-0.015em] text-ink outline-none placeholder:text-faint focus:shadow-[inset_0_-1px_0_var(--color-ink)]"
+            className="mt-0.5 w-full min-w-0 bg-transparent p-0 text-[17px] font-semibold tracking-[-0.015em] text-ink outline-none placeholder:text-faint"
           />
           <span className="mt-2 inline-flex min-h-6 max-w-full items-center gap-1.5 self-start rounded-[12px] bg-paper-deep py-0.5 pr-1 pl-2.5 font-mono text-[11px] text-body">
             <span className="[overflow-wrap:anywhere]">

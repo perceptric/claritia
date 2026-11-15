@@ -261,6 +261,9 @@ try {
   // The page's ⋯: rename, duplicate, copy and paste, delete.
   await $("#stepBar .pg.on .pm").click();
   await $(".menu .mi").filter({ hasText: "Rename" }).click();
+  const renShadow = await $("#stepBar input[aria-label='Page name']").evaluate((e) => getComputedStyle(e).boxShadow);
+  check(renShadow === "none", `renaming a page shows one line, the row's, with no second box inside it (${renShadow})`);
+  if (shots) await $("#stepBar").screenshot({ path: `${shots}/3b-rename-page.png` });
   await $("#stepBar input[aria-label='Page name']").fill("About you");
   await $("#stepBar input[aria-label='Page name']").press("Enter");
   check((await tabs()).includes("About you"), "a page can be renamed from its menu");
@@ -493,9 +496,10 @@ try {
   const panelText = (await $("#pscroll").textContent()) ?? "";
   check((await $("#pscroll [aria-label='Text color']").count()) === 1 && (await $("#pscroll [aria-label='Background']").count()) === 1 && ["Width", "Bold", "Display condition"].every((x) => panelText.includes(x)) && !["Padding", "Margin", "Position", "Transforms", "Transition"].some((x) => panelText.includes(x)), "settings and style share one panel, with only the styles people change");
   await sizeSec.locator("input").first().focus().catch(() => undefined);
+  const restShadow = await $("#pscroll .num input").first().evaluate((e) => getComputedStyle(e.parentElement!).boxShadow);
   await $("#pscroll .num input").first().focus();
   const ring = await $("#pscroll .num input").first().evaluate((e) => [getComputedStyle(e).outlineStyle, getComputedStyle(e.parentElement!).boxShadow]);
-  check(ring[0] === "none" && ring[1].includes("rgb"), `a box being typed in has one ring, no second outline (${ring.join(" / ")})`);
+  check(ring[0] === "none" && ring[1] === restShadow, `a box being typed in keeps its one line: no ring or outline (${ring.join(" / ")})`);
   const spill = await $("#pscroll").evaluate((box) => { const b = box.getBoundingClientRect(); return [...box.querySelectorAll("input, button, .num")].filter((x) => { const r = x.getBoundingClientRect(); return r.width && r.right > b.right + 1; }).length; });
   check(spill === 0, `nothing in the Style panel runs past its edge (${spill})`);
   // A part with others like it: one switch says whether a change styles all of them or only this one.
