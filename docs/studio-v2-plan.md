@@ -412,6 +412,11 @@ The chat slid up from the bar and covered half the form, often the part being ch
 - An answer that lands while the chat is closed shows as one line above the bar (what Tia did, or its first sentence)
   with Open chat, and lights the dot on Tia's face.
 - Under 900 px the chat is a block in the one scrolling column, like the panel.
+- Chats on this form live in the chat column: its header has New chat (+), Chats on this form (the clock, which lists
+  the chats in the column in place of the messages, each with who started it, when and delete) and close. The bar under
+  the form has no chats menu of its own.
+- The chat column and the panel never show together.
+- Logic has one way back: Back to form takes the Logic button's place while Logic is open, and Esc does the same.
 - Running cost: $0 at Beta and at Growth (no new calls).
 
 ## Tokens and files (after launch)

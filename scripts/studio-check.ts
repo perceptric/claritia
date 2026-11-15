@@ -72,6 +72,8 @@ try {
   const form = p.locator("#studio").locator("#host");
   // The views: the editor (always), Preview from the page's header, and On submission as the last step.
   const previewing = () => p.evaluate(() => !!(window as unknown as { studioState: { previewing?: boolean } | null }).studioState?.previewing);
+  // Logic opens from its button and closes from Back to form, which takes its place while Logic is open.
+  const logic = async () => { if (await $("#logicBack").isVisible()) await $("#logicBack").click(); else await $("#logicBtn").click(); };
   const toPreview = async () => { if (!(await previewing())) await p.locator("#hdrPreview").click(); };
   const toEdit = async () => { if (await previewing()) await p.locator("#hdrPreview").click(); };
   // The Ending page holds what happens after the send: Ending type in the sidebar, Team meeting's rules in the center.
@@ -209,7 +211,7 @@ try {
   await p.locator("#undo").click();
 
   // 5. The preview still runs: required, steps, show-if, the booking calendar
-  check(!(await previewing()) && (await $("#panel").isVisible()), "the Studio opens in the editor, with no view tabs");
+  check(!(await previewing()) && (await $("#panel").isVisible()) !== (await $("#thread").isVisible()), "the Studio opens in the editor, with no view tabs, and the panel or the chat on the right, never both");
   await toPreview();
   check((await p.locator("#hdrPreview").textContent()) === "Back to editor" && (await $("button").filter({ hasText: "Back to editor" }).count()) === 0 && (await $("#restartBtn").isVisible()) && (await $("#stepBar").isVisible()) && !(await $("#thread").isVisible()) && !(await $("#panel").isVisible()) && (await $("#tools").isHidden()), "Preview shows the form and its pages, with Restart, one Back to editor (the header's) and no editing tools");
   await form.locator("[data-cl-next]").click();
@@ -554,8 +556,9 @@ try {
   check(graph.includes("Page 1") && graph.includes("Page 2") && graph.includes("Booking page") && graph.includes("Otherwise"), "Logic shows the pages, the Ending and its routing in order");
   await $("#lgraph .lnode").first().click();
   check((await $("#ltitle").textContent()) === "After Page 1" && (await $("#flow").isHidden()), "picking a page in Logic shows what comes after it");
-  await $("#logicBtn").click();
-  check((await $("#canvas").isVisible()) && (await $("#logicView").isHidden()), "Logic closes back to the form");
+  check((await $("#logicBack").isVisible()) && (await $("#logicBtn").isHidden()), "in Logic, Back to form takes the Logic button's place");
+  await $("#logicBack").click();
+  check((await $("#canvas").isVisible()) && (await $("#logicView").isHidden()) && (await $("#logicBtn").isVisible()), "Back to form closes Logic back to the form");
   await $("#stepBar .pg.end .sp").click();
   await $("#pscroll button[aria-label='Show confetti']").click();
   check((await form.locator("[data-cl-thanks][data-cl-confetti]").count()) === 1 && (await form.locator(".cl-conf i").count()) > 20, "Confetti turns on for the thank-you, and shows once on the canvas");
@@ -656,7 +659,7 @@ try {
   const mids = await openRule.locator(".rule").first().evaluate((r) => [...r.children].map((c) => { const b = c.getBoundingClientRect(); return b.top + b.height / 2; }));
   const ruleWide = mids.length > 1 && Math.max(...mids) - Math.min(...mids) < 6;
   check(ruleWide, "a rule's When row fits on one line in the wider panel");
-  await $("#logicBtn").click();
+  await logic();
   check((await $("#canvas").isVisible()) && (await $("#asBar").isVisible()) && (await $("#asBar").textContent())!.includes("Preview as") && (await form.locator("#thanks").isVisible()), "the rules sit beside the booking page, with Preview as");
   // Individual: one meeting; a Dynamic one says who books it in one line, with Edit meeting.
   await $("#pscroll .seg button").filter({ hasText: "Individual" }).click();
@@ -684,7 +687,7 @@ try {
   check((await $("#flow .rcard.on .rule").nth(1).textContent())!.includes("is not"), "a condition can use any test that fits its question");
   await $("#flow .rcard.on [aria-label='Move up']").click();
   check((await $("#flow .rcard").first().locator("input[aria-label='Rule name']").inputValue()) === "Returning" && (await $("#lgraph").textContent())!.includes("1. Returning"), "a rule moves up, and Preview as follows the order");
-  await $("#logicBtn").click();
+  await logic();
   check((await $("#asBar .pill").first().textContent()) === "1. Returning", "Preview as follows the order");
   await $("#asBar .pill").filter({ hasText: "Otherwise" }).click();
   check((await $("#asBar .pill.on").textContent()) === "Otherwise", "Preview as picks Otherwise");
@@ -695,7 +698,7 @@ try {
   await $(".menu .mi").filter({ hasText: "Has sent this form before" }).click();
   check(((await $("#flow .rcard").nth(1).textContent()) ?? "").includes("Can never run: rule 1"), "a rule an earlier one always catches says it can never run");
   if (shots) await p.screenshot({ path: `${shots}/4a-routing.png` });
-  await $("#logicBtn").click();
+  await logic();
   // Always do
   // Notification is one dropdown; the picked one's settings sit under it.
   const notif = async (name: string) => { await $("#pscroll button[aria-label='Notification']").click(); await $("#layer .menu .mi").filter({ hasText: name }).click(); };
@@ -855,12 +858,16 @@ try {
   check((await lf.locator("#clr-consent").count()) === 1 && (await lf.locator('input[name="company_url"]').count()) === 1, "the live form has the consent line and the spam trap");
   if (shots) await lp.screenshot({ path: `${shots}/5-live.png` });
 
-  // 9. Chats on this form: the clock lists them, New chat starts one about the same form, and switching keeps the form
+  // 9. Chats on this form: the chat column's clock lists them in the column, New chat starts one about the same form,
+  // and switching keeps the form
   await toEdit();
-  await $("#histBtn").click();
-  const hist = (await $("#layer .menu").textContent()) ?? "";
-  check(hist.includes("Chats on this form") && hist.includes("A daily check-in") && hist.includes("You, Just now") && !hist.includes("Live"), "the clock lists this form's chats, with who started each and when, and no other forms");
-  await $("#layer #newThread").click();
+  check((await $("#askBox #histBtn").count()) === 0, "the bar under the form has no chats menu: chats live in the chat column");
+  await $("#askBox button[type=submit]").click();
+  await $("#thHist").click();
+  const hist = (await $("#thList").textContent()) ?? "";
+  check((await $("#thList").isVisible()) && (await $("#msgs").isHidden()) && (await $("#layer .menu").count()) === 0 && hist.includes("A daily check-in") && hist.includes("You, Just now") && !hist.includes("Live"), "the clock lists this form's chats in the chat column, with who started each and when, and no other forms");
+  await $("#thNew").click();
+  check((await $("#panel").isHidden()), "the chat column and the panel never show together");
   check((await $("#thread").isVisible()) && (await $("#thTitle").textContent()) === "New chat" && (await $("#thWho").textContent()) === "" && (await form.locator("#title").count()) === 1, "New chat starts an empty chat about the same form");
   const tiaFresh = (await calls()).filter((c) => c.mode === "tia").length;
   await $("#askIn").fill("Make the button say Done");
@@ -870,13 +877,13 @@ try {
   const fresh = (await calls()).filter((c) => c.mode === "tia")[tiaFresh]!.body as { content: string }[];
   check(fresh.length === 1 && fresh[0]!.content.includes("[THE FORM IS BUILT]") && fresh[0]!.content.includes("<form_html>"), "a new chat starts Tia's memory fresh, but Tia still reads the form as it is");
   await p.waitForFunction(() => Object.values((window as unknown as { threads: Record<string, unknown[]> }).threads).some((l) => l.length === 2));
-  await $("#histBtn").click();
-  check((await $("#layer .menu .thmi").count()) === 2 && ((await $("#layer .menu .thmi").first().textContent()) ?? "").includes("Make the button say Done"), "the new chat is kept, newest first");
+  await $("#thHist").click();
+  check((await $("#thList .thpick").count()) === 2 && ((await $("#thList .thpick").first().textContent()) ?? "").includes("Make the button say Done"), "the new chat is kept, newest first");
   if (shots) await p.screenshot({ path: `${shots}/9-chats.png` });
-  await $("#layer .menu .thmi").filter({ hasText: "A daily check-in" }).click();
+  await $("#thList .thpick").filter({ hasText: "A daily check-in" }).click();
   check((await $("#thTitle").textContent()) === "A daily check-in" && (await form.locator("#title").textContent()) === "How was today?" && ((await $("#msgs").textContent()) ?? "").includes("A daily check-in"), "switching chats shows that chat and never changes the form");
-  await $("#histBtn").click();
-  await $("#layer button[aria-label='Delete Make the button say Done']").click();
+  await $("#thHist").click();
+  await $("#thList button[aria-label='Delete Make the button say Done']").click();
   await p.waitForFunction(() => (window as unknown as { calls: { mode: string }[] }).calls.some((c) => c.mode === "deleteThread"));
   check((await form.locator("#title").count()) === 1 && Object.values(await p.evaluate(() => (window as unknown as { threads: Record<string, unknown[]> }).threads)).some((l) => l.length === 1), "deleting a chat keeps the form and the other chats");
   await p.locator("#undo").click();
@@ -892,11 +899,11 @@ try {
   check((await $("#tpls").isVisible()) && (await $("#tools").isHidden()) && (await $("#chat").isHidden()) && !(await p.locator("#redo").isDisabled()), "undo takes Start blank back to the templates, and redo is there");
   await p.locator("#redo").click();
   // Logic on a one-page form: one line and Add page, and Logic stays open on the new flow
-  await $("#logicBtn").click();
+  await logic();
   check(((await $("#lbody").textContent()) ?? "").includes("Skip rules need two pages or more") && (await $("#logicAddPage").isVisible()), "Logic on a one-page form says skip rules need two pages, with Add page");
   await $("#logicAddPage").click();
   check((await $("#logicView").isVisible()) && ((await $("#lgraph").textContent()) ?? "").includes("Page 2"), "Add page from Logic adds the page and keeps Logic open");
-  await $("#logicBtn").click();
+  await logic();
   await p.locator("#undo").click();
   // The new fields: 39 in the Add list, each added in one click
   await addField();
@@ -944,9 +951,10 @@ try {
   await p.evaluate((id) => (window as unknown as { openStudio: (s: unknown) => void }).openStudio({ chatId: id }), firstChat);
   await form.locator("#title").waitFor();
   check((await form.locator("#title").textContent()) === "How was today?", "opening the first form again keeps its form");
-  await $("#histBtn").click();
-  check(((await $("#layer .menu").textContent()) ?? "").includes("A daily check-in") && ((await $("#layer .menu").textContent()) ?? "").includes("Make the button say Done") === false, "and its chats come back with it");
-  await $("#histBtn").click();
+  await $("#askBox button[type=submit]").click();
+  await $("#thHist").click();
+  check(((await $("#thList").textContent()) ?? "").includes("A daily check-in") && ((await $("#thList").textContent()) ?? "").includes("Make the button say Done") === false, "and its chats come back with it");
+  await $("#thFold").click();
 
   // 9b. A built form switches brand only when asked, keeps its look until the new one is ready, then Tia moves it
   await toEdit();

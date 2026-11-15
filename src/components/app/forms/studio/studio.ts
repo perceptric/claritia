@@ -219,6 +219,15 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .tipup[data-tip]::after { top: auto; bottom: calc(100% + 6px); transform: translateX(-50%) translateY(2px); }
 .tipup[data-tip]:hover::after, .tipup[data-tip]:focus-visible::after { transform: translateX(-50%); }
 .thmi { height: auto; min-height: 44px; padding: 6px 10px; }
+/* Chats on this form: a list in the chat column, in place of the messages. */
+.thlist { flex: 1; min-height: 0; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 2px; }
+.throw { display: flex; align-items: center; gap: 4px; border-radius: 10px; }
+.throw:hover, .throw.on { background: var(--paper-deep); }
+.throw .thpick { flex: 1; min-width: 0; border: 0; background: transparent; text-align: start; padding: 8px 10px; border-radius: 10px; display: flex; flex-direction: column; gap: 2px; color: var(--ink); font: 13px var(--sans); cursor: pointer; }
+.throw .thpick span { overflow-wrap: anywhere; }
+.throw .thpick small { color: var(--muted); font-size: 12px; }
+.throw .ib { opacity: 0; margin-right: 4px; }
+.throw:hover .ib, .throw .ib:focus-visible { opacity: 1; }
 .thnm { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .thnm .nm { overflow-wrap: anywhere; }
 .thnm small { color: var(--muted); font-size: 11.5px; }
@@ -689,7 +698,7 @@ export const STUDIO_HTML = `
     <div class="bar" id="bar">
       <button class="pill" id="restartBtn" hidden>${SVG(P.restart, 14)}Restart</button>
       <div class="peekbar" id="peekBar" hidden><button class="pill" id="peekBack">${SVG(P.back, 14)}All templates</button><span class="peeknm" id="peekName"></span><button class="pill primary" id="peekUse">Use this template</button></div>
-      <div class="tools" id="tools"><button class="pill primary" id="addFieldBtn" aria-haspopup="true" aria-expanded="false">${SVG(P.plus, 14)}Add field</button><button class="pill" id="designBtn" aria-pressed="false">${SVG(P.brush, 14)}Design</button><button class="pill" id="logicBtn" aria-pressed="false">${SVG('<circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="12" r="2.5"/><path d="M6 8.5v7M8.3 7l7.4 3.8M8.3 17l7.4-3.8"/>', 14)}Logic</button></div>
+      <div class="tools" id="tools"><button class="pill" id="logicBack" hidden>${SVG(P.back, 14)}Back to form</button><button class="pill primary" id="addFieldBtn" aria-haspopup="true" aria-expanded="false">${SVG(P.plus, 14)}Add field</button><button class="pill" id="designBtn" aria-pressed="false">${SVG(P.brush, 14)}Design</button><button class="pill" id="logicBtn" aria-pressed="false">${SVG('<circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="12" r="2.5"/><path d="M6 8.5v7M8.3 7l7.4 3.8M8.3 17l7.4-3.8"/>', 14)}Logic</button></div>
       <span class="spacer"></span>
       <div class="grp" id="devGrp" role="group" aria-label="Device">
         <button class="ib" id="d-desk" data-tip="Desktop" aria-label="Desktop" aria-pressed="true">${SVG(P.desk)}</button>
@@ -724,10 +733,10 @@ export const STUDIO_HTML = `
         <div class="lastline" id="lastLine" hidden><span class="llic" aria-hidden="true">${SVG(P.check, 13)}</span><span class="lltx" id="lastText"></span><button type="button" class="llopen" id="lastOpen">Open chat</button></div>
         <div class="about" id="about" hidden><span id="aboutText"></span><button type="button" id="aboutX" aria-label="Not about this element">${SVG(P.x, 12)}</button></div>
         <div class="chips" id="attached" hidden></div>
-        <form class="askbox" id="askBox"><span class="tia" aria-hidden="true">${tiaSvg(18)}<span class="mdot" id="aiDot" hidden></span></span><input id="askIn" autocomplete="off" placeholder="Build with Tia: add questions, logic, design…" aria-label="Ask Tia"><button class="ib tipup" type="button" id="attachBtn" data-tip="Attach a picture, PDF or text file" aria-label="Attach a file">${SVG(P.clip, 16)}</button><input type="file" id="fileIn" multiple accept="image/png,image/jpeg,image/webp,image/gif,application/pdf,.txt,.csv,.md,.json,text/plain,text/csv,text/markdown" hidden><button class="ib tipup" type="button" id="histBtn" data-tip="Chats on this form" aria-label="Chats on this form" aria-haspopup="menu" aria-expanded="false">${SVG(P.time, 16)}</button><button class="pill" type="submit" id="send">${SVG(P.send, 14)}Ask</button></form>
+        <form class="askbox" id="askBox"><span class="tia" aria-hidden="true">${tiaSvg(18)}<span class="mdot" id="aiDot" hidden></span></span><input id="askIn" autocomplete="off" placeholder="Build with Tia: add questions, logic, design…" aria-label="Ask Tia"><button class="ib tipup" type="button" id="attachBtn" data-tip="Attach a picture, PDF or text file" aria-label="Attach a file">${SVG(P.clip, 16)}</button><input type="file" id="fileIn" multiple accept="image/png,image/jpeg,image/webp,image/gif,application/pdf,.txt,.csv,.md,.json,text/plain,text/csv,text/markdown" hidden><button class="pill" type="submit" id="send">${SVG(P.send, 14)}Ask</button></form>
       </div></div>
       </div>
-      <section class="thread" id="thread" aria-label="Chat with Tia" hidden><div class="thhead"><span class="thtitle"><b id="thTitle"></b><small id="thWho"></small></span><button class="ib tipleft" type="button" id="thFold" data-tip="Close the chat" aria-label="Close the chat">${SVG(P.x, 14)}</button></div><div class="msgs" id="msgs" aria-live="polite"></div></section>
+      <section class="thread" id="thread" aria-label="Chat with Tia" hidden><div class="thhead"><span class="thtitle"><b id="thTitle"></b><small id="thWho"></small></span><button class="ib tipleft" type="button" id="thNew" data-tip="New chat" aria-label="New chat">${SVG(P.plus, 15)}</button><button class="ib tipleft" type="button" id="thHist" data-tip="Chats on this form" aria-label="Chats on this form" aria-pressed="false">${SVG(P.time, 15)}</button><button class="ib tipleft" type="button" id="thFold" data-tip="Close the chat" aria-label="Close the chat">${SVG(P.x, 14)}</button></div><div class="thlist" id="thList" role="list" aria-label="Chats on this form" hidden></div><div class="msgs" id="msgs" aria-live="polite"></div></section>
       <aside class="panel" id="panel" aria-label="Element" hidden>
         <div class="ptabs"><span class="who2" id="selName"></span><button class="pt chattab" type="button" id="chatTab" aria-label="Chat with Tia">${tiaSvg(14)}Chat</button></div>
         <div class="pscroll" id="pscroll"></div>
@@ -3118,7 +3127,7 @@ ${CAL_CSS}
     if (m === "after") { S.view = "thanks"; m = "edit"; S.mode = "edit"; }
     $("codeView").hidden = m !== "code";
 
-    $("panel").hidden = m !== "edit" || !!S.logic;
+    $("panel").hidden = m !== "edit" || !!S.logic || S.side === "ai" || !built();
     $("chat").classList.toggle("prev", m === "preview");
     $("restartBtn").hidden = m !== "preview" || !!PK;
     if (m !== "edit") { S.sel = null; $("hov").hidden = true; }
@@ -3140,7 +3149,8 @@ ${CAL_CSS}
   function sideUi() {
     const build = S.side === "build";
     $("thread").hidden = build || S.mode !== "edit";
-    if (!build) { $("aiDot").hidden = true; S.last = ""; }
+    if (!build) { $("aiDot").hidden = true; S.last = ""; } else S.thList = false;
+    listUi();
     lastUi();
     S.nav = false;
     chromeUi();
@@ -3164,12 +3174,17 @@ ${CAL_CSS}
   $("designBtn").onclick = () => { S.design = !S.design; if (S.design) { S.sel = null; overlay(); } panel(); stepUi(); };
   // Logic: the form's flow in place of the form, and the step picked on the right (jumps, or the Ending's routing).
   $("logicBtn").onclick = () => { S.logic = !S.logic; S.design = false; if (S.logic && S.lsel === undefined) S.lsel = S.view === "all" ? 0 : S.view; S.sel = null; overlay(); setMode("edit"); };
+  function leaveLogic() { S.logic = false; S.sel = null; overlay(); setMode("edit"); }
+  $("logicBack").onclick = leaveLogic;
+  listen(document, "keydown", (e) => { if (e.key === "Escape" && S.logic && S.mode === "edit" && !menuEl && $("adds").hidden) leaveLogic(); });
   function logicUi() {
     const on = !!S.logic && S.mode === "edit" && built();
     $("logicView").hidden = !on;
     $("logicBtn").setAttribute("aria-pressed", String(on));
     $("addFieldBtn").hidden = on; $("designBtn").hidden = on;
-    if (S.mode === "edit") { $("canvas").hidden = on; $("panel").hidden = on; }
+    // In Logic, one way back: Back to form in Logic's place (Esc does the same).
+    $("logicBtn").hidden = on; $("logicBack").hidden = !on;
+    if (S.mode === "edit") { $("canvas").hidden = on; $("panel").hidden = on || S.side === "ai" || !built(); }
     if (!on) return;
     const steps = stepsIn(src), cover = src.querySelector("[data-cl-cover]"), thanks = src.querySelector("[data-cl-thanks]");
     if (S.lsel === "cover" && !cover) S.lsel = 0;
@@ -4135,7 +4150,7 @@ ${CAL_CSS}
     }
     if (cur === c) { c.body.threads = TH.list.map(({ id, title, mine, byName, updatedAt, messages }) => ({ id, title, mine, byName, updatedAt, messages })); save(true); }
   }
-  function newThread() { TH.open = null; S.about = null; aboutUi(); setSide("ai"); renderLog(); $("askIn").focus(); }
+  function newThread() { TH.open = null; S.about = null; S.thList = false; aboutUi(); setSide("ai"); renderLog(); $("askIn").focus(); }
   async function dropThread(t) {
     if (S.busy && TH.open === t) return toast("Wait for Tia to finish");
     if (api.confirmDeleteThread && !(await api.confirmDeleteThread(t.title))) return;
@@ -4146,14 +4161,20 @@ ${CAL_CSS}
     else api.deleteThread(t.id).catch((e) => toast(e?.message || "Couldn't delete the chat."));
     toast("Chat deleted");
   }
-  /** The bar's clock: New chat, then this form's chats, newest first, each with who started it, when, and delete. */
-  function histMenu() {
-    const rows = TH.list.map((t) => h("div", { class: "mrow" },
-      h("button", { class: "mi thmi", role: "menuitemradio", "aria-checked": String(TH.open === t), onclick: () => { closeMenu(); TH.open = t; setSide("ai"); renderLog(); } }, h("span", { class: "thnm" }, h("span", { class: "nm", text: t.title }), h("small", { text: [t.mine ? "You" : t.byName, whenWords(t.updatedAt)].filter(Boolean).join(", ") }))),
-      h("button", { class: "ib", "aria-label": `Delete ${t.title}`, html: SVG(P.del, 14), onclick: (e) => { e.stopPropagation(); closeMenu(); void dropThread(t); } })));
-    openMenu($("histBtn"), [h("button", { class: "mi small", id: "newThread", html: `${SVG(P.plus, 14)}<span class="nm">New chat</span>`, onclick: () => { closeMenu(); newThread(); } }), h("div", { class: "msep" }), h("div", { class: "mh", text: "Chats on this form" }), ...(rows.length ? rows : [h("p", { class: "hint0 mempty", text: "No chats yet" })])], 300);
+  /** Chats on this form, in the chat column in place of the messages: newest first, who started each, when, and delete. */
+  function listUi() {
+    const on = !!S.thList && S.side === "ai";
+    $("thList").hidden = !on; $("msgs").hidden = on;
+    $("thHist").setAttribute("aria-pressed", String(on));
+    if (!on) return;
+    const box = $("thList"); box.innerHTML = "";
+    if (!TH.list.length) return void box.append(h("p", { class: "hint0", text: "No chats yet" }));
+    for (const t of TH.list) box.append(h("div", { class: `throw${TH.open === t ? " on" : ""}`, role: "listitem" },
+      h("button", { class: "thpick", "aria-current": TH.open === t ? "true" : null, onclick: () => { TH.open = t; S.thList = false; renderLog(); listUi(); } }, h("span", { text: t.title }), h("small", { text: [t.mine ? "You" : t.byName, whenWords(t.updatedAt)].filter(Boolean).join(", ") })),
+      h("button", { class: "ib", "aria-label": `Delete ${t.title}`, html: SVG(P.del, 14), onclick: () => void dropThread(t).then(listUi) })));
   }
-  $("histBtn").onclick = () => (menuEl && menuFor === $("histBtn") ? closeMenu() : histMenu());
+  $("thHist").onclick = () => { S.thList = !S.thList; listUi(); };
+  $("thNew").onclick = () => newThread();
 
   const STARTS = ["A demo request that asks team size", "A new patient booking form", "An event sign-up with a plus-one", "A quote request with a file upload"];
   function renderLog() {
