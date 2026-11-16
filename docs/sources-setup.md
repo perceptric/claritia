@@ -1,8 +1,30 @@
 # Sources setup: what to set before turning on imports, sync and warehouses
 
-Everything here is done once by us, never by customers. Customers click "Connect HubSpot" and sign in. Without the sign-in app for a tool, that tool falls back to a pasted key.
+Everything here is done once by us, never by customers. Customers click "Connect HubSpot" and sign in. Most tools sign in on Composio once the server has its key (section 0); the sign-in apps in section 5 are the old path, kept as the fallback for rows connected before. Without either, a tool falls back to a pasted key.
 
 The app is assumed to live at `https://app.tryclaritia.com`. If it doesn't, set `APP_URL` on Render to the real address and use that address everywhere below.
+
+## 0. Composio (sign-in for most tools)
+
+Composio keeps each connection's tokens or key and refreshes them, so there are no developer apps, client secrets or re-auth for us to run. Claritia's own connector code still makes every call; Composio's proxy execute signs it (`src/lib/sources/composio.ts`). What's on it and why some tools aren't: `docs/integrations-plan.md`, step 14, with the running cost.
+
+1. Sign in at platform.composio.dev with the dev-omniscient account (the org Claritia uses). Use one project for Claritia's production (today the org has one, `dev_workspace_first_project`; a project named `claritia` keeps it apart from tests). Project → Settings → API keys → New key.
+2. Set the same value on the web app (`claritia-web`) and the worker (`claritia-intel`); both send calls through Composio:
+
+| Variable | What it's for | Without it |
+|---|---|---|
+| `COMPOSIO_API_KEY` | The project key: the connect page, connection checks, and every proxied call | Composio is off: Connect uses the old sign-in apps or a pasted key, and rows already on Composio retry later until it's back |
+| `COMPOSIO_AUTH_CONFIG_HUBSPOT`, `COMPOSIO_AUTH_CONFIG_SALESFORCE` (optional) | Our own HubSpot or Salesforce app, added in Composio → Auth configs (the app takes the return address that page shows), so their consent screens say "Claritia". Calls on our own apps cost the base rate instead of the managed one (step 14) | Composio's own app, with its name on the consent screen |
+| `COMPOSIO_AUTH_CONFIG_DOCUSIGN` | Our DocuSign app in Composio. DocuSign has no Composio-managed app | DocuSign uses the old sign-in app |
+| `COMPOSIO_AUTH_CONFIG_<TOOLKIT>` (optional, any tool) | An auth config set up by hand for that toolkit (`dynamics365`, `googlesheets`, `one_drive`, …) | The project's auth config for the toolkit, or one Composio-managed config made on the first connect (a key tool's config holds nothing: the person types the key on Composio's page) |
+| `COMPOSIO_ORG_ID`, `COMPOSIO_PROJECT_ID` (optional) | Only with an org-wide key instead of a project key | — |
+
+3. Run `supabase/migrations/167_composio.sql` (the connected account on each source). Settings › Integrations works before it runs; Reconnect shows once it has.
+4. Nothing else to register: Composio's connect page comes back to `https://app.tryclaritia.com/api/sources/composio` on its own.
+
+What people see: Connect opens Composio's page (it asks for the sign-in, or the key and the account's address for a key tool) and comes back to Settings › Integrations. A card connected the old way shows Reconnect, which moves it to Composio; until then it keeps working on the old path. A connection that expired or was revoked on Composio asks to sign in again, as before.
+
+The old path (section 5, `src/lib/sources/oauth.ts`, `/api/sources/callback`, the `<TOOL>_CLIENT_ID` and `_CLIENT_SECRET` variables) is the fallback to remove once no row of a moved tool is left on it: `select kind, count(*) from sources where composio_account is null and status <> 'disconnected' group by kind`. Twilio, Kit, Discord and the tools kept as they are (Stripe, PayPal, Square, the analytics and ad tools, the warehouses, Google Forms, Omniscient, Keap, SmartSuite, S3, Whereby) stay on their keys or apps.
 
 ## 1. Database
 
@@ -61,7 +83,9 @@ Render → `claritia` → Environment. The Blueprint (`render.yaml`) now lists t
 | `APP_URL` | Only if the app isn't at `https://app.tryclaritia.com`. It builds the sign-in return address and the webhook addresses, and HubSpot signs its webhooks over that address, so it must match exactly. |
 | `OMNISCIENT_URL` | Only if Omniscient isn't at `https://app.tryomniscient.com`. |
 
-## 5. One sign-in app per tool
+## 5. One sign-in app per tool (the old path)
+
+Only for rows connected before Composio, and for a server without `COMPOSIO_API_KEY`. New connections of these tools go through Composio (section 0).
 
 Every tool uses the same return address:
 
@@ -214,7 +238,7 @@ After 5 failed runs in a row, a source stops. Fix the cause, then press Resume o
 
 ## Running cost
 
-None of this adds a paid service. The 1 GB worker is about $3 a month (check). The developer accounts for HubSpot, Salesforce, Pipedrive, Attio and Mailchimp are free.
+Composio (section 0): Pro at $29 a month plus calls, about $115 a month at Beta and $1,300 at Growth with our own HubSpot and Salesforce apps on Composio, or about $860 and $8,700 on Composio's apps for everything (`docs/integrations-plan.md`, step 14). Otherwise none of this adds a paid service. The 1 GB worker is about $3 a month (check). The developer accounts for HubSpot, Salesforce, Pipedrive, Attio and Mailchimp are free.
 
 ## Zapier, Make and Activepieces
 
