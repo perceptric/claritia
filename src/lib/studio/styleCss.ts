@@ -4,6 +4,10 @@
 // on the form's page. Made by code, never by Claude. The first line names the style, so the Studio knows it again.
 
 import { FONTS, fontsUrl, isTheme, themeById, type Theme } from "../forms/gallery/themes.ts";
+import { hex, parseColor, readableCss, readablePair } from "./readable.ts";
+
+/** A text color that reads on every one of `bgs` (4.5 to 1), nearest to its own: the styles are readable at the source. */
+const onAll = (fg: string, bgs: string[]) => bgs.reduce((c, b) => readableCss(c, b), fg);
 
 /** Where the style drawings are served (the website's copy of themeArt); a stylesheet may only link https pictures. */
 export const STYLE_ART = "https://tryclaritia.com/assets/form-art";
@@ -22,7 +26,18 @@ export const styleName = (id: string) => `${themeById(id).name} style`;
 /** A style's stylesheet, by its id (the template's own style when the id isn't one). */
 export const styleCssById = (id: string | null | undefined) => styleCss(themeById(id));
 
-export function styleCss(th: Theme): string {
+/**
+ * A style's colors as its forms wear them: text and muted text that read on the page, fields and cards, and a
+ * button's words that read on it (the button's color darkens a touch when that moves less than its words would).
+ */
+export function styleColors(t: Theme): Theme {
+  const surfaces = [t.card, t.field, ...(t.soft.startsWith("#") ? [t.soft] : [])];
+  const btn = readablePair(parseColor(t.accentInk)!, parseColor(t.accent)!);
+  return { ...t, text: onAll(t.text, surfaces), muted: onAll(t.muted, surfaces), accentInk: hex(btn.fg), accent: hex(btn.bg) };
+}
+
+export function styleCss(t: Theme): string {
+  const th = styleColors(t);
   const px = (n: number) => `${n}px`;
   const hard = th.shadow === "hard";
   const plain = th.layout === "plain";

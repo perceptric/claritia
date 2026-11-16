@@ -12,6 +12,7 @@ import tailwind from "@tailwindcss/postcss";
 import pw from "playwright-core";
 import { templateById, templateSlug, templateTheme, TEMPLATES } from "../src/lib/forms/gallery/catalog.ts";
 import { themeById } from "../src/lib/forms/gallery/themes.ts";
+import { styleColors } from "../src/lib/studio/styleCss.ts";
 import { buildExtras } from "./build-forms.mts";
 
 const failures: string[] = [];
@@ -74,7 +75,7 @@ try {
   await page.goto(`${base}/forms/templates/${templateSlug(inquiry)}?theme=poster`);
   await sheet.waitFor();
   check((await page.getByRole("button", { name: "Style", exact: true }).textContent())?.includes("Poster style") === true, "the style picked on the website is the look");
-  check((await button()) === rgb(themeById("poster").accent), "the preview wears Poster");
+  check((await button()) === rgb(styleColors(themeById("poster")).accent), "the preview wears Poster");
   check((await stage()) === rgb(themeById("poster").card), "the form fills the preview in its own color, with no stage color around it");
   await shot("1-poster");
   await page.getByRole("button", { name: "Use form template" }).click();
@@ -87,7 +88,7 @@ try {
   await sheet.waitFor();
   await page.getByRole("button", { name: "Style", exact: true }).click();
   await page.getByRole("option", { name: /^Midnight/ }).click();
-  check((await button()) === rgb(themeById("midnight").accent), "a style from the menu changes the preview");
+  check((await button()) === rgb(styleColors(themeById("midnight")).accent), "a style from the menu changes the preview");
   check(page.url().includes("theme=midnight"), "the address keeps the style");
   // ── A workspace brand, then Plain ──
   await page.getByRole("radio", { name: "acme.com" }).click();
@@ -108,14 +109,14 @@ try {
   await sheet.waitFor();
   await page.getByRole("radio", { name: "Plain" }).click();
   await page.getByRole("radio", { name: /style$/ }).click();
-  check((await button()) === rgb(themeById(templateTheme(inquiry)).accent), "the style chip brings the style back");
+  check((await button()) === rgb(styleColors(themeById(templateTheme(inquiry))).accent), "the style chip brings the style back");
 
   // ── From the gallery: a card opens in its own style ──
   await page.goto(`${base}/forms/templates`);
   await page.getByPlaceholder(/^Search/).fill(other.name);
   await page.getByRole("button", { name: `Preview ${other.name}`, exact: true }).first().click();
   await page.getByRole("dialog", { name: other.name }).waitFor();
-  check((await button()) === rgb(themeById("midnight").accent), `a card opens in its own style, as the card shows (${other.name})`);
+  check((await button()) === rgb(styleColors(themeById("midnight")).accent), `a card opens in its own style, as the card shows (${other.name})`);
   await shot("2-card");
   const arts = await page.evaluate(() => [...document.querySelectorAll("img, [style]")].map((n) => (n as HTMLImageElement).src || (n as HTMLElement).style.backgroundImage || "").filter((s) => s.includes("form-art")));
   check(arts.length === 0, `the cards have no drawings (${arts.length})`);
