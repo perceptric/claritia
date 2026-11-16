@@ -80,17 +80,11 @@ export function ToolSheet({
         <Part title="What it is">
           <p className="text-[13px] leading-[1.55] text-body wrap-break-word">{detail.about}</p>
         </Part>
-        <Part title="What Claritia does with it">
-          <Lines items={detail.does} />
+        <Part title="Permissions">
+          <Lines items={detail.permissions} />
         </Part>
-        <Part title="Access you give">
-          <Lines items={detail.access} />
-        </Part>
-        <Part title="How it connects">
-          <p className="text-[13px] leading-[1.55] text-body wrap-break-word">{detail.connects}</p>
-        </Part>
-        <Part title="Where you use it in Claritia">
-          <Lines items={detail.where} />
+        <Part title="Use cases">
+          <Lines items={detail.useCases} />
         </Part>
       </div>
     </Sheet>

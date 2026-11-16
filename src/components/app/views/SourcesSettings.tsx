@@ -336,7 +336,7 @@ export function SourcesSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
     };
     const app = AUTOMATION_APPS.find((a) => a.id === open.kind);
     if (app) {
-      const d = detailsOf(app.id, { composio: false })!;
+      const d = detailsOf(app.id)!;
       return <ToolSheet name={app.name} logo={<BrandLogo domain={app.domain} name={app.name} size={28} />} status={appOn(app.name) ? <Badge tone="green" dot>Connected</Badge> : notOn} buttons={appButtons(app)} error={error} detail={d} onClose={close} />;
     }
     if (open.kind === "stripe") {
@@ -348,13 +348,13 @@ export function SourcesSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
           account={pay.a?.stripe_account ?? null}
           buttons={<StripeButtons pay={pay} />}
           error={pay.error}
-          detail={detailsOf("stripe", { composio: false })!}
+          detail={detailsOf("stripe")!}
           onClose={close}
         />
       );
     }
     const e = entryOf(open.kind);
-    const d = e && detailsOf(e.kind, { composio: onComposio.has(e.kind) });
+    const d = e && detailsOf(e.kind);
     if (!e || !d) return null;
     const on = connected.get(e.kind);
     const typing = !on && owner && viaKnown && open.form && (needsTyping(e) || !!open.key);
