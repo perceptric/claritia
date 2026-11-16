@@ -2,7 +2,8 @@
 
 // Stripe (Settings › Integrations; docs/meetings-scheduler.md 1.8b): the workspace's own Stripe account for paid
 // meeting types, connected through Stripe's page. Guests pay the team directly; Claritia never holds the money.
-// Drawn as one card in the Integrations grid, like the other tools.
+// Drawn as one card in the Integrations grid, like the other tools; the same state and buttons show in its detail
+// sheet (useStripe holds them once, for both).
 
 import { ToolCard } from "../ToolCard";
 import { useEffect, useState } from "react";
@@ -10,8 +11,10 @@ import { BrandLogo } from "../BrandLogo";
 import { Badge, Button, ErrorNote, errorText, must, postJson, useLoad, type Role, type ViewProps } from "../ui";
 
 type Account = { stripe_account: string; ready: boolean };
+type Props = Pick<ViewProps, "sb" | "session" | "ws"> & { role: Role };
 
-export function Payments({ sb, session, ws, role }: Pick<ViewProps, "sb" | "session" | "ws"> & { role: Role }) {
+/** The workspace's Stripe account, and Connect. */
+export function useStripe({ sb, session, ws, role }: Props) {
   const acct = useLoad(async () => ({ a: must(await sb.from("payment_accounts").select("stripe_account, ready").eq("workspace_id", ws.id).maybeSingle()) as Account | null }), ws.id);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -38,28 +41,38 @@ export function Payments({ sb, session, ws, role }: Pick<ViewProps, "sb" | "sess
       setBusy(false);
     }
   };
+  return { loaded: !!acct.data, a: acct.data?.a ?? null, busy, error: acct.error || error, connect, owner: role === "owner" };
+}
 
-  const a = acct.data?.a;
-  const owner = role === "owner";
+export type StripeState = ReturnType<typeof useStripe>;
+
+/** Stripe's state as a badge, or nothing when it isn't connected. */
+export function StripeStatus({ pay }: { pay: StripeState }) {
+  return !pay.loaded || !pay.a ? null : <Badge tone={pay.a.ready ? "green" : "amber"} dot>{pay.a.ready ? "Connected" : "Finish on Stripe"}</Badge>;
+}
+
+/** Connect, or Continue on Stripe while Stripe still needs details. */
+export function StripeButtons({ pay }: { pay: StripeState }) {
+  if (!pay.loaded || !pay.owner || pay.a?.ready) return null;
   return (
-    <ToolCard
-      logo={<BrandLogo domain="stripe.com" name="Stripe" size={40} />}
-      name="Stripe"
-      blurb="Stripe is the payments platform for taking cards online."
-      account={a?.stripe_account ?? null}
-      status={!acct.data || !a ? null : <Badge tone={a.ready ? "green" : "amber"} dot>{a.ready ? "Connected" : "Finish on Stripe"}</Badge>}
-    >
-      {acct.data && !a && owner ? (
-        <Button variant="ghost" size="sm" onClick={connect} disabled={busy}>
-          {busy ? "Opening Stripe…" : "Connect"}
-        </Button>
-      ) : null}
-      {a && !a.ready && owner ? (
-        <Button variant="ghost" size="sm" onClick={connect} disabled={busy}>
-          {busy ? "Opening Stripe…" : "Continue on Stripe"}
-        </Button>
-      ) : null}
-      <ErrorNote message={acct.error || error} />
+    <Button variant="ghost" size="sm" onClick={() => void pay.connect()} disabled={pay.busy}>
+      {pay.busy ? "Opening Stripe…" : pay.a ? "Continue on Stripe" : "Connect"}
+    </Button>
+  );
+}
+
+export const STRIPE_BLURB = "Stripe is the payments platform for taking cards online.";
+
+/** Stripe's card; `onOpen` opens its detail sheet. */
+export function StripeCard({ pay, onOpen }: { pay: StripeState; onOpen?: () => void }) {
+  return (
+    <ToolCard logo={<BrandLogo domain="stripe.com" name="Stripe" size={40} />} name="Stripe" blurb={STRIPE_BLURB} account={pay.a?.stripe_account ?? null} status={<StripeStatus pay={pay} />} onOpen={onOpen}>
+      <StripeButtons pay={pay} />
+      <ErrorNote message={pay.error} />
     </ToolCard>
   );
+}
+
+export function Payments(p: Props) {
+  return <StripeCard pay={useStripe(p)} />;
 }
