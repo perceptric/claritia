@@ -553,7 +553,8 @@ is free (check).
   Square, Segment, PostHog, Mixpanel, Amplitude, Meta Ads, Google Ads, BigQuery, Snowflake, Databricks, ClickHouse,
   Google Forms import, Omniscient) or missing on Composio (Keap, SmartSuite, S3, Whereby, Postgres, Redshift, MySQL).
 - **Known gaps:** HubSpot's app-wide webhooks are set on our own HubSpot app, so a portal on Composio's HubSpot app
-  syncs by the 5-minute pull only (a white-labeled HubSpot app on Composio brings them back). The scopes of
+  sends no change webhooks (a white-labeled HubSpot app on Composio brings them back); nothing reads them since
+  CRM sync was removed in 116. The scopes of
   Composio's managed apps are Composio's (check that HubSpot's include the custom property and timeline scopes).
 - **The old path:** `src/lib/sources/oauth.ts`, `/api/sources/callback` and the `<TOOL>_CLIENT_ID` and
   `_CLIENT_SECRET` variables stay as the fallback for rows connected before. Remove them once no row of a moved tool
@@ -571,24 +572,24 @@ Google Sheets, Google Drive and Microsoft Teams, $0.0005 for the rest; proxy exe
 (1,000 free on Hobby). Connected accounts: the first 1,000 free. Whether the $29 credit pays overage, whether Pro
 keeps any free proxy calls, and whether proxy calls draw on the managed allowance: check.
 
-Assumptions per team a month: 1.5 connected tools; 40% of teams have a two-way CRM pulled every 5 minutes (about
-9,000 calls; 3 of 4 HubSpot, 1 of 4 Salesforce); 300 fills, about 1,000 calls to their tools (40% HubSpot or
-Salesforce, 20% Sheets, Drive or Teams, 10% other managed apps, 30% key tools). That's about 230,000 calls at Beta
-and 2,300,000 at Growth. No new servers and no Claude calls.
+Assumptions per team a month: 300 fills, about 1,000 calls to the tools forms and workflows send to (40% HubSpot or
+Salesforce, 3 of 4 HubSpot; 20% Sheets, Drive or Teams; 10% other managed apps; 30% key tools). Nothing is pulled on
+a timer: CRM sync is gone since 116 (`source_pull` is a removed job kind), so every call is a delivery or a workflow
+step. That's about 50,000 calls at Beta and 500,000 at Growth. No new servers and no Claude calls.
 
 | Line | Beta (50 teams) | Growth (500 teams) |
 |---|---|---|
 | Composio Pro | $29 | $29 |
-| Proxy add-on, every call | about $46 | about $460 |
-| Calls on Composio's managed apps, key tools included (A) | about $780 | about $8,210 |
-| Calls on our own HubSpot and Salesforce apps and key tools, at the base rate (B) | about $39 | about $620 |
-| Calls on the other managed apps (B) | $0 | about $185 |
+| Proxy add-on, every call (check) | about $10 | about $100 |
+| A: managed-app calls past the free 20,000 | about $45 | about $970 |
+| A: other calls past the free 100,000 | $0 | about $15 |
+| B: managed-app calls (Sheets, Drive, Teams, the rest) past the free 20,000 | $0 | about $195 |
+| B: our own HubSpot and Salesforce apps and key tools past the free 100,000, at $0.0003 | $0 | about $75 |
 | Connected accounts (75 and 750, under 1,000) | $0 | $0 |
-| **Added per month, A: Composio's apps for everything** | **about $860** | **about $8,700** |
-| **Added per month, B: our own HubSpot and Salesforce apps on Composio** | **about $115** | **about $1,300** |
+| **Added per month, A: Composio's apps for everything** | **about $85** | **about $1,110** |
+| **Added per month, B: our own HubSpot and Salesforce apps on Composio** | **about $40** | **about $400** |
 
-The 5-minute CRM pull is most of it, and Salesforce's managed rate is 33 times the base rate. Setting
-`COMPOSIO_AUTH_CONFIG_HUBSPOT` and `COMPOSIO_AUTH_CONFIG_SALESFORCE` to our own apps (registered once in Composio;
-Composio still keeps and refreshes every token) is plan B and also puts "Claritia" on their consent screens. Pulling
-Composio rows every 15 minutes instead of 5 would cut the pull line to a third (not done: it changes how fresh the
-two-way sync is). The old path cost $0 a month: the developer apps are free.
+Most of A at Growth is Salesforce's managed rate ($0.01 a call, 33 times the base rate) and HubSpot's ($0.002).
+Setting `COMPOSIO_AUTH_CONFIG_HUBSPOT` and `COMPOSIO_AUTH_CONFIG_SALESFORCE` to our own apps (registered once in
+Composio; Composio still keeps and refreshes every token) is plan B and also puts "Claritia" on their consent screens.
+The old path cost $0 a month: the developer apps are free.
