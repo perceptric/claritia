@@ -4,6 +4,10 @@ import { checkForm, DEFAULT_CONSENT, emptyForm } from "../../../../lib/forms/sch
 import { formToPage } from "../../../../lib/studio/fromForm";
 import { checkStudioPage } from "../../../../lib/studio/check";
 import { cleanPage, isRouting } from "../../../../lib/studio/page";
+import { guardSheet } from "../../../../lib/studio/guard";
+import { guardCss } from "../../../../lib/studio/guardCss";
+import { allowedFonts, brandFonts, readableCssText, readBlock, writeBlock } from "../../../../lib/studio/readable";
+import { AT_REST, measureWidth } from "../../../../lib/studio/measure";
 import { pageNumbers } from "../../../../lib/studio/numbers";
 import { styleCssById, styleName } from "../../../../lib/studio/styleCss";
 import { THEMES } from "../../../../lib/forms/gallery/themes";
@@ -844,24 +848,31 @@ export type StudioApi = {
   start: { formId?: string; chatId?: string; fresh?: boolean; text?: string };
 };
 
-export type StudioIssue = { level: "error" | "warning"; text: string; fix?: string; after?: boolean };
+/** One thing the form check found, and where the owner fixes it (src/lib/studio/check.ts IssueGo). */
+export type StudioIssue = { level: "error" | "warning"; text: string; go?: string };
 /** What the header shows: the open chat and its form, whether it can publish, and the form check. */
-export type StudioState = { ready: boolean; chatId: string; formId: string; name: string; state: "new" | "draft" | "live" | "changed"; canPublish: boolean; publishing: boolean; issues: StudioIssue[]; canFix: boolean; msg: string; previewing?: boolean; canPreview?: boolean; canUndo?: boolean; canRedo?: boolean };
+export type StudioState = { ready: boolean; chatId: string; formId: string; name: string; state: "new" | "draft" | "live" | "changed"; canPublish: boolean; publishing: boolean; issues: StudioIssue[]; measured?: string[]; msg: string; previewing?: boolean; canPreview?: boolean; canUndo?: boolean; canRedo?: boolean };
 /** What the header can ask of the Studio. */
 export type StudioControl = {
   stop(): void;
   /** Publish once the form check passes: "blocked" when it found problems (they're in the state's issues). */
   publish(): Promise<"live" | "blocked" | "failed">;
-  /** Hand fixes to Tia in the chat. */
-  fix(fixes: string[]): void;
-  /** Open On submission. */
-  openAfter(): void;
+  /** Take the owner to where a form check issue is fixed: On submission, Languages, Add, a page or a question. */
+  go(where: string): void;
   /** Preview the form on the whole screen, or go back to the editor. */
   preview(): void;
   undo(): void;
   redo(): void;
   rename(name: string): void;
 };
+
+/** What every page wears in the Studio before its brand: Claritia's own parts, as the form script draws them. */
+export const PAGE_BASE = `${ACCESS_CSS}${PICK_CSS}${MEDIA_CSS}${ONE_CSS}.cl-edit [data-cl-step],.cl-edit [data-cl-thanks]{animation:none!important}.cl-edit select{cursor:pointer}.cl-bookframe{display:block;width:100%;height:640px;border:0;background:transparent;color-scheme:normal}.cl-ss{display:grid;grid-template-columns:minmax(150px,.8fr) minmax(0,1.6fr) minmax(100px,.7fr);background:#fff;color:#171717;font:14px system-ui,sans-serif;border-radius:12px;box-shadow:0 0 0 1px rgba(0,0,0,.08),0 1px 3px rgba(0,0,0,.06);overflow:hidden;text-align:start}.cl-ss>div{padding:20px;min-width:0}.cl-ss-side{border-inline-end:1px solid rgba(0,0,0,.08);display:flex;flex-direction:column;gap:6px}.cl-ss-tool{display:flex;align-items:center;gap:6px;color:#525252;font-size:12px}.cl-ss-tool .cl-ss-ico,.cl-ss-tool svg{width:16px;height:16px;border-radius:4px;margin:0;flex:none}.cl-ss-av{width:40px;height:40px;border-radius:999px;background:#e5e5e5;margin:6px 0 2px}.cl-ss-side b{font-size:17px}.cl-ss-side p{margin:0;color:#525252;font-size:13px}.cl-ss-main{display:flex;flex-direction:column;gap:10px}.cl-ss-main>b{font-size:15px}.cl-ss-mo{color:#525252;font-size:13px}.cl-ss-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center;font-size:12px}.cl-ss-grid i{font-style:normal;color:#a3a3a3;font-size:11px;padding-bottom:2px}.cl-ss-grid span{aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:999px;color:#a3a3a3}.cl-ss-grid span.on{color:#171717;font-weight:600;background:rgba(0,0,0,.05)}.cl-ss-grid span.pick{background:#171717;color:#fff}.cl-ss-times{display:flex;flex-direction:column;gap:6px;border-inline-start:1px solid rgba(0,0,0,.08)}.cl-ss-times small{color:#525252;font-size:12px;margin-bottom:2px}.cl-ss-times span{border-radius:8px;box-shadow:0 0 0 1px rgba(0,0,0,.14);padding:8px 6px;text-align:center;font-size:13px;font-weight:500}.cl-ss-note{grid-column:1/-1;padding:10px 20px!important;border-top:1px solid rgba(0,0,0,.08);background:#fafafa;color:#525252;font-size:12px;text-align:center}@container (max-width:620px){.cl-ss{grid-template-columns:1fr}.cl-ss-side,.cl-ss-times{border:0!important}}@media (max-width:620px){.cl-ss{grid-template-columns:1fr}.cl-ss-side,.cl-ss-times{border:0!important}}.cl-rdr{display:flex;flex-direction:column;min-height:560px;background:#fff;color:#171717;font:14px system-ui,sans-serif}.cl-rdr-bar{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid rgba(0,0,0,.08);background:#fafafa}.cl-rdr-url{flex:1;min-width:0;overflow-wrap:anywhere;color:#525252;font-size:13px}.cl-rdr-bar a{color:#086444;font-weight:500;text-decoration:none}.cl-rdr-win{position:relative;overflow:hidden;flex:1;min-height:360px}.cl-rdr-win iframe{position:absolute;top:0;left:0;border:0;transform-origin:0 0;background:#fff}.cl-rdr-shot{display:block;width:100%;height:auto}.cl-rdr-msg{margin:auto;padding:48px 24px;text-align:center;color:#525252}.cl-drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:96px;border-style:dashed!important;text-align:center;opacity:.85}.cl-bookph{border:1px dashed rgba(127,127,127,.6);border-radius:10px;padding:18px;text-align:center;font:500 12px system-ui,sans-serif;opacity:.7}.cl-divider{font:600 11px/1 system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#7a7a7a;border-top:1px dashed rgba(127,127,127,.55);padding:10px 0 0;margin:20px 0 10px}.cl-edit [data-cl-if]{outline:1px dashed rgba(109,40,217,.55);outline-offset:3px}.cl-edit [data-cl-if]::before{content:attr(data-cl-if);display:block;width:max-content;max-width:100%;font:500 11px/1.7 system-ui,sans-serif;color:#6d28d9;background:rgba(109,40,217,.08);border-radius:4px;padding:0 6px;margin-bottom:6px;white-space:normal}.cl-block{display:flex;flex-direction:column;gap:8px}.cl-two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.cl-addr{display:flex;flex-direction:column;gap:8px}.cl-rate{display:flex;flex-wrap:wrap;gap:6px;font-size:26px;line-height:1;opacity:.6}.cl-ends{display:flex;justify-content:space-between;gap:12px;font-size:12px;opacity:.6}.cl-num{font-size:14px;border:1px solid currentColor;border-radius:8px;padding:8px 12px}.cl-sign{min-height:110px}.cl-calc{display:block;font-variant-numeric:tabular-nums}.cl-pay{display:flex;justify-content:space-between;gap:12px;align-items:baseline}.cl-pay b,.cl-res b{font-size:1.4em;font-variant-numeric:tabular-nums}.cl-res{display:flex;flex-direction:column;gap:4px}.cl-grid{width:100%;border-collapse:collapse}.cl-grid th,.cl-grid td{padding:6px;text-align:center}.cl-grid th:first-child,.cl-grid td:first-child{text-align:start}.cl-rank{margin:0;padding-inline-start:20px;display:flex;flex-direction:column;gap:6px}.cl-hid{font:500 11px/1.8 system-ui,sans-serif;opacity:.6;border:1px dashed currentColor;border-radius:6px;padding:0 8px;width:max-content}
+.cl-consent{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.4;opacity:.85}.cl-consent input{margin:2px 0 0}
+.cl-pick{display:flex;justify-content:space-between;align-items:center;gap:8px;opacity:.75}.cl-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}.cl-card{display:flex;flex-direction:column;gap:6px;padding:8px;height:auto}.cl-card img,.cl-ph{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px;background:rgba(127,127,127,.15);display:block}.cl-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.cl-row>input{flex:1 1 120px;min-width:0}.cl-btn2{display:inline-flex;width:max-content;font:500 12px/1 system-ui,sans-serif;border:1px solid currentColor;border-radius:999px;padding:7px 12px;opacity:.7}.cl-qty{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 12px;align-items:center}.cl-step{display:inline-flex;gap:12px;align-items:center;border:1px solid rgba(127,127,127,.5);border-radius:999px;padding:4px 12px}.cl-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.cl-chip{display:inline-flex;align-items:center;padding:6px 12px;height:auto;width:auto;border-radius:999px;border:1px solid rgba(127,127,127,.5);font-size:13px}.cl-map{height:160px;position:relative;background:repeating-linear-gradient(45deg,rgba(127,127,127,.08) 0 12px,rgba(127,127,127,.14) 12px 24px)}.cl-pin{position:absolute;left:50%;top:50%;width:16px;height:16px;margin:-16px 0 0 -8px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:#d93025}.cl-crop{width:160px;aspect-ratio:1;height:auto}.cl-media{border:1px dashed rgba(127,127,127,.6);border-radius:10px;padding:22px;text-align:center;font:500 12px system-ui,sans-serif;opacity:.7;overflow-wrap:anywhere}.cl-edit [data-cl-review]:empty::before{content:"Answer review: the answers show here before sending";display:block;font:500 12px system-ui,sans-serif;opacity:.6;border:1px dashed rgba(127,127,127,.6);border-radius:8px;padding:14px}.cl-edit .cl-section{outline:1px dashed rgba(127,127,127,.45);outline-offset:6px;border-radius:4px}
+:host{all:initial;display:flex;flex-direction:column;flex:1 0 auto}*,*::before,*::after{box-sizing:border-box}[hidden]{display:none!important}.cl-root{flex:1 0 auto;min-height:560px;display:flex;flex-direction:column}.cl-root>*{flex:1 0 auto}
+${CAL_CSS}
+.cl-edit [data-k]{cursor:default}.cl-edit [contenteditable]{outline:none;cursor:text}`;
 
 export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
   const $ = (id) => shell.getElementById(id);
@@ -916,7 +927,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
     const id = c?.body?.style;
     if (!id) return null;
     let b = styled.get(c);
-    if (!b || b.style !== id) { b = { id: "", style: id, name: styleName(id), site: "", logo: null, css: c.body.styleCss || styleCssById(id), profile: null, lookErr: "" }; styled.set(c, b); }
+    if (!b || b.style !== id) { b = { id: "", style: id, name: styleName(id), site: "", logo: null, css: c.body.styleCss ? readableCssText(c.body.styleCss) : styleCssById(id), profile: null, lookErr: "" }; styled.set(c, b); }
     return b;
   };
   const brandOf = (c) => brands.find((b) => b.id === c?.brandId) || styleBrand(c) || null;
@@ -988,12 +999,9 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
   // ── Drawing ───────────────────────────────────────────────────────────────────────────────────────────
   const host = $("host");
   const root = host.attachShadow({ mode: "open" });
-  const BASE = `${ACCESS_CSS}${PICK_CSS}${MEDIA_CSS}${ONE_CSS}.cl-edit [data-cl-step],.cl-edit [data-cl-thanks]{animation:none!important}.cl-edit select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 6l4 4 4-4' fill='none' stroke='gray' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")!important;background-repeat:no-repeat!important;background-position:right 14px center!important;background-size:14px 14px!important;padding-inline-end:38px!important;cursor:pointer}.cl-bookframe{display:block;width:100%;height:640px;border:0;background:transparent;color-scheme:normal}.cl-ss{display:grid;grid-template-columns:minmax(150px,.8fr) minmax(0,1.6fr) minmax(100px,.7fr);background:#fff;color:#171717;font:14px system-ui,sans-serif;border-radius:12px;box-shadow:0 0 0 1px rgba(0,0,0,.08),0 1px 3px rgba(0,0,0,.06);overflow:hidden;text-align:start}.cl-ss>div{padding:20px;min-width:0}.cl-ss-side{border-inline-end:1px solid rgba(0,0,0,.08);display:flex;flex-direction:column;gap:6px}.cl-ss-tool{display:flex;align-items:center;gap:6px;color:#525252;font-size:12px}.cl-ss-tool .cl-ss-ico,.cl-ss-tool svg{width:16px;height:16px;border-radius:4px;margin:0;flex:none}.cl-ss-av{width:40px;height:40px;border-radius:999px;background:#e5e5e5;margin:6px 0 2px}.cl-ss-side b{font-size:17px}.cl-ss-side p{margin:0;color:#525252;font-size:13px}.cl-ss-main{display:flex;flex-direction:column;gap:10px}.cl-ss-main>b{font-size:15px}.cl-ss-mo{color:#525252;font-size:13px}.cl-ss-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center;font-size:12px}.cl-ss-grid i{font-style:normal;color:#a3a3a3;font-size:11px;padding-bottom:2px}.cl-ss-grid span{aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:999px;color:#a3a3a3}.cl-ss-grid span.on{color:#171717;font-weight:600;background:rgba(0,0,0,.05)}.cl-ss-grid span.pick{background:#171717;color:#fff}.cl-ss-times{display:flex;flex-direction:column;gap:6px;border-inline-start:1px solid rgba(0,0,0,.08)}.cl-ss-times small{color:#525252;font-size:12px;margin-bottom:2px}.cl-ss-times span{border-radius:8px;box-shadow:0 0 0 1px rgba(0,0,0,.14);padding:8px 6px;text-align:center;font-size:13px;font-weight:500}.cl-ss-note{grid-column:1/-1;padding:10px 20px!important;border-top:1px solid rgba(0,0,0,.08);background:#fafafa;color:#525252;font-size:12px;text-align:center}@container (max-width:620px){.cl-ss{grid-template-columns:1fr}.cl-ss-side,.cl-ss-times{border:0!important}}@media (max-width:620px){.cl-ss{grid-template-columns:1fr}.cl-ss-side,.cl-ss-times{border:0!important}}.cl-rdr{display:flex;flex-direction:column;min-height:560px;background:#fff;color:#171717;font:14px system-ui,sans-serif}.cl-rdr-bar{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid rgba(0,0,0,.08);background:#fafafa}.cl-rdr-url{flex:1;min-width:0;overflow-wrap:anywhere;color:#525252;font-size:13px}.cl-rdr-bar a{color:#086444;font-weight:500;text-decoration:none}.cl-rdr-win{position:relative;overflow:hidden;flex:1;min-height:360px}.cl-rdr-win iframe{position:absolute;top:0;left:0;border:0;transform-origin:0 0;background:#fff}.cl-rdr-shot{display:block;width:100%;height:auto}.cl-rdr-msg{margin:auto;padding:48px 24px;text-align:center;color:#525252}.cl-drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:96px;border-style:dashed!important;text-align:center;opacity:.85}.cl-bookph{border:1px dashed rgba(127,127,127,.6);border-radius:10px;padding:18px;text-align:center;font:500 12px system-ui,sans-serif;opacity:.7}.cl-divider{font:600 11px/1 system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#7a7a7a;border-top:1px dashed rgba(127,127,127,.55);padding:10px 0 0;margin:20px 0 10px}.cl-edit [data-cl-if]{outline:1px dashed rgba(109,40,217,.55);outline-offset:3px}.cl-edit [data-cl-if]::before{content:attr(data-cl-if);display:block;width:max-content;max-width:100%;font:500 11px/1.7 system-ui,sans-serif;color:#6d28d9;background:rgba(109,40,217,.08);border-radius:4px;padding:0 6px;margin-bottom:6px;white-space:normal}.cl-block{display:flex;flex-direction:column;gap:8px}.cl-two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.cl-addr{display:flex;flex-direction:column;gap:8px}.cl-rate{display:flex;flex-wrap:wrap;gap:6px;font-size:26px;line-height:1;opacity:.6}.cl-ends{display:flex;justify-content:space-between;gap:12px;font-size:12px;opacity:.6}.cl-num{font-size:14px;border:1px solid currentColor;border-radius:8px;padding:8px 12px}.cl-sign{min-height:110px}.cl-calc{display:block;font-variant-numeric:tabular-nums}.cl-pay{display:flex;justify-content:space-between;gap:12px;align-items:baseline}.cl-pay b,.cl-res b{font-size:1.4em;font-variant-numeric:tabular-nums}.cl-res{display:flex;flex-direction:column;gap:4px}.cl-grid{width:100%;border-collapse:collapse}.cl-grid th,.cl-grid td{padding:6px;text-align:center}.cl-grid th:first-child,.cl-grid td:first-child{text-align:start}.cl-rank{margin:0;padding-inline-start:20px;display:flex;flex-direction:column;gap:6px}.cl-hid{font:500 11px/1.8 system-ui,sans-serif;opacity:.6;border:1px dashed currentColor;border-radius:6px;padding:0 8px;width:max-content}
-.cl-consent{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.4;opacity:.85}.cl-consent input{margin:2px 0 0}
-.cl-pick{display:flex;justify-content:space-between;align-items:center;gap:8px;opacity:.75}.cl-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}.cl-card{display:flex;flex-direction:column;gap:6px;padding:8px;height:auto}.cl-card img,.cl-ph{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px;background:rgba(127,127,127,.15);display:block}.cl-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.cl-row>input{flex:1 1 120px;min-width:0}.cl-btn2{display:inline-flex;width:max-content;font:500 12px/1 system-ui,sans-serif;border:1px solid currentColor;border-radius:999px;padding:7px 12px;opacity:.7}.cl-qty{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 12px;align-items:center}.cl-step{display:inline-flex;gap:12px;align-items:center;border:1px solid rgba(127,127,127,.5);border-radius:999px;padding:4px 12px}.cl-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.cl-chip{display:inline-flex;align-items:center;padding:6px 12px;height:auto;width:auto;border-radius:999px;border:1px solid rgba(127,127,127,.5);font-size:13px}.cl-map{height:160px;position:relative;background:repeating-linear-gradient(45deg,rgba(127,127,127,.08) 0 12px,rgba(127,127,127,.14) 12px 24px)}.cl-pin{position:absolute;left:50%;top:50%;width:16px;height:16px;margin:-16px 0 0 -8px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:#d93025}.cl-crop{width:160px;aspect-ratio:1;height:auto}.cl-media{border:1px dashed rgba(127,127,127,.6);border-radius:10px;padding:22px;text-align:center;font:500 12px system-ui,sans-serif;opacity:.7;overflow-wrap:anywhere}.cl-edit [data-cl-review]:empty::before{content:"Answer review: the answers show here before sending";display:block;font:500 12px system-ui,sans-serif;opacity:.6;border:1px dashed rgba(127,127,127,.6);border-radius:8px;padding:14px}.cl-edit .cl-section{outline:1px dashed rgba(127,127,127,.45);outline-offset:6px;border-radius:4px}
-:host{all:initial;display:flex;flex-direction:column;flex:1 0 auto}*,*::before,*::after{box-sizing:border-box}[hidden]{display:none!important}.cl-root{flex:1 0 auto;min-height:560px;display:flex;flex-direction:column}.cl-root>*{flex:1 0 auto}
-${CAL_CSS}
-.cl-edit [data-k]{cursor:default}.cl-edit [contenteditable]{outline:none;cursor:text}`;
+  const BASE = PAGE_BASE;
+  /** The page's styles as every form wears them: Claritia's base, the brand's, the form's own, and the guard last. */
+  const pageCss = (brand, form) => `${BASE}\n/* brand */\n${cssFor(guardCss(brand || ""))}\n/* form */\n${cssFor(guardCss(form || ""))}\n/* guard */\n${guardSheet(brand || "", form || "")}`;
   let stepAt = 0, done = false, coverOn = true;
   // One question at a time in Preview: each screen's page in Edit (oneMap), and the page Preview was opened on.
   let oneMap = [], previewFrom = null;
@@ -1005,7 +1013,7 @@ ${CAL_CSS}
     root.innerHTML = "";
     if (!has) { $("stepBar").hidden = true; $("stepDock").hidden = !cur || S.mode === "code" || S.mode === "preview"; chromeUi(); if (cur) { emptyUi(); void tplLoad(); } runCheck(); return overlay(); }
     const st = document.createElement("style");
-    st.textContent = `${BASE}\n/* brand */\n${cssFor(PK ? PK.brand : brandOf(cur)?.css || S.hold)}\n/* form */\n${cssFor(PK ? PK.css : body().css)}`;
+    st.textContent = pageCss(PK ? PK.brand : brandOf(cur)?.css || S.hold, PK ? PK.css : body().css);
     const wrap = h("div", { class: S.mode === "edit" ? "cl-root cl-edit" : "cl-root" });
     // Another language shows as written (Preview only; Edit and Code work on the form's own language).
     const other = S.mode !== "edit" && S.lang && body().langs?.[S.lang];
@@ -3097,8 +3105,9 @@ ${CAL_CSS}
   const state = () => ({ html: sourceHtml(), css: body().css, after: JSON.stringify(body().after), langs: JSON.stringify({ langs: body().langs || {}, from: body().langFrom || {} }), look: JSON.stringify({ b: cur?.brandId || "", s: body().style || "", c: body().styleCss || "" }) });
   function snap() { const s = H(); s.past.push(state()); if (s.past.length > 80) s.past.shift(); s.future.length = 0; buttons(); }
   function restore(x) { if (x.look) { const l = JSON.parse(x.look); cur.brandId = l.b; if (l.s) { body().style = l.s; body().styleCss = l.c; } else { delete body().style; delete body().styleCss; } brandUi(); renderLog(); } body().css = x.css; body().after = JSON.parse(x.after); if (x.langs) { const l = JSON.parse(x.langs); body().langs = l.langs; body().langFrom = l.from; if (S.lang && !l.langs[S.lang]) S.lang = ""; } setSource(x.html); body().html = x.html; S.sel = null; changed(); draw(); refresh(); }
-  function undo() { const s = H(); if (!s.past.length) return; s.future.push(state()); restore(s.past.pop()); }
-  function redo() { const s = H(); if (!s.future.length) return; s.past.push(state()); restore(s.future.pop()); }
+  // What Undo or Redo brings back stays as it was: the form check doesn't tune it again (runCheck).
+  function undo() { const s = H(); if (!s.past.length) return; tuneOff = true; s.future.push(state()); restore(s.past.pop()); }
+  function redo() { const s = H(); if (!s.future.length) return; tuneOff = true; s.past.push(state()); restore(s.future.pop()); }
   /** Undo and redo live in the page's header: it reads canUndo and canRedo from the state. */
   function buttons() { emit(); }
   function changed() { langUi(); if (cur.state === "live") cur.state = "changed"; if (cur.state === "new" && built()) cur.state = "draft"; S.pubMsg = ""; pubUi(); buttons(); save(); }
@@ -3613,76 +3622,100 @@ ${CAL_CSS}
     return card;
   }
 
-  // ── The form check (docs/studio-v2-plan.md 6.5): the page's own rules here, and layout, contrast, taps and fonts
-  // measured at phone, tablet and desktop widths. Errors stop Publish; each issue can go to Tia as a fix. ─────────
-  let issues = [], layoutFound = [], checkT = 0, checkRun = 0, checkKey = "";
+  // ── The form check (docs/studio-v2-plan.md 6.5 and Part 16): only what the owner decides (the page's own rules,
+  // On submission, languages), each with a way to the spot. Errors stop Publish. What code can make right it makes
+  // right as a change lands (tune): the brand's fonts and readable colors go into the form's CSS, one undo step, and
+  // the guard (src/lib/studio/guard.ts) keeps layout, taps, choices, dropdowns and focus right wherever the form shows.
+  // The measure at phone, tablet and desktop widths feeds the tune; what it still finds (`measured`, never shown and
+  // never a stop) is what scripts/studio-check.ts and scripts/studio-templates-check.ts hold at zero. ──────────
+  let issues = [], layoutFound = [], checkT = 0, checkRun = 0, checkKey = "", tunedKey = "", tuneOff = false;
   function runCheck() {
     clearTimeout(checkT);
     checkT = setTimeout(async () => {
       if (!alive || !cur || PK) return;
       if (!built()) { issues = []; layoutFound = []; return checkUi(); }
       const key = `${sourceHtml()}\n${body().css}\n${brandOf(cur)?.css || ""}\n${JSON.stringify(body().after)}\n${MEETINGS.length}\n${brandOf(cur)?.profile?.industry || ""}\n${JSON.stringify(body().langs)}`;
-      if (key === checkKey) return;
+      // Each change once, never while Tia writes or the owner types CSS, and never one Undo or Redo brought back.
+      let looks = false;
+      if (!S.busy && S.mode !== "code" && key !== tunedKey) {
+        tunedKey = key;
+        if (tuneOff) tuneOff = false;
+        else if (tuneCss()) return;
+        else looks = true;
+      }
+      if (key === checkKey && !looks) return;
       checkKey = key;
       const base = [...checkStudioPage({ html: sourceHtml(), after: body().after, meetings: loaded ? MEETINGS : null, industry: brandOf(cur)?.profile?.industry ?? null, langs: body().langs }), ...staleLangs()];
-      issues = [...base, ...layoutFound]; checkUi();
+      issues = base; checkUi();
       const run = ++checkRun;
-      const lay = await layoutIssues().catch(() => []);
+      const lay = await layoutIssues().catch(() => ({ found: [], rules: new Map() }));
       if (run !== checkRun || !alive) return;
-      layoutFound = lay; issues = [...base, ...lay]; checkUi();
+      if (looks && tuneLooks(lay.rules)) return;
+      layoutFound = lay.found; issues = base; checkUi();
     }, 400);
   }
-  const lum = (c) => { const m = /rgba?\(([\d.]+),\s*([\d.]+),\s*([\d.]+)(?:,\s*([\d.]+))?/.exec(c || ""); if (!m) return null; const ch = [m[1], m[2], m[3]].map((x) => { const v = Number(x) / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return { l: 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2], a: m[4] === undefined ? 1 : Number(m[4]) }; };
+  /** One tune of the form's CSS, as its own undo step. */
+  function tuneTo(css) {
+    if (css === body().css) return false;
+    snap(); body().css = css; changed(); draw(); refresh();
+    return true;
+  }
+  /** The brand's fonts, and colors that read on their own backgrounds, in the form's CSS. */
+  const tuneCss = () => { const brand = brandOf(cur)?.css || ""; return tuneTo(readableCssText(brandFonts(body().css || "", brand), brand)); };
+  /** What the measure found hard to read, made readable in the form's CSS (its readable block). */
+  function tuneLooks(rules) {
+    if (!rules.size) return false;
+    const had = readBlock(body().css);
+    const next = new Map([...had, ...rules]);
+    if (next.size === had.size && [...next].every(([k, v]) => had.get(k) === v)) return false;
+    return tuneTo(writeBlock(body().css, next));
+  }
   async function layoutIssues() {
-    const out = [...(await layoutFor(sourceHtml(), mainLang(), ""))];
-    for (const [code, html] of Object.entries(body().langs || {})) for (const i of await layoutFor(html, code, languageName(code))) if (i.code === "sideways" || i.code === "clipped") out.push(i);
-    return out;
+    const main = await layoutFor(sourceHtml(), mainLang(), "");
+    const out = [...main.found];
+    for (const [code, html] of Object.entries(body().langs || {})) for (const i of (await layoutFor(html, code, languageName(code))).found) if (i.code === "sideways" || i.code === "clipped") out.push(i);
+    return { found: out, rules: main.rules };
   }
   async function layoutFor(html, lang, label) {
     const out = [];
-    const css = `${BASE}\n${cssFor(brandOf(cur)?.css)}\n${cssFor(body().css)}`;
-    const where0 = label ? `In ${label}, ` : "";
-    const brandText = String(brandOf(cur)?.css || "").toLowerCase();
-    const where = { 390: "a phone", 768: "a tablet", 1100: "a desktop" };
+    let rules = new Map();
+    const css = pageCss(brandOf(cur)?.css, body().css);
+    const fonts = brandOf(cur)?.css ? allowedFonts(brandOf(cur)?.css || "", body().css || "") : null;
     for (const w of [390, 768, 1100]) {
-      const box = h("div", { style: `position:fixed;left:-30000px;top:0;width:${w}px;height:1000px;overflow:auto;visibility:hidden;pointer-events:none` });
+      // Off screen, not hidden: hidden text and choices would read as removed.
+      const box = h("div", { style: `position:fixed;left:-30000px;top:0;width:${w}px;height:1000px;overflow:auto;pointer-events:none`, "aria-hidden": "true", inert: true });
       $("layer").append(box);
       const r = box.attachShadow({ mode: "open" });
-      r.innerHTML = `<style>${css}</style><div class="cl-root"${lang ? ` lang="${lang}" dir="${isRtl(lang) ? "rtl" : "ltr"}"` : ""}>${html}</div>`;
+      // Measured at rest: a page sliding in would read as wider than it is.
+      r.innerHTML = `<style>${css}</style><style>${AT_REST}</style><div class="cl-root"${lang ? ` lang="${lang}" dir="${isRtl(lang) ? "rtl" : "ltr"}"` : ""}>${html}</div>`;
       // Every step, condition and the thank-you at once, so each is measured.
       r.querySelectorAll("[hidden]").forEach((e) => e.removeAttribute("hidden"));
       await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
-      if (!alive) return out;
-      if (Math.max(box.scrollWidth, r.querySelector(".cl-root").scrollWidth) > w + 2) out.push({ level: w === 390 ? "error" : "warning", code: "sideways", text: `${where0}the form scrolls sideways on ${where[w]} (${w}px wide).`.replace(/^t/, "T"), fix: `Make the form fit ${w}px wide with no sideways scrolling${label ? ` in ${label}` : ""}.` });
-      if (w === 390) {
-        // Choice cards whose own radio or check box is removed can't be reached with the keyboard.
-        const gone = [...r.querySelectorAll('input[type="radio"],input[type="checkbox"]')].find((x) => { const cs = getComputedStyle(x); return cs.display === "none" || cs.visibility === "hidden"; });
-        if (gone && !label) out.push({ level: "warning", code: "keyboard", text: "Some choices can't be reached with the keyboard: their radio or check box is removed.", fix: "Hide the native radio and check boxes visually (position absolute, opacity 0) instead of display none, and show focus on the choice card with label:has(input:focus-visible)." });
-        const els = [...r.querySelectorAll("h1,h2,h3,h4,p,label,span,button,a,legend,li,strong,b,small")].slice(0, 300);
-        let low = 0, clipped = false, small = false, font = "";
-        for (const el of els) {
-          const own = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
-          const rect = el.getBoundingClientRect();
-          if (!own || !rect.width || !rect.height) continue;
-          const cs = getComputedStyle(el);
-          // Contrast against the first solid background behind it.
-          const fg = lum(cs.color);
-          let bg = null;
-          for (let p = el; p && p.nodeType === 1; p = p.parentElement) { const ps = getComputedStyle(p); if (ps.backgroundImage && ps.backgroundImage !== "none") { bg = "skip"; break; } const b = lum(ps.backgroundColor); if (b && b.a > 0.5) { bg = b; break; } }
-          if (fg && bg && bg !== "skip" && low < 2 && !label) {
-            const ratio = (Math.max(fg.l, bg.l) + 0.05) / (Math.min(fg.l, bg.l) + 0.05);
-            const size = parseFloat(cs.fontSize), large = size >= 24 || (size >= 18.6 && Number(cs.fontWeight) >= 700);
-            if (ratio < (large ? 3 : 4.5)) { low++; const t = el.textContent.trim().replace(/\s+/g, " ").slice(0, 40); out.push({ level: "warning", code: "contrast", text: `"${t}" is hard to read (contrast ${ratio.toFixed(1)} to 1).`, fix: `Raise the contrast of the text "${t}" to at least ${large ? 3 : 4.5} to 1, using the brand's darker colors.` }); }
-          }
-          if (!clipped && /hidden|clip/.test(cs.overflow + cs.overflowX) && el.scrollWidth > el.clientWidth + 1) { clipped = true; const t = el.textContent.trim().slice(0, 40); out.push({ level: "warning", code: "clipped", text: `${where0}"${t}" is cut off on a phone.`, fix: `Let the text "${t}" wrap so it isn't cut off on a phone.` }); }
-          if (!small && !label && (el.tagName === "BUTTON" || el.matches("label.choice, label.check, a")) && rect.height < 40) { small = true; const t = el.textContent.trim().slice(0, 30); out.push({ level: "warning", code: "small-tap", text: `"${t}" is smaller than a finger on a phone (${Math.round(rect.height)}px tall).`, fix: "Make every button and choice at least 44px tall on phones." }); }
-          const fam = (cs.fontFamily.split(",")[0] || "").replace(/["']/g, "").trim();
-          if (!font && !label && brandText && fam && !/^(serif|sans-serif|monospace|system-ui|ui-sans-serif|ui-serif|-apple-system|inherit|initial)$/i.test(fam) && !brandText.includes(fam.toLowerCase())) { font = fam; out.push({ level: "warning", code: "font", text: `Uses the font ${fam}, which isn't the brand's.`, fix: `Use only the brand's fonts in place of ${fam}.` }); }
-        }
-      }
+      if (!alive) return { found: out, rules };
+      // The same measure as the template check (src/lib/studio/measure.ts); what's hard to read becomes the tune's rules.
+      rules = measureWidth(box, r.querySelector(".cl-root"), w, { label, fonts, out, rules });
       box.remove();
     }
-    return out;
+    return { found: out, rules };
+  }
+  /** The spot where an issue is fixed (StudioControl.go): never Tia, only the place in the Studio. */
+  function goTo(where) {
+    if (!cur || PK) return;
+    const w = String(where || "");
+    if (w === "after") { S.view = "thanks"; setMode("edit"); return; }
+    if (!built()) return;
+    if (w === "langs") { if (S.mode !== "preview") setMode("preview"); langUi(); if (!(menuEl && menuFor === $("langBtn"))) langMenu(); return; }
+    if (S.mode !== "edit") setMode("edit");
+    if (w === "add") { setSide("build"); addsOpen(true); return; }
+    const m = /^(page|q):(.*)$/.exec(w);
+    if (!m) return;
+    const steps = stepsIn(src);
+    let el = null;
+    if (m[1] === "q") el = [...src.querySelectorAll("[name],[data-cl-name]")].find((x) => (x.getAttribute("name") || x.getAttribute("data-cl-name")) === m[2]) || null;
+    const at = m[1] === "page" ? (m[2] === "cover" || m[2] === "thanks" ? m[2] : Math.min(Math.max(0, Number(m[2]) || 0), Math.max(0, steps.length - 1))) : el?.closest("[data-cl-thanks]") ? "thanks" : el?.closest("[data-cl-cover]") ? "cover" : Math.max(0, steps.findIndex((st) => st.contains(el)));
+    S.view = at; S.design = false;
+    S.sel = el?.closest("[data-k]")?.getAttribute("data-k") || null;
+    draw(); panel(); tree(); endUi(); overlay();
   }
   function checkUi() {
     const errs = issues.filter((i) => i.level === "error").length;
@@ -3700,8 +3733,8 @@ ${CAL_CSS}
       state: cur?.state || "new",
       canPublish: !S.publishing && !!cur && built() && !!brandOf(cur) && !S.busy && !PK,
       publishing: S.publishing,
-      issues: built() ? issues.map((i) => ({ level: i.level === "error" ? "error" : "warning", text: i.text, ...(i.fix ? { fix: i.fix } : {}), ...(/On submission/.test(i.text) ? { after: true } : {}) })) : [],
-      canFix: !!brandOf(cur)?.css && !S.busy,
+      issues: built() ? issues.map((i) => ({ level: i.level === "error" ? "error" : "warning", text: i.text, ...(i.go ? { go: i.go } : /On submission/.test(i.text) ? { go: "after" } : {}) })) : [],
+      measured: built() ? layoutFound.map((i) => i.text) : [],
       msg: S.pubMsg,
       previewing: S.mode === "preview" && !PK,
       canPreview: !!cur && built() && !PK,
@@ -3715,7 +3748,7 @@ ${CAL_CSS}
   const COMMON = ["en", "es", "fr", "de", "pt", "it", "nl", "ar", "he", "ja", "zh", "ko", "hi", "pl", "sv", "tr"];
   const mainLang = () => body()?.lang || brandOf(cur)?.profile?.language || "en";
   const sig = (html) => { let x = 0; for (let i = 0; i < html.length; i++) x = (x * 31 + html.charCodeAt(i)) | 0; return String(x); };
-  function staleLangs() { const now = sig(sourceHtml()); return Object.keys(body().langs || {}).filter((c) => body().langFrom?.[c] && body().langFrom[c] !== now).map((c) => ({ level: "warning", code: "lang-old", text: `The ${languageName(c)} version is older than the form. Update it in Languages.` })); }
+  function staleLangs() { const now = sig(sourceHtml()); return Object.keys(body().langs || {}).filter((c) => body().langFrom?.[c] && body().langFrom[c] !== now).map((c) => ({ level: "warning", code: "lang-old", text: `The ${languageName(c)} version is older than the form. Update it in Languages.`, go: "langs" })); }
   function langUi() {
     const b = $("langBtn");
     b.hidden = !cur || !built();
@@ -3769,9 +3802,9 @@ ${CAL_CSS}
   }
   /** Publish from the header: the form check first, then the form goes live. */
   async function publishNow() {
-    // The page's own rules run here, on the page as it is now; layout findings are notes and never stop it.
+    // The page's own rules run here, on the page as it is now; the measure never stops it (the guard makes it right).
     if (S.publishing || !cur || !built() || !brandOf(cur) || S.busy) return "failed";
-    const now = [...checkStudioPage({ html: sourceHtml(), after: body().after, meetings: loaded ? MEETINGS : null, industry: brandOf(cur)?.profile?.industry ?? null, langs: body().langs }), ...layoutFound];
+    const now = [...checkStudioPage({ html: sourceHtml(), after: body().after, meetings: loaded ? MEETINGS : null, industry: brandOf(cur)?.profile?.industry ?? null, langs: body().langs }), ...staleLangs()];
     const errs = now.filter((i) => i.level === "error");
     if (errs.length) { issues = now; S.pubMsg = `Fix ${errs.length === 1 ? "1 problem" : `${errs.length} problems`} first`; emit(); return "blocked"; }
     const c = cur;
@@ -3862,7 +3895,7 @@ ${CAL_CSS}
     brandUi(); renderLog();
     try {
       const r = await api.look(b.id, fresh);
-      b.css = r.css; api.keepCss(b.id, r.css);
+      b.css = readableCssText(r.css); api.keepCss(b.id, b.css);
       if (r.profile && !b.profile) { b.profile = r.profile; api.keepProfile(b.id, r.profile); }
       if (r.say && cur?.brandId === b.id && !TH.open?.messages.length) S.hello = r.say;
       if (cur?.brandId === b.id) { draw(); if (S.mode === "code") showCode(); }
@@ -4362,7 +4395,8 @@ ${CAL_CSS}
     const [bs, ms, cs] = await Promise.all([api.brands().catch(() => []), api.meetings().catch(() => []), api.chats().catch(() => [])]);
     void api.people?.().then((ps) => { if (ps?.length) PEOPLE = ["Anyone", ...ps]; }).catch(() => {});
     if (!alive) return;
-    brands = bs.map((b) => ({ ...b, lookErr: "" }));
+    // Each brand's text colors read on its backgrounds, brands read before this rule too (readable.ts).
+    brands = bs.map((b) => ({ ...b, css: b.css ? readableCssText(b.css) : b.css, lookErr: "" }));
     MEETINGS = ms;
     void api.calendarBrand?.().then((v) => { if (alive && v !== CAL_BRAND) { CAL_BRAND = v; if (built()) draw(); } }).catch(() => {});
     chats = cs;
@@ -4402,12 +4436,7 @@ ${CAL_CSS}
       for (const f of off) f();
     },
     publish: publishNow,
-    fix(fixes) {
-      if (!fixes.length || S.busy) return;
-      setSide("ai");
-      send(fixes.length === 1 ? `Fix this: ${fixes[0]}` : `Fix these:\n${fixes.map((f) => `- ${f}`).join("\n")}`);
-    },
-    openAfter() { S.view = "thanks"; setMode("edit"); },
+    go: goTo,
     preview() { if (PK) return; setMode(S.mode === "preview" ? "edit" : "preview"); },
     undo() { if (S.mode !== "preview") undo(); },
     redo() { if (S.mode !== "preview") redo(); },

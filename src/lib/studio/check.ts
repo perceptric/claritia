@@ -1,7 +1,8 @@
-// The form check (docs/studio-v2-plan.md 6.3 and 6.5): no broken form goes live. It reads a studio page the way the
-// form script will run it and lists what's wrong, each with words for the owner and an instruction Tia can follow to
-// fix it. Errors stop Publish; warnings don't. The Studio runs it as the form changes and the server runs it again on
-// Publish. Layout, contrast and fonts need a browser, so the Studio adds those (studio.ts, layoutIssues).
+// The form check (docs/studio-v2-plan.md 6.3, 6.5 and Part 16): no broken form goes live. It reads a studio page the
+// way the form script will run it and lists what's wrong in words for the owner, each with the spot to fix it (`go`):
+// only what the owner decides (a question, a meeting, a translation), since layout, contrast, fonts and taps are made
+// right by code (src/lib/studio/guard.ts, readable.ts). Errors stop Publish; warnings don't. The Studio runs it as the
+// form changes and the server runs it again on Publish. The Studio adds its layout measure (studio.ts, layoutIssues).
 // Runs in the browser and on the server: no DOM.
 
 import { linkProblem, type ScheduleTool } from "../forms/schedule.ts";
@@ -9,7 +10,12 @@ import { languageName } from "./industries.ts";
 import { cleanPage, isRouting, type PageAfter, type PageQuestion } from "./page.ts";
 import { cleanRoute, condsOf, neverRuns, PAST_ROUTES, routeIncomplete, routeKind, type StudioRoute } from "./routes.ts";
 
-export type Issue = { level: "error" | "warning"; code: string; text: string; fix?: string };
+/**
+ * Where the owner fixes it: On submission ("after"), Languages ("langs"), the Add list ("add"), a page ("page:2",
+ * "page:cover", "page:thanks") or a question by name ("q:email").
+ */
+export type IssueGo = "after" | "langs" | "add" | `page:${string}` | `q:${string}`;
+export type Issue = { level: "error" | "warning"; code: string; text: string; go?: IssueGo };
 
 type Node = { tag: string; attrs: Record<string, string>; kids: Node[]; text: string; parent: Node | null };
 const VOID = new Set(["input", "img", "br", "hr"]);
@@ -83,19 +89,19 @@ export function showIfRefs(expr: string): { name: string; values: string[] }[] {
 }
 
 // What a form must never ask for in a box, and what it asks only with care (docs/studio-v2-plan.md 6.3).
-const SENSITIVE: { code: string; test: RegExp; text: (l: string) => string; fix: string }[] = [
-  { code: "password", test: /\b(pass(word|code|phrase)|pin code|\bpin\b)/i, text: (l) => `"${l}" asks for a password. Forms never ask for logins.`, fix: "Remove the question that asks for a password or PIN." },
-  { code: "card", test: /(card number|credit card|debit card|\bcvv\b|\bcvc\b|card security code|card expir)/i, text: (l) => `"${l}" asks for card details. Take payments with the payment block.`, fix: "Remove the question that asks for card details." },
-  { code: "bank", test: /(account number|routing number|\biban\b|sort code|\bswift\b|\bbic\b|bank details)/i, text: (l) => `"${l}" asks for bank details. Forms never collect them in a box.`, fix: "Remove the question that asks for bank details." },
-  { code: "id", test: /(\bssn\b|social security|national insurance|passport number|driver'?s? licen[cs]e number|tax (id|number)|\btin\b|\bsin number|national id)/i, text: (l) => `"${l}" asks for an ID number. Forms never collect ID numbers.`, fix: "Remove the question that asks for an ID or tax number." },
-  { code: "health", test: /(diagnos|medication|prescri|medical (history|record|condition)|health (record|history|condition)|allerg)/i, text: (l) => `"${l}" asks about health records. Turn on health data for this workspace first, or ask for the reason for the visit in plain words.`, fix: "Replace the health record question with a plain reason-for-visit question." },
-  { code: "protected", test: /(\bage\b|date of birth|\breligio|\bethnic|\brace\b|disabilit|pregnan|marital status|sexual orientation)/i, text: (l) => `"${l}" asks about something hiring and lending laws protect. Leave it out unless the law asks for it.`, fix: "Remove the question about age, religion, ethnicity, disability or family status." },
+const SENSITIVE: { code: string; test: RegExp; text: (l: string) => string }[] = [
+  { code: "password", test: /\b(pass(word|code|phrase)|pin code|\bpin\b)/i, text: (l) => `"${l}" asks for a password. Forms never ask for logins.` },
+  { code: "card", test: /(card number|credit card|debit card|\bcvv\b|\bcvc\b|card security code|card expir)/i, text: (l) => `"${l}" asks for card details. Take payments with the payment block.` },
+  { code: "bank", test: /(account number|routing number|\biban\b|sort code|\bswift\b|\bbic\b|bank details)/i, text: (l) => `"${l}" asks for bank details. Forms never collect them in a box.` },
+  { code: "id", test: /(\bssn\b|social security|national insurance|passport number|driver'?s? licen[cs]e number|tax (id|number)|\btin\b|\bsin number|national id)/i, text: (l) => `"${l}" asks for an ID number. Forms never collect ID numbers.` },
+  { code: "health", test: /(diagnos|medication|prescri|medical (history|record|condition)|health (record|history|condition)|allerg)/i, text: (l) => `"${l}" asks about health records. Turn on health data for this workspace first, or ask for the reason for the visit in plain words.` },
+  { code: "protected", test: /(\bage\b|date of birth|\breligio|\bethnic|\brace\b|disabilit|pregnan|marital status|sexual orientation)/i, text: (l) => `"${l}" asks about something hiring and lending laws protect. Leave it out unless the law asks for it.` },
 ];
 
 export function sensitiveIssues(questions: PageQuestion[], html: string): Issue[] {
   const out: Issue[] = [];
   const seen = new Set<string>();
-  if (/<input[^>]*type\s*=\s*["']?password/i.test(html)) out.push({ level: "error", code: "password", text: "The form has a password box. Forms never ask for logins.", fix: "Remove the password box." });
+  if (/<input[^>]*type\s*=\s*["']?password/i.test(html)) out.push({ level: "error", code: "password", text: "The form has a password box. Forms never ask for logins.", go: `q:${/<input[^>]*type\s*=\s*["']?password[^>]*name\s*=\s*["']?([\w-]+)/i.exec(html)?.[1] ?? /<input[^>]*name\s*=\s*["']?([\w-]+)[^>]*type\s*=\s*["']?password/i.exec(html)?.[1] ?? ""}` });
   for (const q of questions) {
     const words = `${q.label} ${q.name.replace(/[_-]+/g, " ")}`;
     for (const s of SENSITIVE) {
@@ -103,7 +109,7 @@ export function sensitiveIssues(questions: PageQuestion[], html: string): Issue[
       seen.add(`${s.code}:${q.name}`);
       // Age as a range or "under 18" check is fine on events and education; it's flagged where it's a free answer.
       if (s.code === "protected" && /\bage\b/i.test(words) && q.options.length) continue;
-      out.push({ level: s.code === "protected" ? "warning" : "error", code: s.code, text: s.text(q.label), fix: s.fix });
+      out.push({ level: s.code === "protected" ? "warning" : "error", code: s.code, text: s.text(q.label), go: `q:${q.name}` });
     }
   }
   return out;
@@ -118,15 +124,15 @@ export function checkStudioPage(p: { html: string; after: PageAfter; meetings: {
   const { html, questions } = cleanPage(p.html);
   const tree = pageTree(html);
   const out: Issue[] = [];
-  const add = (level: Issue["level"], code: string, text: string, fix?: string) => out.push({ level, code, text, ...(fix ? { fix } : {}) });
+  const add = (level: Issue["level"], code: string, text: string, go?: IssueGo) => out.push({ level, code, text, ...(go ? { go } : {}) });
   const byName = new Map(questions.map((q) => [q.name, q]));
 
-  if (!questions.length) add("error", "no-questions", "The form has no questions to send.", "Add the questions this form needs.");
+  if (!questions.length) add("error", "no-questions", "The form has no questions to send.", "add");
   for (const q of questions) {
-    if (q.twice) add("error", "same-name", `Two questions are both named "${q.name}", so one answer would be lost.`, `Give each question named "${q.name}" its own name.`);
+    if (q.twice) add("error", "same-name", `Two questions are both named "${q.name}", so one answer would be lost.`, `q:${q.name}`);
     if (["radio", "multi", "checkbox"].includes(q.type)) continue;
-    if (q.labelFrom === "name") add("error", "no-label", `The question "${q.name}" has no label people can see.`, `Give the question named "${q.name}" a visible label tied to it with for and id.`);
-    else if (q.labelFrom === "placeholder") add("warning", "placeholder-label", `"${q.label}" uses its placeholder as its label, which disappears as people type.`, `Give the question named "${q.name}" a visible label tied to it with for and id.`);
+    if (q.labelFrom === "name") add("error", "no-label", `The question "${q.name}" has no label people can see.`, `q:${q.name}`);
+    else if (q.labelFrom === "placeholder") add("warning", "placeholder-label", `"${q.label}" uses its placeholder as its label, which disappears as people type.`, `q:${q.name}`);
   }
 
   // A way through: steps move on, the last step sends, and there's one send button.
@@ -134,25 +140,26 @@ export function checkStudioPage(p: { html: string; after: PageAfter; meetings: {
   const inThanks = (n: Node) => inside(n, (x) => "data-cl-thanks" in x.attrs);
   const sends = all(tree, (n) => isSubmit(n) && !inThanks(n));
   const steps = all(tree, (n) => "data-cl-step" in n.attrs && !inThanks(n));
-  if (!sends.length) add("error", "no-send", "The form has no send button.", 'Add a send button with type="submit" at the end of the form.');
+  if (!sends.length) add("error", "no-send", "The form has no send button.", `page:${Math.max(0, steps.length - 1)}`);
   steps.forEach((s, i) => {
     const last = i === steps.length - 1;
     const next = all(s, (n) => "data-cl-next" in n.attrs).length;
     const send = all(s, isSubmit).length;
-    if (!last && !next && !send) add("error", "step-stuck", `Step ${i + 1} has no way forward.`, `Add a Next button with data-cl-next to step ${i + 1}.`);
-    if (last && !send && sends.length) add("warning", "send-outside", "The send button isn't on the last step.", 'Move the send button (type="submit") into the last step.');
+    if (!last && !next && !send) add("error", "step-stuck", `Step ${i + 1} has no way forward.`, `page:${i}`);
+    if (last && !send && sends.length) add("warning", "send-outside", "The send button isn't on the last step.", `page:${i}`);
   });
-  if (!thanks.length) add("warning", "no-thanks", "There's no thank-you message after the send.", "Add a thank-you section with data-cl-thanks and hidden, after the form.");
+  if (!thanks.length) add("warning", "no-thanks", "There's no thank-you message after the send.", "after");
 
   // Conditions point at real questions and real answers.
+  const pageAt = (n: Node): IssueGo => { const i = steps.findIndex((st) => st === n || inside(n, (x) => x === st)); return inThanks(n) ? "after" : `page:${Math.max(0, i)}`; };
   for (const n of all(tree, (x) => "data-cl-show-if" in x.attrs)) {
     for (const r of showIfRefs(n.attrs["data-cl-show-if"]!)) {
       const q = byName.get(r.name);
       if (!q) {
-        add("error", "show-if-gone", `A "Show if" reads "${r.name}", which isn't a question on the form.`, `Fix the show-if that reads "${r.name}" so it uses a question on the form, or remove it.`);
+        add("error", "show-if-gone", `A "Show if" reads "${r.name}", which isn't a question on the form.`, pageAt(n));
         continue;
       }
-      if (q.options.length) for (const v of r.values) if (!q.options.some((o) => o.value === v)) add("warning", "show-if-value", `A "Show if" waits for "${v}" on "${q.label}", which isn't one of its answers.`, `Fix the show-if on "${r.name}" so it compares with one of its answers.`);
+      if (q.options.length) for (const v of r.values) if (!q.options.some((o) => o.value === v)) add("warning", "show-if-value", `A "Show if" waits for "${v}" on "${q.label}", which isn't one of its answers.`, pageAt(n));
     }
   }
 
@@ -171,61 +178,61 @@ export function checkStudioPage(p: { html: string; after: PageAfter; meetings: {
         const at = pageOf.get(r.name);
         if (at === undefined || (self ? at < i : at <= i)) continue;
         const q = byName.get(r.name);
-        add("error", "show-if-later", self ? `Page ${i + 1} shows by "${q?.label ?? r.name}", which is asked on page ${at + 1}, so it never shows.` : `A part of page ${i + 1} shows by "${q?.label ?? r.name}", which is asked on a later page, so it never shows.`, `Move the "${r.name}" question before what it shows, or fix the show-if that reads it.`);
+        add("error", "show-if-later", self ? `Page ${i + 1} shows by "${q?.label ?? r.name}", which is asked on page ${at + 1}, so it never shows.` : `A part of page ${i + 1} shows by "${q?.label ?? r.name}", which is asked on a later page, so it never shows.`, `page:${i}`);
       }
   });
 
   // After the send: a page, or a meeting with routes that point at real answers and meetings.
   const a = p.after;
   const known = (id: string | undefined) => !p.meetings || p.meetings.some((m) => m.id === id);
-  if (a.kind === "page" && !/^https:\/\/[^\s]+\.[^\s]+/.test(a.url ?? "")) add("error", "page-url", "On submission opens a page, but its address isn't a full https link.");
+  if (a.kind === "page" && !/^https:\/\/[^\s]+\.[^\s]+/.test(a.url ?? "")) add("error", "page-url", "On submission opens a page, but its address isn't a full https link.", "after");
   if (a.kind === "meeting" && a.tool && a.tool !== "claritia") {
     const problem = linkProblem(a.tool as ScheduleTool, a.link ?? "");
-    if (problem) add("error", "scheduler-link", `On submission: ${problem}`);
+    if (problem) add("error", "scheduler-link", `On submission: ${problem}`, "after");
   } else if (a.kind === "meeting") {
-    if (p.meetings && !p.meetings.length) add("error", "no-meetings", "On submission books a meeting, but the workspace has no meeting types yet.");
-    else if (!a.meeting || !known(a.meeting)) add("error", "meeting-gone", "On submission books a meeting that isn't there any more. Pick one in On submission.");
-    if (!all(tree, (n) => "data-cl-book" in n.attrs).length) add("warning", "no-book-spot", "There's no booking spot, so the calendar shows at the end of the thank-you.", "Add <div data-cl-book id=\"book\"></div> inside the thank-you section.");
+    if (p.meetings && !p.meetings.length) add("error", "no-meetings", "On submission books a meeting, but the workspace has no meeting types yet.", "after");
+    else if (!a.meeting || !known(a.meeting)) add("error", "meeting-gone", "On submission books a meeting that isn't there any more. Pick one in On submission.", "after");
+    if (!all(tree, (n) => "data-cl-book" in n.attrs).length) add("warning", "no-book-spot", "There's no booking spot, so the calendar shows at the end of the thank-you.", "after");
     const rules = isRouting(a) ? (a.routes ?? []) : [];
     const clean: StudioRoute[] = [];
     rules.forEach((raw, i) => {
       const r = cleanRoute(raw);
       const n = r?.name ? `Rule ${i + 1}, ${r.name},` : `Rule ${i + 1}`;
-      if (!r) return add("error", "route-gone", `${n} can't be read. Fix it in On submission.`);
+      if (!r) return add("error", "route-gone", `${n} can't be read. Fix it in On submission.`, "after");
       clean.push(r);
       for (const c of condsOf(r)) {
         const past = c.field.startsWith("past.");
         const q = byName.get(c.field);
-        if (past && !PAST_ROUTES.some((p) => p.field === c.field)) { add("error", "route-gone", `${n} reads a past fill that isn't there any more. Fix it in On submission.`); break; }
-        if (!past && !q) { add("error", "route-gone", `${n} reads "${c.field}", which isn't a question any more. Fix it in On submission.`); break; }
+        if (past && !PAST_ROUTES.some((p) => p.field === c.field)) { add("error", "route-gone", `${n} reads a past fill that isn't there any more. Fix it in On submission.`, "after"); break; }
+        if (!past && !q) { add("error", "route-gone", `${n} reads "${c.field}", which isn't a question any more. Fix it in On submission.`, "after"); break; }
         const kind = routeKind(c.field, q);
         const vals = Array.isArray(c.value) ? c.value.map(String) : c.value === undefined ? [] : [String(c.value)];
         const gone = kind === "choice" && (c.op === "one_of" || c.op === "not_one_of" || c.op === "is" || c.op === "is_not") ? vals.filter((v) => !q!.options.some((o) => o.value === v)) : [];
-        if (gone.length) { add("error", "route-value", `${n} waits for "${gone[0]}" on "${q!.label}", which isn't one of its answers any more. Fix it in On submission.`); break; }
-        if (routeIncomplete(c, kind)) { add("error", "route-empty", `${n} has no value yet. Fill it in or remove it in On submission.`); break; }
+        if (gone.length) { add("error", "route-value", `${n} waits for "${gone[0]}" on "${q!.label}", which isn't one of its answers any more. Fix it in On submission.`, "after"); break; }
+        if (routeIncomplete(c, kind)) { add("error", "route-empty", `${n} has no value yet. Fill it in or remove it in On submission.`, "after"); break; }
       }
-      if (!r.meeting || !known(r.meeting)) add("error", "route-meeting", `${n} books a meeting that isn't there any more. Fix it in On submission.`);
+      if (!r.meeting || !known(r.meeting)) add("error", "route-meeting", `${n} books a meeting that isn't there any more. Fix it in On submission.`, "after");
     });
     // A rule an earlier one always catches first never runs (only sure cases are named).
-    if (clean.length === rules.length) neverRuns(clean, questions).forEach((by, j) => { if (by >= 0) add("warning", "route-never", `Rule ${j + 1}${clean[j]!.name ? `, ${clean[j]!.name},` : ""} can never run: rule ${by + 1} catches every lead it would. Move it up or narrow rule ${by + 1}.`); });
+    if (clean.length === rules.length) neverRuns(clean, questions).forEach((by, j) => { if (by >= 0) add("warning", "route-never", `Rule ${j + 1}${clean[j]!.name ? `, ${clean[j]!.name},` : ""} can never run: rule ${by + 1} catches every lead it would. Move it up or narrow rule ${by + 1}.`, "after"); });
   }
-  if (a.always?.email && !a.always.to?.length) add("error", "always-email", "Notification emails the team, but has no emails yet. Add them in On submission.");
+  if (a.always?.email && !a.always.to?.length) add("error", "always-email", "Notification emails the team, but has no emails yet. Add them in On submission.", "after");
 
   // Without an email, answers can't become contacts.
-  if (!questions.some((q) => q.type === "email" || q.save === "email")) add("warning", "no-email", "There's no email question, so answers won't become contacts.", "Add an email question saved to the contact's email (data-cl-save=\"email\").");
+  if (!questions.some((q) => q.type === "email" || q.save === "email")) add("warning", "no-email", "There's no email question, so answers won't become contacts.", "add");
 
   // The logo has words for screen readers.
-  for (const n of all(tree, (x) => x.tag === "img" && "data-cl-logo" in x.attrs)) if (!(n.attrs.alt ?? "").trim()) add("warning", "logo-alt", "The logo has no words for screen readers.", "Give the logo image an alt with the brand's name.");
+  for (const n of all(tree, (x) => x.tag === "img" && "data-cl-logo" in x.attrs)) if (!(n.attrs.alt ?? "").trim()) add("warning", "logo-alt", "The logo has no words for screen readers.", "page:0");
 
   // A photo needs words for screen readers before the form goes live (docs/forms-media-plan.md Part 2).
   for (const n of all(tree, (x) => !!x.attrs["data-cl-media"])) {
     if ((n.attrs["data-cl-alt"] ?? "").trim()) continue;
     const where = "data-cl-cover" in n.attrs ? "The welcome screen's photo" : "data-cl-thanks" in n.attrs ? "The thank-you's photo" : "A page's photo";
-    add("error", "photo-alt", `${where} has no words for screen readers.`, `Give it data-cl-alt with a few words on what the photo shows.`);
+    add("error", "photo-alt", `${where} has no words for screen readers.`, "data-cl-cover" in n.attrs ? "page:cover" : "data-cl-thanks" in n.attrs ? "page:thanks" : `page:${Math.max(0, steps.indexOf(n))}`);
   }
 
   // A file box of the page's own can't upload: uploads are the file block.
-  if (/<input[^>]*type\s*=\s*["']?file/i.test(p.html)) add("error", "file-input", "A file box on the page can't upload files. Use the file upload block.", 'Replace the file input with the Claritia file block: <div data-cl-field="file" data-cl-name="..." data-cl-label="..."></div>.');
+  if (/<input[^>]*type\s*=\s*["']?file/i.test(p.html)) add("error", "file-input", "A file box on the page can't upload files. Use the file upload block.", `q:${/<input[^>]*type\s*=\s*["']?file[^>]*name\s*=\s*["']?([\w-]+)/i.exec(p.html)?.[1] ?? ""}`);
   // The page as written: the cleaner turns a password box into a text box, so it's read before cleaning.
   const sens = sensitiveIssues(questions, p.html);
   // Hiring, lending and housing laws: protected questions are stopped there, not just noted.
@@ -233,16 +240,16 @@ export function checkStudioPage(p: { html: string; after: PageAfter; meetings: {
   out.push(...sens);
   const words = textOf(tree).toLowerCase();
   if (p.industry === "legal" && !/(doesn'?t|does not|won'?t|will not) (make|create|form)|not legal advice|attorney.client|no lawyer.client/.test(words))
-    add("warning", "legal-notice", "Law firms usually say that sending the form doesn't make someone a client.", "Add a short line near the send button that sending the form doesn't make them a client or give legal advice.");
+    add("warning", "legal-notice", "Law firms usually say that sending the form doesn't make someone a client.", `page:${Math.max(0, steps.length - 1)}`);
   if (p.industry === "education" && questions.some((q) => /\b(age|grade|year|date of birth)\b/i.test(q.label)) && !/(parent|guardian)/.test(words))
-    add("warning", "parent", "Students may be under 13: ask for a parent or guardian's details.", "Add a parent or guardian name and email, shown when the student is under 13.");
+    add("warning", "parent", "Students may be under 13: ask for a parent or guardian's details.", "add");
   // Each language is the same form in other words: the same questions, names and answers.
   for (const [code, other] of Object.entries(p.langs ?? {})) {
     const name = languageName(code);
     const qs = cleanPage(other).questions;
     const sig = (list: PageQuestion[]) => list.map((q) => `${q.name}:${q.type}:${q.options.map((o) => o.value).join("|")}`).sort().join(",");
-    if (sig(qs) !== sig(questions)) add("error", "lang-differs", `The ${name} version doesn't have the same questions and answers. Translate it again.`, `Translate the form into ${name} again, keeping every name and value.`);
-    else if (qs.some((q) => q.labelFrom === "name" && !["radio", "multi", "checkbox"].includes(q.type))) add("error", "lang-label", `A question in the ${name} version has no label.`);
+    if (sig(qs) !== sig(questions)) add("error", "lang-differs", `The ${name} version doesn't have the same questions and answers. Translate it again.`, "langs");
+    else if (qs.some((q) => q.labelFrom === "name" && !["radio", "multi", "checkbox"].includes(q.type))) add("error", "lang-label", `A question in the ${name} version has no label.`, "langs");
   }
 
   // One line per problem.

@@ -116,7 +116,7 @@ function StudioPage(props: ViewProps & { fresh?: boolean }) {
       <div className="relative flex min-h-0 flex-1 flex-col">
         <Studio {...props} fresh={props.fresh} chatId={chatId} text={props.fresh ? ask : ""} onState={setSt} controlRef={control} />
       </div>
-      {checkAt && st ? <FormCheck anchor={checkAt} issues={st.issues} canFix={st.canFix} onFix={(f) => control.current?.fix(f)} onOpenAfter={() => control.current?.openAfter()} onClose={() => setCheckAt(null)} /> : null}
+      {checkAt && st ? <FormCheck anchor={checkAt} issues={st.issues} onGo={(w) => control.current?.go(w)} onClose={() => setCheckAt(null)} /> : null}
     </div>
   );
 }
@@ -503,7 +503,7 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
       setStudio(s);
       if (openAfter.current) {
         openAfter.current = false;
-        control.current?.openAfter();
+        control.current?.go("after");
       }
       if (wantPublish.current) {
         wantPublish.current = false;
@@ -591,15 +591,15 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
           <Setup {...props} form={form} apply={apply} sub={sub} setSub={setSub} formId={row.id} types={data.types} routing={live.data?.body ?? null} onReview={() => (setSubsView("spam"), setTab("submissions"))} subs={data.subs} name={name} paused={row.version ? row.status === "paused" : null} onStatus={(st) => void setStatus(st)} />
         )}
       </div>
-      {dialog === "publish" ? <PublishDialog checks={checks} live={!!row.version} onClose={() => setDialog(null)} onPublish={publish} onFix={goto} error={error} /> : null}
-      {checkAt && isStudio && studio ? <FormCheck anchor={checkAt} issues={studio.issues} canFix={studio.canFix} onFix={(f) => control.current?.fix(f)} onOpenAfter={() => control.current?.openAfter()} onClose={() => setCheckAt(null)} /> : null}
+      {dialog === "publish" ? <PublishDialog checks={checks} live={!!row.version} onClose={() => setDialog(null)} onPublish={publish} onGo={goto} error={error} /> : null}
+      {checkAt && isStudio && studio ? <FormCheck anchor={checkAt} issues={studio.issues} onGo={(w) => control.current?.go(w)} onClose={() => setCheckAt(null)} /> : null}
       {note.node}
     </div>
   );
 }
 
 /** Publish: what to look at first. A missing email or a form the checker refuses can't go live; the rest can. */
-function PublishDialog({ checks, live, onClose, onPublish, onFix, error }: { checks: ReturnType<typeof publishChecks>; live: boolean; onClose: () => void; onPublish: () => Promise<void>; onFix: (q: string) => void; error: string }) {
+function PublishDialog({ checks, live, onClose, onPublish, onGo, error }: { checks: ReturnType<typeof publishChecks>; live: boolean; onClose: () => void; onPublish: () => Promise<void>; onGo: (q: string) => void; error: string }) {
   const [busy, setBusy] = useState(false);
   const bad = checks.filter((c) => c.lvl !== "ok");
   const blocks = checks.some((c) => c.blocks);
@@ -618,8 +618,8 @@ function PublishDialog({ checks, live, onClose, onPublish, onFix, error }: { che
               {c.s ? <span className="text-[12.5px] text-muted">{c.s}</span> : null}
             </span>
             {c.q ? (
-              <button type="button" className={GHOST_SM} onClick={() => onFix(c.q!)}>
-                Fix
+              <button type="button" className={GHOST_SM} onClick={() => onGo(c.q!)}>
+                Open
               </button>
             ) : null}
           </div>

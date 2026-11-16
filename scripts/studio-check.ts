@@ -17,7 +17,11 @@ import pw from "playwright-core";
 import { sampleSlots } from "../src/lib/forms/calendar.ts";
 import { checkForm, type Form } from "../src/lib/forms/schema.ts";
 import { pageForm, type PageAfter } from "../src/lib/studio/page.ts";
+import { servedForm } from "../src/lib/studio/guard.ts";
 import { buildExtras, buildForms } from "./build-forms.mts";
+import { BAD_CSS, BAD_HTML } from "./studio/badForm.ts";
+
+const BAD_ID = "99999999-9999-4999-8999-999999999999";
 
 const failures: string[] = [];
 const check = (ok: boolean, what: string) => {
@@ -43,7 +47,7 @@ const server = createServer((req, res) => {
   if (req.url === "/forms/v1.js") return void res.writeHead(200, { "content-type": "text/javascript" }).end(formsJs);
   if (req.url?.startsWith("/forms/x1.js")) return void res.writeHead(200, { "content-type": "text/javascript" }).end(x1Js);
   if (req.url === `/live`) return void res.writeHead(200, { "content-type": "text/html" }).end(`<!doctype html><html><head><meta charset="utf-8"><script src="/forms/v1.js"></script></head><body style="margin:0"><claritia-form form-id="${LIVE_ID}" host="http://localhost:${(server.address() as { port: number }).port}"></claritia-form></body></html>`);
-  if (req.url === `/api/forms/${LIVE_ID}`) return json({ id: LIVE_ID, version: 1, status: "live", body: live, tokens: {}, logo_url: "https://cdn.example/logo.svg" });
+  if (req.url === `/api/forms/${LIVE_ID}`) return json({ id: LIVE_ID, version: 1, status: "live", body: live ? servedForm(live) : live, tokens: {}, logo_url: "https://cdn.example/logo.svg" });
   if (req.url === `/api/forms/${LIVE_ID}/submit`) return void body().then((b) => (sends.push(JSON.parse(b)), json({ id: "s1", booking: { token: "t", slots: sampleSlots(Date.now()), lengths: [30], length: 30 } })));
   if (req.url?.startsWith(`/api/forms/${LIVE_ID}/seen`)) return json({});
   if (req.url === `/api/forms/${LIVE_ID}/upload`) return void body().then(() => json({ token: "up_11111111-1111-4111-8111-111111111111:day.png" }));
@@ -732,7 +736,7 @@ try {
   const kept = Object.values(await p.evaluate(() => (window as unknown as { saved: Record<string, { body: { after: { always?: { to?: string[]; slack?: boolean } } } }> }).saved));
   check(kept.some((c) => c.body.after.always?.to?.[0] === "coach@finch.care" && c.body.after.always.slack === true), "Notification is kept on the chat");
 
-  // 7b. The form check: a sound form is ready; a broken one can't be published, and Tia gets the fix
+  // 7b. The form check: a sound form is ready; a broken one can't be published, and the owner goes to the spot
   const problems = () => p.evaluate(() => (window as unknown as { studioState: { issues: { level: string }[] } | null }).studioState?.issues.filter((i) => i.level === "error").length ?? -1);
   await p.waitForFunction(() => !!(window as unknown as { studioState: { ready: boolean } | null }).studioState?.ready);
   await p.waitForTimeout(900);
@@ -753,12 +757,13 @@ try {
   await p.locator("#hdrCheck:not([hidden])").waitFor();
   check((await p.locator("#hdrMsg").textContent())!.includes("first") && (await p.locator("#hdrCheck").textContent())!.includes("no send button"), "Publish is stopped and the problem is listed");
   check(!(await calls()).some((c) => c.mode === "publish"), "nothing was published");
+  // No AI step: the check never offers Fix or Fix all. A problem only the owner can settle opens its spot.
   const tiaBefore = (await calls()).filter((c) => c.mode === "tia").length;
-  await p.locator("#hdrCheck .issue button").filter({ hasText: "Fix" }).first().click();
-  await idle();
-  const fixAsk = ((await calls()).filter((c) => c.mode === "tia")[tiaBefore]!.body as { content: string }[]).at(-1)!.content;
-  check(fixAsk.startsWith("Fix this:") && fixAsk.includes("send button"), "Fix sends the problem to Tia");
+  check((await p.locator("#hdrCheck button").filter({ hasText: /Fix/ }).count()) === 0 && (await p.locator("#hdrCheck .issue button").filter({ hasText: "Open" }).count()) > 0, "the form check has no Fix or Fix all, only Open to the spot");
   check(await p.locator("#undo").isHidden(), "Preview shows no undo");
+  await p.locator("#hdrCheck .issue").filter({ hasText: "no send button" }).locator("button").click();
+  await p.waitForFunction(() => !(window as unknown as { studioState: { previewing?: boolean } }).studioState.previewing);
+  check(!(await previewing()) && /\bon\b/.test((await $("#stepBar .pg:not(.end)").last().getAttribute("class")) ?? "") && (await calls()).filter((c) => c.mode === "tia").length === tiaBefore, "Open takes the owner to the last page in the editor, and asks Tia nothing");
   await toEdit();
   await p.locator("#undo").click();
   await p.locator("#undo").click();
@@ -1090,6 +1095,101 @@ try {
   await $("#designBtn").click();
   await $("#pscroll button[aria-label='One question at a time']").click();
   check((await form.locator("form[data-cl-one]").count()) === 0, "and off again");
+
+  // 9b. Made right by code (docs/studio-v2-plan.md Part 16): a form whose CSS gives the calendar's cells fixed widths,
+  // puts two fields side by side, paints a pale eyebrow, names a font that isn't the brand's, removes its radios with
+  // display:none and draws its own dropdown arrow comes out with nothing in the form check at 390, 768 and 1100px, and
+  // no Fix anywhere. Undo takes the tune back; the published page carries it and fits a 320px phone.
+  const stateOf = () => p.evaluate(() => (window as unknown as { studioState: { chatId: string; ready: boolean; issues: { level: string; text: string }[]; measured?: string[]; state: string } }).studioState);
+  await p.evaluate(({ id, html, css, meeting }) => {
+    const w = window as unknown as { saved: Record<string, unknown>; openStudio: (s: unknown) => void };
+    w.saved[id] = { id, name: "Book a call", state: "draft", brandId: "44444444-4444-4444-8444-444444444444", formId: "", body: { html, css, after: { kind: "meeting", url: "", meeting, routes: [] }, turns: [], log: [], ids: {}, langs: {}, langFrom: {}, lang: "" } };
+    w.openStudio({ chatId: id });
+  }, { id: BAD_ID, html: BAD_HTML, css: BAD_CSS, meeting: "11111111-1111-4111-8111-111111111111" });
+  await p.waitForFunction((id) => { const s = (window as unknown as { studioState: { chatId: string; ready: boolean } | null }).studioState; return !!s?.ready && s.chatId === id; }, BAD_ID);
+  const settled = async () => {
+    // The tune lands as its own changes; the check is settled once nothing moves for a moment.
+    let last = "", same = 0;
+    for (let i = 0; i < 60 && same < 4; i++) { await p.waitForTimeout(400); const now = JSON.stringify(await stateOf()) + (await p.evaluate((id) => (window as unknown as { saved: Record<string, { body: { css: string } }> }).saved[id]?.body.css ?? "", BAD_ID)); same = now === last ? same + 1 : 0; last = now; }
+  };
+  await settled();
+  const badState = await stateOf();
+  const badIssues = [...badState.issues.map((i) => i.text), ...(badState.measured ?? [])];
+  check(badState.measured !== undefined && badIssues.length === 0, `a form with fixed calendar cells, side-by-side fields, a pale eyebrow, another font and hidden radios has nothing in the form check, and the measure finds nothing at 390, 768 and 1100px${badIssues.length ? `: ${badIssues.join("; ")}` : ""}`);
+  const tuned = await p.evaluate((id) => (window as unknown as { saved: Record<string, { body: { css: string } }> }).saved[id]!.body.css, BAD_ID);
+  check(tuned.includes("/* claritia: readable */") && /\.eyebrow[^{]*\{color:#[0-9a-f]{6}/.test(tuned) && !/Lobster|Pacifico/.test(tuned), "the pale eyebrow is made readable and the other fonts are the brand's, in the form's own CSS");
+  await p.evaluate(() => (window as unknown as { drawCheck: () => void }).drawCheck());
+  check((await p.locator("#hdrCheck").textContent())!.includes("Nothing to fix") && (await p.locator("#hdrCheck button").count()) === 0, "the form check says Nothing to fix, with no Fix or Fix all");
+  if (shots) await p.screenshot({ path: `${shots}/9f-made-right.png` });
+  // In the editor's phone width: no sideways scroll, choices reachable, one arrow on the dropdown.
+  await toEdit();
+  await $("#d-phone").click();
+  await p.waitForTimeout(500);
+  const canvas = await form.evaluate((host) => {
+    const r = host.shadowRoot!;
+    const root = r.querySelector(".cl-root") as HTMLElement;
+    const radio = r.querySelector('input[name="size"]') as HTMLInputElement;
+    const sel = r.querySelector("select") as HTMLSelectElement;
+    const ss = getComputedStyle(sel);
+    const arrows = [getComputedStyle(sel.parentElement!, "::after").content, getComputedStyle(sel.parentElement!, "::before").content].filter((c) => c && c !== "none" && c !== "normal").length;
+    const row = r.querySelector("#names") as HTMLElement;
+    const [a, b] = [...row.querySelectorAll("input")].map((x) => x.getBoundingClientRect());
+    return { fits: root.scrollWidth <= root.clientWidth + 1, radio: getComputedStyle(radio).display !== "none" && getComputedStyle(radio).visibility !== "hidden", appearance: ss.appearance, arrow: /svg/.test(ss.backgroundImage), arrows, stacked: !!a && !!b && b.top > a.bottom - 1 };
+  });
+  check(canvas.fits && canvas.stacked, "on a phone the two fields stack and nothing scrolls sideways");
+  check(canvas.radio, "radios a design removed stay there for the keyboard, out of sight");
+  check(canvas.appearance === "none" && canvas.arrow && canvas.arrows === 0, "the dropdown shows one arrow: the browser's is off and the form's own is gone");
+  await $("#d-desk").click();
+  // Undo takes the tune back: the measure sees what the tune had made right, and the owner is asked nothing.
+  await p.locator("#undo").click();
+  await settled();
+  const undone = await stateOf();
+  check((undone.measured ?? []).some((t) => /hard to read/.test(t)) && !undone.issues.some((i) => /hard to read/.test(i.text)), "Undo takes the readable colors back: the measure sees the pale text, and the owner's form check stays quiet");
+  if (shots) {
+    await p.evaluate(() => (window as unknown as { drawCheck: () => void }).drawCheck());
+    await p.screenshot({ path: `${shots}/9g-after-undo.png` });
+  }
+  await p.locator("#redo").click();
+  await settled();
+  check((await stateOf()).issues.length === 0 && !(await stateOf()).measured?.length, "Redo puts it back");
+  // Published: the page carries it, and fits a 320px phone with the calendar's fixed cells.
+  await toPreview();
+  await p.locator("#hdrAction").click();
+  await p.waitForFunction(() => document.getElementById("hdrAction")!.textContent === "Share");
+  const badPub = (await calls()).filter((c) => c.mode === "publish").at(-1)!.body as Parameters<typeof pageForm>[0];
+  check(badPub.css.includes("/* claritia: readable */"), "Publish sends the readable colors with the form's CSS");
+  const badMade = checkForm(pageForm(badPub).form);
+  live = "form" in badMade ? badMade.form : null;
+  const sp = await browser.newPage({ viewport: { width: 320, height: 760 } });
+  sp.on("pageerror", (e) => errors.push(`live 320: ${e.message}`));
+  await sp.goto(`http://localhost:${port}/live`);
+  const sf = sp.locator("claritia-form");
+  await sf.locator("#fn").waitFor();
+  const wide = () => sp.evaluate(() => document.documentElement.scrollWidth);
+  check((await wide()) <= 320, `the published form fits a 320px phone (${await wide()}px)`);
+  await sf.locator(".cl-pick").first().waitFor({ timeout: 5000 }).catch(() => undefined);
+  const pick = await sf.locator(".cl-pick").first().evaluate((b) => ({ bg: getComputedStyle(b).backgroundImage, svgs: b.querySelectorAll("svg").length })).catch(() => null);
+  check(!!pick && pick.bg === "none" && pick.svgs === 1, "the published dropdown has one arrow");
+  await sf.locator('input[name="size"]').first().focus();
+  await sp.keyboard.press("Space");
+  check(await sf.locator('input[name="size"]').first().isChecked(), "a choice is picked with the keyboard");
+  const tap = await sf.locator("label:has(input[name=size])").first().evaluate((l) => l.getBoundingClientRect().height);
+  check(tap >= 44, `choices are at least 44px tall (${Math.round(tap)}px)`);
+  await sf.locator("#fn").fill("Ana");
+  await sf.locator("#em").fill("ana@example.com");
+  if (await sf.locator("#clr-consent").count()) await sf.locator("#clr-consent").check();
+  await sf.locator("[type=submit]").click();
+  await sf.locator("[data-cl-book] .cl-times button").first().waitFor();
+  const cal = await sf.locator("[data-cl-book] .cl-cal").evaluate((c) => {
+    const box = c.getBoundingClientRect();
+    const cells = [...c.querySelectorAll(".cl-times button")].map((b) => b.getBoundingClientRect());
+    return { inside: cells.every((r) => r.left >= box.left - 1 && r.right <= box.right + 1), tall: cells.every((r) => r.height >= 44), times: (c.querySelector(".cl-times") as HTMLElement).scrollWidth <= (c.querySelector(".cl-times") as HTMLElement).clientWidth + 1 };
+  });
+  check(cal.inside && cal.times && (await wide()) <= 320, `the booking calendar fits its box at 320px, whatever widths the brand gave its cells (${await wide()}px)`);
+  check(cal.tall, "the calendar's times are at least 44px tall");
+  if (shots) await sp.screenshot({ path: `${shots}/9h-live-320.png`, fullPage: true });
+  await sp.close();
+  await toEdit();
 
   // 10. Delete a brand from the gallery
   await $("#designBtn").click();
