@@ -172,8 +172,10 @@ usual send:
 
 ### 6.5 The form check: no broken form goes live
 
-Before showing a build and again at Publish, the Studio runs one check and shows what it found in one list, each with
-a Fix button (Tia fixes it as a small patch):
+Before showing a build and again at Publish, the Studio runs one check and shows what it found in one list. Layout,
+contrast, fonts, taps and keyboard reach are made right by code before anything shows (Part 16), so the list holds
+only what the owner decides, each with Open to its spot (On submission, the page, the question, Languages). There is
+no Fix with Tia:
 
 - Contract: every question has a unique name, steps have a way forward, the send button exists, show-if points at a
   real question and a real answer, routes point at real answers and meeting types, the booking spot exists when the
@@ -240,12 +242,12 @@ formats run in the browser and cost nothing. Address search is the browser's own
 | Item | Beta (50 teams) | Growth (500 teams) |
 | --- | --- | --- |
 | Claude Opus (Tia), as today, at most | about $640 | about $6,400 |
-| Claude Opus: Fix buttons from the form check (about 10 fixes per team a month, about $0.05 each) | about $25 | about $250 |
+| Claude Opus: Fix buttons from the form check (gone in Part 16: made right by code) | $0 | $0 |
 | Claude Opus: extra languages (about 2 per team a month, about $0.20 each) | about $20 | about $200 |
 | Claude Opus: the weekly 30-brand test in CI (30 builds, about $0.90 each, 4 a month) | about $110 | about $110 |
 | Chats in the database | $0 new | $0 new |
 | Servers | $0 new | $0 new |
-| **Total** | **about $795** | **about $6,960** |
+| **Total** | **about $770** | **about $6,710** |
 
 Opus at $4 in and $20 out per million tokens: check (from this repo's price table, not confirmed on Anthropic's
 page from here).
@@ -418,6 +420,87 @@ The chat slid up from the bar and covered half the form, often the part being ch
 - The chat column and the panel never show together.
 - Logic has one way back: Back to form takes the Logic button's place while Logic is open, and Esc does the same.
 - Running cost: $0 at Beta and at Growth (no new calls).
+
+## Part 16. Right from the start: no Fix with AI (Nov 16)
+
+The form check listed "The form scrolls sideways on a phone (390px wide)" (an error that blocked Publish) and "…is
+hard to read (contrast 3.8 to 1)", each with a Fix button that sent the problem to Tia, and Fix all. A form should
+come out right the first time, by code, with no model call. Now:
+
+- **The guard.** Every studio page wears one more stylesheet, last, after the brand's CSS and the form's own,
+  wherever it shows: the Studio's canvas, the form check's hidden render, the published page, the embed and every
+  preview (`guardSheet` in `src/lib/studio/guard.ts`). Grid and flex items can shrink (`min-width: 0`), pictures,
+  frames, tables and fields never pass their box, long words wrap, and a page sliding in never scrolls the screen
+  sideways. The page measures itself (`.cl-root` is the container), so rows stack in a popup's box as on a phone.
+  Buttons, links that act as buttons and choices are at least 44px tall. Every dropdown has one arrow: the browser's
+  is off, the form's own dropdown draws its own and nothing else draws one. Claritia's booking calendar fits its box
+  from 320px up (three columns of times, two under 340px), whatever sizes the brand gave its cells. On a phone no text
+  is cut off and buttons grow with their words.
+- **One focus line.** A focused text field, text area, dropdown or choice card shows exactly one line in every style:
+  where the brand's or the form's CSS draws a focus (`.field:focus`, `.choice:has(input:focus-visible)`), that is the
+  only one and the browser's outline goes (`ownFocus`); where it draws an outline of its own, the outline hugs the box
+  with no gap; anything else gets one 2px ring in the brand's focus color, touching the box. A choice's own radio or
+  check box shows no second ring inside its card.
+- **The rewrite.** What a stylesheet can't undo from outside is rewritten in the brand's CSS and the form's own
+  (`guardCss` in `src/lib/studio/guardCss.ts`): a radio or check box a design removed (`display: none`) is hidden
+  visually instead, so the keyboard still reaches it; a fixed width gets `max-width: 100%`; fixed grid columns become
+  `minmax(0, …)`; and a grid or flex row that holds two or more fields stacks into one column under 560px.
+- **Served guarded, not shipped in the form script.** The form script (`forms/v1.js`) has a size budget (45 KB
+  gzipped, `scripts/build-forms.mts`) and was 4 bytes under it, so none of this is in it. The server hands every
+  visitor the page already guarded: `/api/forms/<id>` answers with `servedForm` (the brand's and the form's colors
+  made readable at the source, both stylesheets rewritten, and the guard's sheet last, marked so it's added once),
+  kept per read of the live form; the app's previews (`FormPreview`) do the same. Nothing stored changes, and forms
+  published before this get it too. The Studio draws its canvas with the same pieces.
+- **Embedded on another site, only the card shows.** The form element puts a page's `:root`, `html` and `body` rules
+  on its own box, so a page color and padding on `body` painted a gray box around the card on the customer's site.
+  Served pages now keep what those rules give the text (colors, fonts, variables) everywhere, and their background,
+  padding, margins and heights only on the form's own page (`/f/<id>`, `hostRules`, `:host([hosted]:not([framed]))`).
+  A form in a card (`.form-card` or `#card` with a background of its own) shows the card alone in someone else's page:
+  `.page` is transparent with no padding there (`embedSheet`). A form that fills its page in its own color (the 18
+  styles) keeps its color. In /f/embed.js's frame the page around the form is transparent too. The previews in the
+  app show the form's own page (`hosted`).
+- **Readable, in code** (`src/lib/studio/readable.ts`). Text under 4.5 to 1 (3 to 1 when large) against what's behind
+  it moves to the nearest color of its own hue that passes: darker on light backgrounds, lighter on dark. At the
+  source: the 18 styles (`styleColors`), a brand's stylesheet when its look is read (the server, and brands read before
+  this when the Studio loads them and when a page is served) and CSS rules that set a color on their own background.
+  A button's white words keep their white when darkening the button a touch moves less (`readablePair`). What's left
+  is found by measuring the drawn form at 390, 768 and 1100px with the form check's own measure, and written as one
+  marked block in the form's CSS (`/* claritia: readable */`), so the published page carries it.
+- **Fonts, in code.** A font that isn't the brand's (nor the owner's pick in the Form tab) is put back to the brand's
+  font in the form's CSS, its import dropped; text nothing gives a font to takes the brand's, not the browser's.
+- **When it runs.** As a change lands (Tia's answer, a template, a style, an edit), once per change, never while Tia is
+  writing or the owner types in Code. Each tune is its own undo step: Undo takes it back and the Studio leaves it
+  undone until the next change.
+- **Tia writes it right the first time.** Her instructions (`src/lib/studio/prompts.ts`) say: fits 320px with no
+  sideways scroll, rows of fields stack under 560px, contrast at least 4.5 to 1 in the brand's colors, 44px taps, the
+  brand's fonts only, radios hidden visually and never `display: none`, one arrow on a dropdown, one focus line, no
+  text cut off, the page's color on `.page` (never `body`) and a card as `.form-card`. The brand step writes its text
+  colors at 4.5 to 1 and one focus line on `.field`.
+- **The form check** (`src/lib/studio/check.ts`, `FormCheck` in `src/components/app/forms/FormHeader.tsx`). No Fix and
+  no Fix all; `canFix`, `onFix`, `StudioControl.fix()` and the instructions for Tia are gone (the older builder's
+  Publish dialog says Open too). It lists only what the owner decides: no questions, a question that asks for a
+  password or an ID, a meeting type that's gone, a show-if that reads a missing question, a translation that's out of
+  date. Each has Open to its spot (`go`: On submission, a page, the question, Add, Languages). Errors still stop
+  Publish. The layout measure (`src/lib/studio/measure.ts`: sideways scroll, hard-to-read text, removed radios,
+  cut-off text, small taps, other fonts) feeds the tune and is never shown or a stop; the checks below hold it at
+  zero. Two false alarms are gone: the hidden render measured pages mid-slide and read everything in it as hidden.
+- **The form script** stays at 46,076 bytes gzipped, under its 46,080 limit (unchanged).
+
+Proof: `tests/studioGuard.test.ts` (the rewrite, the stylesheet, one focus line, the host and the card on another
+site, guarding a served page once, readable colors, the 18 styles, fonts, the readable block, the check's spots and no
+Fix), `scripts/studio-check.ts` 9b (a form with fixed-width calendar cells, two fields side by side, a pale eyebrow,
+fonts that aren't the brand's, radios removed with `display: none` and its own dropdown arrow has nothing in the form
+check or the measure at 390, 768 and 1100px, shows no Fix, Undo takes the tune back, and the published page fits a
+320px phone with its calendar), `scripts/guard-check.ts` (the same form as visitors get it, before and after, at 390,
+768 and 1100px; a card form inline on a plain white page shows the card only while its own page keeps its color; a
+focused text field, dropdown and choice show one line in a brand with its own focus, one with none and a gallery
+style), `scripts/embed-check.ts` (every way a form goes on a site, guarded) and `scripts/studio-templates-check.ts`
+(all 840 templates, in their own styles, at 390, 768 and 1100px: no layout or contrast issue).
+
+Running cost: $0 a month at Beta (50 teams) and Growth (500 teams). It's code in the browser and on the server we
+already run (a few milliseconds per read of a live form, kept a few seconds); nothing is bought. Claude calls go down:
+the Fix buttons' calls (about $25 at Beta, about $250 at Growth, Part 8) are gone. Tia's instructions grow by about
+300 tokens, read from the prompt cache (under $1 a month at Growth; Opus price "check").
 
 ## Tokens and files (after launch)
 
