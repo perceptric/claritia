@@ -45,7 +45,7 @@ export function Payments({ sb, session, ws, role }: Pick<ViewProps, "sb" | "sess
     <ToolCard
       logo={<BrandLogo domain="stripe.com" name="Stripe" size={40} />}
       name="Stripe"
-      blurb="Payments for paid meetings."
+      blurb="Stripe is the payments platform for taking cards online."
       account={a?.stripe_account ?? null}
       status={!acct.data || !a ? null : <Badge tone={a.ready ? "green" : "amber"} dot>{a.ready ? "Connected" : "Finish on Stripe"}</Badge>}
     >

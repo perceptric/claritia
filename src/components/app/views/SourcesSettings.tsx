@@ -79,25 +79,80 @@ function catOf(e: Entry): Cat {
   return "other";
 }
 
-/** What the tool does in Claritia, in one line. */
+/** What each tool is, in one line, as an app store shows it. */
+const ABOUT: Record<string, string> = {
+  hubspot: "HubSpot is an all-in-one platform for marketing, sales and customer service.",
+  salesforce: "Salesforce is the CRM big sales teams use to track leads, deals and accounts.",
+  omniscient: "Omniscient is a CRM with deal rooms for closing deals with your buyers.",
+  pipedrive: "Pipedrive is a sales CRM built around a simple deal pipeline.",
+  attio: "Attio is a flexible CRM you shape around your own data and workflows.",
+  close: "Close is a sales CRM with calling, email and texting built in.",
+  zoho: "Zoho CRM helps teams manage leads, contacts and deals in one place.",
+  dynamics: "Microsoft Dynamics 365 is Microsoft's CRM for sales and customer service.",
+  gohighlevel: "GoHighLevel is an all-in-one marketing and CRM platform for agencies.",
+  freshsales: "Freshsales is Freshworks' CRM with built-in phone, email and lead scoring.",
+  copper: "Copper is a CRM that lives inside Google Workspace.",
+  keap: "Keap is a CRM and marketing tool for small businesses.",
+  monday: "monday CRM is monday.com's sales CRM for pipelines and contacts.",
+  mailchimp: "Mailchimp is an email marketing platform for newsletters and campaigns.",
+  klaviyo: "Klaviyo is an email and SMS marketing platform for online stores.",
+  activecampaign: "ActiveCampaign is an email marketing and automation platform.",
+  brevo: "Brevo is an email, SMS and chat marketing platform.",
+  kit: "Kit is an email marketing platform for creators and newsletters.",
+  mailerlite: "MailerLite is an email marketing tool for newsletters and automations.",
+  stripe: "Stripe is the payments platform for taking cards online.",
+  intercom: "Intercom is a customer messaging platform for support and sales chats.",
+  typeform: "Typeform is a form builder for conversational, one-question-at-a-time forms.",
+  tally: "Tally is a simple form builder that works like a doc.",
+  webflow: "Webflow is a website builder with its own forms.",
+  calendly: "Calendly is a scheduling tool for booking meetings.",
+  calcom: "Cal.com is an open-source scheduling tool for booking meetings.",
+  postgres: "PostgreSQL is a popular open-source database.",
+  mysql: "MySQL is a popular open-source database.",
+  meta_ads: "Meta Ads runs ads on Facebook and Instagram.",
+  google_ads: "Google Ads runs ads on Google Search, YouTube and across the web.",
+  twilio: "Twilio sends text messages and makes phone calls.",
+  google_docs: "Google Docs is Google's word processor for writing and sharing documents.",
+  docusign: "DocuSign is the e-signature tool for sending documents to sign.",
+  pandadoc: "PandaDoc creates proposals, quotes and contracts with e-signatures.",
+  google_drive: "Google Drive is Google's cloud storage for files and folders.",
+  onedrive: "OneDrive is Microsoft's cloud storage for files and folders.",
+  dropbox: "Dropbox is cloud storage for sharing files and folders.",
+  box: "Box is cloud storage and file sharing for businesses.",
+  s3: "Amazon S3 is Amazon's storage for files of any size.",
+  teams: "Microsoft Teams is Microsoft's chat and meeting app for work.",
+  discord: "Discord is a chat app for communities and teams.",
+  linear: "Linear is an issue tracker for software teams.",
+  trello: "Trello organizes work on boards, lists and cards.",
+  clickup: "ClickUp is an all-in-one app for tasks, docs and projects.",
+  monday_work: "monday.com is a work platform for projects, tasks and boards.",
+  smartsuite: "SmartSuite is a work platform for projects, processes and data.",
+  zendesk: "Zendesk is a help desk for customer support tickets.",
+  freshdesk: "Freshdesk is Freshworks' help desk for support tickets.",
+  segment: "Segment collects your customer data and sends it to your other tools.",
+  posthog: "PostHog is a product analytics platform with session replays and feature flags.",
+  mixpanel: "Mixpanel is product analytics for tracking what users do.",
+  amplitude: "Amplitude is product analytics for understanding user behavior.",
+  webex: "Webex is Cisco's video meeting app.",
+  whereby: "Whereby is a video meeting app that runs in the browser.",
+  paypal: "PayPal is an online payments platform used around the world.",
+  square: "Square takes payments online and in person.",
+  google_sheets: "Google Sheets is Google's spreadsheet app.",
+  airtable: "Airtable is a spreadsheet and database in one.",
+  excel: "Excel Online is Microsoft's spreadsheet app in the browser.",
+  notion: "Notion is a workspace for notes, docs, wikis and databases.",
+  api: "A webhook lets any tool send records into Claritia.",
+  redshift: "Amazon Redshift is Amazon's data warehouse.",
+  clickhouse: "ClickHouse is a fast database for analytics.",
+  bigquery: "BigQuery is Google Cloud's data warehouse.",
+  snowflake: "Snowflake is a cloud data warehouse.",
+  databricks: "Databricks is a data and AI platform built on the lakehouse.",
+  google_forms: "Google Forms is Google's free form builder.",
+};
+
+/** What the tool is: its own line, else its kind of tool. */
 function blurbOf(e: Entry): string {
-  if (e.group === "crm") return "Each form fill becomes a contact.";
-  if (e.lists) return "Each form fill joins a list.";
-  if (e.work) return "Each form fill becomes a task or ticket.";
-  if (e.rows) return "A row for every form fill.";
-  if (e.docs) return "A document from your template for every fill.";
-  if (e.files) return "Uploads are copied into a folder.";
-  if (e.chat) return "An alert for every fill and workflow step.";
-  if (e.texts) return "Texts from your workflows.";
-  if (e.group === "form" && e.hook) return `Fills from ${e.label} come into Claritia.`;
-  if (e.group === "event" && e.hook) return `Bookings from ${e.label} come into Claritia.`;
-  if (e.meetPay && e.group === "event") return "Video links for your meetings.";
-  if (e.meetPay) return "Payments for paid meetings.";
-  if (e.analytics) return "Each fill is sent as an event.";
-  if (e.ads) return "Fills and bookings are sent as conversions.";
-  if (e.warehouse) return "Each form fill becomes a row.";
-  if (e.hook) return "Send records to Claritia from anywhere.";
-  return "Connect it to your forms.";
+  return ABOUT[e.kind] ?? `${e.label} connects to your forms and meetings.`;
 }
 
 
@@ -233,7 +288,7 @@ export function SourcesSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
               key={a.id}
               logo={<BrandLogo domain={a.domain} name={a.name} size={40} />}
               name={a.name}
-              blurb={`Send form fills and bookings to ${a.name}.`}
+              blurb={a.id === "zapier" ? "Zapier connects your apps with automated workflows called Zaps." : "Make builds visual automations that connect your apps."}
               status={on ? <Badge tone="green" dot>Connected</Badge> : null}
             >
               {on ? (
