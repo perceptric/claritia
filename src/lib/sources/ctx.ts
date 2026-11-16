@@ -1,7 +1,9 @@
 // What a connector gets to talk to its tool: JSON calls with retries, one call at a time with a gap between
 // calls (half the tool's limit), a token refreshed before it expires and once more on a 401, and a stop when
-// the job loses its lease.
+// the job loses its lease. A Composio connection (src/lib/sources/composio.ts) sends the same calls through Composio's
+// proxy, which signs them; everything else here (retries, backoff, the gap, time limits, error words) is the same.
 
+import { composioFetch } from "./composio.ts";
 import { OAUTH, oauthRefresh } from "./oauth.ts";
 import { AuthError, RateLimited, type Creds, type Ctx, type SourceRow } from "./types.ts";
 
@@ -34,6 +36,10 @@ export function makeCtx(o: CtxOpts): Ctx {
   const sleep = o.sleep ?? wait;
   let creds = o.creds;
   let last = 0;
+  // A call with the sign-in goes through Composio for a Composio connection; one with `auth: false` (a pre-signed
+  // upload address, a webhook) goes straight to its address as before.
+  const proxied = creds.type === "composio" ? composioFetch({ account: creds.account, user: creds.user, fetcher }) : null;
+  const via = (auth: boolean) => (auth && proxied ? proxied : fetcher);
 
   async function refreshNow() {
     if (creds.type !== "oauth" || !creds.refresh) throw new AuthError("Sign in again: the tool turned the connection down.");
@@ -48,6 +54,7 @@ export function makeCtx(o: CtxOpts): Ctx {
       return (creds as { access: string }).access;
     }
     if (creds.type === "key") return creds.values.api_key ?? creds.values.token ?? "";
+    // Composio holds the token and adds it to each call itself.
     return "";
   }
 
@@ -61,14 +68,14 @@ export function makeCtx(o: CtxOpts): Ctx {
       if (gap > 0) await sleep(gap);
       last = Date.now();
       const headers = new Headers(rest.headers);
-      if (auth && !headers.has("authorization")) headers.set("authorization", `${OAUTH[o.source.kind]?.scheme ?? "Bearer"} ${await token()}`);
+      if (auth && !proxied && !headers.has("authorization")) headers.set("authorization", `${OAUTH[o.source.kind]?.scheme ?? "Bearer"} ${await token()}`);
       if (rest.body && typeof rest.body === "string" && !headers.has("content-type")) headers.set("content-type", "application/json");
       headers.set("accept", headers.get("accept") ?? "application/json");
       let res: Response;
       try {
         // The job's stop and this call's own time limit, whichever comes first. A call that runs out is tried again.
         const timer = AbortSignal.timeout(limit);
-        res = await fetcher(url, { ...rest, headers, signal: o.signal ? AbortSignal.any([o.signal, timer]) : timer });
+        res = await via(auth)(url, { ...rest, headers, signal: o.signal ? AbortSignal.any([o.signal, timer]) : timer });
       } catch (e) {
         if (o.signal?.aborted) throw new Error("Stopped");
         if (attempt >= BACKOFF_S.length) throw e;
@@ -111,9 +118,9 @@ export function makeCtx(o: CtxOpts): Ctx {
     for (let attempt = 0; ; attempt++) {
       if (o.signal?.aborted) throw new Error("Stopped");
       const headers = new Headers(rest.headers);
-      if (auth && !headers.has("authorization")) headers.set("authorization", `${OAUTH[o.source.kind]?.scheme ?? "Bearer"} ${await token()}`);
+      if (auth && !proxied && !headers.has("authorization")) headers.set("authorization", `${OAUTH[o.source.kind]?.scheme ?? "Bearer"} ${await token()}`);
       const timer = AbortSignal.timeout(timeoutMs ?? o.callTimeoutMs ?? CALL_TIMEOUT_MS * 4);
-      const res = await fetcher(url, { ...rest, headers, signal: o.signal ? AbortSignal.any([o.signal, timer]) : timer });
+      const res = await via(auth)(url, { ...rest, headers, signal: o.signal ? AbortSignal.any([o.signal, timer]) : timer });
       if (res.status === 401 && auth && creds.type === "oauth" && attempt === 0) {
         await refreshNow();
         continue;
@@ -130,7 +137,7 @@ export function makeCtx(o: CtxOpts): Ctx {
     api,
     raw,
     token,
-    secret: (name) => (creds.type === "key" ? (creds.values[name] ?? "") : creds.type === "oauth" ? (creds.extra?.[name] ?? "") : ""),
+    secret: (name) => (creds.type === "key" ? (creds.values[name] ?? "") : creds.type === "oauth" || creds.type === "composio" ? (creds.extra?.[name] ?? "") : ""),
     signal: o.signal,
     local: o.local,
   };

@@ -55,7 +55,13 @@ export type PushResult = { localId: string; externalId?: string; error?: string;
 export type Creds =
   | { type: "oauth"; access: string; refresh: string | null; expiresAt: number; extra?: Record<string, string> }
   | { type: "key"; values: Record<string, string> }
-  | { type: "hook" };
+  | { type: "hook" }
+  /**
+   * Signed in on Composio (src/lib/sources/composio.ts): Composio holds the token or key and signs each call for
+   * `account`, the connected account (its user is the workspace). `extra`: what the connector reads beyond the
+   * sign-in (an org address, a subdomain), found at connect.
+   */
+  | { type: "composio"; account: string; user: string; toolkit: string; extra?: Record<string, string> };
 
 export type SourceRow = {
   id: string;

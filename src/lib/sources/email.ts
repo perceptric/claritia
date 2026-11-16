@@ -4,6 +4,7 @@
 
 import { createHash } from "node:crypto";
 import { qs, readCursor } from "./ctx.ts";
+import { keyed, signedByComposio } from "./keyed.ts";
 import { AuthError, RateLimited, type Connector, type Ctx, type Page, type PushChange, type PushOptions, type PushResult, type RawRecord } from "./types.ts";
 
 const since5 = (iso: string) => new Date(Date.parse(iso) - 300_000).toISOString();
@@ -17,6 +18,12 @@ async function mcBase(ctx: Ctx) {
     const dc = ctx.secret("api_key").split("-").pop() ?? "";
     if (!/^[a-z]{2}\d{1,3}$/.test(dc)) throw new Error("That doesn't look like a Mailchimp API key (it ends in -us21 or similar).");
     return `https://${dc}.api.mailchimp.com/3.0`;
+  }
+  // A Composio connection found its data center at connect.
+  if (signedByComposio(ctx)) {
+    const at = ctx.secret("api_endpoint");
+    if (!/^https:\/\/[a-z]{2}\d{1,3}\.api\.mailchimp\.com$/.test(at)) throw new Error("Reconnect Mailchimp: its data center is unknown.");
+    return `${at}/3.0`;
   }
   // A signed-in account says which data center it lives in.
   const tok = await ctx.token();
@@ -70,7 +77,7 @@ export const mailchimp: Connector = {
 
 // Klaviyo -----------------------------------------------------------------------------------------------------
 
-const kvHeaders = (ctx: Ctx) => ({ headers: { authorization: `Klaviyo-API-Key ${ctx.secret("api_key")}`, revision: "2024-10-15" }, auth: false });
+const kvHeaders = (ctx: Ctx) => keyed(ctx, { authorization: `Klaviyo-API-Key ${ctx.secret("api_key")}` }, { revision: "2024-10-15" });
 type KvProfile = {
   id: string;
   attributes: {
@@ -135,7 +142,7 @@ const acBase = (ctx: Ctx) => {
   if (!/^https:\/\/[a-z0-9-]+\.(api-us1|activehosted)\.com$|^https:\/\/[a-z0-9-]+\.api-[a-z]+\d*\.com$/i.test(u)) throw new Error("Use the API URL from ActiveCampaign › Settings › Developer.");
   return `${u}/api/3`;
 };
-const acHeaders = (ctx: Ctx) => ({ headers: { "api-token": ctx.secret("api_key") }, auth: false });
+const acHeaders = (ctx: Ctx) => keyed(ctx, { "api-token": ctx.secret("api_key") });
 
 export const activecampaign: Connector = {
   kind: "activecampaign",
@@ -161,7 +168,7 @@ export const activecampaign: Connector = {
 
 // Brevo -------------------------------------------------------------------------------------------------------
 
-const brevoHeaders = (ctx: Ctx) => ({ headers: { "api-key": ctx.secret("api_key") }, auth: false });
+const brevoHeaders = (ctx: Ctx) => keyed(ctx, { "api-key": ctx.secret("api_key") });
 
 export const brevo: Connector = {
   kind: "brevo",
@@ -231,7 +238,7 @@ export const mailerlite: Connector = {
   gapMs: 600,
   async account(ctx) {
     await ctx.api("https://connect.mailerlite.com/api/subscribers?limit=1");
-    return { id: `ml-${ctx.secret("api_key").slice(-6)}`, label: "MailerLite" };
+    return { id: `ml-${(ctx.creds.type === "composio" ? ctx.creds.account : ctx.secret("api_key")).slice(-6)}`, label: "MailerLite" };
   },
   async pull(ctx, _object, cursor): Promise<Page> {
     // MailerLite has no "changed since" on this list; each run reads it all and unchanged rows are skipped.

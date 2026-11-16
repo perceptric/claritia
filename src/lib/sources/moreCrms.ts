@@ -5,6 +5,7 @@
 // back "gone", and the delivery makes it again. Each has a link back to the record. Endpoints, fields and links are
 // from each tool's docs and are rechecked against a real account before launch (check).
 
+import { keyed, signedByComposio } from "./keyed.ts";
 import { refreshRequest } from "./oauth.ts";
 import type { Connector, Ctx, PushChange, PushResult, SourceRow } from "./types.ts";
 
@@ -104,6 +105,8 @@ function dataverse(ctx: Ctx): Promise<Dv> {
   if (!p) {
     p = (async () => {
       if (!DYN.test(url)) throw new Error("Connect Dynamics 365 again.");
+      // On Composio the sign-in is already for the team's own address, and Composio adds it to each call.
+      if (signedByComposio(ctx)) return { url, token: "" };
       if (ctx.creds.type !== "oauth" || !ctx.creds.refresh) throw Object.assign(new Error("Sign in to Dynamics 365 again."), { status: 401 });
       const r = refreshRequest("dynamics", ctx.creds.refresh, `${url}/user_impersonation offline_access`);
       const t = await ctx.api<{ access_token?: string }>(r.url, { method: "POST", auth: false, headers: { "content-type": "application/x-www-form-urlencoded" }, body: r.body });
@@ -121,6 +124,13 @@ export const dynamics: Connector = {
   objects: ["contacts"],
   gapMs: 250,
   async account(ctx) {
+    // On Composio the environment was picked on its connect page (src/lib/sources/composio.ts composioExtras).
+    if (signedByComposio(ctx)) {
+      const url = ctx.secret("org_url");
+      if (!DYN.test(url)) throw new Error("Connect Dynamics 365 again.");
+      await ctx.api(`${url}/api/data/v9.2/WhoAmI`, { headers: { "OData-MaxVersion": "4.0", "OData-Version": "4.0" } });
+      return { id: url, label: new URL(url).hostname };
+    }
     // The first Dynamics environment the person can open; its address is the connection's account.
     const d = await ctx.api<{ value?: { Url: string; FriendlyName?: string }[] }>("https://globaldisco.crm.dynamics.com/api/discovery/v2.0/Instances");
     const i = (d.value ?? []).find((x) => DYN.test(x.Url.replace(/\/+$/, "")));
@@ -130,7 +140,7 @@ export const dynamics: Connector = {
   async push(ctx, changes) {
     const dv = await dataverse(ctx);
     const call = <T>(path: string, init: RequestInit = {}) =>
-      ctx.api<T>(`${dv.url}/api/data/v9.2${path}`, { ...init, auth: false, headers: { authorization: `Bearer ${dv.token}`, "OData-MaxVersion": "4.0", "OData-Version": "4.0", ...(init.headers as Record<string, string>) } });
+      ctx.api<T>(`${dv.url}/api/data/v9.2${path}`, { ...init, ...keyed(ctx, { authorization: `Bearer ${dv.token}` }, { "OData-MaxVersion": "4.0", "OData-Version": "4.0", ...(init.headers as Record<string, string>) }) });
     return each(changes, async (p, id) => {
       const rec = {
         ...(p.first ? { firstname: p.first } : {}),
@@ -199,7 +209,7 @@ const fsDomain = (ctx: Ctx) => {
   return d;
 };
 const fs = <T>(ctx: Ctx, path: string, init: RequestInit = {}) =>
-  ctx.api<T>(`https://${fsDomain(ctx)}/crm/sales/api${path}`, { ...init, auth: false, headers: { authorization: `Token token=${ctx.secret("api_key")}` } });
+  ctx.api<T>(`https://${fsDomain(ctx)}/crm/sales/api${path}`, { ...init, ...keyed(ctx, { authorization: `Token token=${ctx.secret("api_key")}` }) });
 
 export const freshsales: Connector = {
   kind: "freshsales",
@@ -230,8 +240,7 @@ export const freshsales: Connector = {
 const copper = <T>(ctx: Ctx, path: string, init: RequestInit = {}) =>
   ctx.api<T>(`https://api.copper.com/developer_api/v1${path}`, {
     ...init,
-    auth: false,
-    headers: { "X-PW-AccessToken": ctx.secret("api_key"), "X-PW-Application": "developer_api", "X-PW-UserEmail": ctx.secret("email") },
+    ...keyed(ctx, { "X-PW-AccessToken": ctx.secret("api_key") }, { "X-PW-Application": "developer_api", "X-PW-UserEmail": ctx.secret("email") }),
   });
 
 export const copperCrm: Connector = {
@@ -317,8 +326,7 @@ const boards = new WeakMap<Ctx, Promise<Board>>();
 async function gql<T>(ctx: Ctx, query: string, variables: Record<string, unknown> = {}): Promise<T> {
   const r = await ctx.api<{ data?: T; errors?: { message: string }[]; error_message?: string }>("https://api.monday.com/v2", {
     method: "POST",
-    auth: false,
-    headers: { authorization: ctx.secret("api_key"), "API-Version": "2024-10" },
+    ...keyed(ctx, { authorization: ctx.secret("api_key") }, { "API-Version": "2024-10" }),
     body: JSON.stringify({ query, variables }),
   });
   const err = r.errors?.[0]?.message ?? r.error_message;
