@@ -11,7 +11,7 @@ export const needsParts = (html: string) => /<select[\s>]|data-cl-media=|data-cl
 
 /** The look of the form's own dropdowns (pickers); colors, corners and fonts come from the page's .field. */
 export const PICK_CSS =
-  ".cl-native{position:absolute!important;width:1px!important;height:1px!important;margin:-1px!important;padding:0!important;border:0!important;opacity:0!important;pointer-events:none!important;clip-path:inset(50%)!important}.cl-pick{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;text-align:start;cursor:pointer}.cl-pick>span:first-child{min-width:0;overflow-wrap:anywhere}.cl-pick[data-empty]>span:first-child{opacity:.6}.cl-pick>svg{flex:none;opacity:.7;transition:transform .15s}.cl-pick[aria-expanded=true]>svg{transform:rotate(180deg)}.cl-list{margin:4px 0 0;padding:4px;list-style:none;max-height:260px;overflow-y:auto;border:1px solid var(--brand-line,rgba(127,127,127,.35));border-radius:min(var(--brand-radius,8px),12px);background:var(--brand-field,#fff);color:var(--brand-text,inherit);box-sizing:border-box}.cl-list[hidden]{display:none}.cl-list li{padding:8px 10px;border-radius:min(var(--brand-radius,8px),8px);cursor:pointer;overflow-wrap:anywhere;font-size:14px}.cl-list li:hover,.cl-list li[data-on]{background:var(--brand-soft,rgba(127,127,127,.12))}.cl-list li[aria-selected=true]{font-weight:600}";
+  ".cl-native{position:absolute!important;width:1px!important;height:1px!important;margin:-1px!important;padding:0!important;border:0!important;opacity:0!important;pointer-events:none!important;clip-path:inset(50%)!important}.cl-pick{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;text-align:start;cursor:pointer}.cl-pick>span:first-child{min-width:0;overflow-wrap:anywhere}.cl-pick[data-empty]>span:first-child{opacity:.6}.cl-pick>svg{flex:none;opacity:.7;transition:transform .15s}.cl-pick[aria-expanded=true]>svg{transform:rotate(180deg)}.cl-list{position:fixed;z-index:2147483000;margin:0;padding:4px;list-style:none;max-height:260px;overflow-y:auto;border:1px solid var(--brand-line,rgba(127,127,127,.35));border-radius:min(var(--brand-radius,8px),12px);background:var(--brand-field,#fff);color:var(--brand-text,inherit);box-sizing:border-box;box-shadow:0 12px 32px -12px rgba(0,0,0,.28)}.cl-list[hidden]{display:none}.cl-list li{padding:8px 10px;border-radius:min(var(--brand-radius,8px),8px);cursor:pointer;overflow-wrap:anywhere;font-size:14px}.cl-list li:hover,.cl-list li[data-on]{background:var(--brand-soft,rgba(127,127,127,.12))}.cl-list li[aria-selected=true]{font-weight:600}";
 
 let pickSeq = 0;
 
@@ -95,6 +95,7 @@ export function pickers(w: HTMLElement) {
     const close = (focus: boolean) => {
       if (list.hidden) return;
       list.hidden = true;
+      follow(false);
       btn.setAttribute("aria-expanded", "false");
       btn.removeAttribute("aria-activedescendant");
       if (focus) btn.focus();
@@ -108,6 +109,32 @@ export function pickers(w: HTMLElement) {
         sel.dispatchEvent(new Event("input", { bubbles: true }));
         sel.dispatchEvent(new Event("change", { bubbles: true }));
       }
+    };
+    // The list floats over everything, under the button (or over it when there's no room below), pinned to the
+    // window so no card that cuts off what sticks out can clip it. Opening it moves nothing else on the page, and it
+    // follows the button while the page scrolls.
+    const place = () => {
+      if (list.hidden) return;
+      const r = btn.getBoundingClientRect();
+      const view = doc.defaultView?.innerHeight ?? 0;
+      const tall = Math.min(list.scrollHeight, 260) + 6;
+      const up = view > 0 && r.bottom + tall > view && r.top - tall > 0;
+      const want = { left: r.left, top: up ? r.top - list.offsetHeight - 4 : r.bottom + 4 };
+      list.style.width = `${r.width}px`;
+      list.style.left = `${want.left}px`;
+      list.style.top = `${want.top}px`;
+      // A transformed box around the form moves "fixed" with it: correct by what actually landed.
+      const got = list.getBoundingClientRect();
+      if (Math.abs(got.left - want.left) > 1 || Math.abs(got.top - want.top) > 1) {
+        list.style.left = `${2 * want.left - got.left}px`;
+        list.style.top = `${2 * want.top - got.top}px`;
+      }
+    };
+    const win = doc.defaultView;
+    const follow = (on: boolean) => {
+      if (!win) return;
+      if (on) { win.addEventListener("scroll", place, true); win.addEventListener("resize", place); }
+      else { win.removeEventListener("scroll", place, true); win.removeEventListener("resize", place); }
     };
     const open = () => {
       if (sel.disabled) return;
@@ -124,6 +151,8 @@ export function pickers(w: HTMLElement) {
         }),
       );
       list.hidden = false;
+      place();
+      follow(true);
       btn.setAttribute("aria-expanded", "true");
       mark(Math.max(0, opts().findIndex((o) => o.selected)));
     };
