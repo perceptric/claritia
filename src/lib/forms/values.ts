@@ -2,6 +2,7 @@
 // as people type; the server runs it again on every submit and trusts nothing the browser sent. Answers to fields
 // that rules hid are dropped. Runs in the browser and on the server.
 
+import { FREE_TOP } from "../email/freeTop.ts";
 import { ADDRESS_PARTS, allFields, FILE_ANSWER, isChoice, isContent, nextStep, optionsFor, visibility, withCalcs, type Choice, type Field, type FieldKey, type Form, type RunCtx } from "./schema.ts";
 
 export type Answers = Record<string, unknown>;
@@ -210,6 +211,8 @@ function base(f: Field, raw: unknown, opts: Choice[]): { value?: Value; error?: 
       if (!EMAIL.test(v) || v.length > 320) return { error: "Enter a valid email." };
       const domain = v.split("@")[1]!.toLowerCase();
       if (c.domains?.length && !c.domains.some((d) => domain === d || domain.endsWith(`.${d}`))) return { error: "Use an email at an allowed company domain." };
+      // A work email field refuses common free mail right away, on its own page (the server checks the full list).
+      if (f.check === "work_email" && FREE_TOP.has(domain)) return { error: "Use your work email." };
       return { value: v };
     }
     case "phone": {

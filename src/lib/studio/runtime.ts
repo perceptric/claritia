@@ -1,6 +1,8 @@
 // What a studio page runs on (docs/forms-chat-plan.md, Part 3): steps, show-if, required checks, progress and the
 // thanks. The form script (src/lib/forms/element.ts) runs it on live forms; the studio's preview runs the same rules.
 
+import { isFreeTop } from "../email/freeTop.ts";
+
 export type Vals = Record<string, string | string[]>;
 
 /** A text with the answers in it: {first_name} becomes what they typed, and an empty one leaves no stray comma. */
@@ -351,6 +353,8 @@ export function runPage(w: HTMLElement, onSend: (v: Vals) => void, hooks: PageHo
       let msg = "";
       if (group.some((x) => x.required) && !filled) msg = "Fill this in.";
       else if (el.type === "email" && el.value && !EMAIL.test(el.value.trim())) msg = "Enter a valid email.";
+      // A work email field refuses common free mail on its own page, before Next (the server checks the full list).
+      else if (el.type === "email" && el.value && el.getAttribute("data-cl-check") === "work_email" && isFreeTop(el.value)) msg = "Use your work email.";
       else msg = limitMsg(el, group);
       group.forEach((x) => x.setAttribute("aria-invalid", msg ? "true" : "false"));
       const e = errFor(el.name);

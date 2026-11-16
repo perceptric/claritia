@@ -403,3 +403,17 @@ test("the new templates pass the checker and work out on submit", async () => {
   assert.ok("form" in partner);
   assert.equal(partner.form.steps[0].fields.find((x) => x.key === "region")!.optionsBy?.preset, "regions");
 });
+
+test("a work email field refuses common free mail on its own page, before the form is sent", async () => {
+  const { isFreeTop, FREE_TOP } = await import("../src/lib/email/freeTop.ts");
+  const r = checkForm({ ...emptyForm(), steps: [{ id: "s1", fields: [{ id: "e", key: "email", type: "email", label: "Work email", required: true, check: "work_email" }] }] });
+  if ("errors" in r) throw new Error(r.errors.join(" "));
+  const fm = r.form;
+  assert.equal(checkAnswers(fm, { e: "hoanghy@gmail.com" }).errors.e, "Use your work email.");
+  assert.equal(checkAnswers(fm, { e: "ana@acme.com" }).errors.e, undefined);
+  assert.equal(isFreeTop(" Ana@Outlook.com "), true);
+  assert.equal(isFreeTop("ana@acme.com"), false);
+  // Never stricter than the server: every domain the page refuses is one the server's full list refuses too.
+  const server = new Set<string>((await import("free-email-domains")).default as string[]);
+  assert.deepEqual([...FREE_TOP].filter((d) => !server.has(d)), []);
+});
