@@ -6,6 +6,7 @@
 // with what to do. Endpoints, fields and links are from each tool's docs and are checked against a real account
 // before launch (check).
 
+import { keyed, signedByComposio } from "./keyed.ts";
 import type { Connector, Ctx, FillRow, RowTarget } from "./types.ts";
 
 export type AppendOpts = { retry: boolean; person?: { email: string | null; name: string | null } | null; link?: string };
@@ -41,7 +42,7 @@ const workHtml = (row: FillRow, o: AppendOpts) =>
 async function linearQ<T>(ctx: Ctx, query: string, variables: Record<string, unknown> = {}): Promise<T> {
   // A signed-in app sends Bearer; a pasted personal key goes as it is (check).
   const init = { method: "POST", body: JSON.stringify({ query, variables }) };
-  const r = await (ctx.creds.type === "oauth" ? ctx.api<{ data?: T; errors?: { message: string }[] }>("https://api.linear.app/graphql", init) : ctx.api<{ data?: T; errors?: { message: string }[] }>("https://api.linear.app/graphql", { ...init, auth: false, headers: { authorization: ctx.secret("api_key") } }));
+  const r = await (ctx.creds.type === "oauth" ? ctx.api<{ data?: T; errors?: { message: string }[] }>("https://api.linear.app/graphql", init) : ctx.api<{ data?: T; errors?: { message: string }[] }>("https://api.linear.app/graphql", { ...init, ...keyed(ctx, { authorization: ctx.secret("api_key") }) }));
   if (r.errors?.length) throw Object.assign(new Error(`Linear: ${r.errors[0]!.message}`), { status: /not found/i.test(r.errors[0]!.message) ? 404 : 400 });
   return r.data as T;
 }
@@ -79,8 +80,11 @@ export const linear: Connector = {
 
 // Trello -------------------------------------------------------------------------------------------------------
 
+// A pasted key and token go in the query; on Composio, it signs the call (OAuth 1.0a) and the query has neither.
 const trello = <T>(ctx: Ctx, path: string, init: RequestInit = {}, q: Record<string, string> = {}) =>
-  ctx.api<T>(`https://api.trello.com/1${path}?${new URLSearchParams({ ...q, key: ctx.secret("api_key"), token: ctx.secret("token") })}`, { ...init, auth: false });
+  signedByComposio(ctx)
+    ? ctx.api<T>(`https://api.trello.com/1${path}${Object.keys(q).length ? `?${new URLSearchParams(q)}` : ""}`, init)
+    : ctx.api<T>(`https://api.trello.com/1${path}?${new URLSearchParams({ ...q, key: ctx.secret("api_key"), token: ctx.secret("token") })}`, { ...init, auth: false });
 
 export const trelloWork: Connector = {
   kind: "trello",
@@ -113,7 +117,7 @@ export const trelloWork: Connector = {
 // ClickUp ------------------------------------------------------------------------------------------------------
 
 /** ClickUp takes its token as it is, signed in or pasted (check). */
-const clickup = async <T>(ctx: Ctx, path: string, init: RequestInit = {}) => ctx.api<T>(`https://api.clickup.com/api/v2${path}`, { ...init, auth: false, headers: { authorization: await ctx.token() } });
+const clickup = async <T>(ctx: Ctx, path: string, init: RequestInit = {}) => ctx.api<T>(`https://api.clickup.com/api/v2${path}`, { ...init, ...keyed(ctx, { authorization: signedByComposio(ctx) ? "" : await ctx.token() }) });
 
 export const clickupWork: Connector = {
   kind: "clickup",
@@ -158,8 +162,7 @@ export const clickupWork: Connector = {
 async function monday<T>(ctx: Ctx, query: string, variables: Record<string, unknown> = {}): Promise<T> {
   const r = await ctx.api<{ data?: T; errors?: { message: string }[]; error_message?: string }>("https://api.monday.com/v2", {
     method: "POST",
-    auth: false,
-    headers: { authorization: ctx.secret("api_key"), "API-Version": "2024-10" },
+    ...keyed(ctx, { authorization: ctx.secret("api_key") }, { "API-Version": "2024-10" }),
     body: JSON.stringify({ query, variables }),
   });
   const err = r.errors?.[0]?.message ?? r.error_message;
@@ -250,7 +253,7 @@ const zdSub = (ctx: Ctx) => {
   return s;
 };
 const zd = <T>(ctx: Ctx, path: string, init: RequestInit = {}) =>
-  ctx.api<T>(`https://${zdSub(ctx)}.zendesk.com/api/v2${path}`, { ...init, auth: false, headers: { authorization: `Basic ${Buffer.from(`${ctx.secret("email")}/token:${ctx.secret("api_token")}`).toString("base64")}` } });
+  ctx.api<T>(`https://${zdSub(ctx)}.zendesk.com/api/v2${path}`, { ...init, ...keyed(ctx, { authorization: `Basic ${Buffer.from(`${ctx.secret("email")}/token:${ctx.secret("api_token")}`).toString("base64")}` }) });
 
 export const zendesk: Connector = {
   kind: "zendesk",
@@ -302,7 +305,7 @@ const fdDomain = (ctx: Ctx) => {
   return d;
 };
 const fd = <T>(ctx: Ctx, path: string, init: RequestInit = {}) =>
-  ctx.api<T>(`https://${fdDomain(ctx)}/api/v2${path}`, { ...init, auth: false, headers: { authorization: `Basic ${Buffer.from(`${ctx.secret("api_key")}:X`).toString("base64")}` } });
+  ctx.api<T>(`https://${fdDomain(ctx)}/api/v2${path}`, { ...init, ...keyed(ctx, { authorization: `Basic ${Buffer.from(`${ctx.secret("api_key")}:X`).toString("base64")}` }) });
 /** The tag a fill's ticket carries, so a run again finds it. */
 export const fdTag = (id: string) => `claritia_${shortId(id)}`;
 

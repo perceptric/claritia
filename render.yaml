@@ -33,6 +33,13 @@ services:
         sync: false
       - key: OMNISCIENT_URL
         sync: false
+      # Sign-in for most tools on Composio (docs/sources-setup.md, section 0); the client ids below are the old path.
+      - key: COMPOSIO_API_KEY
+        sync: false
+      - key: COMPOSIO_AUTH_CONFIG_HUBSPOT
+        sync: false
+      - key: COMPOSIO_AUTH_CONFIG_SALESFORCE
+        sync: false
       - key: HUBSPOT_CLIENT_ID
         sync: false
       - key: HUBSPOT_CLIENT_SECRET

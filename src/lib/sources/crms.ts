@@ -4,6 +4,7 @@
 // docs and are rechecked against a real account before launch (marked "check").
 
 import { qs, readCursor } from "./ctx.ts";
+import { keyed } from "./keyed.ts";
 import { dealRecord, day, num, type StageKind } from "./opportunities.ts";
 import type { Connector, Ctx, Page, PushChange, PushResult, RawRecord } from "./types.ts";
 
@@ -12,15 +13,18 @@ const primary = (xs: { value?: string; primary?: boolean }[] | undefined) => (xs
 
 // Pipedrive ---------------------------------------------------------------------------------------------------
 
-const pdBase = (ctx: Ctx) => (ctx.creds.type === "oauth" ? `${ctx.secret("api_domain") || "https://api.pipedrive.com"}/api/v1` : "https://api.pipedrive.com/v1");
+// Signed in (Claritia's app or Composio, which adds the token itself) or a pasted token in the query.
+const pdSigned = (ctx: Ctx) => ctx.creds.type !== "key";
+const pdBase = (ctx: Ctx) =>
+  ctx.creds.type === "oauth" || (ctx.creds.type === "composio" && ctx.secret("api_domain")) ? `${ctx.secret("api_domain") || "https://api.pipedrive.com"}/api/v1` : "https://api.pipedrive.com/v1";
 const pdGet = <T>(ctx: Ctx, path: string, q: Record<string, string | number | null>) =>
-  ctx.creds.type === "oauth"
+  pdSigned(ctx)
     ? ctx.api<T>(`${pdBase(ctx)}${path}?${qs(q)}`)
     : ctx.api<T>(`${pdBase(ctx)}${path}?${qs({ ...q, api_token: ctx.secret("api_key") })}`, { auth: false });
 
 /** A write to Pipedrive; the key goes in the query for a pasted token, the header for a sign-in. */
 const pdSend = <T>(ctx: Ctx, method: "POST" | "PUT", path: string, body: object) =>
-  ctx.creds.type === "oauth"
+  pdSigned(ctx)
     ? ctx.api<T>(`${pdBase(ctx)}${path}`, { method, body: JSON.stringify(body) })
     : ctx.api<T>(`${pdBase(ctx)}${path}?${qs({ api_token: ctx.secret("api_key") })}`, { method, body: JSON.stringify(body), auth: false });
 
@@ -127,7 +131,7 @@ async function pdDeals(ctx: Ctx, cursor: string | null): Promise<Page> {
     const pipes = new Map((pl.data ?? []).map((p) => [p.id, p.name]));
     for (const x of st.data ?? []) stages.set(x.id, { name: x.name, pipeline: pipes.get(x.pipeline_id) ?? "" });
   }
-  const domain = ctx.creds.type === "oauth" ? ctx.secret("api_domain") : "";
+  const domain = pdSigned(ctx) ? ctx.secret("api_domain") : "";
   const records = rows.map((r) => {
     const st = stages.get(r.stage_id);
     const person = pdRef(r.person_id);
@@ -304,7 +308,7 @@ const closeAuth = (ctx: Ctx) => ({ authorization: `Basic ${Buffer.from(`${ctx.se
 /** Close keeps people as contacts on leads: an existing contact is found by email first, else a lead is made with it. */
 async function closePush(ctx: Ctx, changes: PushChange[]): Promise<PushResult[]> {
   const out: PushResult[] = [];
-  const call = <T>(url: string, init: RequestInit = {}) => ctx.api<T>(`https://api.close.com/api/v1${url}`, { ...init, headers: closeAuth(ctx), auth: false });
+  const call = <T>(url: string, init: RequestInit = {}) => ctx.api<T>(`https://api.close.com/api/v1${url}`, { ...init, ...keyed(ctx, closeAuth(ctx)) });
   for (const c of changes) {
     const v = c.values;
     const email = str(v.email);
@@ -346,7 +350,7 @@ export const close: Connector = {
   objects: ["contacts"],
   gapMs: 300,
   async account(ctx) {
-    const d = await ctx.api<{ organizations: { id: string; name: string }[] }>("https://api.close.com/api/v1/me/", { headers: closeAuth(ctx), auth: false });
+    const d = await ctx.api<{ organizations: { id: string; name: string }[] }>("https://api.close.com/api/v1/me/", keyed(ctx, closeAuth(ctx)));
     const o = first(d.organizations);
     return { id: o?.id ?? "", label: o?.name ?? "Close" };
   },
@@ -354,7 +358,7 @@ export const close: Connector = {
     const c = readCursor<{ skip: number; since: string | null; max: string }>(cursor, { skip: 0, since: null, max: "" });
     const d = await ctx.api<{ data: CloseContact[]; has_more: boolean }>(
       `https://api.close.com/api/v1/contact/?${qs({ _skip: c.skip, _limit: 100, _order_by: "date_updated", date_updated__gt: c.since })}`,
-      { headers: closeAuth(ctx), auth: false },
+      keyed(ctx, closeAuth(ctx)),
     );
     const records = (d.data ?? []).map((x) => ({ id: x.id, updatedAt: x.date_updated, data: { name: x.name, title: x.title, email: first(x.emails)?.email ?? null, phone: first(x.phones)?.phone ?? null } }));
     const max = records.reduce((m, r) => (r.updatedAt > m ? r.updatedAt : m), c.max);

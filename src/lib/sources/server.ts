@@ -40,6 +40,7 @@ export async function connectSource(db: SupabaseClient, o: { ws: string; user: s
   const token = randomBytes(18).toString("base64url");
   if (o.creds.type !== "hook") account = await c.account(makeCtx({ source: fakeRow(o.ws, o.kind), creds: o.creds }));
   const settings = { ...defaultSettings(o.kind), ...(o.settings ?? {}) };
+  const composio = o.creds.type === "composio" ? o.creds.account : null;
   const { data: id, error } = await db.rpc("source_connect", {
     p_ws: o.ws,
     p_user: o.user,
@@ -49,12 +50,14 @@ export async function connectSource(db: SupabaseClient, o: { ws: string; user: s
     p_sealed: seal(JSON.stringify(o.creds)),
     p_settings: settings,
     p_hook_sealed: seal(JSON.stringify({ token, secret: o.hookSecret ?? null })),
+    // The Composio connected account it signs in with (167_composio.sql); null for the old path.
+    p_composio: composio,
   });
   if (error) throw new Error(error.message);
   if (c.setup && o.creds.type !== "hook") {
     const extra = await c.setup(makeCtx({ source: { ...fakeRow(o.ws, o.kind), id: id as string }, creds: o.creds }), hookUrl(o.kind, id as string, token));
     // A tool that hands back a signing secret for the hooks it sends (Omniscient).
-    if (extra?.hook_secret) await db.rpc("source_connect", { p_ws: o.ws, p_user: o.user, p_kind: o.kind, p_name: e.label, p_account: account.id || account.label, p_sealed: seal(JSON.stringify(o.creds)), p_settings: {}, p_hook_sealed: seal(JSON.stringify({ token, secret: extra.hook_secret })) });
+    if (extra?.hook_secret) await db.rpc("source_connect", { p_ws: o.ws, p_user: o.user, p_kind: o.kind, p_name: e.label, p_account: account.id || account.label, p_sealed: seal(JSON.stringify(o.creds)), p_settings: {}, p_hook_sealed: seal(JSON.stringify({ token, secret: extra.hook_secret })), p_composio: composio });
   }
   return { id: id as string, token, label: account.label };
 }

@@ -529,3 +529,66 @@ is free (check).
 - **Tests:** `tests/linkImport.test.ts`: links and look-alikes, every Typeform field and Tally block kind, escaping,
   the notes, and each import passing the same page check as a Studio form.
 - **Cost:** $0 at Beta and Growth: one read of a public page per import, no AI.
+
+### 14. Sign-in on Composio (built; on once the server has `COMPOSIO_API_KEY`)
+
+- **Why:** no developer apps, client secrets, token refresh or re-auth for us to run. Composio keeps each
+  connection's tokens or key and refreshes them; Claritia keeps its own connector code (field mapping, dedupe,
+  owners, two-way rules, retries, error words). Setup: `docs/sources-setup.md`, "Composio".
+- **How:** Connect opens Composio's hosted page for the workspace (the Composio user is the workspace id) and comes
+  back to `/api/sources/composio`, which saves the connection only when it's this workspace's, for this tool, and
+  ACTIVE. Each call a connector makes then goes through Composio's proxy execute, which signs it
+  (`src/lib/sources/composio.ts`, one fetch layer under `ctx.ts`). Composio's refusals map onto the old handling: a
+  connection that's gone is "Sign in again" (the card's Reconnect), Composio's rate limit and outages are retried
+  with the same backoff, a wrong server key is retried later and never blamed on the team. The connected account
+  is kept with the source (`167_composio.sql`). Rows connected the old way keep working and show Reconnect.
+- **On Composio (35 kinds):** HubSpot, Salesforce, Attio, Zoho, Dynamics 365, monday (CRM and boards), Intercom,
+  Mailchimp, Google Sheets, Excel, Airtable, Notion, Google Docs, Teams, Linear, Trello, ClickUp, Zendesk, Google
+  Drive, OneDrive, Dropbox, Box, Webex (Composio's own apps); Pipedrive, Close, GoHighLevel, Freshsales, Copper,
+  Klaviyo, ActiveCampaign, Brevo, MailerLite, Freshdesk, PandaDoc (the person's key, asked on Composio's page; no app
+  needed); DocuSign (OAuth only and no Composio app: on once our own DocuSign app is set up there).
+- **Not moved:** Kit (the connector speaks Kit's v3 API with the secret in the query; Composio signs v4: move with a
+  v4 connector), Discord (alerts post to a channel webhook; nothing to refresh), Twilio (Claritia checks Twilio's
+  webhook signatures with the auth token, which Composio keeps), and the ones kept on purpose (Stripe, PayPal,
+  Square, Segment, PostHog, Mixpanel, Amplitude, Meta Ads, Google Ads, BigQuery, Snowflake, Databricks, ClickHouse,
+  Google Forms import, Omniscient) or missing on Composio (Keap, SmartSuite, S3, Whereby, Postgres, Redshift, MySQL).
+- **Known gaps:** HubSpot's app-wide webhooks are set on our own HubSpot app, so a portal on Composio's HubSpot app
+  syncs by the 5-minute pull only (a white-labeled HubSpot app on Composio brings them back). The scopes of
+  Composio's managed apps are Composio's (check that HubSpot's include the custom property and timeline scopes).
+- **The old path:** `src/lib/sources/oauth.ts`, `/api/sources/callback` and the `<TOOL>_CLIENT_ID` and
+  `_CLIENT_SECRET` variables stay as the fallback for rows connected before. Remove them once no row of a moved tool
+  has a null `composio_account` (`select kind, count(*) from sources where composio_account is null and status <>
+  'disconnected' group by kind`).
+- **Tests:** `tests/composio.test.ts` with a fake Composio (`tests/sources/fakeComposio.ts`): the proxy request
+  shape, headers, bytes and multipart, the tool's answer coming back, each Composio error, the old path untouched,
+  no key, connectors leaving their keys out, connecting, and a form fill to HubSpot through a proxy that times out
+  after HubSpot took the request, then answers 429 and 502: one contact, three retries recorded.
+
+**Running cost.** Prices from composio.dev/pricing/platform on 2026-11-16: Pro $29 a month (usage credit, no
+rollover); 100,000 tool calls a month free, of which 20,000 on Composio-managed apps; then $0.0003 a call on our own
+apps and key connections; on managed apps the managed rate replaces it: $0.01 for Salesforce, $0.002 for HubSpot,
+Google Sheets, Google Drive and Microsoft Teams, $0.0005 for the rest; proxy execute adds $0.0002 a call on Pro
+(1,000 free on Hobby). Connected accounts: the first 1,000 free. Whether the $29 credit pays overage, whether Pro
+keeps any free proxy calls, and whether proxy calls draw on the managed allowance: check.
+
+Assumptions per team a month: 1.5 connected tools; 40% of teams have a two-way CRM pulled every 5 minutes (about
+9,000 calls; 3 of 4 HubSpot, 1 of 4 Salesforce); 300 fills, about 1,000 calls to their tools (40% HubSpot or
+Salesforce, 20% Sheets, Drive or Teams, 10% other managed apps, 30% key tools). That's about 230,000 calls at Beta
+and 2,300,000 at Growth. No new servers and no Claude calls.
+
+| Line | Beta (50 teams) | Growth (500 teams) |
+|---|---|---|
+| Composio Pro | $29 | $29 |
+| Proxy add-on, every call | about $46 | about $460 |
+| Calls on Composio's managed apps, key tools included (A) | about $780 | about $8,210 |
+| Calls on our own HubSpot and Salesforce apps and key tools, at the base rate (B) | about $39 | about $620 |
+| Calls on the other managed apps (B) | $0 | about $185 |
+| Connected accounts (75 and 750, under 1,000) | $0 | $0 |
+| **Added per month, A: Composio's apps for everything** | **about $860** | **about $8,700** |
+| **Added per month, B: our own HubSpot and Salesforce apps on Composio** | **about $115** | **about $1,300** |
+
+The 5-minute CRM pull is most of it, and Salesforce's managed rate is 33 times the base rate. Setting
+`COMPOSIO_AUTH_CONFIG_HUBSPOT` and `COMPOSIO_AUTH_CONFIG_SALESFORCE` to our own apps (registered once in Composio;
+Composio still keeps and refreshes every token) is plan B and also puts "Claritia" on their consent screens. Pulling
+Composio rows every 15 minutes instead of 5 would cut the pull line to a third (not done: it changes how fresh the
+two-way sync is). The old path cost $0 a month: the developer apps are free.

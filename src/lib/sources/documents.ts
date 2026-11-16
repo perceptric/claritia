@@ -10,6 +10,7 @@
 //   marked with claritia_fill metadata, so a retry finds it. Endpoints are from each tool's docs (check).
 
 import { docName, fillTags, missingNote, tagValues } from "../documents/tags.ts";
+import { keyed } from "./keyed.ts";
 import type { Connector, Ctx, RowTarget } from "./types.ts";
 
 export type DocOut = { externalId: string; url?: string; notes?: string[] } | { wait: number; reason: string };
@@ -204,7 +205,7 @@ export const docusign: Connector = {
 // PandaDoc -----------------------------------------------------------------------------------------------------
 
 const PD = "https://api.pandadoc.com/public/v1";
-const pd = <T>(ctx: Ctx, path: string, init: RequestInit = {}) => ctx.api<T>(`${PD}${path}`, { ...init, auth: false, headers: { authorization: `API-Key ${ctx.secret("api_key")}` } });
+const pd = <T>(ctx: Ctx, path: string, init: RequestInit = {}) => ctx.api<T>(`${PD}${path}`, { ...init, ...keyed(ctx, { authorization: `API-Key ${ctx.secret("api_key")}` }) });
 const pdLink = (id: string) => `https://app.pandadoc.com/a/#/documents/${id}`;
 /** How long the delivery waits for PandaDoc to finish the draft. */
 export const PD_WAIT_S = 5;
