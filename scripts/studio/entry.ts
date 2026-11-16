@@ -190,7 +190,8 @@ const shell = el.attachShadow({ mode: "open" });
 shell.innerHTML = `<style>${STUDIO_CSS}</style>${STUDIO_HTML}`;
 
 // A stand-in for the page's header (FormHeader): Preview (and Back to editor), the one button, its problem count, the
-// form check and the message, driven the same way, through the Studio's state and control.
+// form check (each issue with Open to its spot, never a Fix) and the message, driven the same way, through the
+// Studio's state and control.
 const hdr = document.createElement("div");
 hdr.id = "hdr";
 hdr.innerHTML = `<button id="undo">Undo</button><button id="redo">Redo</button><button id="hdrPreview">Preview</button><button id="hdrAction"></button><span id="hdrMsg"></span><div id="hdrCheck" hidden></div>`;
@@ -217,20 +218,35 @@ function drawCheck() {
   const box = document.getElementById("hdrCheck")!;
   box.hidden = false;
   box.innerHTML = "";
+  box.style.cssText = "position:fixed;right:12px;top:40px;z-index:99;width:380px;background:#fff;color:#171717;border-radius:12px;box-shadow:0 0 0 1px #0002,0 12px 32px -12px #0005;padding:6px;font:12.5px/1.45 Inter,system-ui,sans-serif";
+  const head = document.createElement("div");
+  head.textContent = "FORM CHECK";
+  head.style.cssText = "padding:8px;font-size:11px;font-weight:600;letter-spacing:.06em;color:#6c6c6d";
+  box.append(head);
+  if (!w.studioState?.issues.length) {
+    const none = document.createElement("div");
+    none.className = "none";
+    none.textContent = "Nothing to fix";
+    none.style.cssText = "border-top:1px solid #e5e5e5;padding:10px 8px;color:#6c6c6d";
+    box.append(none);
+  }
   for (const i of w.studioState?.issues ?? []) {
     const row = document.createElement("div");
     row.className = `issue ${i.level}`;
     row.textContent = i.text;
-    if (i.fix) {
+    row.style.cssText = `display:flex;gap:10px;align-items:flex-start;justify-content:space-between;border-top:1px solid #e5e5e5;padding:9px 8px;${i.level === "error" ? "color:#b42318" : ""}`;
+    if (i.go) {
       const f = document.createElement("button");
-      f.textContent = "Fix";
-      f.onclick = () => ((box.hidden = true), ctl.fix([i.fix!]));
+      f.textContent = "Open";
+      f.dataset.go = i.go;
+      f.onclick = () => ((box.hidden = true), ctl.go(i.go!));
       row.append(f);
     }
     box.append(row);
   }
 }
 let ctl = mountStudio(shell, api);
+(window as unknown as { drawCheck: () => void }).drawCheck = drawCheck;
 // Another form, as the Forms list opens it (the Studio holds one form at a time): a new one, or a chat by id.
 (window as unknown as { openStudio: (start: StudioApi["start"]) => void }).openStudio = (start) => {
   ctl.stop();

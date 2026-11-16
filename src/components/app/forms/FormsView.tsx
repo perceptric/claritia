@@ -116,7 +116,7 @@ function StudioPage(props: ViewProps & { fresh?: boolean }) {
       <div className="relative flex min-h-0 flex-1 flex-col">
         <Studio {...props} fresh={props.fresh} chatId={chatId} text={props.fresh ? ask : ""} onState={setSt} controlRef={control} />
       </div>
-      {checkAt && st ? <FormCheck anchor={checkAt} issues={st.issues} canFix={st.canFix} onFix={(f) => control.current?.fix(f)} onOpenAfter={() => control.current?.openAfter()} onClose={() => setCheckAt(null)} /> : null}
+      {checkAt && st ? <FormCheck anchor={checkAt} issues={st.issues} onGo={(w) => control.current?.go(w)} onClose={() => setCheckAt(null)} /> : null}
     </div>
   );
 }
@@ -503,7 +503,7 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
       setStudio(s);
       if (openAfter.current) {
         openAfter.current = false;
-        control.current?.openAfter();
+        control.current?.go("after");
       }
       if (wantPublish.current) {
         wantPublish.current = false;
@@ -592,7 +592,7 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
         )}
       </div>
       {dialog === "publish" ? <PublishDialog checks={checks} live={!!row.version} onClose={() => setDialog(null)} onPublish={publish} onFix={goto} error={error} /> : null}
-      {checkAt && isStudio && studio ? <FormCheck anchor={checkAt} issues={studio.issues} canFix={studio.canFix} onFix={(f) => control.current?.fix(f)} onOpenAfter={() => control.current?.openAfter()} onClose={() => setCheckAt(null)} /> : null}
+      {checkAt && isStudio && studio ? <FormCheck anchor={checkAt} issues={studio.issues} onGo={(w) => control.current?.go(w)} onClose={() => setCheckAt(null)} /> : null}
       {note.node}
     </div>
   );

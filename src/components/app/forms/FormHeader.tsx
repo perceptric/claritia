@@ -6,7 +6,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { StudioIssue } from "./studio/studio";
-import { AiMark } from "../Ai";
 import { Popover } from "../FilterBar";
 import { Badge, Tabs, type ViewProps } from "../ui";
 import { Ic } from "./ic";
@@ -119,35 +118,25 @@ export function FormHeader({
   );
 }
 
-/** The form check under the button: each problem, Fix (Tia) on the ones she can fix, Fix all, Open for On submission. */
-export function FormCheck({ anchor, issues, canFix, onFix, onOpenAfter, onClose }: { anchor: HTMLElement | null; issues: StudioIssue[]; canFix: boolean; onFix: (fixes: string[]) => void; onOpenAfter: () => void; onClose: () => void }) {
+/**
+ * The form check under the button: only what the owner decides (a question, a meeting, a translation), each with Open
+ * to the spot where it's fixed. Layout, contrast, fonts and taps are made right by code, so nothing here asks Tia.
+ */
+export function FormCheck({ anchor, issues, onGo, onClose }: { anchor: HTMLElement | null; issues: StudioIssue[]; onGo: (where: string) => void; onClose: () => void }) {
   const rows = [...issues].sort((a, b) => (a.level === b.level ? 0 : a.level === "error" ? -1 : 1));
-  const fixable = rows.filter((i) => i.fix).map((i) => i.fix!);
   return (
     <Popover anchor={anchor} onClose={onClose} width={380}>
       <div role="dialog" aria-label="Form check" className="flex flex-col p-[6px]">
         <div className="flex min-h-[34px] items-center gap-[8px] px-[8px]">
           <span className={EYEBROW}>Form check</span>
-          <span className="flex-1" />
-          {canFix && fixable.length > 1 ? (
-            <button type="button" className={GHOST_SM} onClick={() => (onClose(), onFix(fixable))}>
-              <AiMark size={13} />
-              Fix all
-            </button>
-          ) : null}
         </div>
         {rows.length ? (
           rows.map((i, n) => (
             <div key={`${i.text}${n}`} className="grid grid-cols-[8px_minmax(0,1fr)_auto] items-start gap-[10px] border-t border-line px-[8px] py-[9px] text-[12.5px] leading-[1.45] text-ink">
               <span className={`mt-[5px] size-[8px] rounded-full ${i.level === "error" ? "bg-rose" : "bg-faint"}`} />
               <span>{i.text}</span>
-              {i.fix && canFix ? (
-                <button type="button" className={GHOST_SM} onClick={() => (onClose(), onFix([i.fix!]))}>
-                  <AiMark size={13} />
-                  Fix
-                </button>
-              ) : i.after ? (
-                <button type="button" className={GHOST_SM} onClick={() => (onClose(), onOpenAfter())}>
+              {i.go ? (
+                <button type="button" className={GHOST_SM} onClick={() => (onClose(), onGo(i.go!))}>
                   Open
                 </button>
               ) : (

@@ -35,7 +35,15 @@ THE FORM'S HTML
 - Give every meaningful element an id (short, unique) so you can patch it later.
 - Questions carry data-cl-id: keep every data-cl-id exactly as it is when you change or rewrite the page (it keeps past answers tied to the question).
 - Never ask for passwords, card or bank numbers, ID or tax numbers, or health records (diagnoses, medications, allergies). Ask for a reason for a visit in plain words.
-- Every question has a visible label tied to it (label for= and id). Buttons and choices are at least 44px tall. Text keeps strong contrast on its background. The form fits a 390px wide phone with no sideways scrolling.
+- Every question has a visible label tied to it (label for= and id).
+- RIGHT THE FIRST TIME, on every screen from 320px wide up:
+  No sideways scrolling: give grid and flex children min-width: 0, use minmax(0,1fr) columns, never a fixed width wider than its box (max-width: 100% on anything with a width), let long words wrap, and stack rows of two or more fields into one column under 560px (@container (max-width: 560px)).
+  Contrast at least 4.5 to 1 for text (3 to 1 for text 24px and up, or 18.66px bold) against what's behind it, using the brand's own colors: darken a light color for text on a light background, lighten it on a dark one.
+  Taps at least 44px tall: buttons, links that act as buttons, and choice cards.
+  Fonts: only the brand's (its font variables or families). Never import or name another font.
+  Choice cards: hide the native radio or check box visually (position: absolute; opacity: 0; width: 1px; height: 1px), never display: none or visibility: hidden, and show focus on the card with label:has(input:focus-visible).
+  Dropdowns: one arrow. Claritia draws the arrow on every select; don't add your own.
+  No text cut off: no fixed heights or overflow: hidden on text, no text-overflow: ellipsis.
 - Don't draw a consent checkbox: Claritia adds the consent line where the law asks for it.
 - Write in the language the message names. Ask for a full name in one box unless the owner wants first and last apart. Don't force a state, zip or postcode where the country doesn't use one; use the address block for addresses.
 - Keep the form working right to left too: use logical CSS (margin-inline, padding-inline, text-align: start) over left and right.
@@ -75,6 +83,7 @@ Answer with only:
 2. :root variables for the site's colors (--brand-primary, --brand-text, --brand-muted, --brand-bg, --brand-surface, --brand-line, and any others it uses), font families and corner radius.
 3. Classes copied from the site's own controls: .btn (its main button, with :hover and :active), .btn-secondary, .field (its inputs and textareas, with :focus), .label, .heading, .text, .card (its cards or panels), .choice (a selectable option card, with a :has(input:checked) state), .check (checkbox and radio rows), .link.
 No decoration the site doesn't have. No url() except fonts. No images.
+Text colors read on their backgrounds: at least 4.5 to 1 (--brand-text and --brand-muted on --brand-bg, --brand-surface and fields; a button's words on its color). When the site's own color is lighter than that, use the nearest darker shade of it (lighter on dark sites). Inputs, buttons and choices at least 44px tall; a choice's native radio or check box hidden visually, never display: none.
 </brand_css>
 Take every value from the page source and stylesheets given. When they don't show a control (pages built by scripts), use what you know for certain about this brand's public website, and the COLORS read from the site; when you don't know, keep to neutral values and say so in <say>.`;
 

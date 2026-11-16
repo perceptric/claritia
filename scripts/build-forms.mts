@@ -15,8 +15,9 @@ import { createHash } from "node:crypto";
 // its events (docs/embed.md); 41 KB with the no-code builder's rules: limits, shuffle and answers in text
 // (src/lib/studio/builder.ts); 44 KB with the fields plan's loader for x1.js, email and phone codes, videos, long
 // lists and the page's timer, review, formats and date rules (docs/fields-plan.md); 45 KB with pages that slide and
-// confetti on the thank-you (docs/on-submission.md).
-const LIMIT = 45 * 1024;
+// confetti on the thank-you (docs/on-submission.md); 47 KB with the guard's stylesheet every studio page wears last
+// (src/lib/studio/guard.ts, docs/studio-v2-plan.md Part 16).
+const LIMIT = 47 * 1024;
 // The second part (src/lib/forms/extras.ts, x1.js): the fields that need more than an input (docs/fields-plan.md),
 // loaded only on forms that have one.
 const X_LIMIT = 16 * 1024;

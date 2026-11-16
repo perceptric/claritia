@@ -18,6 +18,8 @@ import { allFields, isContent, nextStep, numOf, optionsFor, pickOutcome, product
 import { checkAnswers, OTHER, stepPath, type Answers } from "./values.ts";
 import { answerFrom } from "../share/emailForm.ts";
 import { VIA } from "../share/channels.ts";
+import { GUARD_CSS } from "../studio/guard.ts";
+import { guardCss } from "../studio/guardCss.ts";
 import { ACCESS_CSS, BADGE_CSS, badgeRow, CAL_CSS, consentSpot, pageValues, runPage, shownValues, showsByIf, zoneWords, type PageRun, type Vals } from "../studio/runtime.ts";
 import type { XCtx } from "./extras.ts";
 
@@ -965,7 +967,9 @@ export class ClaritiaForm extends Base {
     const p = form.page!;
     if (!this.pg) {
       this.setAttribute("data-page", "");
-      const css = `${p.brand}\n${p.css}\n${CAL_CSS}.cl-root [data-cl-book] .f,.cl-root [data-cl-thanks] .f{background:transparent;max-width:none;padding:0}`.replace(/@import\s+url\(\s*["']?([^"')]+)["']?\s*\)[^;\n]*;?|@import\s+["']([^"']+)["'][^;\n]*;?/gi, (_m, a?: string, b?: string) => (addFont((a || b || "").trim()), ""));
+      // The brand's CSS and the form's own, each through the guard's rewrite, and the guard's stylesheet last of all
+      // (docs/studio-v2-plan.md Part 16), as the Studio draws them.
+      const css = `${guardCss(p.brand)}\n${guardCss(p.css)}\n${CAL_CSS}.cl-root [data-cl-book] .f,.cl-root [data-cl-thanks] .f{background:transparent;max-width:none;padding:0}`.replace(/@import\s+url\(\s*["']?([^"')]+)["']?\s*\)[^;\n]*;?|@import\s+["']([^"']+)["'][^;\n]*;?/gi, (_m, a?: string, b?: string) => (addFont((a || b || "").trim()), ""));
       // The visitor's language, when the form has it (docs/studio-v2-plan.md 6.4).
       const langs = [p.lang || "", ...Object.keys(p.langs ?? {})].filter(Boolean);
       if (!this.pgLang) this.pgLang = (typeof navigator !== "undefined" ? navigator.languages ?? [] : []).map((l) => langs.find((x) => x === l || x.slice(0, 2) === l.slice(0, 2))).find(Boolean) ?? langs[0] ?? "";
@@ -976,7 +980,7 @@ export class ClaritiaForm extends Base {
         void loadX(this.base).then(() => this.render(), () => setTimeout(() => this.render(), 1500 * xTries));
         return;
       }
-      const st = el("style", { text: `${style.textContent}\n${ACCESS_CSS}${BADGE_CSS}.cl-langs{display:flex;justify-content:flex-end;gap:4px;padding:8px 12px}.cl-langs button{font:inherit;font-size:12px;border:1px solid rgba(127,127,127,.45);background:rgba(255,255,255,.9);color:#222;border-radius:999px;padding:5px 11px;cursor:pointer}.cl-langs button[aria-pressed=true]{background:#111;color:#fff;border-color:#111}.cl .ps,.cl .tm{gap:8px}\n:host{display:block}.cl-root{min-height:inherit;display:flex;flex-direction:column}.cl-root>*{flex:1 0 auto}[hidden]{display:none!important}.cl-alert{color:#b23a26}\n${css.replace(/(^|[\s,{}])(?::root|html|body)(?=[\s,{:.[])/g, "$1:host")}` });
+      const st = el("style", { text: `${style.textContent}\n${ACCESS_CSS}${BADGE_CSS}.cl-langs{display:flex;justify-content:flex-end;gap:4px;padding:8px 12px}.cl-langs button{font:inherit;font-size:12px;border:1px solid rgba(127,127,127,.45);background:rgba(255,255,255,.9);color:#222;border-radius:999px;padding:5px 11px;cursor:pointer}.cl-langs button[aria-pressed=true]{background:#111;color:#fff;border-color:#111}.cl .ps,.cl .tm{gap:8px}\n:host{display:block}.cl-root{min-height:inherit;display:flex;flex-direction:column}.cl-root>*{flex:1 0 auto}[hidden]{display:none!important}.cl-alert{color:#b23a26}\n${css.replace(/(^|[\s,{}])(?::root|html|body)(?=[\s,{:.[])/g, "$1:host")}\n${GUARD_CSS}` });
       const wrap = el("div", { class: "cl-root" });
       wrap.innerHTML = html;
       if (one) xOf()?.page?.split(wrap);

@@ -11,6 +11,7 @@ import { persistStudio } from "@/lib/studio/persist";
 import { forgetPublic } from "@/lib/forms/server";
 import { turnstileSiteKey } from "@/lib/forms/server";
 import { BRAND_RULES, CHAT_RULES, STUDIO_MODEL, TRANSLATE_RULES } from "@/lib/studio/prompts";
+import { readableCssText } from "@/lib/studio/readable";
 import { cleanMessages, cleanTitle, titleFrom } from "@/lib/studio/threads";
 import { hostLogo, hostOf, readPage, readSite, readSource } from "@/lib/studio/site";
 import { requireUser } from "@/lib/serverAuth";
@@ -337,6 +338,8 @@ export async function POST(request: Request) {
         return { result: css ? { css, say: tag(out.text, "say") ?? "", profile: readProfile(tag(out.text, "profile")) } : null, model: STUDIO_MODEL, usage, keep: !!css };
       });
       if (!r.result) return send({ error: `Couldn't read ${k.name}'s look. Try again.` });
+      // Readable at the source: the brand's text colors pass on its backgrounds (docs/studio-v2-plan.md Part 16).
+      r.result.css = readableCssText(r.result.css);
       // Kept on the brand (112), so every chat and teammate shares it. Before 112, the page keeps it.
       await db.from("brand_kits").update({ studio_css: r.result.css }).eq("id", k.id).eq("workspace_id", ws);
       // The industry, language and country (113), kept unless the owner already set them.

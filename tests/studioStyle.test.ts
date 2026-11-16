@@ -9,7 +9,7 @@ import { makeFromTemplate } from "../src/lib/forms/gallery/make.ts";
 import { THEMES } from "../src/lib/forms/gallery/themes.ts";
 import { DEFAULT_BRAND_CSS } from "../src/lib/studio/brandDefault.ts";
 import { cleanPageCss } from "../src/lib/studio/page.ts";
-import { STYLE_ART, styleCss, styleCssById, styleName, styleOf } from "../src/lib/studio/styleCss.ts";
+import { STYLE_ART, styleColors, styleCss, styleCssById, styleName, styleOf } from "../src/lib/studio/styleCss.ts";
 import { templateDraft } from "../src/lib/studio/templatePage.ts";
 
 test("every style is a stylesheet the cleaner keeps whole, known again by its first line", () => {
@@ -20,7 +20,8 @@ test("every style is a stylesheet the cleaner keeps whole, known again by its fi
     assert.equal(styleOf(css), th.id);
     assert.equal(styleOf(cleanPageCss(css)), th.id);
     assert.match(css, /^@import url\("https:\/\/fonts\.googleapis\.com\//m, `${th.id} loads its fonts`);
-    assert.ok(css.includes(`--brand-primary:${th.accent}`) && css.includes(`--brand-field:${th.field}`), `${th.id} sets its colors`);
+    // Its colors as its forms wear them: readable at the source (src/lib/studio/readable.ts).
+    assert.ok(css.includes(`--brand-primary:${styleColors(th).accent}`) && css.includes(`--brand-field:${th.field}`), `${th.id} sets its colors`);
     // The form is the whole page in its own color: no stage, pattern, drawing, card frame or shadow around it.
     assert.ok(css.includes(`--brand-bg:${th.card}`) && css.includes(`--brand-surface:${th.card}`), `${th.id} fills the page with the form's own color`);
     assert.ok(!css.includes(STYLE_ART) && !/background-(color|image):/.test(css) && !/gradient\(/.test(css) && !/::before/.test(css), `${th.id} has no stage, pattern or drawing`);
