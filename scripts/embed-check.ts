@@ -11,6 +11,7 @@ import { checkForm, emptyForm, type Form } from "../src/lib/forms/schema.ts";
 import { formEmbedCode, meetingEmbedCode } from "../src/lib/share/embed.ts";
 import { studioForm } from "../src/lib/studio/liveForm.ts";
 import { pageForm } from "../src/lib/studio/page.ts";
+import { servedForm } from "../src/lib/studio/guard.ts";
 import { styleCssById } from "../src/lib/studio/styleCss.ts";
 import { buildExtras, buildForms } from "./build-forms.mts";
 
@@ -122,7 +123,11 @@ createRoot(document.getElementById("root")).render(h("div", null,
 
 const pages = new Map<string, string>();
 const server = createServer((req, res) => {
-  const json = (b: unknown) => res.writeHead(200, { "content-type": "application/json", "access-control-allow-origin": "*" }).end(JSON.stringify(b));
+  // As /api/forms/<id> answers: every page guarded (src/lib/studio/guard.ts servedForm).
+  const json = (b: unknown) => {
+    const x = b as { body?: Form };
+    res.writeHead(200, { "content-type": "application/json", "access-control-allow-origin": "*" }).end(JSON.stringify(x?.body ? { ...x, body: servedForm(x.body) } : b));
+  };
   const u = req.url ?? "";
   if (u.startsWith("/forms/v1.js")) return res.writeHead(200, { "content-type": "text/javascript" }).end(formsJs);
   if (u.startsWith("/forms/x1.js")) return res.writeHead(200, { "content-type": "text/javascript" }).end(x1Js);

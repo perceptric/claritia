@@ -5,6 +5,7 @@ import { accessShut, closedMessage } from "@/lib/forms/access";
 import { cors, edgeCountry, forgetPublic, json, loadPublic, turnstileSiteKey } from "@/lib/forms/server";
 import { emailCodesReady, smsCodesReady } from "@/lib/forms/codes";
 import { allFields, publicForm, type Form } from "@/lib/forms/schema";
+import { servedForm } from "@/lib/studio/guard";
 
 /** What the form's fields need from the server's services: the map key and which codes can be sent. */
 function formServices(body: Form): { map?: string; codes?: { email?: boolean; sms?: boolean } } {
@@ -26,7 +27,8 @@ import { formBadge } from "@/lib/plans";
 // with what the form shows, plus whether the consent box applies to this visitor, and the region lists when a
 // dropdown follows a country field (docs/forms-plan.md 2.2). Every form is a Form Studio page that wears its own
 // stylesheet: a version from before the Studio is turned into one as it's read, and kept as one for good after the
-// answer goes out (src/lib/studio/persist.ts). A personal link (?p=, src/lib/share/personal.ts) also gets the details
+// answer goes out (src/lib/studio/persist.ts), and every page goes out guarded (src/lib/studio/guard.ts servedForm:
+// readable colors, the guard's rewrite and sheet, and no page painted around the card on someone else's site). A personal link (?p=, src/lib/share/personal.ts) also gets the details
 // Claritia knows about its person, for the contact questions the form asks; that answer is never cached.
 
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -52,6 +54,14 @@ async function planLook(db: NonNullable<ReturnType<typeof serviceClient>>, ws: s
   if (planCache.size > 5000) planCache.clear();
   planCache.set(ws, { at: Date.now(), look });
   return look;
+}
+
+/** The form as visitors get it, guarded once per read of the live form (loadPublic keeps each read a few seconds). */
+const guarded = new WeakMap<Form, Form>();
+function served(body: Form): Form {
+  let out = guarded.get(body);
+  if (!out) guarded.set(body, (out = servedForm(publicForm(body))));
+  return out;
 }
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -83,7 +93,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const { calBrand, badge } = look;
     return json(
       // tokens: always empty, only so a form script cached from before 123 (5 minutes at most) doesn't stop on it.
-      { id: f.id, version: f.version, status, ...(closed ? { closed } : {}), body: publicForm(f.body), tokens: {}, logo_url: f.logo_url, strict: regionOf(country ?? "", "") === "strict", turnstile: turnstileSiteKey() || undefined, ...formServices(f.body), ...(usesRegions(f.body) ? { regions: allRegions() } : {}), ...(known ? { known } : {}), calBrand, badge },
+      { id: f.id, version: f.version, status, ...(closed ? { closed } : {}), body: served(f.body), tokens: {}, logo_url: f.logo_url, strict: regionOf(country ?? "", "") === "strict", turnstile: turnstileSiteKey() || undefined, ...formServices(f.body), ...(usesRegions(f.body) ? { regions: allRegions() } : {}), ...(known ? { known } : {}), calBrand, badge },
       200,
       token ? { "Cache-Control": "private, no-store" } : { "Cache-Control": `public, max-age=${f.body.access ? 10 : 30}`, Vary: "cf-ipcountry" },
     );

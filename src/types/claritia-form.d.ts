@@ -4,7 +4,7 @@ import "react";
 declare module "react" {
   namespace JSX {
     interface IntrinsicElements {
-      "claritia-form": React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { "form-id"?: string; host?: string };
+      "claritia-form": React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { "form-id"?: string; host?: string; hosted?: string };
     }
   }
 }

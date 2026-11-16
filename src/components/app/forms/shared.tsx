@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Tokens } from "@/lib/forms/brand";
 import { allRegions, usesRegions } from "@/lib/forms/regions";
 import type { Form } from "@/lib/forms/schema";
+import { servedForm } from "@/lib/studio/guard";
 import { Checkbox, type Tone } from "../ui";
 
 export type FormRow = { id: string; name: string; status: "draft" | "live" | "paused"; draft: Form; draft_rev: number; version: number; brand_kit_id: string | null; published_at: string | null };
@@ -25,7 +26,7 @@ export function FormPreview({ form, logo, step = 0, done = false, answers }: { f
     let live = true;
     import("@/lib/forms/element").then(
       () => {
-        if (live && ref.current) (ref.current as unknown as { preview: unknown }).preview = { form, logo: logo ?? null, step, done, ...(usesRegions(form) ? { regions: allRegions() } : {}), ...(answers ? { answers } : {}) };
+        if (live && ref.current) (ref.current as unknown as { preview: unknown }).preview = { form: servedForm(form), logo: logo ?? null, step, done, ...(usesRegions(form) ? { regions: allRegions() } : {}), ...(answers ? { answers } : {}) };
       },
       () => live && setFailed(true),
     );
@@ -42,7 +43,8 @@ export function FormPreview({ form, logo, step = 0, done = false, answers }: { f
         </button>
       </div>
     );
-  return <claritia-form ref={ref} />;
+  // As on its own page (hosted): the page around the form shows, as visitors of its link see it.
+  return <claritia-form ref={ref} hosted="" />;
 }
 
 export function Toggle({ label, checked, onChange, disabled }: { label: string; checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {

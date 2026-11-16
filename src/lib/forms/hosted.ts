@@ -16,7 +16,8 @@ const CSS = [
   "body{min-height:100%;font-family:Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}",
   "main{min-height:100vh;display:flex;justify-content:center;padding:48px 16px;background:#fff}",
   "main>div{width:100%;max-width:720px}",
-  ".framed main{min-height:0;display:block;padding:4px;background:transparent}",
+  // In a frame on someone else's page only the form shows: no page color around it (src/lib/studio/guard.ts).
+  ".framed,.framed body{background:transparent}.framed main{min-height:0;display:block;padding:4px;background:transparent}",
   ".framed main>div{max-width:none}",
   // A studio page fills the page, edge to edge.
   "main:has([data-page]){padding:0;display:block}main:has([data-page])>div{max-width:none}html:not(.framed) [data-page]{min-height:100vh}",
@@ -44,7 +45,7 @@ export function previewTags(p: PagePreview): string {
  */
 export function hostedFormHtml(id: string, o: { framed: boolean; script: string; preview?: PagePreview }): string {
   const ok = ID.test(id);
-  const body = ok ? `<claritia-form form-id="${esc(id)}" hosted></claritia-form>` : `<p class="missing">Form not found.</p>`;
+  const body = ok ? `<claritia-form form-id="${esc(id)}" hosted${o.framed ? " framed" : ""}></claritia-form>` : `<p class="missing">Form not found.</p>`;
   return `<!doctype html>
 <html lang="en"${o.framed ? ' class="framed"' : ""}>
 <head>
