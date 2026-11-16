@@ -8,6 +8,7 @@
 // order) is
 // saved per page: yours on your profile, the team's on the workspace (src/lib/meetings/look.ts).
 
+import { allows } from "@/lib/plans";
 import { brandName } from "@/lib/brand/name";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { toGuestType, type Profile as GuestProfile } from "@/lib/meetings/guest";
@@ -95,7 +96,7 @@ export function BookingPage(props: ViewProps) {
     ]);
     // Before 112 there's no studio_css: the brands without their stylesheets.
     const list = (kits.error ? ((await sb.from("brand_kits").select(cols).eq("workspace_id", ws.id).order("created_at")).data ?? []) : (kits.data ?? [])) as BrandRow[];
-    return { info, brands: list, home: (w.data as { brand_kit_id?: string | null } | null)?.brand_kit_id ?? null, paid: brandPlan((bill.data as { plan?: string } | null)?.plan) };
+    return { info, brands: list, home: (w.data as { brand_kit_id?: string | null } | null)?.brand_kit_id ?? null, paid: brandPlan((bill.data as { plan?: string } | null)?.plan), noBadge: allows((bill.data as { plan?: string } | null)?.plan ?? "free", "no_badge") };
   });
   // A look read in this visit, per brand, before the list is read again.
   const [readCss, setReadCss] = useState<Record<string, string>>({});
@@ -139,7 +140,7 @@ export function BookingPage(props: ViewProps) {
         {data.error ? null : <Loading />}
       </Page>
     );
-  const { info, types, brands, home, paid } = data.data;
+  const { info, types, brands, home, paid, noBadge } = data.data;
   // The page's brand: the one it picked, else the workspace's, else the oldest with a look (workspaceKit's order).
   const withLook = brands.filter((b) => b.tokens && Object.keys(b.tokens).length);
   const set = (patch: Partial<Draft>) => setDraft((d) => (d ? { ...d, ...patch } : d));
@@ -188,7 +189,8 @@ export function BookingPage(props: ViewProps) {
 
   const profiles: GuestProfile[] = (people.data?.list ?? []).map((p) => (p.id === me ? { user_id: p.id, slug: draft.slug, name: draft.name, headline: draft.headline, photo_url: draft.photo_url || null } : { user_id: p.id, slug: p.slug ?? "", name: p.name, headline: p.headline, photo_url: p.photo }));
   // On Free the page is Claritia's look with the badge, whatever was saved; paid plans get the brand's own stylesheet.
-  const shown = paid ? look : { ...look, look: "claritia" as const, badge: true };
+  // Pro and up never show "Built by Claritia", as on forms.
+  const shown = noBadge ? { ...look, badge: false } : paid ? look : { ...look, look: "claritia" as const, badge: true };
   const shell = lookTokens({ ...shown, accent: "emerald", buttons: undefined }, kit?.tokens ?? null);
   const brandCss = paid && kit && usesKit(shown, true) ? kitCss : "";
   const sheet = brandCss ? bookBrandCss(brandCss) : null;
@@ -418,6 +420,7 @@ export function BookingPage(props: ViewProps) {
                 picked={usesKit(shown, !!kit) ? (kit?.id ?? null) : null}
                 design={shown.design ?? "claritia"}
                 badge={shown.badge}
+                noBadge={noBadge}
                 paid={paid}
                 needsLook={!!kit?.source_url && !kitCss}
                 reading={reading}
@@ -572,7 +575,7 @@ async function squareJpeg(file: File, size: number): Promise<Blob> {
  * Studio under Other brands, closed until clicked and searchable past 6. On Free: Claritia, your brand locked, and one
  * line with Upgrade. The brand sets its own colors and corners, so there's nothing else to pick.
  */
-function Styling(p: { brands: BrandRow[]; home: string | null; picked: string | null; design: Design["id"]; badge: boolean; paid: boolean; needsLook: boolean; reading: boolean; owner: boolean; disabled: boolean; onChange: (p: Partial<PageLook>) => void; onRead: () => void; onUpgrade: () => void; onImport: () => void }) {
+function Styling(p: { brands: BrandRow[]; home: string | null; picked: string | null; design: Design["id"]; badge: boolean; noBadge?: boolean; paid: boolean; needsLook: boolean; reading: boolean; owner: boolean; disabled: boolean; onChange: (p: Partial<PageLook>) => void; onRead: () => void; onUpgrade: () => void; onImport: () => void }) {
   const { brands, picked, paid, disabled, onChange } = p;
   const yours = brands.find((b) => b.id === p.home) ?? brands[0] ?? null;
   const others = brands.filter((b) => b.id !== yours?.id);
@@ -648,10 +651,12 @@ function Styling(p: { brands: BrandRow[]; home: string | null; picked: string | 
           </span>
         </>
       )}
-      <span className="flex items-center justify-between gap-2 text-[13px] text-ink">
-        Show Built by Claritia
-        <Toggle label="Show Built by Claritia" on={p.badge} disabled={disabled || !paid} onChange={(badge) => onChange({ badge })} />
-      </span>
+      {p.noBadge ? null : (
+        <span className="flex items-center justify-between gap-2 text-[13px] text-ink">
+          Show Built by Claritia
+          <Toggle label="Show Built by Claritia" on={p.badge} disabled={disabled || !paid} onChange={(badge) => onChange({ badge })} />
+        </span>
+      )}
     </>
   );
 }

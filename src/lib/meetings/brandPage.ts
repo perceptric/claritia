@@ -15,7 +15,7 @@ export const BRAND_PLANS = ["starter", "pro", "business"] as const;
 export const brandPlan = (plan: unknown): boolean => typeof plan === "string" && allows(plan, "booking_brand");
 
 /** What a booking page needs to draw the brand: the plan check and the scoped stylesheet with its font links. */
-export type BookBrand = { paid: boolean; css: string; fonts: string[]; kit?: { tokens: Record<string, unknown>; logo_url: string | null; design?: unknown } };
+export type BookBrand = { paid: boolean; /** Pro and up: no "Built by Claritia", whatever the page saved (as on forms). */ noBadge?: boolean; css: string; fonts: string[]; kit?: { tokens: Record<string, unknown>; logo_url: string | null; design?: unknown } };
 
 export const SCOPE = ".cb-brand";
 
@@ -249,7 +249,7 @@ export function bookBrandCss(raw: string | null | undefined): { css: string; fon
 /** What a booking page draws with, from the plan and the kit's stylesheet: nothing on Free or without one. */
 export function bookBrand(plan: unknown, studioCss: string | null | undefined): BookBrand {
   const paid = brandPlan(plan);
-  return paid ? { paid, ...bookBrandCss(studioCss) } : { paid, css: "", fonts: [] };
+  return paid ? { paid, ...(typeof plan === "string" && allows(plan, "no_badge") ? { noBadge: true } : {}), ...bookBrandCss(studioCss) } : { paid, css: "", fonts: [] };
 }
 
 /**
@@ -267,5 +267,5 @@ export function pageShell(t: { kit: { tokens: Record<string, unknown>; logo_url:
   const kit = usesKit(look, !!k.tokens && Object.keys(k.tokens).length > 0);
   const l = lookTokens(look, k.tokens);
   const brand = kit && t.brand?.css ? { css: t.brand.css, fonts: t.brand.fonts } : undefined;
-  return { tokens: l.tokens, design: kit ? k.design : undefined, vars: l.vars, badge: look.badge, logo: kit ? k.logo_url : null, brand };
+  return { tokens: l.tokens, design: kit ? k.design : undefined, vars: l.vars, badge: paid && t.brand?.noBadge ? false : look.badge, logo: kit ? k.logo_url : null, brand };
 }

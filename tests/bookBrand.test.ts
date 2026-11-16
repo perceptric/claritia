@@ -181,3 +181,10 @@ test("pageShell: old accent and button choices no longer change a page", () => {
   assert.equal(s.vars["--clr-btn-radius"], undefined);
   assert.equal(s.vars["--cb-dot"], undefined);
 });
+
+test("pageShell: Pro and Business never show Built by Claritia, even with the page's switch on (as on forms)", () => {
+  for (const plan of ["pro", "business"]) assert.equal(pageShell(target({ brand: bookBrand(plan, BRAND), look: cleanLook({ badge: true }) })).badge, false, plan);
+  // Starter keeps the page's own choice.
+  assert.equal(pageShell(target({ brand: bookBrand("starter", BRAND), look: cleanLook({ badge: true }) })).badge, true);
+  assert.equal(pageShell(target({ brand: bookBrand("free", BRAND), look: cleanLook({ badge: false }) })).badge, true);
+});
