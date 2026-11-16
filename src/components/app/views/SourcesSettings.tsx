@@ -17,8 +17,11 @@ import { Plug } from "../../Icons";
 import { BrandLogo } from "../BrandLogo";
 import { askConfirm } from "../Dialogs";
 import { Badge, Button, ErrorNote, errorText, Field, Input, must, postJson, useLoad, type ViewProps } from "../ui";
+import { Select } from "../Select";
+import { Search } from "../../Icons";
 import { Sheet } from "../Sheet";
 import { Payments } from "../meetings/Payments";
+import { ToolCard } from "../ToolCard";
 
 type Source = { id: string; kind: string; name: string; account: string | null; status: string };
 
@@ -42,6 +45,61 @@ async function hookUrlOf(session: ViewProps["session"], id: string): Promise<str
   if (!res.ok) throw new Error(data.error ?? "Something went wrong.");
   return data.url as string;
 }
+
+/** The page's categories, in the order the dropdown lists them. */
+const CATS = [
+  { id: "crm", label: "CRMs" },
+  { id: "email", label: "Email lists" },
+  { id: "sheets", label: "Sheets and databases" },
+  { id: "work", label: "Tasks and tickets" },
+  { id: "docs", label: "Documents and files" },
+  { id: "chat", label: "Messages and texts" },
+  { id: "form", label: "Forms" },
+  { id: "event", label: "Meetings" },
+  { id: "pay", label: "Payments" },
+  { id: "growth", label: "Analytics and ads" },
+  { id: "warehouse", label: "Data warehouses" },
+  { id: "automation", label: "Automation" },
+  { id: "other", label: "Other" },
+] as const;
+type Cat = (typeof CATS)[number]["id"];
+
+function catOf(e: Entry): Cat {
+  if (e.meetPay && e.group !== "event") return "pay";
+  if (e.group === "crm") return "crm";
+  if (e.lists || e.group === "email") return "email";
+  if (e.rows && !e.work) return "sheets";
+  if (e.work) return "work";
+  if (e.docs || e.files) return "docs";
+  if (e.chat || e.texts) return "chat";
+  if (e.group === "form") return "form";
+  if (e.group === "event") return "event";
+  if (e.analytics || e.ads) return "growth";
+  if (e.warehouse) return "warehouse";
+  return "other";
+}
+
+/** What the tool does in Claritia, in one line. */
+function blurbOf(e: Entry): string {
+  if (e.group === "crm") return "Each form fill becomes a contact.";
+  if (e.lists) return "Each form fill joins a list.";
+  if (e.work) return "Each form fill becomes a task or ticket.";
+  if (e.rows) return "A row for every form fill.";
+  if (e.docs) return "A document from your template for every fill.";
+  if (e.files) return "Uploads are copied into a folder.";
+  if (e.chat) return "An alert for every fill and workflow step.";
+  if (e.texts) return "Texts from your workflows.";
+  if (e.group === "form" && e.hook) return `Fills from ${e.label} come into Claritia.`;
+  if (e.group === "event" && e.hook) return `Bookings from ${e.label} come into Claritia.`;
+  if (e.meetPay && e.group === "event") return "Video links for your meetings.";
+  if (e.meetPay) return "Payments for paid meetings.";
+  if (e.analytics) return "Each fill is sent as an event.";
+  if (e.ads) return "Fills and bookings are sent as conversions.";
+  if (e.warehouse) return "Each form fill becomes a row.";
+  if (e.hook) return "Send records to Claritia from anywhere.";
+  return "Connect it to your forms.";
+}
+
 
 const search = () => (typeof window === "undefined" ? new URLSearchParams() : new URLSearchParams(window.location.search));
 
@@ -75,6 +133,15 @@ export function SourcesSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
     }
   };
   const connected = new Map((sources.data ?? []).map((s) => [s.kind, s]));
+  const [q, setQ] = useState("");
+  const [cat, setCat] = useState<"all" | "connected" | Cat>("all");
+  const words = q.trim().toLowerCase();
+  const fits = (label: string, c: Cat, on: boolean) => (cat === "all" || cat === c || (cat === "connected" && on)) && (!words || label.toLowerCase().includes(words));
+  const count = (c: Cat) => SENDS.filter((e) => catOf(e) === c).length + (c === "automation" ? AUTOMATION_APPS.length : 0) + (c === "pay" ? 1 : 0);
+  const shownSends = SENDS.filter((e) => fits(e.label, catOf(e), connected.has(e.kind))).sort((a, b) => Number(connected.has(b.kind)) - Number(connected.has(a.kind)));
+  const shownApps = AUTOMATION_APPS.filter((a) => fits(a.name, "automation", (appKeys.data ?? []).some((k) => k.name === a.name)));
+  const showStripe = fits("Stripe", "pay", connected.has("stripe"));
+  const nothing = !shownSends.length && !shownApps.length && !showStripe;
   const [hooks, setHooks] = useState<Record<string, string>>({});
   const showHook = async (s: Source) => {
     setError("");
@@ -99,79 +166,88 @@ export function SourcesSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
   return (
     <div className="flex flex-col gap-5">
       <ErrorNote message={error} />
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        <Payments sb={sb} session={session} ws={ws} role={role} />
-        {SENDS.map((e) => {
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <label className="relative flex min-w-0 flex-1 basis-56 items-center">
+          <Search size={14} className="pointer-events-none absolute left-3 text-faint" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Search ${SENDS.length + AUTOMATION_APPS.length + 1} integrations`} aria-label="Search integrations" className="pl-8" />
+        </label>
+        <Select
+          value={cat}
+          onChange={setCat}
+          ariaLabel="Category"
+          className="h-9 w-56 shrink-0 rounded-md bg-card px-3 text-[13.5px] text-ink shadow-input"
+          options={[
+            { value: "all", label: "All integrations" },
+            { value: "connected", label: `Connected ${connected.size + (appKeys.data?.length ? 1 : 0) || ""}`.trim() },
+            ...CATS.filter((c) => count(c.id)).map((c) => ({ value: c.id, label: `${c.label} ${count(c.id)}` })),
+          ]}
+        />
+      </div>
+      {nothing ? <p className="text-[13px] text-muted">No integrations match.</p> : null}
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,260px),1fr))] gap-3">
+        {showStripe ? <Payments sb={sb} session={session} ws={ws} role={role} /> : null}
+        {shownSends.map((e) => {
           const on = connected.get(e.kind);
           return (
-            <div key={e.kind} className="flex min-w-0 flex-col gap-3 rounded-lg bg-card shadow-rest px-4 py-3.5 text-[13px]">
-              <div className="flex min-w-0 items-center gap-3">
-                <BrandLogo domain={e.domain} name={e.label} size={24} />
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate font-medium">{e.label}</span>
-                  {on?.account && on.account !== e.label ? <span className="truncate font-mono text-[11px] text-faint">{on.account}</span> : null}
-                </span>
-                {on ? (
-                  <Badge tone={on.status === "error" ? "red" : "green"} dot>
-                    {on.status === "error" ? "Error" : "Connected"}
-                  </Badge>
-                ) : owner ? (
-                  <Button variant="ghost" size="sm" onClick={() => setConnect(e)}>
-                    Connect
-                  </Button>
-                ) : null}
-              </div>
+            <ToolCard
+              key={e.kind}
+              logo={<BrandLogo domain={e.domain} name={e.label} size={40} />}
+              name={e.label}
+              blurb={blurbOf(e)}
+              account={on?.account && on.account !== e.label ? on.account : null}
+              status={on ? <Badge tone={on.status === "error" ? "red" : "green"} dot>{on.status === "error" ? "Error" : "Connected"}</Badge> : null}
+            >
+              {!on && owner ? (
+                <Button variant="ghost" size="sm" onClick={() => setConnect(e)}>
+                  Connect
+                </Button>
+              ) : null}
+              {on && owner && reconnectable.has(on.id) ? (
+                <Button variant="ghost" size="sm" onClick={() => void reconnect(on)}>
+                  Reconnect
+                </Button>
+              ) : null}
+              {on && owner && e.hook && !hooks[on.id] ? (
+                <Button variant="ghost" size="sm" onClick={() => void showHook(on)}>
+                  Webhook URL
+                </Button>
+              ) : null}
               {on && owner ? (
-                <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  {reconnectable.has(on.id) ? (
-                    <Button variant="ghost" size="sm" onClick={() => void reconnect(on)}>
-                      Reconnect
-                    </Button>
-                  ) : null}
-                  {e.hook && !hooks[on.id] ? (
-                    <Button variant="ghost" size="sm" onClick={() => void showHook(on)}>
-                      Webhook URL
-                    </Button>
-                  ) : null}
-                  <Button variant="ghost" size="sm" onClick={() => void disconnect(on)}>
-                    Disconnect
-                  </Button>
-                </div>
+                <Button variant="ghost" size="sm" onClick={() => void disconnect(on)}>
+                  Disconnect
+                </Button>
               ) : null}
               {on && hooks[on.id] ? (
                 <div className="flex w-full min-w-0 items-center gap-2">
-                  <code className="min-w-0 flex-1 truncate rounded-sm border border-line bg-paper px-2.5 py-1.5 font-mono text-[12px]">{hooks[on.id]}</code>
+                  <code className="min-w-0 flex-1 truncate rounded-sm border border-line bg-paper px-2.5 py-1.5 font-mono text-[12px]" title={hooks[on.id]}>{hooks[on.id]}</code>
                   <CopyButton text={hooks[on.id]!} label="Copy" />
                 </div>
               ) : null}
-            </div>
+            </ToolCard>
           );
         })}
-        {AUTOMATION_APPS.map((a) => {
+        {shownApps.map((a) => {
           const on = (appKeys.data ?? []).some((k) => k.name === a.name);
           return (
-            <div key={a.id} className="flex min-w-0 flex-col gap-3 rounded-lg bg-card shadow-rest px-4 py-3.5 text-[13px]">
-              <div className="flex min-w-0 items-center gap-3">
-                <BrandLogo domain={a.domain} name={a.name} size={24} />
-                <span className="min-w-0 flex-1 font-medium wrap-break-word">{a.name}</span>
-                {on ? (
-                  <Badge tone="green" dot>
-                    Connected
-                  </Badge>
-                ) : (
-                  <a href={a.url} target="_blank" rel="noopener noreferrer" className="press inline-flex h-7 shrink-0 items-center rounded-full bg-card px-3 text-[12.5px] font-medium text-ink shadow-outline hover:bg-paper">
-                    Connect
-                  </a>
-                )}
-              </div>
-              {on && owner ? (
-                <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <ToolCard
+              key={a.id}
+              logo={<BrandLogo domain={a.domain} name={a.name} size={40} />}
+              name={a.name}
+              blurb={`Send form fills and bookings to ${a.name}.`}
+              status={on ? <Badge tone="green" dot>Connected</Badge> : null}
+            >
+              {on ? (
+                owner ? (
                   <Button variant="ghost" size="sm" onClick={() => void disconnectApp(a.name)}>
                     Disconnect
                   </Button>
-                </div>
-              ) : null}
-            </div>
+                ) : null
+              ) : (
+                <a href={a.url} target="_blank" rel="noopener noreferrer" className="press inline-flex h-7 shrink-0 items-center rounded-full bg-card px-3 text-[12.5px] font-medium text-ink shadow-outline hover:bg-paper">
+                  Connect
+                </a>
+              )}
+            </ToolCard>
           );
         })}
       </div>
