@@ -4,6 +4,8 @@
 // and meeting tools whose webhooks come in (fills from Typeform, Tally and Webflow; bookings from Calendly and Cal.com,
 // linked to the fill they followed), and Stripe for paid meeting types. Connected in one click where the tool allows
 // it, and disconnected here.
+// Most tools sign in on Composio once the server has its key (src/lib/sources/composio.ts): Connect opens Composio's
+// page, and a card still signed in the old way offers Reconnect, which moves it there.
 // Zapier and Make connect from their own side (src/lib/oauth/apps.ts); signing in there makes an API key
 // with the app's name, and Disconnect here revokes it, which also removes the app's hooks.
 
@@ -27,6 +29,13 @@ const SENDS = [
   ).values(),
 ];
 
+/** The kinds that connect on Composio on this server, and this workspace's rows of them still on the old sign-in. */
+async function composioOf(session: ViewProps["session"], ws: string): Promise<{ composio: string[]; reconnect: string[] }> {
+  const res = await fetch(`/api/sources/connect?workspaceId=${encodeURIComponent(ws)}`, { headers: { Authorization: `Bearer ${session.access_token}` } });
+  const data = await res.json().catch(() => ({}));
+  return { composio: Array.isArray(data.composio) ? data.composio : [], reconnect: Array.isArray(data.reconnect) ? data.reconnect : [] };
+}
+
 async function hookUrlOf(session: ViewProps["session"], id: string): Promise<string> {
   const res = await fetch(`/api/sources/hook-url?id=${id}`, { headers: { Authorization: `Bearer ${session.access_token}` } });
   const data = await res.json().catch(() => ({}));
@@ -43,6 +52,18 @@ export function SourcesSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
   const [error, setError] = useState(() => search().get("error") ?? "");
   const appKeys = useLoad(async () => must(await sb.from("api_keys").select("id, name").eq("workspace_id", ws.id).is("revoked_at", null)) as { id: string; name: string }[], ws.id);
   const owner = role === "owner";
+  const via = useLoad(() => composioOf(session, ws.id), ws.id);
+  const onComposio = new Set(via.data?.composio ?? []);
+  const reconnectable = new Set(via.data?.reconnect ?? []);
+  const reconnect = async (s: Source) => {
+    setError("");
+    try {
+      const r = await postJson<{ url?: string }>(session, "/api/sources/connect", { workspaceId: ws.id, kind: s.kind });
+      if (r.url) window.location.assign(r.url);
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
   const disconnectApp = async (name: string) => {
     setError("");
     try {
@@ -102,6 +123,11 @@ export function SourcesSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
               </div>
               {on && owner ? (
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  {reconnectable.has(on.id) ? (
+                    <Button variant="ghost" size="sm" onClick={() => void reconnect(on)}>
+                      Reconnect
+                    </Button>
+                  ) : null}
                   {e.hook && !hooks[on.id] ? (
                     <Button variant="ghost" size="sm" onClick={() => void showHook(on)}>
                       Webhook URL
@@ -154,6 +180,7 @@ export function SourcesSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
           session={session}
           wsId={ws.id}
           entry={connect}
+          composio={onComposio.has(connect.kind)}
           onClose={(id) => {
             const e = connect;
             setConnect(null);
@@ -171,9 +198,10 @@ export function SourcesSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
 
 // Connecting -------------------------------------------------------------------------------------------------
 
-function ConnectPanel({ session, wsId, entry, onClose, onError }: { session: ViewProps["session"]; wsId: string; entry: Entry; onClose: (id?: string) => void; onError: (e: string) => void }) {
+function ConnectPanel({ session, wsId, entry, composio, onClose, onError }: { session: ViewProps["session"]; wsId: string; entry: Entry; composio: boolean; onClose: (id?: string) => void; onError: (e: string) => void }) {
   const [keys, setKeys] = useState<Record<string, string>>({});
-  const [useKey, setUseKey] = useState(!entry.oauth && entry.kind !== "omniscient");
+  // On Composio, its page asks for the sign-in or the key, so the panel is one button.
+  const [useKey, setUseKey] = useState(!composio && !entry.oauth && entry.kind !== "omniscient");
   const [secret, setSecret] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -191,7 +219,7 @@ function ConnectPanel({ session, wsId, entry, onClose, onError }: { session: Vie
       setBusy(false);
     }
   };
-  const signIn = entry.oauth || entry.kind === "omniscient";
+  const signIn = composio || entry.oauth || entry.kind === "omniscient";
   return (
     <Sheet title={entry.label} onClose={() => onClose()} footer={null}>
       <div className="flex flex-col gap-4 p-5">
@@ -207,7 +235,7 @@ function ConnectPanel({ session, wsId, entry, onClose, onError }: { session: Vie
               <Plug size={14} />
               {busy ? "Opening…" : `Connect ${entry.label}`}
             </Button>
-            {entry.keys?.length ? (
+            {entry.keys?.length && !composio ? (
               <button type="button" className="text-[12px] text-muted underline-offset-2 hover:underline" onClick={() => setUseKey(true)}>
                 Use a key instead
               </button>
