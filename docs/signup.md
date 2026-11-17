@@ -7,7 +7,7 @@ How people get into Claritia, and the setup it needs.
 1. "Start free" on tryclaritia.com opens app.tryclaritia.com/signup ("Create your account"); "Sign in" opens /signin
    ("Welcome back"). Each links to the other. Any app page opened while signed out moves to /signin and opens after
    signing in (kept for the tab).
-2. The screen (`src/components/app/AuthScreen.tsx`): Continue with Google, Microsoft or GitHub, or an email sign-in
+2. The screen (`src/components/app/AuthScreen.tsx`): Continue with Google or Microsoft, or an email sign-in
    link. Only the options turned on in the sign-in service show (its public `/auth/v1/settings`). Terms and Privacy link under
    the buttons. After signing in, the app opens the page first asked for, else Forms.
    - /signup says "Free for one seat. No card needed." A sign-up form on the website can send the email along

@@ -117,7 +117,7 @@ function withTimeout<T>(p: Promise<T>, ms = 20000): Promise<T> {
 }
 
 const RESEND_AFTER = 30;
-type Provider = "google" | "azure" | "github";
+type Provider = "google" | "azure";
 
 function GoogleLogo() {
   return (
@@ -137,14 +137,6 @@ function MicrosoftLogo() {
       <path fill="#7FBA00" d="M12 1h10v10H12z" />
       <path fill="#00A4EF" d="M1 12h10v10H1z" />
       <path fill="#FFB900" d="M12 12h10v10H12z" />
-    </svg>
-  );
-}
-
-function GitHubLogo() {
-  return (
-    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
-      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
     </svg>
   );
 }
@@ -176,18 +168,18 @@ function Frame({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** One screen for everyone: Google, Microsoft or GitHub first, an email link as the backup. New people get an account on first sign-in. */
+/** One screen for everyone: Google or Microsoft first, an email link as the backup. New people get an account on first sign-in. */
 export function AuthScreen({ sb, config, turnstileSiteKey = null }: { sb: SupabaseClient; config?: SupaConfig; turnstileSiteKey?: string | null }) {
   const mode = useAuthAddress();
   const [email, setEmail] = useState(emailFromAddress);
-  // The sign-in options turned on in Supabase (its public settings); Google and GitHub until it answers.
-  const [on, setOn] = useState<Record<string, boolean>>({ google: true, azure: false, github: true });
+  // The sign-in options turned on in Supabase (its public settings); Google until it answers.
+  const [on, setOn] = useState<Record<string, boolean>>({ google: true, azure: false });
   useEffect(() => {
     if (!config) return;
     fetch(`${config.url}/auth/v1/settings`, { headers: { apikey: config.key } })
       .then((r) => (r.ok ? r.json() : null))
       .then((j: { external?: Record<string, boolean> } | null) => {
-        if (j?.external) setOn({ google: !!j.external.google, azure: !!j.external.azure, github: !!j.external.github });
+        if (j?.external) setOn({ google: !!j.external.google, azure: !!j.external.azure });
       })
       .catch(() => undefined);
   }, [config]);
@@ -367,12 +359,6 @@ export function AuthScreen({ sb, config, turnstileSiteKey = null }: { sb: Supaba
           <button type="button" onClick={() => oauth("azure")} disabled={busy} className={ssoClass}>
             <MicrosoftLogo />
             {pending === "azure" ? "Opening Microsoft…" : "Continue with Microsoft"}
-          </button>
-        ) : null}
-        {on.github ? (
-          <button type="button" onClick={() => oauth("github")} disabled={busy} className={ssoClass}>
-            <GitHubLogo />
-            {pending === "github" ? "Opening GitHub…" : "Continue with GitHub"}
           </button>
         ) : null}
       </div>
