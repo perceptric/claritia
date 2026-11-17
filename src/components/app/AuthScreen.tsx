@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { authMessage } from "@/lib/authLimits";
 import { suggestEmail } from "@/lib/emailTypos";
 import { Logo } from "../Logo";
-import { Catch } from "./Catch";
+import { FlowDemo } from "./FlowDemo";
 import { Turnstile } from "./Turnstile";
 import { Badge, Button, ErrorNote, errorText } from "./ui";
 
@@ -197,7 +197,7 @@ const ssoClass = "press flex h-11 w-full items-center justify-center gap-3 round
 // Open Gmail and Open Outlook on the Check your inbox screen.
 const mailLink = "press flex h-10 min-w-0 items-center justify-center rounded-full bg-card px-4 text-center text-[13px] font-medium text-ink shadow-outline hover:bg-hover";
 
-/** Split screen: the form on the left, and the website's Catch on the right. */
+/** Split screen: the form on the left, and Claritia's flow (form, meeting, follow-up emails) on the right. */
 function Frame({ children }: { children: React.ReactNode }) {
   return (
     <main className="grid min-h-screen bg-card md:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
@@ -213,7 +213,7 @@ function Frame({ children }: { children: React.ReactNode }) {
             Catch every lead.
             <span className="block text-faint">Book the meeting.</span>
           </p>
-          <Catch className="max-w-[420px]" />
+          <FlowDemo className="max-w-[440px]" />
         </div>
       </div>
     </main>
