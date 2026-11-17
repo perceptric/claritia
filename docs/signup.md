@@ -20,6 +20,13 @@ How people get into Claritia, and the setup it needs.
      (`168_auth_limits.sql`, `src/lib/authLimits.ts`), so every server shares the count. Buckets hold a keyed hash,
      never an address or IP. Over the limit, one line says when to try again.
    - Cloudflare Turnstile checks for bots when `TURNSTILE_SITE_KEY` is set. Most people never see it.
+   - Throwaway inboxes (the disposable-email list forms use, `src/lib/email/address.ts`) can't get a sign-in link.
+   - A typed address a letter or two off a common provider, or ending in .con, gets "Did you mean ana@gmail.com?"
+     with a one-click fix (`src/lib/emailTypos.ts`). The address as typed still works.
+   - /signin tags the way this computer signed in last (Google, Microsoft or email) "Last used".
+   - An invite email links to `/signup?invite=<id>&email=<address>`. The page says "Join Acme on Claritia", who
+     invited, and which address to use, with the email filled in (`/api/auth/invite`, which answers only for an open
+     invite). A closed or unknown invite shows plain sign-up.
 3. First sign-in makes a workspace named after the email (`ensure_workspace`, 133). Its owner gets the guided setup
    (`src/components/app/Welcome.tsx`, `src/lib/setup.ts`), the way Omniscient and Arrowsterr start a new account:
    - **Set up your team**: the team's name and website, guessed from a work email (none for Gmail and other free
@@ -30,6 +37,12 @@ How people get into Claritia, and the setup it needs.
      from the matching meeting template when it has none, then the form is made from its gallery template in the
      team's brand, wired to that meeting. See all templates and Start blank end the setup there.
    - **Invite your team**: emails with commas between, each sent through `invite_member`. Can be skipped.
+   - The signed-in email and Sign out sit at the top of every step, for someone signed in with the wrong account.
+   - Each finished or skipped step is one row in `audit_log` (`setup.team`, `setup.calendar.skip`, `setup.done` and
+     so on; `setup_step`, 169), so the sign-up funnel can be counted:
+     `select action, count(*) from audit_log where action like 'setup.%' group by 1 order by 2 desc;`
+   - Finishing queues one welcome email (`welcome_email` on claritia-intel, `src/lib/team/welcome.ts`): the team is
+     ready, a button to the form just made, and the next steps (put it live, connect a calendar, invite the team).
    - The end opens the new form in Form Studio, else Forms. The step is kept on that computer; finishing or leaving
      from the form step ends it for good. Settings › Workspace renames the team any time.
 4. The Get started card in the sidebar lists six first steps and ticks them as they're done (`GetStarted.tsx`).
@@ -43,8 +56,8 @@ How people get into Claritia, and the setup it needs.
 
 ### Database
 
-Run `supabase/migrations/133_signup.sql` and `supabase/migrations/168_auth_limits.sql` with `psql` against the VPS
-database.
+Run `supabase/migrations/133_signup.sql`, `168_auth_limits.sql` and `169_setup_steps.sql` with `psql` against the
+VPS database, then redeploy `claritia-intel` so it sends the welcome email.
 
 ### Bot check (optional)
 
@@ -112,4 +125,6 @@ The sign-in changes and guided setup add $0 a month at Beta and $0 at Growth. Si
 the VPS (one per bucket per hour, cleared after 2 days). Turnstile is on Cloudflare's free plan (check). The setup's
 website read is the brand read that already runs from Email › Brand: one brand book on Claude Sonnet, about $0.03 a
 site, already counted at 2 a team a month in `docs/brand-capture.md` ($3 at Beta, $30 at Growth). The meeting type and
-the form are database rows; making a form from a template uses no AI.
+the form are database rows; making a form from a template uses no AI. The welcome email is one email per new team
+through Resend (50 at Beta, 500 at Growth a month), inside the plan already paid (check). Step counts are audit_log
+rows.

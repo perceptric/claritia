@@ -4,10 +4,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { SupaConfig } from "@/lib/supa";
 import { useCallback, useEffect, useState } from "react";
 import { authMessage } from "@/lib/authLimits";
+import { suggestEmail } from "@/lib/emailTypos";
 import { Logo } from "../Logo";
 import { Catch } from "./Catch";
 import { Turnstile } from "./Turnstile";
-import { Button, ErrorNote, errorText } from "./ui";
+import { Badge, Button, ErrorNote, errorText } from "./ui";
 
 // Signed out, the screen has its own address: /signin, or /signup from "Start free". The page someone first opened is
 // kept for after signing in; an app's sign-in (/oauth/authorize) keeps its own address and request.
@@ -108,6 +109,57 @@ async function linkWait(email: string): Promise<string> {
   return "";
 }
 
+// The way someone signed in last on this computer, tagged "Last used" on /signin.
+const LAST_KEY = "claritia:last-signin";
+type Method = "google" | "azure" | "email";
+const readLast = (): Method | null => {
+  try {
+    const v = localStorage.getItem(LAST_KEY);
+    return v === "google" || v === "azure" || v === "email" ? v : null;
+  } catch {
+    return null;
+  }
+};
+const saveLast = (m: Method) => {
+  try {
+    localStorage.setItem(LAST_KEY, m);
+  } catch {}
+};
+
+type Invite = { workspace: string; inviter: string | null; email: string };
+/** The invite this page is for (/signup?invite=<id> from the invite email), or null for plain sign-up. */
+function useInvite(onFound: (i: Invite) => void): Invite | null {
+  const [invite, setInvite] = useState<Invite | null>(null);
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("invite");
+    if (!id) return;
+    let live = true;
+    (async () => {
+      for (let i = 0; i < 3 && live; i++) {
+        try {
+          const r = await fetch(`/api/auth/invite?${new URLSearchParams({ id })}`, { signal: AbortSignal.timeout(6000) });
+          if (r.status === 404) return;
+          if (r.ok) {
+            const j = (await r.json()) as Invite;
+            if (live && j.workspace) {
+              setInvite(j);
+              onFound(j);
+            }
+            return;
+          }
+        } catch {
+          // A hiccup: try again.
+        }
+        await new Promise((res) => setTimeout(res, 500 * (i + 1)));
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [onFound]);
+  return invite;
+}
+
 /** A sign-up form on the website can send the email along (/signup?email=...). */
 const emailFromAddress = () => (typeof window === "undefined" ? "" : (new URLSearchParams(window.location.search).get("email") ?? "").trim().slice(0, 254));
 
@@ -172,6 +224,15 @@ function Frame({ children }: { children: React.ReactNode }) {
 export function AuthScreen({ sb, config, turnstileSiteKey = null }: { sb: SupabaseClient; config?: SupaConfig; turnstileSiteKey?: string | null }) {
   const mode = useAuthAddress();
   const [email, setEmail] = useState(emailFromAddress);
+  const invite = useInvite(useCallback((i: Invite) => setEmail((e) => e || i.email), []));
+  const [last] = useState(readLast);
+  const lastTag = (m: Method) =>
+    mode === "signin" && !invite && last === m ? (
+      <span className="inline-flex sm:absolute sm:right-3">
+        <Badge>Last used</Badge>
+      </span>
+    ) : null;
+  const typo = suggestEmail(email);
   // The sign-in options turned on in Supabase (its public settings); Google until it answers.
   const [on, setOn] = useState<Record<string, boolean>>({ google: true, azure: false });
   useEffect(() => {
@@ -220,6 +281,7 @@ export function AuthScreen({ sb, config, turnstileSiteKey = null }: { sb: Supaba
 
   async function oauth(provider: Provider) {
     setPending(provider);
+    saveLast(provider);
     setError("");
     try {
       // Microsoft's sign-in gives the email only when asked for it. Google shows its account picker every time, so
@@ -248,6 +310,7 @@ export function AuthScreen({ sb, config, turnstileSiteKey = null }: { sb: Supaba
         setRound((r) => r + 1);
       }
       if (error) throw error;
+      saveLast("email");
       setSentTo(to);
       setCode("");
       setWait(RESEND_AFTER);
@@ -329,7 +392,17 @@ export function AuthScreen({ sb, config, turnstileSiteKey = null }: { sb: Supaba
   return (
     <Frame>
       <div>
-        {mode === "signup" ? (
+        {invite ? (
+          <>
+            <h1 className="font-semibold tracking-[-0.02em] text-[31px] leading-[1.05] wrap-break-word">
+              Join {invite.workspace}
+              <span className="text-muted"> on Claritia</span>
+            </h1>
+            <p className="mt-2 text-sm text-ink">
+              {invite.inviter ? `${invite.inviter} invited you. ` : ""}Use <span className="font-medium wrap-anywhere">{invite.email}</span> to join.
+            </p>
+          </>
+        ) : mode === "signup" ? (
           <h1 className="font-semibold tracking-[-0.02em] text-[31px] leading-[1.05]">
             Create
             <span className="text-muted"> your account</span>
@@ -340,8 +413,8 @@ export function AuthScreen({ sb, config, turnstileSiteKey = null }: { sb: Supaba
             <span className="text-muted"> back</span>
           </h1>
         )}
-        {mode === "signup" ? <p className="mt-2 text-sm text-ink">Free for one seat. No card needed.</p> : null}
-        <p className="mt-1 text-sm text-muted">
+        {mode === "signup" && !invite ? <p className="mt-2 text-sm text-ink">Free for one seat. No card needed.</p> : null}
+        <p className={`mt-1 text-sm text-muted ${invite ? "hidden" : ""}`}>
           {mode === "signup" ? "Already have an account? " : "New to Claritia? "}
           <button type="button" onClick={() => go(mode === "signup" ? "signin" : "signup")} className="font-medium text-ink underline-offset-4 hover:underline">
             {mode === "signup" ? "Sign in" : "Create an account"}
@@ -350,15 +423,17 @@ export function AuthScreen({ sb, config, turnstileSiteKey = null }: { sb: Supaba
       </div>
       <div className="space-y-2.5">
         {on.google ? (
-          <button type="button" onClick={() => oauth("google")} disabled={busy} className={ssoClass}>
+          <button type="button" onClick={() => oauth("google")} disabled={busy} className={`relative ${ssoClass}`}>
             <GoogleLogo />
             {pending === "google" ? "Opening Google…" : "Continue with Google"}
+            {lastTag("google")}
           </button>
         ) : null}
         {on.azure ? (
-          <button type="button" onClick={() => oauth("azure")} disabled={busy} className={ssoClass}>
+          <button type="button" onClick={() => oauth("azure")} disabled={busy} className={`relative ${ssoClass}`}>
             <MicrosoftLogo />
             {pending === "azure" ? "Opening Microsoft…" : "Continue with Microsoft"}
+            {lastTag("azure")}
           </button>
         ) : null}
       </div>
@@ -384,8 +459,18 @@ export function AuthScreen({ sb, config, turnstileSiteKey = null }: { sb: Supaba
           aria-label="Email"
           className="h-11 w-full rounded-md bg-card shadow-input px-3.5 text-[14px] outline-none"
         />
-        <Button type="submit" className="h-11 w-full" disabled={busy}>
+        {typo ? (
+          <p className="text-sm text-muted">
+            Did you mean{" "}
+            <button type="button" className="font-medium wrap-anywhere text-ink underline-offset-4 hover:underline" onClick={() => setEmail(typo)}>
+              {typo}
+            </button>
+            ?
+          </p>
+        ) : null}
+        <Button type="submit" className="relative h-11 w-full" disabled={busy}>
           {pending === "email" ? "Sending…" : "Continue with email"}
+          {lastTag("email")}
         </Button>
       </form>
       {check}

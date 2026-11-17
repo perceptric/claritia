@@ -1,5 +1,6 @@
 import { createHmac } from "node:crypto";
 import { cleanEmail, LINK_LIMITS, retryIn, trustedIp } from "@/lib/authLimits";
+import { cleanEmail as checkAddress, isRejected } from "@/lib/email/address";
 import { serviceClient } from "@/lib/serviceClient";
 
 // Asked before the sign-in screen sends a link (src/components/app/AuthScreen.tsx): counts one link for the address and
@@ -41,6 +42,9 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => ({}))) as { email?: unknown };
   const email = cleanEmail(body.email);
   if (!email) return Response.json({ error: "Enter your email address." }, { status: 400, headers: noStore });
+  // Throwaway inboxes (the disposable-email list forms use) can't make accounts.
+  const checked = checkAddress(email);
+  if (isRejected(checked) && checked.rejected === "disposable") return Response.json({ error: "Use your work or personal email. Throwaway inboxes can't sign up." }, { status: 400, headers: noStore });
   const ip = trustedIp(request.headers);
   const waits = await Promise.all([take(bucket("email", email), LINK_LIMITS.email), ip ? take(bucket("ip", ip), LINK_LIMITS.ip) : Promise.resolve(0)]);
   const wait = Math.max(...waits);

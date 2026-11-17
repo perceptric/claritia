@@ -59,7 +59,11 @@ type Props = Pick<ViewProps, "sb" | "session" | "navigate"> & {
 };
 
 export function Welcome(props: Props) {
-  const { ws, step, onStep, navigate } = props;
+  const { sb, session, ws, step, onStep, navigate } = props;
+  // Each finished or skipped step is counted once in audit_log (169_setup_steps.sql), for the sign-up funnel; "done"
+  // also queues the welcome email. Counting never holds up the setup.
+  const record = (name: string, data: Record<string, unknown> = {}) =>
+    void retry(async () => must(await sb.rpc("setup_step", { p_ws: ws.id, p_step: name, p_data: data }))).catch(() => undefined);
   const go = (s: SetupStep | null) => {
     keep(ws.id, s ?? "done");
     onStep(s);
@@ -67,11 +71,14 @@ export function Welcome(props: Props) {
   // The end: the form just made opens in the Studio, else Forms.
   const finish = (to?: [Route, string]) => {
     const form = readSetup(ws.id, ":form");
+    if (to) record(`${step}.skip`);
+    record("done", form ? { form } : {});
     go(null);
     if (to) navigate(to[0], to[1]);
     else navigate("forms", form ?? "");
   };
-  const next = () => {
+  const next = (skipped = false) => {
+    record(skipped ? `${step}.skip` : step);
     const n = nextStep(step);
     if (n) go(n);
     else finish();
@@ -80,7 +87,16 @@ export function Welcome(props: Props) {
 
   return (
     <main className="flex min-h-screen flex-col bg-card px-6 py-8 md:px-14">
-      <Logo />
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <Logo />
+        {/* Signed in with the wrong account: sign out here, before anything is set up under it. */}
+        <p className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
+          <span className="wrap-anywhere">{session.user.email}</span>
+          <button type="button" className="font-medium text-ink underline-offset-4 hover:underline" onClick={() => void sb.auth.signOut()}>
+            Sign out
+          </button>
+        </p>
+      </div>
       <div className="anim-rise my-auto w-full max-w-md space-y-6 self-center py-10">
         <div className="flex gap-1.5" role="progressbar" aria-label="Setup" aria-valuemin={1} aria-valuemax={SETUP_STEPS.length} aria-valuenow={at + 1}>
           {SETUP_STEPS.map((s, i) => (
@@ -96,7 +112,7 @@ export function Welcome(props: Props) {
   );
 }
 
-type StepProps = Props & { next: () => void };
+type StepProps = Props & { next: (skipped?: boolean) => void };
 
 /** The team's name and website. The website's brand is read into a brand kit the first form wears. */
 function TeamStep({ sb, session, ws, onNamed, next }: StepProps) {
@@ -198,7 +214,7 @@ function CalendarStep({ sb, session, ws, next }: StepProps) {
               </div>
             );
           })}
-          <Button className="mt-2 h-11 w-full" onClick={next}>
+          <Button className="mt-2 h-11 w-full" onClick={() => next()}>
             Continue
           </Button>
         </div>
@@ -214,7 +230,7 @@ function CalendarStep({ sb, session, ws, next }: StepProps) {
       )}
       <ErrorNote message={error} />
       {connected.length ? null : (
-        <button type="button" className={quiet} onClick={next}>
+        <button type="button" className={quiet} onClick={() => next(true)}>
           Skip for now
         </button>
       )}
@@ -330,7 +346,7 @@ function InviteStep({ sb, session, ws, next }: StepProps) {
       <Button type="submit" className="h-11 w-full" disabled={busy}>
         {busy ? "Sending…" : "Send invites"}
       </Button>
-      <button type="button" className={quiet} disabled={busy} onClick={next}>
+      <button type="button" className={quiet} disabled={busy} onClick={() => next(true)}>
         Skip for now
       </button>
     </form>
