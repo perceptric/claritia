@@ -36,7 +36,7 @@ export default async function AppPage() {
   return (
     <>
       <script dangerouslySetInnerHTML={{ __html: THEME }} />
-      <ClientApp config={{ url, key }} />
+      <ClientApp config={{ url, key }} turnstileSiteKey={process.env.TURNSTILE_SITE_KEY?.trim() || null} />
     </>
   );
 }

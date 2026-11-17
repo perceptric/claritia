@@ -13,11 +13,13 @@ import { OAuthApprove } from "./OAuthApprove";
 import { ClaimForm } from "./ClaimForm";
 import { Dots } from "./Ai";
 import { CommandBar, type Command } from "./CommandBar";
-import { askText, DialogHost, tell } from "./Dialogs";
+import { DialogHost, tell } from "./Dialogs";
 import { bookingOrigin, bookingUrl } from "@/lib/meetings/handles";
 import { cache, ErrorNote, errorText, Loading, mayLeave, must, postJson, type Role, type Route, type ViewProps, type Workspace } from "./ui";
 import { NAV_ICONS, Sidebar, type CreateItem, type WorkspaceChoice } from "./Sidebar";
 import { GetStarted } from "./GetStarted";
+import { readSetup, Welcome } from "./Welcome";
+import { setupStep, type SetupStep } from "@/lib/setup";
 import { isMissingFn } from "@/lib/forms/newer";
 import { useRoutingCommands } from "./routing/commands";
 import { useAppCounts } from "./appCounts";
@@ -124,7 +126,7 @@ function useTheme() {
   return { theme, flip };
 }
 
-export function ClientApp({ config }: { config: SupaConfig }) {
+export function ClientApp({ config, turnstileSiteKey = null }: { config: SupaConfig; turnstileSiteKey?: string | null }) {
   const sb = useMemo(() => getSupabase(config), [config]);
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [ws, setWs] = useState<(Workspace & { named?: boolean }) | null>(null);
@@ -198,23 +200,18 @@ export function ClientApp({ config }: { config: SupaConfig }) {
       savePicked(r.workspace.id);
     })().catch((e) => setError(errorText(e)));
   }, [sb, userId, wsPick]);
-  // A new workspace is named after the email: its owner is asked for the team's name once (133_signup.sql).
-  const unnamed = !!ws && ws.named === false && role === "owner" ? ws.id : null;
-  useEffect(() => {
-    if (!unnamed) return;
-    const key = `claritia:named:${unnamed}`;
-    try {
-      if (localStorage.getItem(key)) return;
-      localStorage.setItem(key, "1");
-    } catch {}
-    (async () => {
-      const name = (await askText("What's your team called?", { placeholder: "Acme", ok: "Continue" }))?.trim();
-      if (!name) return;
-      must(await sb.rpc("workspace_name_set", { p_ws: unnamed, p_name: name }));
-      setWs((w) => (w && w.id === unnamed ? { ...w, name, named: true } : w));
-      setWorkspaces((list) => list.map((x) => (x.id === unnamed ? { ...x, name } : x)));
-    })().catch((e) => setError(errorText(e)));
-  }, [sb, unnamed]);
+  // A new workspace is named after the email: its owner gets the guided setup (Welcome.tsx, src/lib/setup.ts) once,
+  // which names it. A step in progress comes back after the calendar's sign-in page.
+  // Worked out while drawing, so the app never shows for a moment first; a step picked on the screen wins.
+  const [picked, setPicked] = useState<{ ws: string; step: SetupStep | null } | null>(null);
+  const setup = !ws ? null : picked?.ws === ws.id ? picked.step : setupStep({ named: ws.named, role, stored: readSetup(ws.id) });
+  const setSetup = useCallback((step: SetupStep | null) => {
+    if (ws) setPicked({ ws: ws.id, step });
+  }, [ws]);
+  const onNamed = useCallback((name: string) => {
+    setWs((w) => (w ? { ...w, name, named: true } : w));
+    setWorkspaces((list) => list.map((x) => (x.id === ws?.id ? { ...x, name } : x)));
+  }, [ws?.id]);
 
   // Signing out empties the cache, so the next person starts clean.
   useEffect(() => {
@@ -255,7 +252,7 @@ export function ClientApp({ config }: { config: SupaConfig }) {
   const routingCommands = useRoutingCommands({ sb, session, ws: ws?.id ?? null, navigate });
 
   if (session === undefined) return <Splash />;
-  if (!session) return <AuthScreen sb={sb} config={config} />;
+  if (!session) return <AuthScreen sb={sb} config={config} turnstileSiteKey={turnstileSiteKey} />;
   if (error && !ws)
     return (
       <main className="flex min-h-screen items-center justify-center px-4">
@@ -270,6 +267,7 @@ export function ClientApp({ config }: { config: SupaConfig }) {
   if (typeof window !== "undefined" && window.location.pathname.startsWith("/claim/")) return <ClaimForm session={session} pick={savePicked} />;
 
   const props: ViewProps = { sb, session, ws, role, navigate, id: loc.id, onWorkspace };
+  if (setup) return <Welcome sb={sb} session={session} ws={ws} navigate={navigate} step={setup} onStep={setSetup} onNamed={onNamed} />;
   const email = session.user.email ?? "";
 
   const create: CreateItem[] = [

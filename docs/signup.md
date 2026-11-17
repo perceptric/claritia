@@ -10,8 +10,28 @@ How people get into Claritia, and the setup it needs.
 2. The screen (`src/components/app/AuthScreen.tsx`): Continue with Google, Microsoft or GitHub, or an email sign-in
    link. Only the options turned on in the sign-in service show (its public `/auth/v1/settings`). Terms and Privacy link under
    the buttons. After signing in, the app opens the page first asked for, else Forms.
-3. First sign-in makes a workspace named after the email (`ensure_workspace`, 133). Its owner is asked "What's your
-   team called?" once; Settings › Workspace renames it any time.
+   - /signup says "Free for one seat. No card needed." A sign-up form on the website can send the email along
+     (`/signup?email=ana@acme.com`) and it's filled in.
+   - Google always shows its account picker (`prompt=select_account`), so someone with two Google accounts picks the right one.
+   - Check your inbox has a box for the 6-digit code from the same email (for a link opened in another browser, or
+     used up by a mail scanner), and Open Gmail and Open Outlook. The magic-link and confirm-signup emails show the code
+     (`{{ .Token }}`, from `tools/auth_emails.py` in the site repo).
+   - Before a link is sent, `/api/auth/link` counts it: 5 links per address and 20 per IP an hour, in Postgres
+     (`168_auth_limits.sql`, `src/lib/authLimits.ts`), so every server shares the count. Buckets hold a keyed hash,
+     never an address or IP. Over the limit, one line says when to try again.
+   - Cloudflare Turnstile checks for bots when `TURNSTILE_SITE_KEY` is set. Most people never see it.
+3. First sign-in makes a workspace named after the email (`ensure_workspace`, 133). Its owner gets the guided setup
+   (`src/components/app/Welcome.tsx`, `src/lib/setup.ts`), the way Omniscient and Arrowsterr start a new account:
+   - **Set up your team**: the team's name and website, guessed from a work email (none for Gmail and other free
+     mail). The website's brand is read into a brand kit (`/api/forms/scan`), so the first form and the booking page
+     wear it. A wrong address shows its error; a site that can't be read now can be read later in Email › Brand.
+   - **Connect your calendar**: Google Calendar or Outlook. The sign-in comes back to this step. Can be skipped.
+   - **Pick your first form**: Book a call, Demo request or Consultation request. The workspace's meeting type is made
+     from the matching meeting template when it has none, then the form is made from its gallery template in the
+     team's brand, wired to that meeting. See all templates and Start blank end the setup there.
+   - **Invite your team**: emails with commas between, each sent through `invite_member`. Can be skipped.
+   - The end opens the new form in Form Studio, else Forms. The step is kept on that computer; finishing or leaving
+     from the form step ends it for good. Settings › Workspace renames the team any time.
 4. The Get started card in the sidebar lists six first steps and ticks them as they're done (`GetStarted.tsx`).
 5. Settings › Team invites a teammate by email. The invite email goes through the jobs queue (`invite_email`,
    `worker-intel/jobs/team.ts`): a "not now" from Resend is tried again, a send with no clear answer is never sent
@@ -23,7 +43,24 @@ How people get into Claritia, and the setup it needs.
 
 ### Database
 
-Run `supabase/migrations/133_signup.sql` in the SQL editor.
+Run `supabase/migrations/133_signup.sql` and `supabase/migrations/168_auth_limits.sql` with `psql` against the VPS
+database.
+
+### Bot check (optional)
+
+1. Cloudflare › Turnstile › Add site: `app.tryclaritia.com`, widget mode Managed. Copy the site key and secret key.
+2. Set `TURNSTILE_SITE_KEY` on `claritia-web` and restart it. The check shows on the sign-in screen.
+3. Turn on bot protection in the sign-in service with the secret key, then restart it (`docker compose up -d auth`):
+
+   ```
+   GOTRUE_SECURITY_CAPTCHA_ENABLED=true
+   GOTRUE_SECURITY_CAPTCHA_PROVIDER=turnstile
+   GOTRUE_SECURITY_CAPTCHA_SECRET=<Turnstile secret key>
+   ```
+
+   Do step 2 before step 3: with the service checking and no key on the app, email sign-in stops working.
+4. If the proxy in front of the app writes the visitor's IP to its own header, set `CLIENT_IP_HEADER` to that name.
+   Empty, the last X-Forwarded-For address is used.
 
 ### Sign-in emails through Resend
 
@@ -70,3 +107,9 @@ Uses the Microsoft app the calendars already use.
 
 Beta (50 teams): $0 a month. Growth (500 teams): $0 a month. Invite and sign-in emails fit inside the Resend plan
 already paid (check); Microsoft sign-in and the SMTP setting are free.
+
+The sign-in changes and guided setup add $0 a month at Beta and $0 at Growth. Sign-in limits are small Postgres rows on
+the VPS (one per bucket per hour, cleared after 2 days). Turnstile is on Cloudflare's free plan (check). The setup's
+website read is the brand read that already runs from Email › Brand: one brand book on Claude Sonnet, about $0.03 a
+site, already counted at 2 a team a month in `docs/brand-capture.md` ($3 at Beta, $30 at Growth). The meeting type and
+the form are database rows; making a form from a template uses no AI.
