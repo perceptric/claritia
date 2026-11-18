@@ -21,3 +21,6 @@ dist/
 # Template photo search results (scripts/template-photos.ts)
 scripts/template-photos/*.candidates.json
 .template-photos/
+
+# Email previews (scripts/tips-previews.ts)
+/email-previews/

@@ -30,6 +30,7 @@ import { sourceHook } from "./jobs/sources.ts";
 import { recheckDomains } from "./jobs/linkDomains.ts";
 import { domainMoves } from "./jobs/domainMoves.ts";
 import { pgRpc } from "./rpc.ts";
+import { runTips, tipsCover } from "../src/lib/tips/send.ts";
 
 const log = (msg: string, extra: Record<string, unknown> = {}) => console.log(JSON.stringify({ at: new Date().toISOString(), msg, ...extra }));
 const port = Number(process.env.PORT || 8080);
@@ -80,7 +81,7 @@ const handlers = {
   track_send: trackSend(rpc, { clean: (ws) => ctxFor(pool, ws) }),
   text_send: textSend(rpc, { base: meetings.base, mailer: meetings.mailer, from: meetings.from }),
   invite_email: inviteSend(rpc, { mailer: meetings.mailer, base: meetings.base, from: meetings.from }),
-  welcome_email: welcomeSend(rpc, { mailer: meetings.mailer, base: meetings.base, from: meetings.from }),
+  welcome_email: welcomeSend(rpc, { mailer: meetings.mailer, base: meetings.base, from: meetings.from, covered: (ws) => tipsCover(pool, ws) }),
 };
 const stop = new AbortController();
 const worker = `intel-${hostname()}-${process.pid}`;
@@ -168,12 +169,20 @@ const domains = every("link domains", 30 * 60_000, async () => {
   if (n) log("link domains checked", { domains: n });
 });
 
+// Getting-started emails (src/lib/tips/send.ts, docs/getting-started-emails.md): every 15 minutes, one worker at a
+// time (an advisory lock); tips_log stops a second send. TIPS_OFF=1 stops them.
+const tips = every("getting-started emails", 15 * 60_000, async () => {
+  const r = await runTips(pool, { mailer: meetings.mailer, base: meetings.base, log });
+  if (r && (r.sent || r.failed)) log("getting-started emails", r);
+});
+
 const shutdown = async (sig: string) => {
   log("stopping", { sig });
   stop.abort();
   clearInterval(recover);
   clearInterval(domains);
   clearInterval(moves);
+  clearInterval(tips);
   await Promise.race([Promise.all(running), new Promise((r) => setTimeout(r, 25_000))]);
   await pool.end().catch(() => {});
   process.exit(0);

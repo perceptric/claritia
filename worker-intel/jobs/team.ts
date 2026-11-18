@@ -13,6 +13,8 @@ import type { Mailer } from "./meetings.ts";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export type InviteOpts = { mailer: Mailer | null; base: string; from: string };
+/** The welcome's options: `covered` says the getting-started emails (src/lib/tips/send.ts) send this workspace's welcome. */
+export type WelcomeOpts = InviteOpts & { covered?: (ws: string) => Promise<boolean> };
 type Info = { email: string; workspace: string; inviter: string | null; inviter_email: string | null };
 
 export const inviteSend =
@@ -44,15 +46,17 @@ type Welcome = { email: string; name: string | null; workspace: string };
 /**
  * welcome_email on claritia-intel (169_setup_steps.sql): one email to the owner who finished the guided setup. Someone
  * no longer on the workspace gets nothing. A "not now" from the provider goes back to the queue; a send with no clear
- * answer is never tried again, so nobody gets it twice.
+ * answer is never tried again, so nobody gets it twice. When the getting-started emails cover the workspace, their own
+ * welcome (with the first-week list) goes instead, and this one sends nothing.
  */
 export const welcomeSend =
-  (rpc: Rpc, o: InviteOpts): Handler =>
+  (rpc: Rpc, o: WelcomeOpts): Handler =>
   async (job) => {
     const user = String(job.payload.user ?? "");
     if (!UUID.test(user) || !UUID.test(job.workspace_id ?? "")) throw new JobError("welcome_email needs a workspace and a person", { retry: false });
     const info = await call<Welcome | null>(rpc, "welcome_info", { p_ws: job.workspace_id, p_user: user });
     if (!info || !validAddress(info.email)) return;
+    if (o.covered && (await o.covered(job.workspace_id!))) return;
     if (!o.mailer) throw new JobError("Resend isn't set up on the worker (RESEND_API_KEY).", { retry: false });
     const form = typeof job.payload.form === "string" ? job.payload.form : null;
     const parts = welcomeEmail({ name: info.name, workspace: info.workspace, base: o.base, form });

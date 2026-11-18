@@ -3,7 +3,7 @@
 import { BillingSettings } from "./BillingSettings";
 import { BrandSettings } from "./BrandSettings";
 import { LinkDomainSettings } from "./LinkDomainSettings";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Key, LogOut, Plus, Settings } from "../../Icons";
 import { APP_URL } from "@/lib/site";
 import { askConfirm, askText } from "../Dialogs";
@@ -15,7 +15,7 @@ import { Payments } from "../meetings/Payments";
 import { TeamCalendars } from "../meetings/TeamCalendars";
 import { SourcesSettings } from "./SourcesSettings";
 import { WebhooksPage } from "../scheduling/WebhooksPage";
-import { Avatar, Badge, Button, CardHead, ErrorNote, errorText, Loading, must, Page, Panel, postJson, timeAgo, useQuery, type ViewProps } from "../ui";
+import { Avatar, Badge, Button, CardHead, ErrorNote, errorText, Loading, must, Page, Panel, postJson, timeAgo, Toggle, useQuery, type ViewProps } from "../ui";
 import { CopyButton } from "../CopyButton";
 import { ToolIntro } from "../ToolIntro";
 
@@ -27,6 +27,60 @@ function CopyRow({ label, text }: { label: string; text: string }) {
       <code className="min-w-0 flex-1 truncate rounded-sm border border-line bg-paper px-2.5 py-1.5 font-mono text-[12.5px]">{text}</code>
       <CopyButton text={text} label="Copy" />
     </div>
+  );
+}
+
+/**
+ * Getting-started emails (170_getting_started.sql, src/lib/tips/send.ts): your own switch for this workspace. Hidden
+ * until that migration has run. The switch answers at once and goes back if the save fails.
+ */
+function TipsPanel({ sb, ws }: Pick<ViewProps, "sb" | "ws">) {
+  const [on, setOn] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let live = true;
+    sb.rpc("tips_get", { p_ws: ws.id }).then(
+      ({ data, error: e }) => live && setOn(e || typeof data !== "boolean" ? null : data),
+      () => live && setOn(null),
+    );
+    return () => {
+      live = false;
+    };
+  }, [sb, ws.id]);
+  if (on === null) return null;
+  const flip = async (next: boolean) => {
+    setOn(next);
+    setBusy(true);
+    setError("");
+    try {
+      // A hiccup is tried again before the switch goes back.
+      for (let attempt = 0; ; attempt++) {
+        const { error: e } = await sb.rpc("tips_set", { p_ws: ws.id, p_on: next });
+        if (!e) break;
+        if (attempt >= 2) throw e;
+        await new Promise((r) => setTimeout(r, 400 * 2 ** attempt));
+      }
+    } catch {
+      setOn(!next);
+      setError("That didn't save. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Panel>
+      <CardHead label="Emails" />
+      <div className="flex items-center gap-3 px-5 py-4">
+        <span className="min-w-0 flex-1 text-[13.5px] font-medium">Getting-started tips</span>
+        <Toggle on={on} label="Getting-started tips" disabled={busy} onChange={(v) => void flip(v)} />
+      </div>
+      {error ? (
+        <div className="px-5 pb-4">
+          <ErrorNote message={error} />
+        </div>
+      ) : null}
+    </Panel>
   );
 }
 
@@ -205,6 +259,7 @@ export function SettingsView({ sb, session, ws, role, id, onWorkspace }: ViewPro
     link_domain: <LinkDomainSettings session={session} ws={ws} role={role} />,
     billing: <BillingSettings sb={sb} session={session} ws={ws} role={role} />,
     profile: (
+      <>
         <Panel>
           <CardHead label="Account" />
           <div className="flex items-center gap-3 px-5 py-4">
@@ -216,6 +271,8 @@ export function SettingsView({ sb, session, ws, role, id, onWorkspace }: ViewPro
             </Button>
           </div>
         </Panel>
+        <TipsPanel sb={sb} ws={ws} />
+      </>
     ),
   };
   const groups = SETTINGS_GROUPS;
