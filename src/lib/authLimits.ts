@@ -46,3 +46,25 @@ export function authMessage(text: string): string {
   if (/token has expired|otp.*(expired|invalid)|invalid.*(otp|token)/i.test(text)) return "That code is wrong or has expired. Check the newest email.";
   return text;
 }
+
+/**
+ * What to say when a sign-in link comes back here and can't sign in, read from the address before it's cleaned. An
+ * error the sign-in service put on the address is an `error` line. A link with its ?code= still on it while nobody is
+ * signed in is a `note`: links use PKCE, so only the browser that asked for the email can use the code, and a link
+ * opened in another browser or on another device lands here with it. The email is confirmed by then, and the code in
+ * that email is used up, so a new code signs in on this browser. null when there's nothing to say.
+ */
+export function linkLine(search: string, hash: string): { tone: "error" | "note"; message: string } | null {
+  const q = new URLSearchParams(search.replace(/^\?/, ""));
+  const h = new URLSearchParams(hash.replace(/^#/, ""));
+  const raw = q.get("error_description") || h.get("error_description") || q.get("error") || h.get("error") || "";
+  if (raw) {
+    if (/verifier|code challenge|flow state/i.test(raw)) return { tone: "note", message: DIFFERENT_BROWSER };
+    if (/expired|invalid|otp/i.test(raw)) return { tone: "error", message: "That sign-in link has expired or was already used. Send a new one." };
+    if (/access_denied|cancel/i.test(raw)) return null;
+    return { tone: "error", message: raw.replace(/\+/g, " ") };
+  }
+  return q.get("code") ? { tone: "note", message: DIFFERENT_BROWSER } : null;
+}
+
+const DIFFERENT_BROWSER = "That link opened in a different browser. Continue with email for a code to sign in here.";
