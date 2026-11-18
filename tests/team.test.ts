@@ -7,7 +7,7 @@ import { SendError } from "../src/lib/email/provider.ts";
 import { JobError, type Job, type Rpc } from "../src/lib/jobs.ts";
 import { inviteEmail } from "../src/lib/team/invite.ts";
 import type { Mail, Mailer } from "../worker-intel/jobs/meetings.ts";
-import { inviteSend } from "../worker-intel/jobs/team.ts";
+import { inviteSend, welcomeSend } from "../worker-intel/jobs/team.ts";
 
 const INVITE = "0190f5a2-1111-7000-8000-000000000001";
 const job = (): Job => ({ id: "j1", workspace_id: "ws1", kind: "invite_email", key: `${INVITE}:1`, payload: { invite: INVITE, sent_for: "2026-11-06T04:00:00Z" }, attempts: 1, max_attempts: 5 });
@@ -68,4 +68,20 @@ test("flaky: a 'not now' goes back to the queue and the next try sends once; no 
   const bad = mailerOf([new SendError("Invalid to", { status: 422 })]);
   await assert.rejects(inviteSend(rpcOf(info).rpc, opts(bad.mailer))(job(), new AbortController().signal), (e) => e instanceof JobError && !e.retry);
   await assert.rejects(inviteSend(rpcOf(info).rpc, opts(null))(job(), new AbortController().signal), (e) => e instanceof JobError && !e.retry);
+});
+
+test("the setup's welcome stays quiet when the getting-started emails send the welcome, and sends otherwise", async () => {
+  const WS = "0190f5a2-1111-7000-8000-0000000000aa";
+  const USER = "0190f5a2-1111-7000-8000-0000000000bb";
+  const wjob = (): Job => ({ id: "j2", workspace_id: WS, kind: "welcome_email", key: WS, payload: { user: USER, form: null }, attempts: 1, max_attempts: 5 });
+  const who = { email: "ana@acme.com", name: "Ana Lima", workspace: "Acme" };
+  const asked: string[] = [];
+  const quiet = mailerOf([]);
+  await welcomeSend(rpcOf(who).rpc, { ...opts(quiet.mailer), covered: async (ws) => (asked.push(ws), true) })(wjob(), new AbortController().signal);
+  assert.equal(quiet.sent.length, 0);
+  assert.deepEqual(asked, [WS]);
+  const sends = mailerOf(["re3"]);
+  await welcomeSend(rpcOf(who).rpc, { ...opts(sends.mailer), covered: async () => false })(wjob(), new AbortController().signal);
+  assert.equal(sends.sent.length, 1);
+  assert.equal(sends.sent[0]!.to, "ana@acme.com");
 });
