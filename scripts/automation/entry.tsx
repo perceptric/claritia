@@ -108,7 +108,7 @@ const data = {
 };
 function Home() {
   const [id, setId] = useState("");
-  return <WorkflowsHome sb={sb} session={{ access_token: "t", user: { id: "u1" } } as never} ws={{ id: "ws1", name: "Juniper", features: [] } as never} id={id} navigate={((r: string, i?: string) => (calls.push({ fn: "navigate", body: { r, i } }), r === "workflows" && i !== "new" && setId(i ?? ""))) as never} />;
+  return <WorkflowsHome sb={sb} session={{ access_token: "t", user: { id: "u1" } } as never} ws={{ id: "ws1", name: "Juniper", features: [] } as never} id={id} role="owner" navigate={((r: string, i?: string) => (calls.push({ fn: "navigate", body: { r, i } }), r === "workflows" && i !== "new" && setId(i ?? ""))) as never} />;
 }
 createRoot(document.getElementById("root")!).render(
   view === "home" ? (

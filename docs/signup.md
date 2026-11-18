@@ -43,6 +43,7 @@ How people get into Claritia, and the setup it needs.
      `select action, count(*) from audit_log where action like 'setup.%' group by 1 order by 2 desc;`
    - Finishing queues one welcome email (`welcome_email` on claritia-intel, `src/lib/team/welcome.ts`): the team is
      ready, a button to the form just made, and the next steps (put it live, connect a calendar, invite the team).
+     For workspaces the getting-started emails cover (`docs/getting-started-emails.md`), their welcome goes instead.
    - The end opens the new form in Form Studio, else Forms. The step is kept on that computer; finishing or leaving
      from the form step ends it for good. Settings › Workspace renames the team any time.
 4. The Get started card in the sidebar lists six first steps and ticks them as they're done (`GetStarted.tsx`).
