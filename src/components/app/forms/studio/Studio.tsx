@@ -22,6 +22,8 @@ import { rt, type Screen } from "../../routing/rt/api";
 import { whoBooks } from "@/lib/meetings/dynamicWords";
 import { brandPlan } from "@/lib/meetings/brandPage";
 import { entryOf } from "@/lib/sources/catalog";
+import { lockLine, planFor, toolFeature } from "@/lib/plans";
+import { planHas } from "../../PlanLock";
 import { moveForm } from "../folders";
 import { meetingsApi } from "../../meetings/parts";
 import { workspacePeople } from "../../shared";
@@ -117,6 +119,15 @@ export function Studio({ sb, session, ws, navigate, formId = "", chatId = "", fr
       calendarBrand: async () => {
         const r = await sb.from("workspace_billing").select("plan").eq("workspace_id", ws.id).maybeSingle();
         return r.error ? true : brandPlan((r.data as { plan?: string } | null)?.plan ?? "free");
+      },
+      // Signatures and payments are on Starter and up, routing by answer on Pro (docs/pricing.md): Add field marks the
+      // fields and the Ending says it of a Team meeting's rules; publishing holds them.
+      planLocks: async () => {
+        const r = await sb.from("workspace_billing").select("plan").eq("workspace_id", ws.id).maybeSingle();
+        const plan = r.error ? null : ((r.data as { plan?: string } | null)?.plan ?? "free");
+        const out: Record<string, { plan: string; line: string }> = {};
+        for (const [type, f] of [["signature", "signatures"], ["payment", "form_payments"], ["routing", "routing"]] as const) if (!planHas(plan, f)) out[type] = { plan: planFor(f).name, line: lockLine(f) };
+        return out;
       },
       // The workspace's booking pages, for the meeting's own page in a form's Ending (docs/ending-plan.md Part 4).
       bookBase: async () => {
@@ -235,9 +246,9 @@ export function Studio({ sb, session, ws, navigate, formId = "", chatId = "", fr
       },
       publish: async (p) => {
         const { formId: id } = await postJson<{ formId: string }>(sessionRef.current, "/api/studio", { workspaceId: ws.id, mode: "save", ...p });
-        const r = await postJson<{ routing?: { problems?: string[]; error?: string } }>(sessionRef.current, "/api/forms/publish", { workspaceId: ws.id, id });
+        const r = await postJson<{ routing?: { problems?: string[]; error?: string; locked?: string } }>(sessionRef.current, "/api/forms/publish", { workspaceId: ws.id, id });
         invalidate(`forms:${ws.id}:home`);
-        const problem = r.routing?.error || r.routing?.problems?.[0];
+        const problem = r.routing?.error || r.routing?.locked || r.routing?.problems?.[0];
         return { formId: id, ...(problem ? { problem } : {}) };
       },
       formUrl: (id) => `${location.origin}/f/${id}`,
@@ -316,9 +327,12 @@ export function Studio({ sb, session, ws, navigate, formId = "", chatId = "", fr
           .map((x) => ({ id: x.id, kind: x.kind, name: x.name, domain: x.source_id ? (entryOf(kinds.get(x.source_id) ?? "")?.domain ?? null) : null }));
       },
       tools: async () => {
-        const rows = (must(await sb.from("sources").select("id, kind, name, status").eq("workspace_id", ws.id).order("name")) ?? []) as { id: string; kind: string; name: string; status: string }[];
+        const [res, bill] = await Promise.all([sb.from("sources").select("id, kind, name, status").eq("workspace_id", ws.id).order("name"), sb.from("workspace_billing").select("plan").eq("workspace_id", ws.id).maybeSingle()]);
+        const rows = (must(res) ?? []) as { id: string; kind: string; name: string; status: string }[];
+        // Tools are on Starter and up, Salesforce on Business (docs/pricing.md); a plan that can't be read lists them all.
+        const plan = bill.error ? null : ((bill.data as { plan?: string } | null)?.plan ?? "free");
         // Email tools need a list picked and sheets a target: they're set up in the form's Sync tab.
-        return rows.filter((x) => x.status !== "disconnected" && (entryOf(x.kind)?.twoWay || entryOf(x.kind)?.pushes) && !entryOf(x.kind)?.lists && !entryOf(x.kind)?.rows).map((x) => ({ id: x.id, kind: x.kind, name: x.name, domain: entryOf(x.kind)?.domain ?? null }));
+        return rows.filter((x) => x.status !== "disconnected" && planHas(plan, toolFeature(x.kind)) && (entryOf(x.kind)?.twoWay || entryOf(x.kind)?.pushes) && !entryOf(x.kind)?.lists && !entryOf(x.kind)?.rows).map((x) => ({ id: x.id, kind: x.kind, name: x.name, domain: entryOf(x.kind)?.domain ?? null }));
       },
       addSend: async (id, to) => {
         if (to === "webhook") {

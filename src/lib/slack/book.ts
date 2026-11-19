@@ -2,6 +2,7 @@
 // single-use booking link for the lead. The host is the lead's owner when it has one, else the person asking; words
 // after the email pick the meeting type by name ("/book dana@acme.com demo"). Server only.
 
+import { lockFor } from "../planGate.ts";
 import type { Rpc } from "../jobs.ts";
 import { checkLink, withDefaults, type LinkRow } from "../meetings/public.ts";
 import type { MeetingType } from "../meetings/types.ts";
@@ -50,6 +51,9 @@ export async function slackBook(
 ): Promise<Reply> {
   const { email, words } = parseBook(o.text);
   if (!email) return say("Type /book and the lead's email, like /book dana@acme.com");
+  // Single-use links are on Starter and up (docs/pricing.md).
+  const locked = await lockFor(o.rpc, o.ws, "single_use");
+  if (locked) return say(locked);
   const { data, error } = await o.rpc("slack_book_info", { p_ws: o.ws, p_user: o.user, p_email: email });
   if (error) throw new Error(error.message);
   const info = data as Info;

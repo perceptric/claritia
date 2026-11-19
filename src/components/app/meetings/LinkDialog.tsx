@@ -2,7 +2,8 @@
 
 // Links (docs/meetings-scheduler.md 1.8b): a single-use link to a type, a one-off meeting (a few of your free times;
 // it closes after one booking) or a poll (several times; guests vote and you book the winner). Made by the public
-// booking routes (POST /api/book/links); the free times come from /api/meetings/times.
+// booking routes (POST /api/book/links); the free times come from /api/meetings/times. Each kind is on Starter and up
+// (docs/pricing.md): on a lower plan the dialog shows the line and Upgrade in place of the form.
 
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { useMemo, useState } from "react";
@@ -13,6 +14,8 @@ import { CopyButton, meetingsApi, Modal } from "./parts";
 import type { TypeLite } from "./MeetingsView";
 import { TimesError } from "../scheduling/ConnectCalendar";
 import { bookingBase } from "@/lib/meetings/handles";
+import { linkFeature } from "@/lib/plans";
+import { PlanLock, planHas, usePlan } from "../PlanLock";
 
 type Kind = "single_use" | "one_off" | "poll";
 const KINDS: { value: Kind; label: string }[] = [
@@ -30,8 +33,11 @@ async function makeLink(session: Session, body: Record<string, unknown>): Promis
   throw new Error("The link wasn't made.");
 }
 
-export function LinkDialog({ session, ws, types, initialType, initialKind = "single_use", onClose }: { sb: SupabaseClient; session: Session; ws: Workspace; types: TypeLite[]; initialType?: string; initialKind?: Kind; onClose: () => void }) {
+export function LinkDialog({ sb, session, ws, types, initialType, initialKind = "single_use", onClose }: { sb: SupabaseClient; session: Session; ws: Workspace; types: TypeLite[]; initialType?: string; initialKind?: Kind; onClose: () => void }) {
   const [kind, setKind] = useState<Kind>(initialKind);
+  const plan = usePlan(sb, ws.id);
+  const feature = linkFeature(kind)!;
+  const locked = !planHas(plan.data, feature);
   const [typeId, setTypeId] = useState(initialType ?? (initialKind === "single_use" ? (types[0]?.id ?? "") : ""));
   const [length, setLength] = useState(30);
   const [title, setTitle] = useState("");
@@ -62,10 +68,14 @@ export function LinkDialog({ session, ws, types, initialType, initialKind = "sin
     <Modal
       title={url ? "Link ready" : "New link"}
       onClose={onClose}
-      wide={kind !== "single_use" && !url}
+      wide={kind !== "single_use" && !url && !locked}
       footer={
         url ? (
           <Button onClick={onClose}>Done</Button>
+        ) : locked ? (
+          <Button variant="plain" onClick={onClose}>
+            Close
+          </Button>
         ) : (
           <>
             <Button variant="plain" onClick={onClose}>
@@ -82,6 +92,11 @@ export function LinkDialog({ session, ws, types, initialType, initialKind = "sin
         <div className="anim-rise-sm flex items-center gap-2 rounded-lg shadow-rest bg-paper py-1.5 pr-1.5 pl-3.5">
           <span className="min-w-0 flex-1 truncate font-mono text-[12.5px] text-ink">{url}</span>
           <CopyButton text={url} />
+        </div>
+      ) : locked ? (
+        <div className="flex flex-col gap-4">
+          <Seg<Kind> label="Kind of link" value={kind} options={KINDS} onChange={(k) => (setKind(k), setPicked([]))} />
+          <PlanLock feature={feature} />
         </div>
       ) : (
         <div className="flex flex-col gap-4">

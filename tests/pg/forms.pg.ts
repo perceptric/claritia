@@ -29,6 +29,8 @@ async function workspace(name: string) {
   const ws = uuid7();
   const user = uuid7();
   await q(`insert into workspaces (id, name) values ($1, $2)`, [ws, name]);
+  // Business: these tests use links, tools and routing by answer (170_plan_locks.sql).
+  await q(`insert into workspace_billing (workspace_id, plan) values ($1, 'business') on conflict (workspace_id) do update set plan = 'business'`, [ws]);
   await q(`insert into auth.users (id, email) values ($1, $2)`, [user, `${user}@t.io`]);
   await q(`insert into workspace_members (workspace_id, user_id, role) values ($1, $2, 'owner')`, [ws, user]);
   return { ws, user };

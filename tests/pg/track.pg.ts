@@ -17,6 +17,8 @@ const hex = (n: number) => randomUUID().replace(/-/g, "").repeat(2).slice(0, n);
 async function setup() {
   const ws = randomUUID();
   await q(`insert into workspaces (id, name) values ($1, 'Acme')`, [ws]);
+  // Business: these tests use links, tools and routing by answer (170_plan_locks.sql).
+  await q(`insert into workspace_billing (workspace_id, plan) values ($1, 'business') on conflict (workspace_id) do update set plan = 'business'`, [ws]);
   const form = (await q(`insert into forms (workspace_id, name, status) values ($1, 'Demo', 'live') returning id`, [ws]))[0].id as string;
   await q(`insert into form_versions (form_id, workspace_id, version, body) values ($1, $2, 1, $3)`, [form, ws, { track: { pixel: "123456789012345", meta: true } }]);
   await q(`insert into sources (workspace_id, kind, name, status) values ($1, 'meta_ads', 'Meta', 'active')`, [ws]);

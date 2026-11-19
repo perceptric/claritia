@@ -177,6 +177,7 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .addlist.grid .ag { grid-column: 1 / -1; padding: 8px 2px 0; }
 .adds.pop2 .addlist.grid { grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 0 10px 12px; }
 .addlist.grid button { height: auto; flex-direction: column; justify-content: center; gap: 5px; padding: 9px 4px 7px; border-radius: 10px; background: var(--bg); box-shadow: 0 0 0 1px var(--line); text-align: center; font-size: 11.5px; line-height: 1.25; min-width: 0; }
+.lk { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: 6px; background: var(--color-lilac-wash); color: var(--color-lilac); font-size: 10.5px; font-weight: 500; }
 .addlist.grid button:hover { box-shadow: 0 0 0 1px var(--line-strong), 0 2px 6px rgb(0 0 0 / .06); background: var(--bg); }
 .addlist.grid button i { width: 30px; height: 30px; border-radius: 8px; box-shadow: none; }
 .addlist.grid button i svg { width: 16px; height: 16px; }
@@ -765,6 +766,8 @@ export type StudioApi = {
   meetings(): Promise<StudioMeeting[]>;
   /** Whether the booking calendar wears the form's style (paid plans) or the plain calendar (Free). */
   calendarBrand?(): Promise<boolean>;
+  /** What the plan doesn't have (docs/pricing.md): Add field's types ("signature", "payment") and "routing" → its plan's name and line. */
+  planLocks?(): Promise<Record<string, { plan: string; line: string }>>;
   /** Routing's teams (a team key each) and people, for who takes a rule's meeting. */
   /** The workspace's booking pages ("https://tryclaritia.com/book/acme"), for the meeting's own page in the Ending. */
   bookBase?(): Promise<string>;
@@ -908,6 +911,8 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
   let MEETINGS = [];
   // Paid plans book in the form's own style; Free gets the plain calendar.
   let CAL_BRAND = true;
+  // Add field's types the plan doesn't have (signature, payment), with the plan's name and the line.
+  let LOCKED = {};
   // The people who take meetings, for the Team member field.
   let PEOPLE = ["Anyone"];
   let chats = [];
@@ -2062,6 +2067,8 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
     return map;
   }
   function addQuestion(type, where) {
+    // A field on a higher plan: the line, and nothing added (publishing holds it too).
+    if (LOCKED[type]) return void toast(LOCKED[type].line);
     if (!built() && !startBlank(true)) return;
     if (S.mode !== "edit") setMode("edit");
     const taken = allNames();
@@ -2103,8 +2110,10 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
       if (!shown.length) continue;
       list.append(h("div", { class: "ag", text: g }));
       for (const [t, n] of shown) {
-        const b = h("button", { draggable: "true", "data-add": t, title: "Click to add, or drag onto the form", html: `<i>${SVG(TI(t), 13)}</i><span class="nm"></span>`, onclick: () => addQuestion(t) });
+        const lk = LOCKED[t];
+        const b = h("button", { draggable: lk ? "false" : "true", "data-add": t, title: lk ? lk.line : "Click to add, or drag onto the form", html: `<i>${SVG(TI(t), 13)}</i><span class="nm"></span>${lk ? '<span class="lk"></span>' : ""}`, onclick: () => addQuestion(t) });
         b.querySelector(".nm").textContent = n;
+        if (lk) b.querySelector(".lk").textContent = lk.plan;
         // While a field is dragged, the list steps out of the way (still there, so the drag carries on).
         b.addEventListener("dragstart", (e) => { dragType = t; e.dataTransfer.effectAllowed = "copy"; try { e.dataTransfer.setData("text/plain", t); } catch {} setTimeout(() => $("adds").classList.add("dragging"), 0); });
         b.addEventListener("dragend", () => { dragType = null; $("dropl").hidden = true; $("adds").classList.remove("dragging"); addsOpen(false); });
@@ -2125,7 +2134,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
         const shown = xs.filter(([, n]) => !f || n.toLowerCase().includes(f));
         if (!shown.length) continue;
         box.append(h("div", { class: "mh", text: g }));
-        for (const [t, n] of shown) { const b = h("button", { class: "mi small", role: "menuitem", html: `${SVG(TI(t), 14)}<span class="nm"></span>`, onclick: () => { closeMenu(); onPick(t); } }); b.querySelector(".nm").textContent = n; box.append(b); }
+        for (const [t, n] of shown) { const lk = LOCKED[t]; const b = h("button", { class: "mi small", role: "menuitem", html: `${SVG(TI(t), 14)}<span class="nm"></span>${lk ? '<span class="lk"></span>' : ""}`, onclick: () => { closeMenu(); if (lk) return void toast(lk.line); onPick(t); } }); b.querySelector(".nm").textContent = n; if (lk) b.querySelector(".lk").textContent = lk.plan; box.append(b); }
       }
     };
     q.addEventListener("input", fill);
@@ -3375,8 +3384,9 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
       const m = MEETINGS.find((x) => x.id === a.meeting);
       if (m) cB.append(h("div", { class: "who" }, h("p", { text: m.dynamic ? m.who || "Dynamic" : "" }), h("button", { class: "pill", text: "Edit meeting", onclick: () => api.openMeeting(m.id) })));
     } else {
-      // Team meeting: its rules are edited in Logic, beside the form's flow.
+      // Team meeting: its rules are edited in Logic, beside the form's flow. Below Pro they go live without their rules.
       routingCards($("flow"), a, set, mName);
+      if (LOCKED.routing) cB.append(h("p", { class: "hint0", text: LOCKED.routing.line }));
       const n = (a.routes || []).length;
       cB.append(h("p", { class: "hint0", text: `${n} ${n === 1 ? "rule" : "rules"}, then Otherwise` }), h("div", {}, h("button", { class: "pill", html: `${SVG('<circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="12" r="2.5"/><path d="M6 8.5v7M8.3 7l7.4 3.8M8.3 17l7.4-3.8"/>', 14)}<span>Edit rules in Logic</span>`, onclick: () => { S.logic = true; S.lsel = "thanks"; S.sel = null; setMode("edit"); endUi(); } })));
     }
@@ -4399,6 +4409,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
     brands = bs.map((b) => ({ ...b, css: b.css ? readableCssText(b.css) : b.css, lookErr: "" }));
     MEETINGS = ms;
     void api.calendarBrand?.().then((v) => { if (alive && v !== CAL_BRAND) { CAL_BRAND = v; if (built()) draw(); } }).catch(() => {});
+    void api.planLocks?.().then((v) => { if (alive) { LOCKED = v || {}; addsUi(); } }).catch(() => {});
     chats = cs;
     loaded = true;
     let first = null;

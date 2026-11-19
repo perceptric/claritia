@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import { BookFlow } from "@/components/book/BookFlow";
 import { BookShell, Notice } from "@/components/book/BookShell";
 import { guestSlots, linkGuestType, loadLink, oneOffSlots } from "@/lib/meetings/public";
+import { linkLocked } from "@/lib/planGate";
 import { keep, linkShell, options, pageRpc, turnstileFor, type Search } from "../../load";
 
 // A one-off meeting or a single-use link (docs/meetings-scheduler.md 1.8b). Either books once; a second visit says
-// it's used and points to the host's page.
+// it's used and points to the host's page. A link whose workspace moved to Free is closed.
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Book a meeting", robots: { index: false } };
@@ -23,8 +24,8 @@ export default async function LinkPage({ params, searchParams }: Props) {
         <Notice title="This link isn't here" />
       </BookShell>
     );
-  const s = await linkShell(v.ws);
-  if (v.link.used || v.link.closed) {
+  const [s, locked] = await Promise.all([linkShell(v.ws), linkLocked(rpc, v.link)]);
+  if (v.link.used || v.link.closed || locked) {
     const page = v.owner && v.ws.slug ? keep(`/book/${v.ws.slug}/${v.owner.slug}`, o.embed) : null;
     return (
       <BookShell tokens={s.tokens} design={s.design} brand={s.brand} embed={o.embed} narrow>

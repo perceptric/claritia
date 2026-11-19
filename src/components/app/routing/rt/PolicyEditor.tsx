@@ -46,6 +46,7 @@ import { ApiError, newKey, rt, type Screen, type Version } from "./api";
 import { HandoffDrawer } from "./HandoffDrawer";
 import { DestChoice, keyOf, namesOf, PersonChoice, Row, Sec, State, when } from "./parts";
 import { PublishDialog } from "./PublishDialog";
+import { PlanLock, planHas, usePlan } from "../../PlanLock";
 import { SourcesDrawer } from "./SourcesDrawer";
 import { TestDrawer } from "./TestDrawer";
 
@@ -80,6 +81,8 @@ export function PolicyEditor(props: ViewProps & { policyId: string; screen: Q; b
 function Editor({ sb, session, ws, navigate, d, policyId, back, screen }: ViewProps & { policyId: string; screen: Q; back: () => void; d: Screen }) {
   const row = d.policies.find((p) => p.id === policyId)!;
   const owner = d.role === "owner" && !row.archived;
+  // Routing by answer is on Pro and up (docs/pricing.md): below it the rules don't run on live leads.
+  const plan = usePlan(sb, ws.id);
   const teamKeys = useMemo(() => new Set(d.teams.flatMap((t) => t.keys)), [d.teams]);
   const names = useMemo(() => namesOf(d.people, d.teams), [d.people, d.teams]);
   const fields = d.fields;
@@ -443,6 +446,7 @@ function Editor({ sb, session, ws, navigate, d, policyId, back, screen }: ViewPr
         </Sec>
 
         <Sec n={3} label="Assignment rules" aside={<span className="text-[12px] text-muted max-sm:hidden">Checked in order. The first match wins.</span>}>
+          {!planHas(plan.data, "routing") ? <PlanLock feature="routing" onUpgrade={() => navigate("settings", "billing")} /> : null}
           {body.rules.list.map((r, i) => (
             <RuleRow
               key={r.id}

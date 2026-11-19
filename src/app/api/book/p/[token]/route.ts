@@ -1,10 +1,11 @@
 import { cors } from "@/lib/forms/server";
 import { validEmail } from "@/lib/meetings/guest";
 import { loadLink, pollView, pollVote } from "@/lib/meetings/public";
-import { json, limited, readBody, rpcOrNull, spamOk, startOf } from "../../_shared";
+import { json, limited, linkLocked, readBody, rpcOrNull, spamOk, startOf } from "../../_shared";
 
 // A meeting poll, for guests (docs/meetings-scheduler.md 1.8b): GET the offered times with how many picked each;
-// POST { name, email, picks } to vote (again with the same email replaces the vote). The host books the winner.
+// POST { name, email, picks } to vote (again with the same email replaces the vote). The host books the winner. A poll
+// whose workspace moved to Free shows as closed and takes no new votes; the votes it has stay.
 
 type Ctx = { params: Promise<{ token: string }> };
 
@@ -14,7 +15,7 @@ async function load(ctx: Ctx) {
   if (!s) return { error: json({ error: "Not set up." }, 503) };
   const v = await loadLink(s.rpc, { token });
   if (!v || v.link.kind !== "poll") return { error: json({ error: "Not found." }, 404) };
-  return { ...s, v, token };
+  return { ...s, v, token, locked: await linkLocked(s.rpc, v.link) };
 }
 
 export async function GET(request: Request, ctx: Ctx) {
@@ -23,7 +24,8 @@ export async function GET(request: Request, ctx: Ctx) {
   try {
     const x = await load(ctx);
     if ("error" in x) return x.error;
-    return json(pollView(x.v), 200, { "Cache-Control": "no-store" });
+    const view = pollView(x.v);
+    return json(x.locked ? { ...view, closed: true } : view, 200, { "Cache-Control": "no-store" });
   } catch {
     return json({ error: "Try again in a moment." }, 503);
   }
@@ -39,6 +41,7 @@ export async function POST(request: Request, ctx: Ctx) {
     const spam = spamOk(request, true, body.turnstile);
     const x = await load(ctx);
     if ("error" in x) return x.error;
+    if (x.locked) return json({ error: "This poll is closed.", code: "link_closed" }, 410);
     if (x.v.ws.turnstile && !(await spam)) return json({ error: "The spam check didn't pass. Try again.", code: "spam" }, 400);
     const name = typeof body.name === "string" ? body.name.trim().slice(0, 200) : "";
     const email = typeof body.email === "string" ? body.email.trim().toLowerCase().slice(0, 320) : "";

@@ -4,6 +4,8 @@ import { ToolError, type Tool } from "../mcpProtocol.ts";
 import { APP_URL } from "../site.ts";
 import { applyStrict, describeOp, type Op } from "./ops.ts";
 import { checkForm, emptyForm, unsetConstants, type Form } from "./schema.ts";
+import { publishLocks } from "./planLocks.ts";
+import { readPlan } from "../planGate.ts";
 import { TEMPLATES } from "./templates.ts";
 import { DEFAULT_BRAND_CSS } from "../studio/brandDefault.ts";
 import { formToPage } from "../studio/fromForm.ts";
@@ -153,6 +155,9 @@ export const formTools: Tool<ApiCaller>[] = [
       if ("errors" in check) throw new ToolError(`Fix these first: ${check.errors.join(" ")}`);
       const unset = unsetConstants(check.form);
       if (unset.length) throw new ToolError(`Set these first: ${unset.map((c) => c.name).join(", ")}.`);
+      // Signatures and payments are on Starter and up (docs/pricing.md).
+      const locks = publishLocks(check.form, await readPlan((fn, a) => ctx.sb.rpc(fn, a), ctx.workspaceId));
+      if (locks.refuse.length) throw new ToolError(locks.refuse[0]!);
       const { data, error } = await ctx.sb.rpc("form_publish", { p_id: f.id, p_user: key!.created_by, p_body: check.form });
       if (error) throw new Error(error.message);
       const embed = `<script src="${APP_URL}/forms/v1.js" async></script>\n<claritia-form form-id="${f.id}"></claritia-form>`;

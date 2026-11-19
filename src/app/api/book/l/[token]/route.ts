@@ -6,10 +6,11 @@ import { bookOneOff, bookType, guestSlots, linkGuestType, loadLink, oneOffSlots 
 import { startCheckout } from "@/lib/meetings/pay";
 import { payStripe } from "@/lib/meetings/payServer";
 import { stripeClient } from "@/lib/billing";
-import { base, booked, failed, json, limited, liveFor, readBody, rpcOrNull, spamOk, startOf } from "../../_shared";
+import { base, booked, failed, json, limited, linkLocked, liveFor, readBody, rpcOrNull, spamOk, startOf } from "../../_shared";
 
 // A one-off or single-use link, for guests (docs/meetings-scheduler.md 1.8b): GET what it offers (?len= for a
-// single-use link's type); POST a booking. Either kind books once; after that it answers that it's used.
+// single-use link's type); POST a booking. Either kind books once; after that it answers that it's used. A link whose
+// workspace moved to Free answers as closed (both kinds are on Starter and up).
 
 type Ctx = { params: Promise<{ token: string }> };
 
@@ -19,7 +20,7 @@ async function load(ctx: Ctx) {
   if (!s) return { error: json({ error: "Not set up." }, 503) };
   const v = await loadLink(s.rpc, { token });
   if (!v || v.link.kind === "poll" || (v.link.kind === "single_use" && !v.type)) return { error: json({ error: "Not found." }, 404) };
-  return { ...s, v };
+  return { ...s, v, locked: await linkLocked(s.rpc, v.link) };
 }
 
 export async function GET(request: Request, ctx: Ctx) {
@@ -30,10 +31,11 @@ export async function GET(request: Request, ctx: Ctx) {
     if ("error" in x) return x.error;
     const { v } = x;
     const type = linkGuestType(v);
-    const open = !v.link.used && !v.link.closed;
+    const closed = v.link.closed || x.locked;
+    const open = !v.link.used && !closed;
     const len = Number(new URL(request.url).searchParams.get("len") ?? type.lengths[0]);
     const slots = !open ? [] : v.link.kind === "one_off" ? await oneOffSlots(x.rpc, v) : await guestSlots(x.rpc, { ws: v.link.workspace_id, type: v.type!, length: len });
-    return json({ kind: v.link.kind, type, slots, used: v.link.used, closed: v.link.closed }, 200, { "Cache-Control": "no-store" });
+    return json({ kind: v.link.kind, type, slots, used: v.link.used, closed }, 200, { "Cache-Control": "no-store" });
   } catch {
     return json({ error: "Try again in a moment." }, 503);
   }
@@ -50,6 +52,7 @@ export async function POST(request: Request, ctx: Ctx) {
     const x = await load(ctx);
     if ("error" in x) return x.error;
     const { v, rpc } = x;
+    if (x.locked) return failed({ error: "link_closed" });
     if (v.ws.turnstile && !(await spam)) return json({ error: "The spam check didn't pass. Try again.", code: "spam" }, 400);
     const gt = linkGuestType(v);
     const g = checkGuest(body, gt.questions, gt.location);

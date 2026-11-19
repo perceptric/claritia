@@ -25,6 +25,8 @@ after(() => pool.end());
 async function team(n: number) {
   const ws = randomUUID();
   await q(`insert into workspaces (id, name) values ($1, 'Acme')`, [ws]);
+  // Business: these tests use links, tools and routing by answer (170_plan_locks.sql).
+  await q(`insert into workspace_billing (workspace_id, plan) values ($1, 'business') on conflict (workspace_id) do update set plan = 'business'`, [ws]);
   const users: string[] = [];
   for (let i = 0; i < n; i++) {
     const u = randomUUID();

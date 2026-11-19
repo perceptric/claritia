@@ -2,9 +2,11 @@ import type { Metadata } from "next";
 import { BookShell, Notice } from "@/components/book/BookShell";
 import { PollView } from "@/components/book/PollView";
 import { loadLink, pollView } from "@/lib/meetings/public";
+import { linkLocked } from "@/lib/planGate";
 import { linkShell, options, pageRpc, turnstileFor, type Search } from "../../load";
 
-// A meeting poll (docs/meetings-scheduler.md 1.8b): guests pick the times that work; the host books the winner.
+// A meeting poll (docs/meetings-scheduler.md 1.8b): guests pick the times that work; the host books the winner. A poll
+// whose workspace moved to Free shows as closed.
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Pick a time", robots: { index: false } };
@@ -22,10 +24,11 @@ export default async function PollPage({ params, searchParams }: Props) {
         <Notice title="This poll isn't here" />
       </BookShell>
     );
-  const s = await linkShell(v.ws);
+  const [s, locked] = await Promise.all([linkShell(v.ws), rpc ? linkLocked(rpc, v.link) : false]);
+  const view = pollView(v);
   return (
     <BookShell tokens={s.tokens} design={s.design} brand={s.brand} embed={o.embed} narrow>
-      <PollView token={token} initial={pollView(v)} turnstileKey={turnstileFor(v.ws.turnstile)} />
+      <PollView token={token} initial={locked ? { ...view, closed: true } : view} turnstileKey={turnstileFor(v.ws.turnstile)} />
     </BookShell>
   );
 }
