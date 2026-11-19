@@ -446,7 +446,7 @@ function Editor({ sb, session, ws, navigate, d, policyId, back, screen }: ViewPr
         </Sec>
 
         <Sec n={3} label="Assignment rules" aside={<span className="text-[12px] text-muted max-sm:hidden">Checked in order. The first match wins.</span>}>
-          {!planHas(plan.data, "routing") ? <PlanLock feature="routing" onUpgrade={() => navigate("settings", "billing")} /> : null}
+          {!planHas(plan.data, "routing") ? <PlanLock feature="routing" owner={d.role === "owner"} onUpgrade={() => navigate("settings", "billing")} /> : null}
           {body.rules.list.map((r, i) => (
             <RuleRow
               key={r.id}

@@ -7,7 +7,7 @@
 
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { useMemo, useState } from "react";
-import { postJson, Button, errorText, Loading, useLoad, type Workspace } from "../ui";
+import { postJson, Button, errorText, Loading, useLoad, useQuery, type Workspace } from "../ui";
 import { Pick, Seg, TextIn } from "../forms/controls";
 import { lengthsText } from "./model";
 import { CopyButton, meetingsApi, Modal } from "./parts";
@@ -36,6 +36,8 @@ async function makeLink(session: Session, body: Record<string, unknown>): Promis
 export function LinkDialog({ sb, session, ws, types, initialType, initialKind = "single_use", onClose }: { sb: SupabaseClient; session: Session; ws: Workspace; types: TypeLite[]; initialType?: string; initialKind?: Kind; onClose: () => void }) {
   const [kind, setKind] = useState<Kind>(initialKind);
   const plan = usePlan(sb, ws.id);
+  // Only owners change the plan: members see the lock without Upgrade.
+  const role = useQuery(`member_role:${ws.id}:${session.user.id}`, async () => ((await sb.from("workspace_members").select("role").eq("workspace_id", ws.id).eq("user_id", session.user.id).maybeSingle()).data as { role?: string } | null)?.role ?? "member", { staleMs: 60_000 });
   const feature = linkFeature(kind)!;
   const locked = !planHas(plan.data, feature);
   const [typeId, setTypeId] = useState(initialType ?? (initialKind === "single_use" ? (types[0]?.id ?? "") : ""));
@@ -96,7 +98,7 @@ export function LinkDialog({ sb, session, ws, types, initialType, initialKind = 
       ) : locked ? (
         <div className="flex flex-col gap-4">
           <Seg<Kind> label="Kind of link" value={kind} options={KINDS} onChange={(k) => (setKind(k), setPicked([]))} />
-          <PlanLock feature={feature} />
+          <PlanLock feature={feature} owner={role.data === "owner"} />
         </div>
       ) : (
         <div className="flex flex-col gap-4">
