@@ -1,6 +1,8 @@
 import { cleaningCtx, isMember } from "@/lib/contacts/server";
 import { allFields, checkForm, unsetConstants } from "@/lib/forms/schema";
 import { forgetPublic } from "@/lib/forms/server";
+import { publishLocks } from "@/lib/forms/planLocks";
+import { readPlan } from "@/lib/planGate";
 import { forgetFields } from "@/lib/router/actions";
 import { publishFormRouting } from "@/lib/routing/formPublish";
 import { requireUser } from "@/lib/serverAuth";
@@ -8,7 +10,9 @@ import { serviceClient } from "@/lib/serviceClient";
 
 // Publish a form's draft: POST { workspaceId, id }. The draft is checked against the schema and the workspace's
 // fields first; only a clean copy goes live (docs/form-builder.md Part 3). Its routing goes live with it
-// (src/lib/routing/formPublish.ts): the answer says what was left out, or why the routing didn't go.
+// (src/lib/routing/formPublish.ts): the answer says what was left out, or why the routing didn't go. Signatures and
+// payments are on Starter and up (402 with the line below it); routing by answer on Pro and up: below it the routing
+// goes live without its conditions, and the answer says so (src/lib/forms/planLocks.ts).
 
 const bad = (error: string, status = 400, extra: object = {}) => Response.json({ error, ...extra }, { status });
 
@@ -33,14 +37,17 @@ export async function POST(request: Request) {
     const acct = (await db.from("payment_accounts").select("ready").eq("workspace_id", body.workspaceId as string).maybeSingle()).data as { ready?: boolean } | null;
     if (!acct?.ready) return bad("Connect Stripe in Settings, Payments before publishing a form that takes payment.", 400, { errors: ["Connect Stripe before publishing a form that takes payment."] });
   }
+  const locks = publishLocks(r.form, await readPlan((fn, args) => db.rpc(fn, args), body.workspaceId as string));
+  if (locks.refuse.length) return bad(locks.refuse[0]!, 402, { errors: locks.refuse });
   const { data, error } = await db.rpc("form_publish", { p_id: body.id, p_user: auth.user.id, p_body: r.form });
   if (error) return bad(error.message, 500);
   // The new version shows at once on this server (others read it again within 10 seconds, or on the first send).
   forgetPublic(body.id);
   // Routing's field list includes the form's questions.
   forgetFields(body.workspaceId as string);
-  const routing = await publishFormRouting((f, args) => db.rpc(f, args), db, { ws: body.workspaceId as string, user: auth.user.id, formId: body.id, formName: (form.name as string) ?? "Form", schedule: r.form.after.schedule })
-    .then((x) => ({ problems: x.problems }))
+  const schedule = r.form.after.schedule && !locks.routing ? { ...r.form.after.schedule, routes: [] } : r.form.after.schedule;
+  const routing = await publishFormRouting((f, args) => db.rpc(f, args), db, { ws: body.workspaceId as string, user: auth.user.id, formId: body.id, formName: (form.name as string) ?? "Form", schedule })
+    .then((x) => ({ problems: x.problems, ...(locks.note ? { locked: locks.note } : {}) }))
     .catch((e: unknown) => ({ problems: [] as string[], error: e instanceof Error ? e.message : "Couldn't publish the routing." }));
   return Response.json({ version: data as number, routing });
 }

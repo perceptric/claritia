@@ -4,12 +4,15 @@
 // this form sends to shows the leads that didn't reach it with Send again, what a lead is made as, what happens when
 // the email is already there, the owner and consent, then every question and the field it goes to with Fix or Check
 // choices. A CRM that's connected but not used here, or not connected at all, has one
-// button that starts it.
+// button that starts it. Tools are on Starter and up and Salesforce on Business (docs/pricing.md): on a lower plan a
+// tool's pane shows the line and Upgrade instead; webhooks stay on every plan.
 
 import { useState } from "react";
 import { DUPLICATE, listOf, NEW_RULES, rulesOf, targetOf, type SyncRules } from "@/lib/delivery/rules";
 import { allFields, type Form } from "@/lib/forms/schema";
 import { CATALOG, entryOf } from "@/lib/sources/catalog";
+import { toolFeature } from "@/lib/plans";
+import { PlanLock, planHas, usePlan } from "../PlanLock";
 import { BrandLogo } from "../BrandLogo";
 import { askConfirm, askText, tell } from "../Dialogs";
 import { Badge, ErrorNote, errorText, must, postJson, useQuery, type ViewProps } from "../ui";
@@ -68,6 +71,9 @@ export function Sync(props: Props) {
   ];
   const [pick, setPick] = useState<string>(() => crmDests[0]?.source_id ?? items[0]!.key);
   const cur = items.find((i) => i.key === pick) ?? items[0]!;
+  const plan = usePlan(sb, props.ws.id);
+  const curKind = cur.key === "webhook" ? null : cur.key.startsWith("connect:") ? cur.key.slice(8) : (tools.find((s) => s.id === cur.key)?.kind ?? null);
+  const lockedBy = curKind && !planHas(plan.data, toolFeature(curKind)) ? toolFeature(curKind) : null;
   return (
     <div className="grid min-h-0 flex-1 grid-cols-[260px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] max-[860px]:grid-cols-1 max-[860px]:grid-rows-[auto_minmax(0,1fr)]">
       <div className="flex flex-col gap-[2px] overflow-y-auto border-r border-line px-[8px] py-[12px] max-[860px]:flex-row max-[860px]:overflow-x-auto max-[860px]:border-r-0 max-[860px]:border-b max-[860px]:p-[8px]">
@@ -88,6 +94,14 @@ export function Sync(props: Props) {
         <div className="flex max-w-[760px] flex-col gap-[16px]">
           {cur.key === "webhook" ? (
             <WebhookPane {...props} hooks={hooks} />
+          ) : lockedBy ? (
+            <>
+              <div className="flex items-center gap-[10px]">
+                {cur.logo}
+                <H3>{cur.title}</H3>
+              </div>
+              <PlanLock feature={lockedBy} owner={props.role === "owner"} onUpgrade={() => props.navigate("settings", "billing")} />
+            </>
           ) : cur.key.startsWith("connect:") ? (
             <Start logo={cur.logo} name={cur.title} button={`Connect ${cur.title}`} onClick={() => props.navigate("settings", "sources")} />
           ) : entryOf(tools.find((s) => s.id === cur.key)!.kind)?.lists ? (

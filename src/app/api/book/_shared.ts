@@ -7,6 +7,7 @@ import { liveBusyFor } from "@/lib/meetings/live";
 import type { BookOutcome } from "@/lib/meetings/public";
 import type { TypeSettings } from "@/lib/meetings/types";
 import { serviceClient } from "@/lib/serviceClient";
+export { linkLocked } from "@/lib/planGate";
 
 // What the public booking routes share (docs/meetings-scheduler.md 1.8): the service client as an Rpc, the per-IP
 // caps (the forms submit route's buckets), Turnstile when the workspace's forms use it, and the guest's answers.

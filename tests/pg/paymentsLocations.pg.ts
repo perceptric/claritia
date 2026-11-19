@@ -18,6 +18,10 @@ test("a workspace's own connection, only for these four tools and only while con
   const ws = randomUUID();
   const other = randomUUID();
   await q(`insert into workspaces (id, name) values ($1, 'Acme'), ($2, 'Other')`, [ws, other]);
+  // Business: these tests use links, tools and routing by answer (171_plan_locks.sql).
+  await q(`insert into workspace_billing (workspace_id, plan) values ($1, 'business') on conflict (workspace_id) do update set plan = 'business'`, [ws]);
+  // Business: these tests use links, tools and routing by answer (171_plan_locks.sql).
+  await q(`insert into workspace_billing (workspace_id, plan) values ($1, 'business') on conflict (workspace_id) do update set plan = 'business'`, [other]);
   const add = async (w: string, kind: string, status = "active") => (await q(`insert into sources (workspace_id, kind, name, status) values ($1, $2, $2, $3) returning id`, [w, kind, status]))[0].id as string;
   const paypal = await add(ws, "paypal");
   const webex = await add(ws, "webex");

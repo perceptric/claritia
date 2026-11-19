@@ -3,6 +3,9 @@
 // retry after a timeout updates the record it made. Slack gets a message; a webhook gets a signed POST.
 //   The answer says what the jobs queue should do: done, skipped, failed for good (a refusal that won't change), or
 //   retry (the other side was down, slow or rate limited).
+//   Tools and Slack are on Starter and up, Salesforce on Business (docs/pricing.md): on a lower plan the delivery is
+//   skipped with the line, so the fill stays in Claritia and Send again works after an upgrade. A webhook goes on
+//   every plan, and a plan that can't be read sends as before.
 
 import { createHmac } from "node:crypto";
 import { hostIsPrivate } from "../privateNet.ts";
@@ -20,11 +23,13 @@ import type { AnalyticsEvent } from "../sources/types.ts";
 import { APP_URL } from "../site.ts";
 import { fillFolder, readUpload, type CopyFile } from "../sources/files.ts";
 import { uploadIds } from "../forms/files.ts";
+import { lockFor, type PlanRead } from "../planGate.ts";
+import { destinationFeature } from "../plans.ts";
 
 export type Taken = {
   /** allow_duplicate: Create anyway was clicked on a possible duplicate. */
   delivery: { id: string; attempts: number; external_id: string | null; allow_duplicate?: boolean };
-  destination: { id: string; kind: "source" | "slack" | "webhook"; source_id: string | null; name: string; config: Record<string, unknown>; mode: string };
+  destination: { id: string; workspace_id?: string; kind: "source" | "slack" | "webhook"; source_id: string | null; name: string; config: Record<string, unknown>; mode: string };
   sealed: string | null;
   submission: { id: string; created_at: string; values: Record<string, unknown>; hidden: Record<string, unknown>; consent?: { given?: boolean }; test: boolean; form_version: number; contact_id: string | null };
   form: { id: string | null; name: string | null; body: Form | null } | null;
@@ -34,7 +39,15 @@ export type Taken = {
 /** notes: linked CRM fields that didn't go, with why (also in the source's sync log). */
 export type Result = { status: "done"; externalId?: string; externalUrl?: string; notes?: string[] } | { status: "skipped"; reason: string } | { status: "failed"; error: string } | { status: "retry"; error: string; retryAfterS?: number };
 
-export type SendDeps = { run: RunOpts; fetcher?: typeof fetch; resolve?: Parameters<typeof hostIsPrivate>[1] };
+export type SendDeps = { run: RunOpts; fetcher?: typeof fetch; resolve?: Parameters<typeof hostIsPrivate>[1]; plan?: PlanRead };
+
+/** The plan's line when this destination isn't on the workspace's plan, else null. */
+async function planSkip(t: Taken, d: SendDeps, sourceKind?: string | null): Promise<Result | null> {
+  const ws = t.destination.workspace_id;
+  if (!ws) return null;
+  const line = await lockFor(d.run.rpc, ws, destinationFeature(t.destination.kind, sourceKind), { ...d.plan, cached: true });
+  return line ? { status: "skipped", reason: line } : null;
+}
 
 const TIMEOUT_MS = 15_000;
 
@@ -103,7 +116,14 @@ function recordUrl(kind: string, account: string | null, externalId: string, sec
 }
 
 async function toSource(t: Taken, d: SendDeps): Promise<Result> {
+  // Tools are on Starter and up; once the tool is read, Salesforce on Business.
+  const early = await planSkip(t, d);
+  if (early) return early;
   const dep = await deps(d.run, t.destination.source_id!);
+  if (dep && dep.ctx.source.kind === "salesforce") {
+    const skip = await planSkip(t, d, "salesforce");
+    if (skip) return skip;
+  }
   // Sheets and databases take every fill, with or without an email (docs/integrations-plan.md step 2).
   if (dep?.connector.append) return toRow(t, dep);
   // Chat tools alert on every fill too (Next step 5).
@@ -330,6 +350,8 @@ async function toCrmFields(t: Taken, dep: Deps, externalId: string, isNew: boole
 }
 
 async function toSlack(t: Taken, d: SendDeps): Promise<Result> {
+  const skip = await planSkip(t, d);
+  if (skip) return skip;
   const name = t.form?.name ?? "A form";
   const who = t.contact ? [t.contact.first_name, t.contact.last_name].filter(Boolean).join(" ") || t.contact.email : null;
   return slackNote(t.sealed, `${t.submission.test ? "[Test] " : ""}New fill on ${name}${who ? `: ${who}` : ""}`, labeled(t), d.fetcher);

@@ -7,12 +7,16 @@ import { connectSource, isOwner } from "@/lib/sources/server";
 import type { Creds, Settings } from "@/lib/sources/types";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
+import { lockFor, planRefusal } from "@/lib/planGate";
+import { toolFeature } from "@/lib/plans";
 
 // Connect a tool: POST { workspaceId, kind, keys?, hookSecret?, settings? }. A tool that signs in on Composio
 // (src/lib/sources/composio.ts) returns Composio's connect page, which asks for the sign-in or the key and comes back
 // to /api/sources/composio; a tool with Claritia's own sign-in returns its link; one connected by key is checked and
 // saved now; a webhook tool gets its URL. GET ?workspaceId: the kinds that connect on
-// Composio on this server, and the workspace's rows of them to reconnect.
+// Composio on this server, and the workspace's rows of them to reconnect. Tools are on Starter and up, Salesforce on
+// Business, the webhook and Google Forms import on every plan (docs/pricing.md): a lower plan gets 402 with the line,
+// before any sign-in page opens.
 
 const bad = (error: string, status = 400) => Response.json({ error }, { status });
 
@@ -45,6 +49,8 @@ export async function POST(request: Request) {
   const db = serviceClient();
   if (!db) return bad("The server is not set up for this.", 500);
   const redirect = `${appBase()}/api/sources/callback`;
+  const locked = await lockFor((fn, args) => db.rpc(fn, args), ws, toolFeature(kind));
+  if (locked) return bad(locked, 402);
 
   try {
     if (kind === "omniscient") {
@@ -77,6 +83,8 @@ export async function POST(request: Request) {
     const s = await connectSource(db, { ws, user: auth.user.id, kind, creds, settings: body.settings, hookSecret });
     return Response.json({ id: s.id, label: s.label });
   } catch (err) {
+    const line = planRefusal(err instanceof Error ? err.message : null);
+    if (line) return bad(line, 402);
     return bad(err instanceof Error ? err.message.slice(0, 300) : "Could not connect.", 502);
   }
 }

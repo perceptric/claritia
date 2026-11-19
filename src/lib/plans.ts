@@ -54,12 +54,72 @@ export const FEATURES = {
   owner_first: "business",
   double: "business",
   // Forms and sharing
+  signatures: "starter",
+  form_payments: "starter",
   no_badge: "pro",
   partial: "business",
   link_domain: "business",
+  // Routing: route by any answer and by past answers (a form's conditions, the router's rules)
+  routing: "pro",
+  // Integrations: the tools leads go to and come from (Settings › Integrations, form › Sync), Slack included
+  integrations: "starter",
   salesforce: "business",
 } as const satisfies Record<string, PlanId>;
 export type Feature = keyof typeof FEATURES;
+
+/** What each lock is called in the one line that says where it is (lockLine). `many` takes "are". */
+const LOCK_WORDS: Record<Feature, { name: string; many?: boolean }> = {
+  group: { name: "Group meetings", many: true },
+  polls: { name: "Meeting polls", many: true },
+  one_off: { name: "One-off meetings", many: true },
+  single_use: { name: "Single-use links", many: true },
+  paid_meetings: { name: "Paid meetings", many: true },
+  booking_brand: { name: "Your brand on booking pages" },
+  round_robin: { name: "Round robin" },
+  collective: { name: "Meetings with everyone free", many: true },
+  owner_first: { name: "Owner first" },
+  double: { name: "Double round robin" },
+  signatures: { name: "Signatures", many: true },
+  form_payments: { name: "Payments on forms", many: true },
+  no_badge: { name: "Removing the Claritia badge" },
+  partial: { name: "Partial answers", many: true },
+  link_domain: { name: "Your own domain" },
+  routing: { name: "Routing by answer" },
+  integrations: { name: "Integrations", many: true },
+  salesforce: { name: "Salesforce" },
+};
+
+/** The one line for a locked feature: "Meeting polls are on Starter and up.", "Salesforce is on Business." */
+export function lockLine(f: Feature): string {
+  const w = LOCK_WORDS[f];
+  const p = planFor(f);
+  return `${w.name} ${w.many ? "are" : "is"} on ${p.name}${p.id === "business" ? "" : " and up"}.`;
+}
+
+/** The feature a link kind needs (Meetings › Links and polls). */
+export function linkFeature(kind: unknown): Feature | null {
+  return kind === "poll" ? "polls" : kind === "one_off" ? "one_off" : kind === "single_use" ? "single_use" : null;
+}
+
+/**
+ * Tools on every plan (docs/pricing.md Part 4, Free): the webhook, and Google Forms import. Everything else in
+ * Settings › Integrations is on Starter and up, and Salesforce on Business. Kept in step with plan_tool in
+ * supabase/migrations/171_plan_locks.sql.
+ */
+export const FREE_TOOLS: readonly string[] = ["api", "google_forms"];
+
+/** The feature connecting or sending to a tool needs, or null when it's on every plan. */
+export function toolFeature(kind: string | null | undefined): Feature | null {
+  if (!kind || FREE_TOOLS.includes(kind)) return null;
+  return kind === "salesforce" ? "salesforce" : "integrations";
+}
+
+/** The feature a form destination needs: a webhook is on every plan; a tool or Slack is an integration. */
+export function destinationFeature(kind: string, sourceKind?: string | null): Feature | null {
+  if (kind === "webhook") return null;
+  if (kind === "slack") return "integrations";
+  return sourceKind ? toolFeature(sourceKind) : "integrations";
+}
 
 /** Whether a plan has a feature. */
 export const allows = (plan: string | null | undefined, f: Feature): boolean => ORDER.indexOf(planById(plan).id) >= ORDER.indexOf(FEATURES[f]);

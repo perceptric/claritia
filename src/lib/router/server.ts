@@ -9,6 +9,7 @@ import type { Rpc } from "../jobs.ts";
 import type { Availability } from "../meetings/types.ts";
 import { addDays, at, dateIn, dayOf, validZone } from "../meetings/time.ts";
 import { testsPast } from "./conditions.ts";
+import { planCached, planLets, type PlanRead } from "../planGate.ts";
 import { decide } from "./engine.ts";
 import type { Decision, Facts, InputIssue, Provenance, Reason, RepFacts, RouterBody, StepResult, TeamFacts } from "./types.ts";
 
@@ -362,16 +363,21 @@ export async function route(
     submission?: string | null;
     /** A child attempt's parent run (an approved review). */
     parent?: string | null;
+    /** How the plan is read (tests: no waits between tries). */
+    plan?: PlanRead;
   },
 ): Promise<Routed> {
   const live = o.live === undefined ? await liveRouter(rpc, o.ws) : o.live;
   if (!live) return { status: "no_router" };
   // Paused: new leads keep the owner they come with.
   if (live.paused) return { status: "paused" };
+  // Routing by answer (and by past answers) is on Pro and up (docs/pricing.md): below it the rules don't run and every
+  // lead takes the policy's default path. A plan that can't be read routes as the policy says.
+  const ruled = planLets(await planCached(rpc, o.ws, o.plan), "routing") ? live.body : rulesOff(live.body);
   const t0 = Date.now();
   for (let tries = 0; tries < 3; tries++) {
     const now = o.now?.() ?? Date.now();
-    const read = await readFacts(rpc, { ws: o.ws, contact: o.contact, key: o.key, body: live.body, reason: o.reason, now });
+    const read = await readFacts(rpc, { ws: o.ws, contact: o.contact, key: o.key, body: ruled, reason: o.reason, now });
     if (!read) return { status: "gone" };
     if ("existing" in read) {
       const e = read.existing;
@@ -380,7 +386,7 @@ export async function route(
     }
     if (read.raw.contact.route_status === "spam" && !o.force) return { status: "spam" };
     // Held's "Let through": a person looked at it, so the spam step and the block list are skipped.
-    const body = o.skipSpam ? { ...live.body, spam: { ...live.body.spam, on: false } } : live.body;
+    const body = o.skipSpam ? { ...ruled, spam: { ...ruled.spam, on: false } } : ruled;
     if (o.skipSpam) read.facts.lists = { ...read.facts.lists, block: [] };
     if (o.passed?.length) read.facts.passed = o.passed;
     if (o.inputs) withInputs(read.facts, o.inputs);
@@ -427,6 +433,9 @@ export async function route(
   }
   throw new Error("The router couldn't settle on a team member; trying again later.");
 }
+
+/** The body with its rules off: below Pro, every lead takes the default path (docs/pricing.md, Routing by answer). */
+export const rulesOff = (body: RouterBody): RouterBody => (body.rules.on ? { ...body, rules: { ...body.rules, on: false } } : body);
 
 /** A submission's mapped answers over the facts: this submission's answers win for this decision (Section 9). */
 export function withInputs(f: Facts, i: Inputs): Facts {

@@ -394,10 +394,11 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
     try {
       if (!(await save())) throw new Error("The draft didn't save. Try again.");
       // The form's routing goes live with it, on the server: compiled with its meetings into the form's routing policy.
-      const { routing } = await postJson<{ routing?: { problems: string[]; error?: string } }>(session, "/api/forms/publish", { workspaceId: ws.id, id: row.id });
+      const { routing } = await postJson<{ routing?: { problems: string[]; error?: string; locked?: string } }>(session, "/api/forms/publish", { workspaceId: ws.id, id: row.id });
       // Publishing a paused form resumes it.
       if (row.status === "paused") must(await sb.rpc("form_set_status", { p_id: row.id, p_status: "live" }));
       if (routing?.error) setError(`The form is live. ${routing.error}`);
+      else if (routing?.locked) setError(`The form is live. ${routing.locked}`);
       else if (routing?.problems.length) setError(`The form is live. Routing left out: ${routing.problems.join(", ")}.`);
       invalidate(`routing_screen:${ws.id}`);
       setDialog(null);

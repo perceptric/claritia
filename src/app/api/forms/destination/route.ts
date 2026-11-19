@@ -5,11 +5,15 @@ import { seal } from "@/lib/seal";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { cleanTags, listOf, NEW_RULES, rulesOf, targetOf } from "@/lib/delivery/rules";
+import { lockFor, planRefusal } from "@/lib/planGate";
+import { destinationFeature } from "@/lib/plans";
 
 // Add or change where a form's leads go: POST { workspaceId, formId, id?, kind, sourceId?, name, url?, rules?, list?, tags? }
 // (docs/form-builder.md 7.1). Addresses are sealed; only the host is kept where people can see it. A new webhook
 // gets a signing secret, shown once in the answer. A new CRM destination starts with the safe sync rules (7.4);
 // `rules` changes them on an existing one. An email tool's `list` ({ id, name }) and `tags` are kept beside them.
+// A tool or Slack is on Starter and up, Salesforce on Business (docs/pricing.md); a webhook on every plan. A lower plan
+// gets 402 with the line. Removing or pausing a destination is never held back.
 
 const bad = (error: string, status = 400) => Response.json({ error }, { status });
 
@@ -24,6 +28,12 @@ export async function POST(request: Request) {
   const id = typeof b.id === "string" && /^[0-9a-f-]{36}$/.test(b.id) ? b.id : null;
   const db = serviceClient();
   if (!db) return bad("The server is not set up for this.", 500);
+  const rpc = (fn: string, args: Record<string, unknown>) => db.rpc(fn, args);
+  if (kind !== "webhook") {
+    const sourceKind = kind === "source" && typeof b.sourceId === "string" && /^[0-9a-f-]{36}$/.test(b.sourceId) ? (((await db.from("sources").select("kind").eq("id", b.sourceId).eq("workspace_id", b.workspaceId as string).maybeSingle()).data as { kind?: string } | null)?.kind ?? null) : null;
+    const locked = await lockFor(rpc, b.workspaceId as string, destinationFeature(kind, sourceKind));
+    if (locked) return bad(locked, 402);
+  }
   const name = typeof b.name === "string" && b.name.trim() ? b.name.trim().slice(0, 120) : kind === "slack" ? "Slack" : kind === "webhook" ? "Webhook" : "Tool";
   let config: Record<string, unknown> = kind === "source" && !id ? { rules: NEW_RULES } : {};
   let sealed: string | null = null;
@@ -81,6 +91,6 @@ export async function POST(request: Request) {
     p_mode: "upsert",
     p_sealed: sealed,
   });
-  if (error) return bad(error.message);
+  if (error) return planRefusal(error.message) ? bad(planRefusal(error.message)!, 402) : bad(error.message);
   return Response.json({ id: data as string, ...(secret ? { secret } : {}) });
 }

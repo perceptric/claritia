@@ -2,6 +2,8 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { appBase } from "../billing.ts";
+import { lockFor } from "../planGate.ts";
+import { toolFeature } from "../plans.ts";
 import { seal } from "../seal.ts";
 import { roleIn } from "../serverAuth.ts";
 import { entryOf } from "./catalog.ts";
@@ -36,6 +38,9 @@ export async function connectSource(db: SupabaseClient, o: { ws: string; user: s
   const c = connectorFor(o.kind);
   const e = entryOf(o.kind);
   if (!c || !e) throw new Error("Unknown tool.");
+  // Tools are on Starter and up, Salesforce on Business (docs/pricing.md); 171_plan_locks.sql holds the same line.
+  const locked = await lockFor((fn, args) => db.rpc(fn, args), o.ws, toolFeature(o.kind));
+  if (locked) throw new Error(locked);
   let account = { id: "", label: e.label };
   const token = randomBytes(18).toString("base64url");
   if (o.creds.type !== "hook") account = await c.account(makeCtx({ source: fakeRow(o.ws, o.kind), creds: o.creds }));

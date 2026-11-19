@@ -13,6 +13,8 @@
 // page, and a card still signed in the old way offers Reconnect, which moves it there.
 // Zapier and Make connect from their own side (src/lib/oauth/apps.ts); signing in there makes an API key
 // with the app's name, and Disconnect here revokes it, which also removes the app's hooks.
+// Tools are on Starter and up and Salesforce on Business (docs/pricing.md): on a lower plan a tool that isn't connected
+// shows its plan and Upgrade in place of Connect; one already connected keeps Disconnect.
 
 import { useEffect, useState } from "react";
 import { entryOf, type Entry } from "@/lib/sources/catalog";
@@ -27,6 +29,8 @@ import { Search } from "../../Icons";
 import { StripeButtons, StripeCard, StripeStatus, useStripe } from "../meetings/Payments";
 import { ToolCard } from "../ToolCard";
 import { ToolSheet } from "../ToolSheet";
+import { PlanLock, planHas, usePlan } from "../PlanLock";
+import { planFor, toolFeature, type Feature } from "@/lib/plans";
 
 type Source = { id: string; kind: string; name: string; account: string | null; status: string };
 
@@ -166,7 +170,7 @@ const search = () => (typeof window === "undefined" ? new URLSearchParams() : ne
  */
 type Open = { kind: string; form: boolean; key?: boolean };
 
-export function SourcesSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" | "session" | "ws" | "role">) {
+export function SourcesSettings({ sb, session, ws, role, onBilling }: Pick<ViewProps, "sb" | "session" | "ws" | "role"> & { onBilling?: () => void }) {
   const sources = useLoad(async () => must(await sb.from("sources").select("id, kind, name, account, status").eq("workspace_id", ws.id).neq("status", "disconnected").order("created_at")) as Source[], ws.id);
   // Omniscient's own Connect button sends people to /settings/suite?connect=omniscient; Form › Tracking to ?connect=meta_ads.
   const [open, setOpen] = useState<Open | null>(() => {
@@ -185,6 +189,12 @@ export function SourcesSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
   }, []);
   const appKeys = useLoad(async () => must(await sb.from("api_keys").select("id, name").eq("workspace_id", ws.id).is("revoked_at", null)) as { id: string; name: string }[], ws.id);
   const owner = role === "owner";
+  const plan = usePlan(sb, ws.id);
+  const lockOf = (kind: string): Feature | null => {
+    const f = toolFeature(kind);
+    return f && !planHas(plan.data, f) ? f : null;
+  };
+  const toBilling = () => onBilling?.();
   const pay = useStripe({ sb, session, ws, role });
   const via = useLoad(() => composioOf(session, ws.id), ws.id);
   // Until the server says which tools are on Composio, Connect waits: a key tool on Composio signs in there.
@@ -285,6 +295,18 @@ export function SourcesSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
   /** A tool's buttons: the same on its card and in its sheet. */
   const buttonsOf = (e: Entry) => {
     const on = connected.get(e.kind);
+    const lock = on ? null : lockOf(e.kind);
+    if (lock)
+      return (
+        <>
+          <Badge tone="violet">{planFor(lock).name}</Badge>
+          {owner ? (
+            <Button variant="ghost" size="sm" onClick={toBilling}>
+              Upgrade
+            </Button>
+          ) : null}
+        </>
+      );
     if (!owner) return on && hooks[on.id] ? <HookUrl url={hooks[on.id]!} /> : null;
     return (
       <>
@@ -357,7 +379,8 @@ export function SourcesSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
     const d = e && detailsOf(e.kind);
     if (!e || !d) return null;
     const on = connected.get(e.kind);
-    const typing = !on && owner && viaKnown && open.form && (needsTyping(e) || !!open.key);
+    const lock = on ? null : lockOf(e.kind);
+    const typing = !lock && !on && owner && viaKnown && open.form && (needsTyping(e) || !!open.key);
     // A tool that signs in, and takes a key when the sign-in isn't set up here.
     const keyToo = !on && owner && !typing && !!e.keys?.length && !onComposio.has(e.kind) && e.kind !== "omniscient";
     return (
@@ -367,7 +390,9 @@ export function SourcesSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
         status={statusOf(on) ?? notOn}
         account={on?.account && on.account !== e.label ? on.account : null}
         buttons={
-          typing ? null : (
+          lock ? (
+            <PlanLock feature={lock} owner={owner} onUpgrade={toBilling} />
+          ) : typing ? null : (
             <>
               {buttonsOf(e)}
               {keyToo ? (

@@ -1,11 +1,13 @@
 import { isMember } from "@/lib/contacts/server";
 import { liveBusyFor } from "@/lib/meetings/live";
 import { loadLink, pollBookWinner } from "@/lib/meetings/public";
+import { lockFor } from "@/lib/planGate";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 
 // The host books a poll's winning time (docs/meetings-scheduler.md 1.8b): POST { workspaceId, linkId, start }.
-// A time that's no longer free writes nothing and answers 409 with the poll's times still free, to pick again.
+// A time that's no longer free writes nothing and answers 409 with the poll's times still free, to pick again. Polls
+// are on Starter and up: on a lower plan the poll and its votes stay, and booking from it answers 402.
 
 const bad = (error: string, status = 400, extra: object = {}) => Response.json({ error, ...extra }, { status });
 
@@ -21,6 +23,8 @@ export async function POST(request: Request) {
   if (!v || v.link.kind !== "poll" || v.link.workspace_id !== body.workspaceId) return bad("Poll not found.", 404);
   const start = typeof body.start === "number" ? body.start : typeof body.start === "string" ? Date.parse(body.start) : NaN;
   if (!Number.isFinite(start)) return bad("Pick a time.");
+  const locked = await lockFor(rpc, v.link.workspace_id, "polls");
+  if (locked) return bad(locked, 402, { code: "plan" });
   try {
     const r = await pollBookWinner(rpc, { view: v, start, bookedBy: auth.user.id, liveBusy: liveBusyFor(rpc, v.link.workspace_id) });
     if (r.ok) return Response.json({ meetingId: r.meetingId, guests: r.guests });

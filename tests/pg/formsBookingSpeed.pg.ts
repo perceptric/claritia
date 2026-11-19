@@ -40,6 +40,8 @@ async function team(n: number) {
   const ws = randomUUID();
   const slug = `acme-${ws.slice(0, 6)}`;
   await q(`insert into workspaces (id, name, booking_slug) values ($1, 'Acme', $2)`, [ws, slug]);
+  // Business: these tests use links, tools and routing by answer (171_plan_locks.sql).
+  await q(`insert into workspace_billing (workspace_id, plan) values ($1, 'business') on conflict (workspace_id) do update set plan = 'business'`, [ws]);
   const users: string[] = [];
   for (let i = 0; i < n; i++) {
     const u = randomUUID();

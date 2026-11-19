@@ -212,7 +212,7 @@ export function SettingsView({ sb, session, ws, role, id, onWorkspace }: ViewPro
   };
 
   const pages: Record<SettingsTab, React.ReactNode> = {
-    sources: <SourcesSettings sb={sb} session={session} ws={ws} role={role} />,
+    sources: <SourcesSettings sb={sb} session={session} ws={ws} role={role} onBilling={() => pick("billing")} />,
     webhooks: <WebhooksPage session={session} ws={ws} />,
     sending: <SendingSettings sb={sb} session={session} ws={ws} role={role} />,
     sender: <SendingSettings sb={sb} session={session} ws={ws} role={role} part="sender" />,

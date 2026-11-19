@@ -26,6 +26,8 @@ const day = (d: number) => new Date(Date.now() + d * 86_400_000).toISOString().s
 async function fixture(o: { body?: RouterBody } = {}) {
   const ws = randomUUID();
   await q(`insert into workspaces (id, name) values ($1, 'Fixture')`, [ws]);
+  // Business: these tests use links, tools and routing by answer (171_plan_locks.sql).
+  await q(`insert into workspace_billing (workspace_id, plan) values ($1, 'business') on conflict (workspace_id) do update set plan = 'business'`, [ws]);
   for (const [u, name] of Object.entries(NAMES)) {
     await q(`insert into auth.users (id, email) values ($1, $2) on conflict do nothing`, [u, `${name.toLowerCase()}@claritia.test`]);
     await q(`insert into workspace_members (workspace_id, user_id, role) values ($1, $2, $3)`, [ws, u, u === VIN ? "owner" : "member"]);
@@ -90,6 +92,8 @@ async function go(f: { ws: string; live: LiveRouter }, c: string, i: Inputs = in
 test("C: today's router moves over as Inbound with the same versions, draft and live body; nothing is reassigned", async () => {
   const ws = randomUUID();
   await q(`insert into workspaces (id, name) values ($1, 'Old')`, [ws]);
+  // Business: these tests use links, tools and routing by answer (171_plan_locks.sql).
+  await q(`insert into workspace_billing (workspace_id, plan) values ($1, 'business') on conflict (workspace_id) do update set plan = 'business'`, [ws]);
   await q(`insert into auth.users (id, email) values ($1, 'vincent@claritia.test') on conflict do nothing`, [VIN]);
   await q(`insert into workspace_members (workspace_id, user_id, role) values ($1, $2, 'owner')`, [ws, VIN]);
   const v1 = { ...emptyBody(), queues: [{ id: "q_sales", name: "Sales", method: "rr", strict: false, hoursOnly: false, members: [{ user: VIN, weight: 1 }] }], fallback: { kind: "queue", id: "q_sales" } };
@@ -124,6 +128,8 @@ test("C: today's router moves over as Inbound with the same versions, draft and 
 test("C: identical per-rule copies fold into one team; different ones stay named teams; the queue starts where the old rule would go", async () => {
   const ws = randomUUID();
   await q(`insert into workspaces (id, name) values ($1, 'Split')`, [ws]);
+  // Business: these tests use links, tools and routing by answer (171_plan_locks.sql).
+  await q(`insert into workspace_billing (workspace_id, plan) values ($1, 'business') on conflict (workspace_id) do update set plan = 'business'`, [ws]);
   for (const u of [ANA, VIN, KAI]) {
     await q(`insert into auth.users (id, email) values ($1, $2) on conflict do nothing`, [u, `${NAMES[u]}@claritia.test`]);
     await q(`insert into workspace_members (workspace_id, user_id) values ($1, $2)`, [ws, u]);

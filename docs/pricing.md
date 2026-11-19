@@ -186,9 +186,39 @@ revenue in this mix by about two thirds; the Stripe and card fees grow with it, 
 | Limits enforced: the Claritia badge under live forms (full on Free, small on Starter, none from Pro, `formBadge` in `src/lib/plans.ts`), meeting kinds by plan, Free's 1 meeting type, 1 seat, paid meetings on Starter and up, calendars per seat, branded booking pages on Starter and up, the link domain on Business, Left early (partial fills) on Business, hidden submissions past Free's cap | `src/app/api/meetings/_lib/seat.ts`, `src/lib/meetings/providers/connect.ts`, `src/app/api/link-domain/route.ts`, `src/components/app/forms/Submissions.tsx` |
 | Tests: the plan list, seat prices, the checkout line, subscriptions old and new, seat sync, folding an old extra-seat line in one update (and a retry changing nothing), plan changes, the webhook, AI credits, hidden fills; on Postgres, two fills racing for Free's last slot, twenty at once, repeats and spam, two Tia steps racing for the last credits, the meeting type and calendar checks (the 7th calendar on a paid plan refused) | `tests/billing.test.ts`, `tests/planCredits.test.ts`, `tests/pg/plans.pg.ts` |
 
-Not held back yet, so open on every plan for now: polls, one-off and single-use links, signatures and payments on
-forms, routing by answer, Salesforce on Business, and billing
-for extra submissions. Each is listed in `FEATURES` in `src/lib/plans.ts` and needs its check where it's saved.
+### Plan locks (November 19, 2026)
+
+Each lock is in `FEATURES` in `src/lib/plans.ts`, says where it is in one line (`lockLine`: "Meeting polls are on
+Starter and up.", "Salesforce is on Business.") and is held in three places: the screen (the line, the plan's badge
+and Upgrade, `src/components/app/PlanLock.tsx`), the route or job that runs it (`lockFor` in `src/lib/planGate.ts`),
+and the database (`supabase/migrations/171_plan_locks.sql`, the same line word for word).
+
+| Feature | Plan | Held where |
+|---|---|---|
+| Meeting polls, one-off meetings, single-use links | Starter | New link (`/api/book/links`, Slack's /book), the `meeting_links` trigger; a link or poll on a lower plan shows as closed to guests and takes no booking or vote; the host can't book a poll's winner |
+| Integrations: connecting a tool (everything in Settings › Integrations but the webhook and Google Forms import), sending a form's leads to a tool or Slack, fills and bookings coming in from Typeform, Tally, Webflow, Calendly and Cal.com | Starter | `/api/sources/connect` and every sign-in's way back (`connectSource`), `/api/forms/destination`, the delivery (`sendDelivery`: skipped with the line, Send again works after an upgrade), the incoming hooks job (they wait, staged, until an upgrade), the `sources` and `form_destinations` triggers |
+| Salesforce | Business | The same places as Integrations |
+| Signatures and payments on forms | Starter | Publishing (`/api/forms/publish`, the MCP's publish_form; `src/lib/forms/planLocks.ts`); Form Studio's Add field marks them |
+| Routing by answer and by past answers | Pro | The router (`route` in `src/lib/router/server.ts`: below Pro the rules don't run and every lead takes the policy's default path); publishing a form leaves its conditions out and says so |
+
+A workspace that moves to a lower plan keeps every link, vote, tool, destination, fill, payment and meeting, and can
+still delete them; only new ones and new runs stop. Booked meetings are never canceled. A plan read that hiccups is
+tried again (150 ms, then 450 ms); a plan that still can't be read lets the work through, and the database still holds
+every new link, tool and destination to the plan. Tests: `tests/planLocks.test.ts` (flaky plan reads on routing,
+delivery and links) and `tests/pg/planLocks.pg.ts` (links made while the plan changes).
+
+Not held back yet: billing for extra submissions (counted, not billed), the routing log, and the smaller Starter and
+Pro meeting features (secret meeting types, questions on the booking page, copy open times, away days, daily and
+weekly limits for each person). Workflow steps that post to Slack, Teams or Discord or send texts aren't held back
+either.
+
+### Running cost of the locks
+
+Nothing new on the bill: the plan is one small database read, kept a minute on the booking and routing paths.
+
+| | Beta (50 teams) | Growth (500 teams) |
+|---|---|---|
+| Added by this build | $0 | $0 |
 
 ### Running cost of this build
 

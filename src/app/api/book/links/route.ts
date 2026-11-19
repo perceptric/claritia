@@ -1,4 +1,6 @@
 import { isMember } from "@/lib/contacts/server";
+import { lockFor, planRefusal } from "@/lib/planGate";
+import { linkFeature } from "@/lib/plans";
 import { checkLink, withDefaults, type LinkIn } from "@/lib/meetings/public";
 import type { MeetingType } from "@/lib/meetings/types";
 import { requireUser } from "@/lib/serverAuth";
@@ -10,6 +12,8 @@ import { base } from "../_shared";
 // POST { workspaceId, kind, typeId?, title?, offered?: [{ start }], length?, location?, expiresAt? }. Only the token's
 // hash opens it; a sealed copy is kept so Links and polls can copy it again: { id, url }.
 // On an existing link (docs/app-structure.md 6.5): POST { workspaceId, action: "url" | "close" | "delete", id }.
+// Each kind is on Starter and up (docs/pricing.md): a lower plan gets 402 with the line; its old links stay, and can
+// still be copied, closed and deleted.
 
 const bad = (error: string, status = 400, extra: object = {}) => Response.json({ error, ...extra }, { status });
 
@@ -42,6 +46,9 @@ export async function POST(request: Request) {
     if (error) return bad(error.message, 500);
     return Response.json({ ok: true });
   }
+  const rpc = (fn: string, args: Record<string, unknown>) => db.rpc(fn, args);
+  const locked = await lockFor(rpc, ws, linkFeature(body.kind));
+  if (locked) return bad(locked, 402, { code: "plan" });
   let type: MeetingType | null = null;
   if (body.typeId) {
     if (typeof body.typeId !== "string" || !/^[0-9a-f-]{36}$/.test(body.typeId)) return bad("Meeting type not found.", 404);
@@ -58,7 +65,7 @@ export async function POST(request: Request) {
     sealed = null;
   }
   const { data, error } = await db.from("meeting_links").insert({ workspace_id: ws, ...r.row, token_sealed: sealed }).select("id").single();
-  if (error) return bad(error.message, 500);
+  if (error) return planRefusal(error.message) ? bad(planRefusal(error.message)!, 402, { code: "plan" }) : bad(error.message, 500);
   const path = r.row.kind === "poll" ? "p" : "l";
   return Response.json({ id: (data as { id: string }).id, url: `${base()}/book/${path}/${r.token}` });
 }

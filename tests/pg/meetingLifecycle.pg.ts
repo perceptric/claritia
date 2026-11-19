@@ -78,6 +78,8 @@ before(async () => {
   host = randomUUID();
   host2 = randomUUID();
   await q(`insert into workspaces (id, name) values ($1, 'Acme')`, [ws]);
+  // Business: these tests use links, tools and routing by answer (171_plan_locks.sql).
+  await q(`insert into workspace_billing (workspace_id, plan) values ($1, 'business') on conflict (workspace_id) do update set plan = 'business'`, [ws]);
   for (const [u, name] of [[host, "Sam Lee"], [host2, "Alex Kim"]] as const) {
     await q(`insert into auth.users (id, email) values ($1, $2)`, [u, `${u}@acme.test`]);
     await q(`insert into workspace_members (workspace_id, user_id, role) values ($1, $2, 'member')`, [ws, u]);
@@ -510,6 +512,7 @@ test("a meeting email that bounces hard or draws a complaint suppresses the addr
   // Two workspaces wrote to the same address: a complaint is never pinned on a guess.
   const d = await sendFor();
   const other = (await one<{ id: string }>(`insert into workspaces (name) values ('Other') returning id`)).id;
+  await q(`insert into workspace_billing (workspace_id, plan) values ($1, 'business')`, [other]);
   await q(`insert into meeting_mails (workspace_id, kind, to_email, dedupe, status, sent_at) values ($1, 'confirm', $2, 'x', 'sent', now())`, [other, d.guest]);
   await q(`update meeting_mails set provider_id = null where to_email = $1`, [d.guest]);
   assert.equal((await one<{ r: string }>(`select meeting_mail_event($1) r`, [event("", "complained", undefined, d.guest)])).r, "ambiguous");

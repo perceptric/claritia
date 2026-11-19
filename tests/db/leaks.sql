@@ -731,7 +731,8 @@ select set_config('request.jwt.claim.sub', '', false);
 delete from jobs;
 
 -- Sources (036): Ben (a member) sees Acme's sources but can't change them or read credentials; nobody sees Cat's;
--- the sync machinery is server only.
+-- the sync machinery is server only. Tools are on Starter and up (171_plan_locks.sql): Cat's workspace moves to it.
+insert into workspace_billing (workspace_id, plan) values ('22222222-0000-0000-0000-000000000000', 'starter') on conflict (workspace_id) do update set plan = 'starter';
 insert into sources (id, workspace_id, kind, name, account) values
   ('5a000000-0000-0000-0000-0000000000a1', '11111111-0000-0000-0000-000000000000', 'hubspot', 'HubSpot', '1'),
   ('5c000000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', 'hubspot', 'HubSpot', '2');
