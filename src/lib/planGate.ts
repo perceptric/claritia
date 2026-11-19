@@ -5,7 +5,7 @@
 // and single-use links, signatures and payments on forms, routing by answer, integrations and Salesforce. A read that
 // hiccups (timeout, busy, network) is tried again with growing waits; a plan that still can't be read lets the work
 // through (a missed lead or booking costs more than a feature used once on a lower plan), and the database's own
-// checks (170_plan_locks.sql) still hold every new link, tool and destination to the plan.
+// checks (171_plan_locks.sql) still hold every new link, tool and destination to the plan.
 
 import type { Rpc } from "./jobs.ts";
 import { allows, FEATURES, linkFeature, lockLine, type Feature } from "./plans.ts";
@@ -87,7 +87,7 @@ export async function lockFor(rpc: Rpc, ws: string, f: Feature | null, o: PlanRe
   return planLets(plan, f) ? null : lockLine(f);
 }
 
-/** A database refusal from a plan lock (170_plan_locks.sql raises the line itself), or null for any other error. */
+/** A database refusal from a plan lock (171_plan_locks.sql raises the line itself), or null for any other error. */
 export function planRefusal(message: string | null | undefined): string | null {
   if (!message) return null;
   for (const f of Object.keys(FEATURES) as Feature[]) if (message.includes(lockLine(f))) return lockLine(f);

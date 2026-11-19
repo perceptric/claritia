@@ -78,7 +78,7 @@ before(async () => {
   host = randomUUID();
   host2 = randomUUID();
   await q(`insert into workspaces (id, name) values ($1, 'Acme')`, [ws]);
-  // Business: these tests use links, tools and routing by answer (170_plan_locks.sql).
+  // Business: these tests use links, tools and routing by answer (171_plan_locks.sql).
   await q(`insert into workspace_billing (workspace_id, plan) values ($1, 'business') on conflict (workspace_id) do update set plan = 'business'`, [ws]);
   for (const [u, name] of [[host, "Sam Lee"], [host2, "Alex Kim"]] as const) {
     await q(`insert into auth.users (id, email) values ($1, $2)`, [u, `${u}@acme.test`]);

@@ -191,7 +191,7 @@ revenue in this mix by about two thirds; the Stripe and card fees grow with it, 
 Each lock is in `FEATURES` in `src/lib/plans.ts`, says where it is in one line (`lockLine`: "Meeting polls are on
 Starter and up.", "Salesforce is on Business.") and is held in three places: the screen (the line, the plan's badge
 and Upgrade, `src/components/app/PlanLock.tsx`), the route or job that runs it (`lockFor` in `src/lib/planGate.ts`),
-and the database (`supabase/migrations/170_plan_locks.sql`, the same line word for word).
+and the database (`supabase/migrations/171_plan_locks.sql`, the same line word for word).
 
 | Feature | Plan | Held where |
 |---|---|---|

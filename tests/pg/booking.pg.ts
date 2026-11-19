@@ -18,7 +18,7 @@ const M = 60_000;
 async function workspace() {
   const ws = randomUUID();
   await q(`insert into workspaces (id, name) values ($1, 'Acme')`, [ws]);
-  // Business: these tests use links, tools and routing by answer (170_plan_locks.sql).
+  // Business: these tests use links, tools and routing by answer (171_plan_locks.sql).
   await q(`insert into workspace_billing (workspace_id, plan) values ($1, 'business') on conflict (workspace_id) do update set plan = 'business'`, [ws]);
   const users = [randomUUID(), randomUUID(), randomUUID()];
   for (const u of users) {

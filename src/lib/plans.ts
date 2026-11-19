@@ -104,7 +104,7 @@ export function linkFeature(kind: unknown): Feature | null {
 /**
  * Tools on every plan (docs/pricing.md Part 4, Free): the webhook, and Google Forms import. Everything else in
  * Settings › Integrations is on Starter and up, and Salesforce on Business. Kept in step with plan_tool in
- * supabase/migrations/170_plan_locks.sql.
+ * supabase/migrations/171_plan_locks.sql.
  */
 export const FREE_TOOLS: readonly string[] = ["api", "google_forms"];
 

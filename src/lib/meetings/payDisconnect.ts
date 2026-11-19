@@ -1,6 +1,6 @@
 // Stripe › Disconnect (Settings › Integrations): the workspace forgets its Stripe account for paid meetings, and the
 // meeting types that take payment on it turn off, so none of them takes a booking it can't charge for
-// (payment_account_disconnect, supabase/migrations/170_plan_locks.sql, one transaction). PayPal and Square prices are
+// (payment_account_disconnect, supabase/migrations/171_plan_locks.sql, one transaction). PayPal and Square prices are
 // left alone. Booked and paid meetings stay as they are: refunds of paid meetings still go to the account each
 // payment was made on, and a checkout already open when the team disconnects still confirms its meeting
 // (handlePayEvent reads the meeting's own account). Claritia connects Stripe by making a Standard account with

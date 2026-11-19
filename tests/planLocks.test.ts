@@ -1,4 +1,4 @@
-// Plan locks (docs/pricing.md Part 4; src/lib/plans.ts, src/lib/planGate.ts, 170_plan_locks.sql): which plan each
+// Plan locks (docs/pricing.md Part 4; src/lib/plans.ts, src/lib/planGate.ts, 171_plan_locks.sql): which plan each
 // feature is on, the one line that says so (the same words in the app and the database), the plan read that retries a
 // hiccup and lets the work through when it can't tell, links and polls that close on a lower plan, deliveries that
 // skip instead of sending, publishing that holds signatures and payments, and routing that drops its rules below Pro,
@@ -59,8 +59,8 @@ test("the line says where the feature is, in plain words", () => {
   assert.equal(lockLine("integrations"), "Integrations are on Starter and up.");
 });
 
-test("the database says the same line and holds the same plans (170_plan_locks.sql)", () => {
-  const sql = readFileSync(new URL("../supabase/migrations/170_plan_locks.sql", import.meta.url), "utf8");
+test("the database says the same line and holds the same plans (171_plan_locks.sql)", () => {
+  const sql = readFileSync(new URL("../supabase/migrations/171_plan_locks.sql", import.meta.url), "utf8");
   const rank = { starter: 1, pro: 2, business: 3 } as const;
   for (const f of ["polls", "one_off", "single_use", "integrations", "signatures", "form_payments", "routing", "salesforce"] as Feature[]) {
     assert.ok(sql.includes(`when '${f}' then '${lockLine(f).replace(/'/g, "''")}'`), `plan_line says ${lockLine(f)}`);

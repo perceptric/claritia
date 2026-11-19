@@ -1,5 +1,5 @@
 // Stripe › Disconnect (Settings › Integrations; src/lib/meetings/payDisconnect.ts, payment_account_disconnect in
-// 170_plan_locks.sql): one call forgets the account and turns off the paid meeting types, tried again on a hiccup and
+// 171_plan_locks.sql): one call forgets the account and turns off the paid meeting types, tried again on a hiccup and
 // safe to repeat; a checkout already open when the team disconnects still confirms its meeting or fill, on the
 // account it was opened on, and nothing else does.
 import assert from "node:assert/strict";
@@ -54,7 +54,7 @@ test("a refusal that isn't a hiccup isn't tried again, and one that stays down g
 });
 
 test("the database turns off only active Stripe-paid types, leaves PayPal and Square, and keeps booked meetings", () => {
-  const sql = readFileSync(new URL("../supabase/migrations/170_plan_locks.sql", import.meta.url), "utf8");
+  const sql = readFileSync(new URL("../supabase/migrations/171_plan_locks.sql", import.meta.url), "utf8");
   const fn = sql.slice(sql.indexOf("function public.payment_account_disconnect"));
   assert.match(fn, /delete from payment_accounts where workspace_id = p_ws/);
   assert.match(fn, /update meeting_types set active = false/);

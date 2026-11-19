@@ -1,4 +1,4 @@
-// Plan locks on a real database (supabase/migrations/170_plan_locks.sql, docs/pricing.md Part 4): links, polls, tools
+// Plan locks on a real database (supabase/migrations/171_plan_locks.sql, docs/pricing.md Part 4): links, polls, tools
 // and destinations are held to their plan with the app's own line, on every path that writes them; a workspace that
 // moves down keeps every row it has and can still delete them; two links made at once as the plan changes are judged
 // on the plan each one saw. Stripe's Disconnect forgets the account and turns off only the Stripe-paid types, once,
