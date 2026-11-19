@@ -125,6 +125,10 @@ function StyleThumb({ t, th }: { t: FormTemplate; th: Theme }) {
 const STYLE = "style";
 const PLAIN = "plain";
 const STYLE_OPTIONS = THEMES.map((th) => ({ value: th.id, label: th.name, hint: th.mood }));
+const PAGES_OPTIONS: { value: PagesMode; label: string }[] = [
+  { value: "one", label: "One page" },
+  { value: "multi", label: "Multi-page" },
+];
 
 const SORTS: { value: Sort; label: string }[] = [
   { value: "popular", label: "Most used" },
@@ -137,8 +141,51 @@ const LONG = TEMPLATES.filter((t) => t.schema.pages.length >= 4)
   .slice(0, 12);
 
 
-/** The menus as they show: nested ones (categories in families, sub-industries in industries) under their parent. */
-const RAIL = MENUS.filter((m) => m.id !== "category" && m.id !== "sub");
+/** The menus that are dropdowns over the grid, as on the website: what it does next, features, layout and length. */
+const DROPS: Menu[] = ["does", "feature", "layout", "length"];
+/** The menus on the side: nested ones (categories in families, sub-industries in industries) under their parent. */
+const RAIL = MENUS.filter((m) => m.id !== "category" && m.id !== "sub" && !DROPS.includes(m.id));
+
+/** The dropdown menus over the grid: each picks several values, and its button counts the picks. */
+function Drops({ picks, setPicks, counts }: { picks: Picks; setPicks: (p: Picks) => void; counts: ReturnType<typeof menuCounts> }) {
+  const values = useMemo(() => Object.fromEntries(DROPS.map((id) => [id, shownValues(id)])) as Record<Menu, ReturnType<typeof shownValues>>, []);
+  return (
+    <div role="group" aria-label="Filters" className="flex min-w-0 flex-wrap items-center gap-[8px]">
+      {DROPS.map((id) => {
+        const m = MENUS.find((x) => x.id === id)!;
+        const on = picks[id] ?? [];
+        const options = values[id].filter((v) => (counts[id][v.id] ?? 0) > 0 || on.includes(v.id)).map((v) => ({ value: v.id, label: v.label }));
+        if (!options.length) return null;
+        return (
+          <Select<string>
+            key={id}
+            value=""
+            options={options}
+            onChange={() => {}}
+            many={{
+              values: on,
+              onChange: (vs) => {
+                const next: Picks = { ...picks, [id]: vs };
+                if (!vs.length) delete next[id];
+                setPicks(next);
+              },
+            }}
+            ariaLabel={m.label}
+            down
+            menuWidth={220}
+            className={`${GHOST} ${on.length ? "text-ink shadow-focus" : ""}`}
+            shown={
+              <span className="inline-flex items-center gap-[6px]">
+                {m.label}
+                {on.length ? <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-brand px-[5px] text-[11px] text-on-brand tabular-nums">{on.length}</span> : null}
+              </span>
+            }
+          />
+        );
+      })}
+    </div>
+  );
+}
 
 function toggle(p: Picks, m: Menu, v: string): Picks {
   const now = p[m] ?? [];
@@ -185,12 +232,7 @@ function Row({ label, n, on, onClick, nested, open, onOpen }: { label: string; n
 
 /** The menus: each folds open, with its values and what picking one would show. */
 function Menus({ picks, setPicks, counts }: { picks: Picks; setPicks: (p: Picks) => void; counts: ReturnType<typeof menuCounts> }) {
-  const [shut, setShut] = useState<Record<string, boolean>>({
-    does: true,
-    feature: true,
-    layout: true,
-    length: true,
-  });
+  const [shut, setShut] = useState<Record<string, boolean>>({});
   const [opened, setOpened] = useState<Record<string, boolean>>({});
   const shown = useMemo(() => Object.fromEntries(MENUS.map((m) => [m.id, shownValues(m.id)])) as Record<Menu, ReturnType<typeof shownValues>>, []);
   return (
@@ -598,6 +640,7 @@ export function TemplatesPage({ sb, ws, session, navigate, id }: ViewProps) {
               </button>
               <Select<Sort> value={sort} options={SORTS} onChange={setSort} ariaLabel="Sort" className={`${GHOST} justify-between`} align="right" />
             </div>
+            <Drops picks={picks} setPicks={setPicks} counts={counts} />
             {tags.length ? (
               <div className="flex flex-wrap items-center gap-[6px]">
                 {tags.map((x) => (
@@ -798,10 +841,15 @@ export function TemplatesPage({ sb, ws, session, navigate, id }: ViewProps) {
             {canSwitch(open) ? (
               <div className="flex flex-col gap-[8px]">
                 <p className={EYEBROW}>Pages</p>
-                <div role="radiogroup" aria-label="Pages" className="flex flex-wrap gap-[6px]">
-                  <BrandChip name="One page" on={pagesMode === "one"} onClick={() => setPages("one")} />
-                  <BrandChip name="Multi-page" on={pagesMode === "multi"} onClick={() => setPages("multi")} />
-                </div>
+                <Select<PagesMode>
+                  value={pagesMode ?? "one"}
+                  options={PAGES_OPTIONS}
+                  onChange={setPages}
+                  ariaLabel="Pages"
+                  down
+                  menuWidth={180}
+                  className={`${CHIP} ${chipOn(false)} self-start`}
+                />
               </div>
             ) : null}
             {shown && shown.schema.pages.length > 1 ? (

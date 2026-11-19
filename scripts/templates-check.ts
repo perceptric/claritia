@@ -140,6 +140,28 @@ try {
   check(true, "it opens on its welcome screen");
   await page.waitForTimeout(800);
   if (shots) await page.screenshot({ path: `${shots}/4-photo-open.png` });
+  // Pages is a dropdown in the sheet: Multi-page splits the form and Use template asks for it.
+  const contact = templateById("general.contact-us")!;
+  await page.goto(`${base}/forms/templates/${templateSlug(contact)}`);
+  const pagesSheet = page.getByRole("dialog", { name: contact.name });
+  await pagesSheet.waitFor();
+  await pagesSheet.getByRole("button", { name: "Pages", exact: true }).click();
+  await page.getByRole("option", { name: "Multi-page" }).click();
+  check((await pagesSheet.getByRole("list", { name: "Page list" }).locator("li").count()) === 2, "Multi-page from the Pages dropdown splits the form in two");
+  check(page.url().includes("pages=multi"), "the address keeps the pages");
+  // The filters over the grid are dropdowns: a pick narrows the grid and its button counts it.
+  await page.goto(`${base}/forms/templates`);
+  const total = Number(((await page.getByText(/^\d+ form templates$/).textContent()) ?? "").split(" ")[0]);
+  await page.getByRole("button", { name: "Features", exact: true }).click();
+  await page.getByRole("option", { name: "Calculator" }).click();
+  await page.keyboard.press("Escape");
+  const after = Number(((await page.getByText(/^\d+ form templates$/).textContent()) ?? "").split(" ")[0]);
+  check(after > 0 && after < total, `a Features pick narrows the grid (${total} to ${after})`);
+  check(((await page.getByRole("button", { name: "Features", exact: true }).textContent()) ?? "").includes("1"), "the Features button counts its pick");
+  if (shots) {
+    await page.getByRole("button", { name: "Layout", exact: true }).click();
+    await page.screenshot({ path: `${shots}/5-dropdowns.png`, clip: { x: 300, y: 50, width: 700, height: 330 } });
+  }
 } finally {
   await browser.close();
   server.close();

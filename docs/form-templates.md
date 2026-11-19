@@ -72,8 +72,9 @@ them. Each count is what that pick would show.
 
 ## In the app
 
-- **Forms › Templates** (`src/components/app/forms/templates/TemplatesPage.tsx`, `/forms/templates`): the menus on the
-  side (a Sheet on small screens), picked values as tags, search, a style for every card, and sort. With nothing
+- **Forms › Templates** (`src/components/app/forms/templates/TemplatesPage.tsx`, `/forms/templates`): Category,
+  Industry and Team on the side (a Sheet on small screens), What it does next, Features, Layout and Length as dropdowns
+  over the grid (as on the website), picked values as tags, search, a style for every card, and sort. With nothing
   picked, the first screen shows the starter kits and what's in season. Picks stay in the address
   (`?category=waiver&team=hr`).
 - A card opens the Form Studio page it becomes (the `<claritia-form>` preview) in a sheet with what it comes with
