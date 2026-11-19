@@ -6,8 +6,8 @@ import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 
 // Use template (docs/form-templates.md, docs/forms-chat-plan.md Part 8): POST { workspaceId, template, kitId?, theme?,
-// plain? } makes a Form Studio form from a gallery template, in a workspace brand, a style (the template's own unless
-// one is named) or the plain look, with its meeting and draft follow-ups (src/lib/forms/gallery/make.ts), and
+// plain?, pages? } makes a Form Studio form from a gallery template, in a workspace brand, a style (the template's own unless
+// one is named) or the plain look, on one page or in pages ("one" or "multi", else as the template is), with its meeting and draft follow-ups (src/lib/forms/gallery/make.ts), and
 // answers { id, kitId, workflows, workflowError? }.
 
 const bad = (error: string, status = 400) => Response.json({ error }, { status });
@@ -15,7 +15,7 @@ const bad = (error: string, status = 400) => Response.json({ error }, { status }
 export async function POST(request: Request) {
   const auth = await requireUser(request);
   if ("denied" in auth) return auth.denied;
-  const b = (await request.json().catch(() => ({}))) as { workspaceId?: unknown; template?: unknown; kitId?: unknown; theme?: unknown; plain?: unknown };
+  const b = (await request.json().catch(() => ({}))) as { workspaceId?: unknown; template?: unknown; kitId?: unknown; theme?: unknown; plain?: unknown; pages?: unknown };
   if (!(await isMember(auth, b.workspaceId))) return bad("Workspace not found.", 404);
   const ws = b.workspaceId as string;
   const t = typeof b.template === "string" ? templateById(b.template) : undefined;
@@ -25,7 +25,7 @@ export async function POST(request: Request) {
   const kit = await ownKit(db, ws, b.kitId);
   if (kit === "missing") return bad("That brand isn't in this workspace.", 404);
   try {
-    const made = await makeFromTemplate({ sb: auth.sb, db, ws, t, kitId: kit, theme: isTheme(b.theme) ? b.theme : null, plain: b.plain === true });
+    const made = await makeFromTemplate({ sb: auth.sb, db, ws, t, kitId: kit, theme: isTheme(b.theme) ? b.theme : null, plain: b.plain === true, pages: b.pages === "one" || b.pages === "multi" ? b.pages : null });
     return Response.json(made);
   } catch (e) {
     return bad(e instanceof Error ? e.message : "This form template can't be used right now.", 500);

@@ -135,6 +135,18 @@ export function templateForm(t: FormTemplate): Form {
       }
       rules.push({ id: `r${rules.length}`, when, then: { action: "show", field: self.id } });
     }
+  // Hidden by an answer (a page skip once the form is on one page), after the show rules so a hide wins. The email
+  // never hides.
+  for (const p of t.schema.pages)
+    for (const f of p.fields) {
+      const self = byKey.get(f.key)?.app;
+      if (!f.hide?.length || !self || self.key === "email") continue;
+      for (const c of f.hide) {
+        const src = byKey.get(c.key);
+        const when = condFor(c, src?.app, src?.src);
+        if (when) rules.push({ id: `r${rules.length}`, when, then: { action: "hide", field: self.id } });
+      }
+    }
   // Page paths: skips past pages that don't apply, and paths by answer, on an answer from this page or one before.
   t.schema.pages.forEach((p, i) => {
     const at = (j: { when: GCond; to: number }) => {

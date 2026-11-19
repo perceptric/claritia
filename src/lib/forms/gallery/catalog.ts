@@ -29,6 +29,7 @@ import { WAVE3_APPLY, WAVE3_EVENTS } from "./templates/wave3-apply.ts";
 import { WAVE3_BOOKING, WAVE3_MONEY } from "./templates/wave3-booking.ts";
 import { WAVE4_CALC_HOME } from "./templates/wave4-calc-home.ts";
 import { WAVE4_CALC_MORE } from "./templates/wave4-calc-more.ts";
+import { withPhotos } from "./photos/index.ts";
 import { defaultThemes } from "./themes.ts";
 import { INDUSTRIES, type FormTemplate, type Industry, type UseCase } from "./types.ts";
 
@@ -101,8 +102,8 @@ export function withMenus(t: FormTemplate): FormTemplate {
   };
 }
 
-/** Every template, with its menus. Plain forms only: no welcome photos or picture answers. */
-export const TEMPLATES: FormTemplate[] = RAW.map(withMenus);
+/** Every template, with its menus. One in five keeps its welcome photo and picture cards (photos/kept.ts); the rest are plain. */
+export const TEMPLATES: FormTemplate[] = RAW.map(withMenus).map(withPhotos);
 
 const BY_ID = new Map(TEMPLATES.map((t) => [t.id, t]));
 const THEME_OF = defaultThemes(TEMPLATES);

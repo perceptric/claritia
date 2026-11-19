@@ -24,6 +24,30 @@ templates that come wired with their meeting and follow-up. It lives on the webs
 - Question kinds include calculations and payments: a `calc` field works out a price from the answers (choices carry
   prices as points) and a `payment` field charges a calc or a fixed amount through the form's Stripe step.
 
+## Pictures
+
+One template in five (168 of 840) keeps its starter photo: a welcome screen with the photo beside, above or behind
+the words, and picture cards where they were picked. The rest are plain forms that open on their questions. The kept
+ones are the popular templates first, then one from each group in turn, so every group has some
+(`node scripts/template-pictures.ts` writes `src/lib/forms/gallery/photos/kept.ts` from the picks in `leads.ts` and
+`rest.ts`; `PICTURE_SHARE` in `photos/index.ts` sets the share). Style drawings don't show on forms anywhere.
+
+## Pages: one page or multi-page
+
+Every template can be used on one page or in pages (`src/lib/forms/gallery/pages.ts`), and comes the way it was
+written unless one is picked:
+
+- **One page:** every question on one screen. Page titles become headings over their questions. A page skip or a
+  path by answer becomes a hide rule on the questions it jumped past, so the same people see the same questions; the
+  email never hides. One question at a time is turned off.
+- **Multi-page:** a one-page form splits into 2 to 6 pages of about four questions, in the same order. A heading
+  stays with the question under it, two half-width questions stay side by side, and a total stays with the questions
+  that set it. Forms with 3 questions or fewer stay on one page.
+- The keys, order and show-if rules never change, so routing, workflows and results work either way.
+- In the app, the template sheet has a Pages row (One page, Multi-page); Use template sends `pages`. On the website,
+  each template page has the same switch beside Style: it shows the form the other way (both are on the page, exported
+  as `alt`) and adds `&pages=` to the Use link, which the app's sheet opens with.
+
 ## The menus
 
 `src/lib/forms/gallery/taxonomy.ts` and `filter.ts`, the same on the app and the website.
@@ -103,6 +127,9 @@ website carried into the new workspace.
   as drafts on the form, every email unapproved).
 - `tests/formGalleryMore.test.ts`: the brand peek (the button color, never white or gray; text that reads; a Google
   font only; nothing it can't see), the catalog match (only catalog ids), starter kits and seasons.
+- `tests/formPages.test.ts`: every template both ways (same keys and order, the form check passes), a skip on one
+  page hides what the pages skipped, splits keep half-width pairs and ask something on every page, short forms stay
+  one page, and one in five templates keeps its photos.
 - `tests/formPay.test.ts`: a payment a rule hides is never charged.
 - `tests/studioStyle.test.ts`: every style survives the page's CSS cleaner whole and is known again by its first
   line; Use template makes the style asked for, the template's own, a brand or plain.
@@ -118,6 +145,7 @@ website carried into the new workspace.
 | Templates, menus, kits and pages: data in the app, static pages on the website | $0 | $0 |
 | The mix and the look menu: code in the browser; learning a website reuses the brand reads that were already there, no new AI call | $0 | $0 |
 | Style fonts: Google Fonts | $0 | $0 |
+| Pictures on one in five and the Pages switch: data and code, photos already on the website | $0 | $0 |
 | Use template and kits: no AI call; styles are stylesheets written by code | $0 | $0 |
 | Claude Haiku: catalog match when the words hit nothing (about 20,000 and 200,000 a month, about 9,000 tokens in with the catalog cached, 60 out, repeats free) | about $5 | about $50 |
 | Claude Opus: forms built from the Describe box, counted in Form Studio's bill (`docs/studio-v2-plan.md`), about 3 more a team a month at about $0.90 | about $135 | about $1,350 |

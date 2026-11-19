@@ -113,6 +113,8 @@ export type FormField = {
   /** Where the answer lands on the contact: a built-in (email, first_name…) or a custom field as f.<key>. */
   map?: string;
   show?: Cond;
+  /** Hidden when any of these holds: a page skip, once the form is on one page (pages.ts). */
+  hide?: Cond[];
   half?: boolean;
   /** calc: other answers as {key}, with + - * / ( ) min max round if; how the result shows; false keeps it out of sight. */
   formula?: string;

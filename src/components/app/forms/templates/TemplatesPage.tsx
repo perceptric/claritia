@@ -4,6 +4,7 @@
 // menus on the side (category, industry, team, what it does next, features, layout, length). A card opens the form in
 // a sheet as the Form Studio page it becomes (src/lib/studio/templatePage.ts), in the template's own style as its
 // card shows it, another style, a workspace brand or plain; Use template makes that page and opens it in the Studio.
+// The sheet also picks One page or Multi-page (?pages=one|multi); the template's own way comes first.
 // The website's template pages link here (/forms/templates/<template>?theme=<style>) with the style picked there, and
 // the menus keep their picks in the address (?category=waiver&team=hr).
 
@@ -18,6 +19,7 @@ import { filterTemplates, menuCounts, MENUS, picksFromQuery, picksToQuery, shown
 import { LENGTHS, lengthOf } from "@/lib/forms/gallery/taxonomy";
 import { FONTS, fontsUrl, isTheme, themeById, THEMES, type FontKey, type Theme } from "@/lib/forms/gallery/themes";
 import type { FormTemplate } from "@/lib/forms/gallery/types";
+import { canSwitch, pagesOf, withPages, type PagesMode } from "@/lib/forms/gallery/pages";
 import { AiMark } from "../../Ai";
 import { Select } from "../../Select";
 import { Sheet } from "../../Sheet";
@@ -470,11 +472,18 @@ export function TemplatesPage({ sb, ws, session, navigate, id }: ViewProps) {
     const q = new URLSearchParams(window.location.search).get("theme");
     return isTheme(q) ? q : null;
   });
-  // Another template opens in its own style, as its card shows it.
+  // One page or multi-page (?pages=, from the website), else the template's own way.
+  const [pages, setPages] = useState<PagesMode | null>(() => {
+    if (typeof window === "undefined") return null;
+    const q = new URLSearchParams(window.location.search).get("pages");
+    return q === "one" || q === "multi" ? q : null;
+  });
+  // Another template opens in its own style and its own pages, as its card shows it.
   const setOpen = (t: FormTemplate | null) => {
     if (t && t.id !== open?.id) {
       setLook(STYLE);
       setStyle(null);
+      setPages(null);
     }
     setOpenRaw(t);
   };
@@ -487,14 +496,17 @@ export function TemplatesPage({ sb, ws, session, navigate, id }: ViewProps) {
   const styleId = open ? (style ?? templateTheme(open)) : null;
   const kit = look !== STYLE && look !== PLAIN ? (kits.find((k) => k.id === look) ?? null) : null;
   const inStyle = look === STYLE && !!styleId;
+  const pagesMode = open ? (pages && canSwitch(open) ? pages : pagesOf(open)) : null;
+  // The template on one page or in pages, as Use template makes it.
+  const shown = useMemo(() => (open ? withPages(open, pagesMode) : null), [open, pagesMode]);
   // The page the template becomes, in that look's stylesheet, as Use template makes it.
   const form = useMemo(() => {
     try {
-      return open ? templateDraft(open, kit ? (kit.studio_css ?? "") : inStyle ? styleCssById(styleId) : "") : null;
+      return shown ? templateDraft(shown, kit ? (kit.studio_css ?? "") : inStyle ? styleCssById(styleId) : "") : null;
     } catch {
       return null;
     }
-  }, [open, kit, inStyle, styleId]);
+  }, [shown, kit, inStyle, styleId]);
   const tags = MENUS.flatMap((m) =>
     (picks[m.id] ?? []).map((v) => ({
       m: m.id,
@@ -505,16 +517,22 @@ export function TemplatesPage({ sb, ws, session, navigate, id }: ViewProps) {
 
   useEffect(() => {
     const q = picksToQuery(picks);
-    const path = open ? `/forms/templates/${templateSlug(open)}${style ? `?theme=${style}` : ""}` : `/forms/templates${q ? `?${q}` : ""}`;
+    const sq = new URLSearchParams({ ...(style ? { theme: style } : {}), ...(pages ? { pages } : {}) }).toString();
+    const path = open ? `/forms/templates/${templateSlug(open)}${sq ? `?${sq}` : ""}` : `/forms/templates${q ? `?${q}` : ""}`;
     window.history.replaceState(null, "", path);
-  }, [open, picks, style]);
+  }, [open, picks, style, pages]);
 
   const use = async () => {
     if (!open) return;
     setBusy(true);
     setError("");
     try {
-      const r = await postJson<{ id: string }>(session, "/api/forms/templates", { workspaceId: ws.id, template: open.id, ...(kit ? { kitId: kit.id } : inStyle ? { theme: styleId } : { plain: true }) });
+      const r = await postJson<{ id: string }>(session, "/api/forms/templates", {
+        workspaceId: ws.id,
+        template: open.id,
+        ...(kit ? { kitId: kit.id } : inStyle ? { theme: styleId } : { plain: true }),
+        ...(pagesMode ? { pages: pagesMode } : {}),
+      });
       invalidate(`forms:${ws.id}:home`);
       invalidate(`form_names:${ws.id}`);
       invalidate("app_counts");
@@ -777,9 +795,18 @@ export function TemplatesPage({ sb, ws, session, navigate, id }: ViewProps) {
                 <BrandChip name="Plain" on={look === PLAIN} onClick={() => setLook(PLAIN)} />
               </div>
             </div>
-            {open.schema.pages.length > 1 ? (
-              <ol aria-label="Pages" className="flex flex-wrap items-center gap-[6px] text-[12.5px] text-body">
-                {open.schema.pages.map((p, i) => (
+            {canSwitch(open) ? (
+              <div className="flex flex-col gap-[8px]">
+                <p className={EYEBROW}>Pages</p>
+                <div role="radiogroup" aria-label="Pages" className="flex flex-wrap gap-[6px]">
+                  <BrandChip name="One page" on={pagesMode === "one"} onClick={() => setPages("one")} />
+                  <BrandChip name="Multi-page" on={pagesMode === "multi"} onClick={() => setPages("multi")} />
+                </div>
+              </div>
+            ) : null}
+            {shown && shown.schema.pages.length > 1 ? (
+              <ol aria-label="Page list" className="flex flex-wrap items-center gap-[6px] text-[12.5px] text-body">
+                {shown.schema.pages.map((p, i) => (
                   <li key={i} className="flex items-center gap-[6px]">
                     {i ? (
                       <span aria-hidden="true" className="-rotate-90 text-faint">
@@ -796,7 +823,7 @@ export function TemplatesPage({ sb, ws, session, navigate, id }: ViewProps) {
             ) : null}
             {/* The Studio page fills its own frame, in the brand's background, as it shows on the form's page. */}
             <div className="keep-light min-w-0 overflow-hidden rounded-[12px] shadow-rest">
-              <FormPreview key={`${open.id}:${kit?.id ?? (inStyle ? styleId : PLAIN)}`} form={form} logo={kit?.logo_url ?? null} />
+              <FormPreview key={`${open.id}:${pagesMode}:${kit?.id ?? (inStyle ? styleId : PLAIN)}`} form={form} logo={kit?.logo_url ?? null} />
             </div>
           </div>
         </Sheet>

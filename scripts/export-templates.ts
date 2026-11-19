@@ -4,6 +4,7 @@ import { industryLabel, templateSlug, templateTheme, TEMPLATES } from "../src/li
 import { FONTS, fontsUrl, themeArt, themeVars, THEMES, type FontKey } from "../src/lib/forms/gallery/themes.ts";
 import { facets } from "../src/lib/forms/gallery/filter.ts";
 import { KITS } from "../src/lib/forms/gallery/kits.ts";
+import { canSwitch, pagesOf, withPages } from "../src/lib/forms/gallery/pages.ts";
 import { CATEGORIES, DOES, FAMILIES, FEATURES, LAYOUTS, LENGTHS, MIN_SHOWN, SUBS, TEAMS, seconds } from "../src/lib/forms/gallery/taxonomy.ts";
 import { INDUSTRIES, KIND_LABEL, USE_CASES } from "../src/lib/forms/gallery/types.ts";
 
@@ -39,6 +40,9 @@ const out = {
     seconds: seconds(t),
     added: t.added ?? "",
     schema: t.schema,
+    // One page or multi-page: how it comes, and the form the other way when it can go both ways (pages.ts).
+    pages: pagesOf(t),
+    ...(canSwitch(t) ? { alt: withPages(t, pagesOf(t) === "one" ? "multi" : "one").schema } : {}),
   })),
 };
 process.stdout.write(JSON.stringify(out, null, 1) + "\n");

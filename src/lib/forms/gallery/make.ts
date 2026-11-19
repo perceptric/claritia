@@ -5,6 +5,7 @@ import { templateDraft } from "../../studio/templatePage.ts";
 import { templateTheme } from "./catalog.ts";
 import { templateByKey } from "../../workflows/templates.ts";
 import { kitBooks, kitMeeting, kitWorkflows } from "./kit.ts";
+import { withPages, type PagesMode } from "./pages.ts";
 import type { FormTemplate } from "./types.ts";
 
 // Use template on the server (docs/form-templates.md, docs/forms-chat-plan.md Part 8): the template as a Form Studio
@@ -18,9 +19,10 @@ export type Made = { id: string; kitId: string | null; workflows: number; workfl
 /**
  * Make one form from a template. `sb` is the person's own client (the form and workflows are theirs), `db` the
  * service client (meetings and the brand). `kitId` is a brand already in this workspace; without one the form wears
- * `theme` (a style id, else the template's own style), or Claritia's plain look when `plain`.
+ * `theme` (a style id, else the template's own style), or Claritia's plain look when `plain`. `pages` puts it on one
+ * page or in pages (pages.ts); without it the form comes as the template is.
  */
-export async function makeFromTemplate(o: { sb: SupabaseClient; db: SupabaseClient; ws: string; t: FormTemplate; kitId?: string | null; theme?: string | null; plain?: boolean }): Promise<Made> {
+export async function makeFromTemplate(o: { sb: SupabaseClient; db: SupabaseClient; ws: string; t: FormTemplate; kitId?: string | null; theme?: string | null; plain?: boolean; pages?: PagesMode | null }): Promise<Made> {
   const { sb, db, ws, t } = o;
   let meeting: string | null = null;
   if (kitBooks(t)) {
@@ -30,7 +32,7 @@ export async function makeFromTemplate(o: { sb: SupabaseClient; db: SupabaseClie
   const kitId = o.kitId ?? null;
   const kitCss = kitId ? ((await db.from("brand_kits").select("studio_css").eq("id", kitId).maybeSingle()).data as { studio_css?: string | null } | null)?.studio_css : null;
   const css = kitId ? (kitCss ?? "") : o.plain ? "" : styleCssById(o.theme || templateTheme(t));
-  const draft = templateDraft(t, css, meeting);
+  const draft = templateDraft(withPages(t, o.pages), css, meeting);
   const { data: id, error } = await sb.rpc("form_create", { p_ws: ws, p_name: t.name, p_draft: draft, p_brand_kit: kitId, p_kind: "built" });
   if (error) throw new Error(error.message);
   let made = 0;

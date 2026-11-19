@@ -209,7 +209,9 @@ test("browsing mixes the gallery: every template once, kinds of form side by sid
   assert.deepEqual(filterTemplates({}).map((t) => t.id), all.map((t) => t.id), "same order every time");
   const top = all.slice(0, 30);
   assert.ok(new Set(top.map((t) => valuesIn(t, "family")[0])).size >= 7, "the first cards cover most groups");
-  assert.ok(all.every((t) => !t.schema.cover?.photo), "plain forms only, no welcome photos");
+  const pictured = all.filter((t) => t.schema.cover?.photo);
+  assert.equal(pictured.length, Math.round(TEMPLATES.length * 0.2), "one in five keeps its welcome photo, the rest are plain");
+  assert.ok(top.some((t) => t.schema.cover?.photo) && top.some((t) => !t.schema.cover?.photo), "photo and plain forms side by side");
   assert.ok(new Set(top.map((t) => valuesIn(t, "layout")[0])).size >= 2, "one page and steps both show");
   const search = filterTemplates({}, "demo request");
   assert.equal(search[0]!.id, "saas.demo-request", "a search keeps its best match first");
