@@ -16,6 +16,9 @@ How people get into Claritia, and the setup it needs.
    - Check your inbox has a box for the 6-digit code from the same email (for a link opened in another browser, or
      used up by a mail scanner), and Open Gmail and Open Outlook. The magic-link and confirm-signup emails show the code
      (`{{ .Token }}`, from `tools/auth_emails.py` in the site repo).
+   - A link opened in another browser or on another device (links use PKCE, so only the browser that asked can use
+     them) lands on /signin with one line: "That link opened in a different browser. Continue with email for a code to
+     sign in here." An expired or used link says so (`linkLine` in `src/lib/authLimits.ts`).
    - Before a link is sent, `/api/auth/link` counts it: 5 links per address and 20 per IP an hour, in Postgres
      (`168_auth_limits.sql`, `src/lib/authLimits.ts`), so every server shares the count. Buckets hold a keyed hash,
      never an address or IP. Over the limit, one line says when to try again.
@@ -43,6 +46,7 @@ How people get into Claritia, and the setup it needs.
      `select action, count(*) from audit_log where action like 'setup.%' group by 1 order by 2 desc;`
    - Finishing queues one welcome email (`welcome_email` on claritia-intel, `src/lib/team/welcome.ts`): the team is
      ready, a button to the form just made, and the next steps (put it live, connect a calendar, invite the team).
+     For workspaces the getting-started emails cover (`docs/getting-started-emails.md`), their welcome goes instead.
    - The end opens the new form in Form Studio, else Forms. The step is kept on that computer; finishing or leaving
      from the form step ends it for good. Settings › Workspace renames the team any time.
 4. The Get started card in the sidebar lists six first steps and ticks them as they're done (`GetStarted.tsx`).

@@ -3,7 +3,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { SupaConfig } from "@/lib/supa";
 import { useCallback, useEffect, useState } from "react";
-import { authMessage } from "@/lib/authLimits";
+import { authMessage, linkLine } from "@/lib/authLimits";
 import { suggestEmail } from "@/lib/emailTypos";
 import { Logo } from "../Logo";
 import { FlowDemo } from "./FlowDemo";
@@ -55,25 +55,18 @@ function useAuthAddress(): "signin" | "signup" {
     if (!isAuthPath(pathname)) {
       window.history.replaceState(null, "", fromSite ? "/signup" : "/signin");
       window.dispatchEvent(new PopStateEvent("popstate"));
+    } else if (cleanSearch(search) !== search || window.location.hash) {
+      // What a link left on /signin or /signup comes off, so a reload doesn't say it again.
+      window.history.replaceState(null, "", pathname + cleanSearch(search));
     }
     return () => window.removeEventListener("popstate", onPop);
   }, []);
   return mode;
 }
 
-/** What went wrong with a sign-in link, when Supabase sends someone back with an error; read before the address is cleaned. */
-function linkError(): string {
-  if (typeof window === "undefined") return "";
-  const q = new URLSearchParams(window.location.search);
-  const hsh = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-  const raw = q.get("error_description") || hsh.get("error_description") || q.get("error") || hsh.get("error") || "";
-  if (!raw) return "";
-  if (/verifier|code challenge|flow state/i.test(raw)) return "Open the sign-in link in the same browser you asked for it from, or send a new one here.";
-  if (/expired|invalid|otp/i.test(raw)) return "That sign-in link has expired or was already used. Send a new one.";
-  if (/access_denied|cancel/i.test(raw)) return "";
-  return raw.replace(/\+/g, " ");
-}
-const ERROR_KEYS = ["error", "error_code", "error_description", "code"];
+/** What a sign-in link that came back here couldn't do (src/lib/authLimits.ts); read before the address is cleaned. */
+const readLinkLine = () => (typeof window === "undefined" ? null : linkLine(window.location.search, window.location.hash));
+const ERROR_KEYS = ["error", "error_code", "error_description", "code", "sb_flow_id"];
 /** The address without what a failed sign-in left on it. */
 const cleanSearch = (search: string) => {
   const q = new URLSearchParams(search);
@@ -247,7 +240,10 @@ export function AuthScreen({ sb, config, turnstileSiteKey = null }: { sb: Supaba
   // What's waiting: one sign-in option, or the email link. Each button says what it's doing; the rest wait.
   const [pending, setPending] = useState<null | Provider | "email" | "code">(null);
   const busy = pending !== null;
-  const [error, setError] = useState(linkError);
+  const [link] = useState(readLinkLine);
+  const [error, setError] = useState(link?.tone === "error" ? link.message : "");
+  // A link opened in another browser: one line on how to get in here, until they send a new one.
+  const [note, setNote] = useState(link?.tone === "note" ? link.message : "");
   const [sentTo, setSentTo] = useState("");
   const [wait, setWait] = useState(0);
   // The 6-digit code from the same email, for when the link opens in another browser or a mail scanner used it up.
@@ -301,6 +297,7 @@ export function AuthScreen({ sb, config, turnstileSiteKey = null }: { sb: Supaba
     if (turnstileSiteKey && !captcha) return setError("Wait for the security check to finish, then try again.");
     setPending("email");
     setError("");
+    setNote("");
     try {
       const limited = await linkWait(to);
       if (limited) return setError(limited);
@@ -474,6 +471,11 @@ export function AuthScreen({ sb, config, turnstileSiteKey = null }: { sb: Supaba
         </Button>
       </form>
       {check}
+      {note ? (
+        <p role="status" className="rounded-lg bg-signal-pale px-3.5 py-2.5 text-[13px] text-signal-text">
+          {note}
+        </p>
+      ) : null}
       <ErrorNote message={error} />
       <p className="text-center text-xs leading-relaxed text-muted">
         By continuing, you agree to the{" "}
