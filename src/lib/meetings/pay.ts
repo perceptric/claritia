@@ -80,7 +80,9 @@ export async function refundFor(rpc: Rpc, stripe: PayStripe, v: MeetingView): Pr
 
 /**
  * One Stripe event from a connected account, already fetched back from Stripe (so it's real). Only events for a
- * meeting on that same account count.
+ * meeting on that same account count: the workspace's, or, once the team has disconnected Stripe, the account the
+ * meeting's own checkout session was opened on (so a guest who was paying as the team disconnected still gets the
+ * meeting, and a late expiry still lets the time go).
  */
 export async function handlePayEvent(rpc: Rpc, stripe: PayStripe, e: PayEvent): Promise<PayResult> {
   const obj = e.data.object;
@@ -97,7 +99,8 @@ export async function handlePayEvent(rpc: Rpc, stripe: PayStripe, e: PayEvent): 
   if (!meetingId || !/^[0-9a-f-]{36}$/.test(meetingId)) return { ok: true, did: "skipped" };
   const v = await loadMeeting(rpc, { id: meetingId });
   if (!v) return { ok: true, did: "skipped" };
-  const account = v.ws.pay?.account;
+  const own = v.meeting.payment?.session === obj.id ? (v.meeting.payment?.account ?? null) : null;
+  const account = v.ws.pay?.account ?? own;
   if (!account || e.account !== account || obj.metadata?.workspace_id !== v.meeting.workspace_id) return { ok: false, reason: "Not this workspace's account." };
   const paid = (e.type === "checkout.session.completed" && obj.payment_status === "paid") || e.type === "checkout.session.async_payment_succeeded";
   if (paid) {

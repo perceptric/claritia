@@ -59,14 +59,22 @@ type Obj = { id: string; metadata?: Record<string, string> | null; payment_inten
 
 /**
  * A checkout event for a form's submission, already fetched back from Stripe on `account` (so it's real). Only a
- * submission of a workspace whose connected account is that account counts.
+ * submission of a workspace whose connected account is that account counts, or, once the team has disconnected
+ * Stripe, a submission whose own checkout session was opened on it (a payment made as the team disconnected counts).
  */
 export async function handleFormPayEvent(rpc: Rpc, e: { type: string; account?: string | null; data: { object: Obj } }, accountOf: (ws: string) => Promise<string | null>): Promise<"paid" | "closed" | "skipped"> {
   const obj = e.data.object;
   const sid = obj.metadata?.submission_id;
   const ws = obj.metadata?.workspace_id;
   if (!sid || !ws || !/^[0-9a-f-]{36}$/.test(sid) || !/^[0-9a-f-]{36}$/.test(ws)) return "skipped";
-  if (!e.account || (await accountOf(ws)) !== e.account) return "skipped";
+  if (!e.account) return "skipped";
+  const current = await accountOf(ws);
+  if (current !== e.account) {
+    if (current) return "skipped";
+    const { data } = await rpc("submission_payment", { p_sid: sid, p_patch: {} });
+    const p = data as { account?: string; session?: string } | null;
+    if (p?.account !== e.account || p?.session !== obj.id) return "skipped";
+  }
   const paid = (e.type === "checkout.session.completed" && obj.payment_status === "paid") || e.type === "checkout.session.async_payment_succeeded";
   const intent = typeof obj.payment_intent === "string" ? obj.payment_intent : (obj.payment_intent?.id ?? null);
   if (paid) {

@@ -145,7 +145,7 @@ Everything a rep does in Calendly works in Claritia without a form:
 | Meeting polls | Offer several times to a group, guests vote, the host books the winner |
 | Share times in an email | "Copy times" puts the next free slots as text with booking links in each, for Gmail or Outlook |
 | Invitee questions | The form studio's fields on the booking page, with answers saved to the contact |
-| Payments | Stripe on paid types: the guest pays to book, refunds on cancel by the host (Stripe fees are the customer's) |
+| Payments | Stripe on paid types: the guest pays to book, refunds on cancel by the host (Stripe fees are the customer's). Disconnect in Settings › Integrations › Stripe forgets the account and turns off the Stripe-paid types (`src/lib/meetings/payDisconnect.ts`); booked meetings, refunds and a checkout already open keep working |
 | Routing forms | Our forms and router (M2, M3) |
 | Workflows (reminders, follow-ups, thank-you emails) | Reminders in 1.7 now; any step after M6 ships |
 | Embeds: inline, popup widget, popup text | `<claritia-book>` inline, a floating button, and `data-claritia-book` on any link |
