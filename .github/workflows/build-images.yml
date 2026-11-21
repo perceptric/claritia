@@ -1,5 +1,14 @@
-# Build each app's Docker image on every push and publish it to GitHub's container registry (ghcr.io).
-# The Hostinger VPS pulls these images. Nothing deploys from here; GITHUB_TOKEN is the only secret it needs.
+# On every push to main: build each app's Docker image, publish it to GitHub's container registry (ghcr.io), deploy
+# them to the OVH server and check that app.tryclaritia.com runs this commit.
+# The deploy job starts the deploy at once over SSH (deploy/deploy.sh on the server) when the repo has the variable
+# DEPLOY_HOST. Without it, the server's autodeploy container picks the new images up within 5 minutes. Either way the
+# run fails if /api/version doesn't show this commit in time.
+# Settings, Secrets and variables, Actions:
+#   variables: DEPLOY_HOST (the server's address), DEPLOY_USER (the SSH user), DEPLOY_PORT (optional, default 22),
+#              APP_URL (optional, default https://app.tryclaritia.com)
+#   secrets:   DEPLOY_SSH_KEY (a private key made only for this), DEPLOY_KNOWN_HOSTS (the line from ssh-keyscan for the server)
+# Database migrations still run by hand (README, Setup). Run a new one before merging the code that needs it.
+# To deploy by hand: Actions, Build images, Run workflow (or: gh workflow run build-images.yml).
 name: Build images
 
 on:
@@ -47,9 +56,50 @@ jobs:
           context: .
           file: ${{ matrix.file }}
           push: true
-          build-args: ${{ matrix.args }}
+          build-args: |
+            GIT_COMMIT=${{ github.sha }}
+            ${{ matrix.args }}
           tags: |
             ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:latest
             ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    # One deploy at a time.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - name: Restart the apps on the server
+        if: ${{ vars.DEPLOY_HOST != '' }}
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          HOST: ${{ vars.DEPLOY_HOST }}
+          USER_NAME: ${{ vars.DEPLOY_USER }}
+          PORT: ${{ vars.DEPLOY_PORT || '22' }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          # The server's authorized_keys locks this key to deploy.sh, so the command here is only a fallback.
+          ssh -i ~/.ssh/deploy_key -p "$PORT" -o StrictHostKeyChecking=yes -o BatchMode=yes "$USER_NAME@$HOST" deploy.sh "$GITHUB_SHA"
+      - name: Wait for the new version to answer
+        env:
+          APP_URL: ${{ vars.APP_URL || 'https://app.tryclaritia.com' }}
+          WANT: ${{ github.sha }}
+          # 3 minutes after an SSH deploy; 12 without one, for the autodeploy container's 5-minute check and the pull.
+          TRIES: ${{ vars.DEPLOY_HOST != '' && '36' || '144' }}
+        run: |
+          for i in $(seq 1 "$TRIES"); do
+            got=$(curl -fsS "$APP_URL/api/version" | sed -n 's/.*"commit":"\([0-9a-f]*\)".*/\1/p' || true)
+            if [ "$got" = "$WANT" ]; then echo "Live: $got"; exit 0; fi
+            echo "Waiting for $WANT (server has ${got:-nothing yet})"
+            sleep 5
+          done
+          echo "$APP_URL didn't switch to $WANT in time. On the server: docker logs of the autodeploy container, or run deploy.sh." >&2
+          exit 1
