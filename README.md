@@ -43,7 +43,7 @@ This repo holds the marketing site (`/` on tryclaritia.com) and the app (app.try
 
 ## The runner
 
-`claritia-runner` on the VPS, built from `worker/Dockerfile`. It needs `SUPABASE_URL`, `SUPABASE_SECRET_KEY` and the same `SECRETS_KEY` as the web service. `WORKER_SLOTS` (default 2) sets how many runs it does at once. Run files go to the private `runs` storage bucket.
+`claritia-runner` on the server, built from `worker/Dockerfile`. It needs `SUPABASE_URL`, `SUPABASE_SECRET_KEY` and the same `SECRETS_KEY` as the web service. `WORKER_SLOTS` (default 2) sets how many runs it does at once. Run files go to the private `runs` storage bucket.
 
 The AI writer needs `ANTHROPIC_API_KEY` on the runner. `CLAUDE_MODEL` (default `claude-opus-5-5`) and `CLAUDE_EFFORT` (`low`, `medium` or `high`, default `medium`) are optional. Calls use adaptive thinking, structured output, prompt caching on the instructions, and the server-side fallback beta (`fallbacks: "default"`), which re-runs a declined request on another Claude model.
 
@@ -110,8 +110,8 @@ Stripe's fee comes out of revenue, so it grows only with paying customers.
 
 ## Setup
 
-1. **Database (Postgres on the Hostinger VPS):** run each file in `supabase/migrations` in order with `psql "$DATABASE_URL" -f <file>` (the folder keeps its old name). In the sign-in service's settings, set the Site URL to `https://app.tryclaritia.com` and add `https://app.tryclaritia.com/**` and `http://localhost:3000/**` to the redirect list, and turn on Google and GitHub.
-2. **Apps on the VPS:** give `claritia-web` `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and `SECRETS_KEY` (32+ random characters, never change it once secrets are saved). The web app also needs `SUPABASE_SECRET_KEY` for the mail and Stripe webhooks and for API keys. The variable names keep the `SUPABASE_` start because the code reads them.
+1. **Database (Postgres on the OVH server):** run each file in `supabase/migrations` in order with `psql "$DATABASE_URL" -f <file>` (the folder keeps its old name). In the sign-in service's settings, set the Site URL to `https://app.tryclaritia.com` and add `https://app.tryclaritia.com/**` and `http://localhost:3000/**` to the redirect list, and turn on Google and GitHub.
+2. **Apps on the server:** give `claritia-web` `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and `SECRETS_KEY` (32+ random characters, never change it once secrets are saved). The web app also needs `SUPABASE_SECRET_KEY` for the mail and Stripe webhooks and for API keys. The variable names keep the `SUPABASE_` start because the code reads them.
 3. **Test inboxes (Resend):** in Resend, add the domain `inbox.tryclaritia.com`, turn on receiving, and add the MX record it shows at the domain registrar. Add a webhook for the `email.received` event to `https://app.tryclaritia.com/api/inbox/resend`. Put a full-access API key in `RESEND_API_KEY` on the web service. No webhook secret is needed: the app fetches each email back from Resend with the key before it saves it.
 4. **Billing (Stripe):** set `STRIPE_SECRET_KEY` on the web service. That's all: prices come from `src/lib/plans.ts`, and the first checkout makes the webhook to `/api/billing/webhook` in Stripe, and the first "Manage billing" makes the billing page. The webhook needs no signing secret, because each event is fetched back from Stripe with the secret key before it's used.
 
@@ -138,15 +138,26 @@ npm run build
 
 ## Deploy
 
-Everything runs on the Hostinger VPS. `.github/workflows/build-images.yml` builds `claritia-web`, `claritia-runner`, `claritia-relay` and `claritia-intel` on every push to `main` and publishes them to `ghcr.io/<owner>/<app>:latest` (and `:<commit>`); the VPS pulls them. `.github/workflows/checks.yml` runs lint, typecheck and the unit tests. Postgres runs on the same VPS.
+Everything runs on the OVH server (Docker and Traefik), with Postgres in the self-hosted Supabase at `db.tryclaritia.com`. Every push to `main` runs `.github/workflows/build-images.yml`: it builds `claritia-web`, `claritia-runner`, `claritia-relay` and `claritia-intel`, publishes them to `ghcr.io/<owner>/<app>:latest` (and `:<commit>`), deploys them and then waits until `https://app.tryclaritia.com/api/version` shows the new commit. The run fails if it doesn't, so a deploy that didn't happen shows up as a red run. `.github/workflows/checks.yml` runs lint, typecheck and the unit tests.
 
-One app (`claritia-web`) serves both domains. `src/proxy.ts` sends `/` on `tryclaritia.com` to the site, and everything on `app.tryclaritia.com` to the app. `www.` goes to the bare domain. Point `tryclaritia.com`, `www.tryclaritia.com` and `app.tryclaritia.com` at the VPS in Hostinger's DNS.
+- With the repo variable `DEPLOY_HOST` set, the workflow runs `deploy/deploy.sh` on the server over SSH right away. The script finds the Compose projects that run the four images, pulls, runs `docker compose up -d` and updates itself from the newest `claritia-web` image. It never edits a file on the server.
+- Without it, the server's `autodeploy` container pulls new images every 5 minutes and restarts what changed. The workflow waits up to 12 minutes for that.
+
+Migrations don't run on their own: run a new file in `supabase/migrations` (Setup, step 1) before merging the code that needs it.
+
+To turn on the SSH deploy, once:
+
+1. On the server, copy `deploy/deploy.sh` to `/docker/claritia-web/deploy.sh` and `chmod +x` it. The SSH user needs Docker (the `docker` group), a `docker login ghcr.io` that can pull the images, and read access to the apps' Compose folders (`.env` included).
+2. Make a key just for this (`ssh-keygen -t ed25519 -f deploy_key -N ""`) and add the public half to that user's `~/.ssh/authorized_keys`, locked to the script: `command="/docker/claritia-web/deploy.sh",no-port-forwarding,no-agent-forwarding,no-X11-forwarding,no-pty ssh-ed25519 AAAA... github-deploy`.
+3. In GitHub, Settings, Secrets and variables, Actions: secrets `DEPLOY_SSH_KEY` (the private half) and `DEPLOY_KNOWN_HOSTS` (`ssh-keyscan -t ed25519 <server>`), variables `DEPLOY_HOST` and `DEPLOY_USER` (and `DEPLOY_PORT` if not 22).
+
+One app (`claritia-web`) serves both domains. `src/proxy.ts` sends `/` on `tryclaritia.com` to the site, and everything on `app.tryclaritia.com` to the app. `www.` goes to the bare domain. Point `tryclaritia.com`, `www.tryclaritia.com` and `app.tryclaritia.com` at the OVH server in the domain's DNS.
 
 Fly (`docs/fly.md`) and Render (`render.yaml`) are no longer used.
 
 ## Launch numbers
 
-Time from sign-up to a first passing test, per workspace (run with `psql` on the VPS database):
+Time from sign-up to a first passing test, per workspace (run with `psql` on the server's database):
 
 ```sql
 select w.name, w.created_at, w.first_pass_at, w.first_pass_at - w.created_at as time_to_pass
