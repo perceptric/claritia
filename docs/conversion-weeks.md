@@ -222,7 +222,22 @@ What shipped and what's left: the plan's Part 21b (custom objects) and Part 21d.
 
 ---
 
-## Week 9. Sending
+## Week 9. Sending (built)
+
+What shipped: `039_email.sql` (the plan's `037_email.sql`; 037 and 038 were taken by week 8), `src/lib/email/` (`ses.ts` over plain fetch with `sigv4.ts`, `domains.ts` and `records.ts`, `guard.ts`, `track.ts`, `message.ts`, `send.ts`, `sns.ts`), the SNS route `src/app/api/ses/route.ts`, the unsubscribe route `src/app/u/[token]`, the click route `src/app/c/[token]`, the jobs `send`, `ses_event`, `domain_check` and `domain_delete` on claritia-intel, and Settings › Sending. Setup and cost: `docs/sending-setup.md`.
+
+How it works:
+- The guard runs in the database (`send_claim`) with the message row locked, so an unsubscribe, bounce or pause after queueing still stops the send.
+- A message is sent at most once: a worker that dies mid-send leaves it `unknown`, and SES's Send event fills it in.
+- `legitimate_interest` is refused in the EU, EEA, UK, Switzerland, Brazil and Canada; elsewhere it counts as a basis.
+- One-click unsubscribe leaves every topic and suppresses the address for the workspace.
+- Test sends go only to workspace members, from a verified domain, up to 30 an hour.
+
+Left for later:
+- Tracking subdomain (`t.<domain>`): clicks go through `app.tryclaritia.com/c/` until customer domains get certificates.
+- The topic preference page (`/u/prefs`), the open pixel, and posting send activity to Omniscient.
+- Pruning old `email_messages` rows.
+- Dedicated IPs.
 
 **Goal:** a verified domain sends with every guard on.
 
@@ -234,7 +249,7 @@ What shipped and what's left: the plan's Part 21b (custom objects) and Part 21d.
 
 **Tests:** SNS signature; suppressed address never sent even from a queued step; one-click unsubscribe (RFC 8058 headers); complaint storm pauses the workspace; cap and quiet hours.
 
-**Founder:** SES production access in ap-northeast-1, sending rate raised.
+**Founder:** SES production access in us-east-2 (done: 50,000 a day, 14 a second), the SNS topic and IAM key in `docs/sending-setup.md`.
 
 **Done when:** a test domain verifies and an email sends with one-click unsubscribe.
 
