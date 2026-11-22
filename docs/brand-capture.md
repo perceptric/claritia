@@ -59,6 +59,12 @@ Settings › Brand. It's used by:
 | Booking pages (public) | The form's kit when opened from a form, else the workspace's brand (`book_kit`) |
 | Booking page and meeting editor in the app | The workspace's brand (`src/lib/brand/workspaceKit.ts`) |
 | HTML sections the AI writes | The form's kit, through its variables (never fixed colors) |
+| Email templates, the email builder, workflow emails and every send | The workspace's brand when the email names no kit (`kitsBrandFirst` and `loadKits`); "Use template" saves the draft with it |
+
+Emails wear the brand's colors, button and Google fonts (`tokenFonts` in `src/lib/design/fonts.ts`). A brand with no logo
+yet shows its name in its heading font where the logo goes (the brand book's name, else the team's). Emails › Templates
+previews every template this way with the workspace's real postal address, and with no brand yet it shows a website box
+that runs the same read as onboarding.
 
 Settings › Brand shows the brand's logo, colors, fonts and a sample button; Read again after a redesign; Use another
 site; and Use as brand for any other site read before.

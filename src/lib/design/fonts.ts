@@ -82,6 +82,11 @@ export function previewFontsUrl(): string {
   return `https://fonts.googleapis.com/css2?${FONTS.map((f) => `family=${f.name.replace(/ /g, "+")}`).join("&")}&text=${encodeURIComponent(letters)}&display=swap`;
 }
 
+/** The brand's own body and heading fonts (the first of each stack), so emails load them too. */
+export function tokenFonts(t: { font?: string; headingFont?: string } | null | undefined): string[] {
+  return [t?.font, t?.headingFont].map((v) => (v ?? "").split(",")[0]!.trim().replace(/^['"]|['"]$/g, "")).filter(Boolean);
+}
+
 /** The font families a design names (the first of each stack), so the page can load them: fonts can't load inside a shadow root. */
 export function designFonts(system: unknown, design: unknown): string[] {
   const out = new Set<string>();

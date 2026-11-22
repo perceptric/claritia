@@ -63,6 +63,7 @@ import { emailSteps, sameEmail } from "@/lib/workflows/stepEmails";
 import { FIELDS_FOR, isSystemKey, SYSTEM_FIELDS, SYSTEM_META, systemDefault } from "@/lib/meetings/systemEmails";
 import { flowKeys } from "@/lib/workflows/meetingFlows";
 import { EmailBuilder } from "../../email/EmailBuilder";
+import { kitsBrandFirst } from "@/lib/brand/workspaceKit";
 
 export const UNGROUPED = "ungrouped";
 /** The workspace's System emails (docs/system-emails.md): one canvas, "campaigns/group/system". */
@@ -155,7 +156,7 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
   // The state people see (Paused, Sent once everything went) comes from email_campaigns.
   const states = useQuery(`email_campaigns:${ws.id}`, async () => (must(await sb.rpc("email_campaigns", { p_ws: ws.id })) ?? []) as { id: string; status: string }[]);
   const kits = useQuery(`email_canvas_kits:${ws.id}`, async () =>
-    ((must(await sb.from("brand_kits").select("id, name, tokens, logo_url, design, design_live, design_rev").eq("workspace_id", ws.id).order("created_at")) ?? []) as Omit<Kit, "notes" | "source_url" | "scan_status" | "scan_error" | "scanned_at">[]).map(
+    ((must(await kitsBrandFirst(sb, ws.id, "id, name, tokens, logo_url, design, design_live, design_rev")) ?? []) as Omit<Kit, "notes" | "source_url" | "scan_status" | "scan_error" | "scanned_at">[]).map(
       (k): Kit & { design: unknown } => ({ notes: [], source_url: null, scan_status: null, scan_error: null, scanned_at: null, ...k, tokens: k.tokens ?? {}, design: k.design ?? null }),
     ),
   );

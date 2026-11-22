@@ -24,6 +24,7 @@ import { previewHtml, type CanvasKit } from "../emails/canvas/preview";
 import { loadWorkflow } from "./data";
 import { WorkflowEditor } from "./Editor";
 import { ensureMeetingSetup } from "./meetingSetup";
+import { kitsBrandFirst } from "@/lib/brand/workspaceKit";
 
 type Row = { id: string; name: string; status: "draft" | "live" | "paused"; folder_id: string | null; meeting_kind: string | null; draft: unknown; updated_at: string };
 type FolderRow = { id: string; name: string; position: number };
@@ -50,7 +51,7 @@ async function loadHome(sb: ViewProps["sb"], ws: string): Promise<HomeData> {
     sb.from("workflows").select("*").eq("workspace_id", ws).order("created_at"),
     sb.from("workflow_folders").select("id, name, position").eq("workspace_id", ws).order("position"),
     sb.from("emails").select("id, doc, html, status, workflow_id, system_key, group_position").eq("workspace_id", ws).in("kind", ["journey", "system"]).order("group_position"),
-    sb.from("brand_kits").select("id, tokens, logo_url, design").eq("workspace_id", ws).order("created_at"),
+    kitsBrandFirst(sb, ws, "id, tokens, logo_url, design"),
   ]);
   const list = (must(rows) ?? []) as Row[];
   const all = (mails.data ?? []) as (Mini & { workflow_id: string | null })[];

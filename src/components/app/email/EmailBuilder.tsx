@@ -36,6 +36,7 @@ import { AiMark } from "../Ai";
 import { checkEmailDesign } from "@/lib/design/check";
 import { EmailCanvas } from "./EmailCanvas";
 import { EmailStylePanel } from "./EmailStyle";
+import { kitsBrandFirst } from "@/lib/brand/workspaceKit";
 
 type Snap = { doc: EmailDoc; system: DesignSystem };
 type Rail = "add" | "layers";
@@ -100,12 +101,7 @@ export function EmailBuilder({
   const loadKits = useCallback(() => setKitTick((t) => t + 1), []);
   useEffect(() => {
     let live = true;
-    void sb
-      .from("brand_kits")
-      .select("id, name, tokens, logo_url, notes, source_url, scan_status, scan_error, scanned_at, design, design_live, design_rev, social")
-      .eq("workspace_id", workspaceId)
-      .order("created_at")
-      .then(({ data, error: e }) => {
+    void kitsBrandFirst<Kit>(sb, workspaceId, "id, name, tokens, logo_url, notes, source_url, scan_status, scan_error, scanned_at, design, design_live, design_rev, social").then(({ data, error: e }) => {
         if (!live) return;
         if (e) setError(e.message);
         else setKits((data ?? []) as Kit[]);

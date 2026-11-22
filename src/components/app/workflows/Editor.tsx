@@ -24,6 +24,7 @@ import { useEmailCopies } from "./emailCopies";
 import { designOf, emailSteps, sameEmail, withFooter } from "@/lib/workflows/stepEmails";
 import { flowKeys, isRequiredFlow, lockedStep } from "@/lib/workflows/meetingFlows";
 import { MeetingEmailPanel, type SystemRow } from "./MeetingEmailPanel";
+import { kitsBrandFirst } from "@/lib/brand/workspaceKit";
 
 type SaveState = "idle" | "saving" | "saved" | "retry" | "conflict";
 const STATUS: Record<"draft" | "live" | "paused", [string, Tone]> = {
@@ -74,7 +75,7 @@ export function WorkflowEditor({
   // Each email step's editing copy on the Emails canvas (docs/email-unify-plan.md, E3).
   const mail = useEmailCopies({ sb, ws: ws.id, id, body, sync, readOnly: false });
   // Small pictures of the emails on their cards, in the brand kit they use.
-  const kits = useQuery(`email_canvas_kits:${ws.id}`, async () => ((await sb.from("brand_kits").select("id, tokens, logo_url, design").eq("workspace_id", ws.id).order("created_at")).data ?? []) as CanvasKit[]);
+  const kits = useQuery(`email_canvas_kits:${ws.id}`, async () => ((await kitsBrandFirst(sb, ws.id, "id, tokens, logo_url, design")).data ?? []) as CanvasKit[]);
   // A meeting workflow's emails: the workspace's System emails (164), by key.
   const hasMeetingMail = flowKeys(body).length > 0;
   const systemRows = useQuery(hasMeetingMail ? `system_emails:${ws.id}` : null, async () => ((await sb.from("emails").select("id, name, system_key, subject, preheader, doc").eq("workspace_id", ws.id).eq("kind", "system")).data ?? []) as SystemRow[], { staleMs: 0 });

@@ -19,6 +19,8 @@ export type CompileOpts = {
   tokens?: Partial<Tokens>;
   /** The brand kit's logo, for Logo blocks without their own image. */
   logo?: string | null;
+  /** The brand's name, set in its heading font where a Logo block has no picture at all. */
+  brandName?: string | null;
   /** A Google Fonts stylesheet for the fonts used, for clients that load web fonts. */
   fontUrl?: string;
   /** Builder previews: mark each element with data-eid, and each part with its class, so the canvas can find them. */
@@ -186,6 +188,16 @@ function image(ctx: Ctx, id: string, src: string, alt: string, width: number, ur
   return url ? `<a href="${escapeAttr(url)}" style="text-decoration:none">${tag}</a>` : tag;
 }
 
+/** A brand with no logo yet: its name, in its heading font and text color, where the logo goes. */
+function wordmark(ctx: Ctx, id: string, name: string, where: string, url?: string): string {
+  const t = ctx.opts.tokens ?? {};
+  const font = t.headingFont || t.font || "Arial, Helvetica, sans-serif";
+  const color = t.text || "#111111";
+  const s = style(ctx, id, "image", isMargin);
+  const tag = `<div${attrClass(s.className)} style="font-family:${escapeAttr(font)};font-size:20px;line-height:1.2;font-weight:700;letter-spacing:-0.2px;color:${escapeAttr(color)};text-align:${where === "right" ? "right" : where === "center" ? "center" : "left"};${escapeAttr(s.inline)}">${escapeText(name.slice(0, 60))}</div>`;
+  return url ? `<a href="${escapeAttr(url)}" style="text-decoration:none;color:${escapeAttr(color)}">${tag}</a>` : tag;
+}
+
 function textPart(ctx: Ctx, id: string, part: EmailPartKey, inner: string, tag = "div", extra = ""): string {
   const s = style(ctx, id, part, isMargin);
   return `<${tag}${attrClass(s.className)} style="margin:0;${extra}${escapeAttr(s.inline)}">${inner}</${tag}>`;
@@ -206,8 +218,12 @@ function blockHtml(ctx: Ctx, b: Block, width: number): string {
     }
     case "image":
       return image(ctx, b.id, b.src, b.alt, Math.min(b.width ?? width, width), b.url, align(b.align), "image", b.loading);
-    case "logo":
-      return image(ctx, b.id, b.src ?? ctx.opts.logo ?? "", b.alt, Math.min(b.width, width), b.url, align(b.align));
+    case "logo": {
+      const src = b.src ?? ctx.opts.logo ?? "";
+      const name = ctx.opts.brandName?.trim();
+      if (!src && name) return wordmark(ctx, b.id, name, align(b.align), b.url);
+      return image(ctx, b.id, src, b.alt, Math.min(b.width, width), b.url, align(b.align));
+    }
     case "divider": {
       const s = style(ctx, b.id, "divider", isMargin);
       return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td${attrClass(s.className)} style="font-size:0;line-height:0;${escapeAttr(s.inline)}">&nbsp;</td></tr></table>`;

@@ -26,6 +26,7 @@ import { GroupCards, type GroupShow } from "./canvas/GroupCards";
 import { WorkflowsView } from "../workflows/WorkflowsView";
 import { isRoleAddress } from "@/lib/emails/role";
 import { Badge, Button, Checkbox, ErrorNote, errorText, IconButton, invalidate, Loading, must, Page, postJson, Section, Segmented, Td, Th, timeAgo, useQuery, type Tone, type ViewProps } from "../ui";
+import { kitsBrandFirst } from "@/lib/brand/workspaceKit";
 
 export function EmailsView(props: ViewProps) {
   const p = emailsPage(props.id);
@@ -821,7 +822,7 @@ function Brand(props: ViewProps) {
 
 /** The brand's voice: the brief Tia writes every email and automation from, changed by hand. Saves on leaving the box. */
 function Voice({ sb, ws }: ViewProps) {
-  const kit = useQuery(`brand_voice:${ws.id}`, async () => (must(await sb.from("brand_kits").select("id, name, brief").eq("workspace_id", ws.id).order("created_at").limit(1).maybeSingle()) ?? null) as { id: string; name: string; brief: string | null } | null);
+  const kit = useQuery(`brand_voice:${ws.id}`, async () => ((must(await kitsBrandFirst<{ id: string; name: string; brief: string | null }>(sb, ws.id, "id, name, brief, tokens")) ?? [])[0] ?? null));
   const [text, setText] = useState<string | null>(null);
   const [state, setState] = useState<"" | "saving" | "saved">("");
   const [error, setError] = useState("");

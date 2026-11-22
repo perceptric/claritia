@@ -14,6 +14,7 @@ import { emailSteps, ensurePayload, type EmailCopy } from "@/lib/workflows/stepE
 import { flowKeys } from "@/lib/workflows/meetingFlows";
 import { ensureMeetingSetup } from "../../workflows/meetingSetup";
 import { previewHtml, type CanvasKit } from "./preview";
+import { kitsBrandFirst } from "@/lib/brand/workspaceKit";
 
 type Mini = { id: string; status: string; doc: unknown; html: string; updated_at: string; updated_by?: string | null; system_key?: string | null };
 type Card = { id: string; name: string; count: number; edited: string | null; by: string | null; minis: Mini[]; auto?: boolean; system?: boolean };
@@ -21,7 +22,7 @@ export type GroupShow = "all" | "campaigns" | "automations";
 const n = (x: number) => x.toLocaleString("en-US");
 
 export function GroupCards({ sb, ws, me, onOpen, show = "all" }: { sb: SupabaseClient; ws: string; me: string; onOpen: (id: string) => void; show?: GroupShow }) {
-  const kits = useQuery(`email_canvas_kits:${ws}`, async () => (must(await sb.from("brand_kits").select("id, tokens, logo_url, design").eq("workspace_id", ws).order("created_at")) ?? []) as CanvasKit[]);
+  const kits = useQuery(`email_canvas_kits:${ws}`, async () => (must(await kitsBrandFirst(sb, ws, "id, tokens, logo_url, design")) ?? []) as CanvasKit[]);
   const cards = useQuery(`email_groups:${ws}`, async () => {
     // The meeting emails and their workflows, made the first time (docs/workflows-plan.md, Part A).
     await ensureMeetingSetup(sb, ws);
