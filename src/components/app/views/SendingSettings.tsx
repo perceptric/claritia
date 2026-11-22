@@ -64,7 +64,7 @@ const HOURS = Array.from({ length: 24 }, (_, h) => ({ value: h, label: `${String
 export function SendingSettings({ sb, session, ws, role , part = "domains" }: Pick<ViewProps, "sb" | "session" | "ws" | "role"> & { part?: "domains" | "sender" }) {
   const owner = role === "owner";
   const domains = useLoad(async () => must(await sb.from("sending_domains").select("*").eq("workspace_id", ws.id).order("created_at")) as Domain[], `${ws.id}:domains`);
-  // Whether the server offers the move to Amazon SES (EMAIL_SES_MOVE=1 with SES set up).
+  // Whether the server offers the move to Amazon SES (on with SES set up, unless EMAIL_SES_MOVE=off).
   const sesMove = useLoad(async () => ((await fetch("/api/email/ses-move").then((r) => r.json()).catch(() => null)) as { on?: boolean } | null)?.on === true, "ses-move");
   const settings = useLoad(
     async () => must(await sb.from("send_settings").select("from_name, from_email, reply_to, address, cap_count, cap_days, quiet_start, quiet_end, timezone, paused, paused_reason").eq("workspace_id", ws.id).maybeSingle()) as Settings | null,

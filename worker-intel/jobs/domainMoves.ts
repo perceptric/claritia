@@ -1,5 +1,5 @@
 // Moving sending domains to Amazon SES (docs/ses-plan.md Step 4, supabase/migrations/146_domain_move_emails.sql). Runs
-// once an hour on the worker while EMAIL_SES_MOVE=1: starts the move for verified Resend domains, then emails each
+// once an hour on the worker while customer domains are on SES (sesMoveOn: SES keys set, EMAIL_SES_MOVE not off): starts the move for verified Resend domains, then emails each
 // workspace's owners the records once they're ready, and reminders at 7 and 14 days while the move waits. A step is
 // claimed before anything goes, so two workers never send it twice, and given back only when nothing went out.
 

@@ -164,7 +164,7 @@ On the OVH server, in the `.env` of the `claritia-web` and `claritia-intel` Comp
 | `SES_SNS_TOPIC_ARN` | The ARN of `claritia-ses-events` |
 | `SES_MAX_RATE` | Optional: the send rate to start from before SES says (default 1 a second) |
 | `EMAIL_SES_DOMAINS` | Unset or empty means `tryclaritia.com`; `off` sends everything through Resend; later `all` |
-| `EMAIL_SES_MOVE` | `1` makes new customer domains on SES and offers "Move to new sending" (docs/ses-plan.md Steps 3 and 4) |
+| `EMAIL_SES_MOVE` | On by default with SES keys set: new customer domains are made on SES and verified ones move (docs/ses-plan.md Steps 3 and 4). `off` stops it |
 | `CLARITIA_OWN_DOMAINS` | Optional: domains no workspace may add (default `tryclaritia.com,perceptric.com`) |
 
 AWS console, once:

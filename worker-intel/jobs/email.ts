@@ -5,7 +5,7 @@
 //         each answer. Runs about 50 seconds, then queues the next round if more wait. A rate limit ends the round
 //         and the rest go back in line without using a try.
 //   domain_check: makes the Resend domain if needed, asks Resend to verify, then checks every DNS record. A domain
-//         moving to Amazon SES, or made on it (EMAIL_SES_MOVE=1), gets its SES identity and MAIL FROM, and its SES
+//         moving to Amazon SES, or made on it (sesMoveOn), gets its SES identity and MAIL FROM, and its SES
 //         records checked; SES verified flips the domain to SES (145_ses_domains.sql, docs/ses-plan.md).
 //   domain_remove: deletes a removed domain from Resend and SES, unless it was added again.
 

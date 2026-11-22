@@ -9,7 +9,7 @@ import { domainOf, outcomeOf, SendError, type Outgoing, type Sender } from "../s
 import { renderMessage } from "../src/lib/email/render.ts";
 import type { Claimed } from "../src/lib/email/render.ts";
 import type { Resend } from "../src/lib/email/resend.ts";
-import { routedBatcher, routedMailer, routedSender, sesDomains, systemSend, type RawMail } from "../src/lib/email/senders.ts";
+import { routedBatcher, routedMailer, routedSender, sesDomains, sesMoveOn, systemSend, type RawMail } from "../src/lib/email/senders.ts";
 import { rateBucket, sesClient, type Ses } from "../src/lib/email/ses.ts";
 import { signV4 } from "../src/lib/email/sigv4.ts";
 import { checkSns, parseSesEvent, stringToSign, type SnsMessage } from "../src/lib/email/sns.ts";
@@ -87,6 +87,16 @@ test("the bucket keeps sends under the account's rate, with no burst above one s
   const c = rateBucket({ rate: () => 5, now: () => n, sleep: async (ms) => void (n += ms) });
   await Promise.all(Array.from({ length: 11 }, () => c.take()));
   assert.ok(n >= 1900, `11 at 5 a second take about 2 seconds (${n} ms)`);
+});
+
+test("customer domains on SES: on by default with SES keys, off without them, and EMAIL_SES_MOVE=off turns it off", () => {
+  const keys = { AWS_ACCESS_KEY_ID: "AKID", AWS_SECRET_ACCESS_KEY: "secret" };
+  assert.equal(sesMoveOn(keys), true, "unset: on");
+  assert.equal(sesMoveOn({ ...keys, EMAIL_SES_MOVE: "1" }), true);
+  assert.equal(sesMoveOn({ ...keys, EMAIL_SES_MOVE: "" }), true, "empty is the same as unset");
+  for (const off of ["off", " OFF ", "0", "false", "no"]) assert.equal(sesMoveOn({ ...keys, EMAIL_SES_MOVE: off }), false, off);
+  assert.equal(sesMoveOn({}), false, "no SES keys: nothing moves");
+  assert.equal(sesMoveOn({ AWS_ACCESS_KEY_ID: "AKID" }), false, "half the keys: nothing moves");
 });
 
 test("EMAIL_SES_DOMAINS: listed domains and their subdomains go to SES; unset means tryclaritia.com, off means none, all means all", () => {

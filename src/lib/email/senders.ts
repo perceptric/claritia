@@ -20,6 +20,15 @@ export function sesDomainSetting(env: NodeJS.ProcessEnv = process.env): string {
   return v === "off" || v === "none" ? "" : v;
 }
 
+/**
+ * Customer domains on SES (docs/ses-plan.md Steps 3 and 4): new sending domains are made on SES and verified Resend
+ * domains are moved. On by default (22 November 2026) wherever the server has SES keys; EMAIL_SES_MOVE=off stops it.
+ */
+export function sesMoveOn(env: NodeJS.ProcessEnv = process.env): boolean {
+  const v = (env.EMAIL_SES_MOVE ?? "").trim().toLowerCase();
+  return !["0", "off", "no", "false"].includes(v) && !!env.AWS_ACCESS_KEY_ID?.trim() && !!env.AWS_SECRET_ACCESS_KEY?.trim();
+}
+
 export function sesDomains(env: NodeJS.ProcessEnv = process.env): OnSes {
   const v = sesDomainSetting(env);
   if (!v) return () => false;

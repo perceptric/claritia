@@ -1,6 +1,6 @@
 # Moving Claritia's email from Resend to Amazon SES
 
-Status: Steps 1, 3 and 4 built, all switched off until set on the server (`EMAIL_SES_DOMAINS`, `EMAIL_SES_MOVE`). SES keys, the configuration set and the SNS subscription are live. Production access approved (seen in the SES console on 22 November 2026: 50,000 a day, 14 a second, account health Healthy). Step 2 is on by default from 22 November 2026.
+Status: Steps 1 to 4 on by default from 22 November 2026 wherever the server has SES keys (`EMAIL_SES_DOMAINS=off` and `EMAIL_SES_MOVE=off` turn them off). SES keys, the configuration set and the SNS subscription are live. Production access approved (seen in the SES console on 22 November 2026: 50,000 a day, 14 a second, account health Healthy). Claritia's own mail and customer domains both go through SES; no customer had a sending domain when this was turned on, so no move emails went out that day.
 
 Done so far: AWS account, SES in us-east-2 on the Essentials plan, `tryclaritia.com` verified (three DKIM records and
 MAIL FROM `mail.tryclaritia.com`, added through the Hostinger DNS API), `vincent@perceptric.com` verified, production
@@ -100,7 +100,7 @@ Back out: set `EMAIL_SES_DOMAINS=off` on `claritia-web` and `claritia-intel` and
 
 ### Steps 3 and 4. Customer domains on SES (built)
 
-`EMAIL_SES_MOVE=1` on the server turns both on (`supabase/migrations/145_ses_domains.sql`):
+On by default wherever the server has SES keys; `EMAIL_SES_MOVE=off` turns both off (`sesMoveOn` in `src/lib/email/senders.ts`, `supabase/migrations/145_ses_domains.sql`):
 
 - **New domains** added in Settings › Sending are made on SES: the identity with Easy DKIM, MAIL FROM
   `bounce.<domain>`, and five records plus DMARC (`sesRecords`, `checkSesRecords` in `src/lib/email/domains.ts`). The
@@ -118,7 +118,7 @@ Back out: set `EMAIL_SES_DOMAINS=off` on `claritia-web` and `claritia-intel` and
 - Tests: `tests/pg/sesDomains.pg.ts` (5), `tests/ses.test.ts` (15).
 
 - **Nobody has to find the button** (`supabase/migrations/146_domain_move_emails.sql`,
-  `worker-intel/jobs/domainMoves.ts`): once an hour while `EMAIL_SES_MOVE=1`, the worker starts the move for every
+  `worker-intel/jobs/domainMoves.ts`): once an hour while customer domains are on SES, the worker starts the move for every
   verified Resend domain, emails each workspace owner the records once they're ready (`src/lib/email/moveEmail.ts`),
   and sends reminders at 7 and 14 days with only the records still missing, never both at once. A step is claimed
   before it goes, so two workers never send it twice, and given back only when nothing went out. A domain on SES gets

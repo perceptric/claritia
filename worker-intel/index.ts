@@ -13,7 +13,7 @@ import { hostname } from "node:os";
 import pg from "pg";
 import { startLoops, Wake } from "../src/lib/jobs.ts";
 import { linkBase } from "../src/lib/email/render.ts";
-import { routedMailer, sendersFromEnv } from "../src/lib/email/senders.ts";
+import { routedMailer, sendersFromEnv, sesMoveOn } from "../src/lib/email/senders.ts";
 import { domainCheck, domainRemove, send } from "./jobs/email.ts";
 import { calendarRefresh, calendarWatch, meetingSync } from "./jobs/calendars.ts";
 import { calendarReconnect, formNotBooked, mailerFromEnv, meetingAfter, meetingBookLater, meetingNotify, meetingRemind, systemFrom } from "./jobs/meetings.ts";
@@ -58,8 +58,8 @@ const handlers = {
   deliver: deliver(pool, rpc),
   deliver_held: deliverHeld(pool, rpc),
   send: send(rpc, { sender, base: linkBase() }),
-  // EMAIL_SES_MOVE=1: new sending domains are made on SES, and Settings › Sending offers the move (docs/ses-plan.md).
-  domain_check: domainCheck(rpc, resend, undefined, { ses, sesNew: process.env.EMAIL_SES_MOVE?.trim() === "1" }),
+  // Customer domains on SES (on unless EMAIL_SES_MOVE=off): new sending domains are made on SES, and Settings › Sending offers the move (docs/ses-plan.md).
+  domain_check: domainCheck(rpc, resend, undefined, { ses, sesNew: sesMoveOn() }),
   domain_remove: domainRemove(pool, resend, { ses }),
   meeting_notify: meetingNotify(rpc, meetings),
   meeting_remind: meetingRemind(rpc, meetings),
@@ -157,9 +157,9 @@ const recover = every("job recovery", 30_000, async () => {
   if (Number(data)) log("jobs recovered", { jobs: Number(data) });
 });
 
-// Sending domains moving to SES: the move started, then the owners' email and reminders (EMAIL_SES_MOVE=1).
+// Sending domains moving to SES: the move started, then the owners' email and reminders (on unless EMAIL_SES_MOVE=off).
 const moves = every("domain moves", 60 * 60_000, async () => {
-  const r = await domainMoves(rpc, { on: process.env.EMAIL_SES_MOVE?.trim() === "1" && !!ses, sender, base: linkBase() });
+  const r = await domainMoves(rpc, { on: sesMoveOn() && !!ses, sender, base: linkBase() });
   if (r.started || r.sent || r.skipped) log("domain moves", r);
 });
 
