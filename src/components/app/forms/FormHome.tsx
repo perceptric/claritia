@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 import type { Tokens } from "@/lib/forms/brand";
 import type { Form } from "@/lib/forms/schema";
 import { Studio } from "./studio/Studio";
-import { askConfirm, askText, tell } from "../Dialogs";
+import { askConfirm, askLines, tell } from "../Dialogs";
 import { Badge, ErrorNote, errorText, invalidate, Loading, must, postJson, useKept, useQuery, type ViewProps } from "../ui";
 import { ago, whereWords } from "./formModel";
 import { Ic } from "./ic";
@@ -103,12 +103,33 @@ export function FormHome(props: ViewProps & { studio?: React.ReactNode }) {
   // Import a form from Google Forms, Typeform or Tally (docs/integrations-plan.md, Next step 13 and "Import from
   // Typeform and Tally"): the form read from its link, saved the way a new form is saved, opened as a draft. A first
   // Google import signs in to Google, then picks up here with the same link; Typeform and Tally need no sign-in.
+  // Anything that isn't a link is a form pasted from ChatGPT or a doc (src/lib/forms/pasteImport.ts), read here.
   const [importing, setImporting] = useState(false);
+  const saveImported = async (r: { name?: string; html?: string; css?: string; brand?: string; notes?: string[]; questions?: number }) => {
+    const saved = await postJson<{ formId: string }>(session, "/api/studio", { workspaceId: ws.id, mode: "save", name: r.name, html: r.html, css: r.css ?? "", brand: r.brand ?? "", after: { kind: "thanks" } });
+    invalidate(`forms:${ws.id}:home`);
+    if (r.notes?.length) await tell(`Imported ${r.questions ?? 0} ${r.questions === 1 ? "question" : "questions"}`, r.notes.join("\n"));
+    navigate("forms", saved.formId);
+  };
   const importGoogle = async (resume?: string) => {
-    const link = resume ?? (await askText("Form link", { placeholder: "A Google Forms, Typeform or Tally link", ok: "Import" }));
-    if (!link?.trim()) return;
-    const tool = formLink(link)?.tool;
-    if (!tool) return setError("Paste a Google Forms, Typeform or Tally link.");
+    const typed = resume ?? (await askLines("Import a form", { placeholder: "A Google Forms, Typeform or Tally link, or a form from ChatGPT", ok: "Import" }));
+    const link = typed?.trim() ?? "";
+    if (!link) return;
+    const tool = /\s/.test(link) ? undefined : formLink(link)?.tool;
+    if (!tool) {
+      if (/^https?:\/\/\S+$/i.test(link)) return setError("Paste a Google Forms, Typeform or Tally link.");
+      setImporting(true);
+      setError("");
+      try {
+        const { importPasted } = await import("@/lib/forms/pasteImport");
+        await saveImported(importPasted(link));
+      } catch (e) {
+        setError(errorText(e));
+      } finally {
+        setImporting(false);
+      }
+      return;
+    }
     setImporting(true);
     setError("");
     try {
@@ -120,10 +141,7 @@ export function FormHome(props: ViewProps & { studio?: React.ReactNode }) {
         window.location.assign(r.signIn);
         return;
       }
-      const saved = await postJson<{ formId: string }>(session, "/api/studio", { workspaceId: ws.id, mode: "save", name: r.name, html: r.html, css: r.css ?? "", brand: r.brand ?? "", after: { kind: "thanks" } });
-      invalidate(`forms:${ws.id}:home`);
-      if (r.notes?.length) await tell(`Imported ${r.questions ?? 0} ${r.questions === 1 ? "question" : "questions"}`, r.notes.join("\n"));
-      navigate("forms", saved.formId);
+      await saveImported(r);
     } catch (e) {
       setError(errorText(e));
     } finally {

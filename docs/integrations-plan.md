@@ -530,6 +530,24 @@ is free (check).
   the notes, and each import passing the same page check as a Studio form.
 - **Cost:** $0 at Beta and Growth: one read of a public page per import, no AI.
 
+### 13c. Import a form pasted from ChatGPT (built)
+
+- **Where:** Forms, **Import a form**: the same box takes a link or a whole form pasted from ChatGPT, Claude or a
+  doc. One line that's a form link goes to the link imports above; anything else is read in the browser by
+  `importPasted` (`src/lib/forms/pasteImport.ts`) and saved the way a new form is saved, opened as a draft.
+- **What it reads:** numbered or bulleted questions with their options under them (bullets, a) b), 1. 2.), sections
+  in bold or as headings ("Step" or "Page" starts a new page), "Label: A / B / C" and "Question? A / B" on one line,
+  "Type:", "Required:" and "Options:" lines, type hints ("(select all that apply)", "(Dropdown)", "(Yes/No)",
+  "- long answer"), required marks (`*`, "(required)") and "(optional)", ratings ("1-5", "1 = Poor, 5 = Great", or
+  rows 1 to 5), a Markdown table of questions, and JSON with fields. With no hint, a question's words pick its type
+  (email, phone, link, date, time, file, address, country, number, long answer, consent). The submit button and
+  thank-you message come along. The chat around the form ("Sure! Here's...", "Let me know if...") is left out.
+- **Limits:** 50,000 characters and 200 questions. A paste with no questions says so.
+- **Tests:** `tests/pasteImport.test.ts`: ChatGPT's usual answer, a table, JSON, bullets under sections, Q1: style
+  with Step pages, plain lines, numbered choices, escaping, and each import passing the same page check as a Studio
+  form.
+- **Cost:** $0 at Beta and Growth: read in the browser, no AI, no server work beyond the usual save.
+
 ### 14. Sign-in on Composio (built; on once the server has `COMPOSIO_API_KEY`)
 
 - **Why:** no developer apps, client secrets, token refresh or re-auth for us to run. Composio keeps each

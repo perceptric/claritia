@@ -44,9 +44,10 @@ export const tallyUrl = (id: string) => `https://tally.so/r/${encodeURIComponent
 const esc = (s: unknown) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const pipe = (xs: string[]) => esc(xs.map((x) => x.replace(/\|/g, "/")).join("|"));
 
-type Q = { label: string; required?: boolean; help?: string };
+export type Q = { label: string; required?: boolean; help?: string };
 
-class PageBuilder {
+/** Builds a Form Studio page question by question; the link, paste and Google imports share it. */
+export class PageBuilder {
   notes: string[] = [];
   questions = 0;
   private taken = new Set<string>();
