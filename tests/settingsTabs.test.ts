@@ -6,7 +6,7 @@ test("settings lead with integrations, sending domains and the team", () => {
   assert.deepEqual(
     SETTINGS_GROUPS.slice(0, 3).map((g) => [g.label, g.tabs[0].id]),
     [
-      ["Integrations", "sources"],
+      ["Connections", "sources"],
       ["Email", "sending"],
       ["Team", "team"],
     ],

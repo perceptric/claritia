@@ -10,7 +10,8 @@ import { cleanSvg } from "@/lib/brand/deep";
 import { cleanFontUrl, cleanTokens } from "@/lib/forms/brand";
 import { brandName } from "@/lib/brand/name";
 import { askConfirm } from "../Dialogs";
-import { Badge, Button, CardHead, ErrorNote, errorText, invalidate, Loading, must, Panel, postJson, useQuery, type ViewProps } from "../ui";
+import { Badge, Button, CardHead, ErrorNote, errorText, Input, invalidate, Loading, must, Panel, postJson, useQuery, type ViewProps } from "../ui";
+import { ToolIntro } from "../ToolIntro";
 
 type Kit = {
   id: string;
@@ -29,7 +30,8 @@ const BASIC = "id, name, tokens, logo_url, source_url, scan_status, scan_error";
 const ROLE_WORDS: Record<string, string> = { primary: "Primary", secondary: "Secondary", accent: "Accent", background: "Background", surface: "Surface", text: "Text", muted: "Muted text", border: "Border", dark: "Dark" };
 const host = (u: string | null) => (u ?? "").replace(/^https?:\/\//, "").replace(/\/$/, "");
 
-export function BrandSettings({ sb, session, ws }: Pick<ViewProps, "sb" | "session" | "ws">) {
+/** `intro`: with no brand yet, the page's first screen (Email › Brand); otherwise one card (Settings › Brand). */
+export function BrandSettings({ sb, session, ws, intro = false }: Pick<ViewProps, "sb" | "session" | "ws"> & { intro?: boolean }) {
   const data = useQuery(`brand:${ws.id}`, async () => {
     const [w, full] = await Promise.all([sb.from("workspaces").select("brand_kit_id").eq("id", ws.id).maybeSingle(), sb.from("brand_kits").select(COLS).eq("workspace_id", ws.id).order("created_at")]);
     // Before 108 the book columns aren't there: the basic kit still shows.
@@ -38,6 +40,7 @@ export function BrandSettings({ sb, session, ws }: Pick<ViewProps, "sb" | "sessi
   });
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
+  const [changing, setChanging] = useState(false);
   const [error, setError] = useState("");
   const kits = data.data?.kits ?? [];
   const brand = kits.find((k) => k.id === data.data?.brand) ?? kits.find((k) => k.tokens && Object.keys(k.tokens).length) ?? null;
@@ -68,6 +71,7 @@ export function BrandSettings({ sb, session, ws }: Pick<ViewProps, "sb" | "sessi
       const r = await postJson<{ kitId: string }>(session, "/api/forms/scan", { workspaceId: ws.id, url: site, ...(kitId ? { kitId } : {}) });
       if (!kitId) must(await sb.rpc("workspace_brand_set", { p_ws: ws.id, p_kit: r.kitId }));
       setUrl("");
+      setChanging(false);
       data.reload();
     } catch (e) {
       setError(errorText(e));
@@ -98,6 +102,36 @@ export function BrandSettings({ sb, session, ws }: Pick<ViewProps, "sb" | "sessi
   };
 
   if (!data.data) return data.error ? <ErrorNote message={data.error} /> : <Loading />;
+  const siteForm = (o: { autoFocus?: boolean; label: string }) => (
+    <form
+      className="flex w-full min-w-0 flex-wrap items-center gap-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (url.trim() && !busy) void scan(url.trim());
+      }}
+    >
+      <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="yourcompany.com" aria-label="Website" inputMode="url" autoCapitalize="none" spellCheck={false} autoFocus={o.autoFocus} className="min-w-[200px] flex-1" />
+      <Button disabled={!url.trim() || busy}>{busy ? "Reading…" : o.label}</Button>
+    </form>
+  );
+  if (!brand)
+    return intro ? (
+      <>
+        <ErrorNote message={error} />
+        <ToolIntro sketch="browser" title={"Your brand\nread from your website"} lead="Your logo, colors, fonts and voice, used by your forms, booking pages and emails." action={<div className="w-[420px] max-w-full">{siteForm({ label: "Read my site" })}</div>} />
+      </>
+    ) : (
+      <Panel>
+        <div className="flex flex-col gap-3 px-5 py-5">
+          <div className="flex flex-col gap-1">
+            <span className="text-[14px] font-medium text-ink">Add your brand</span>
+            <span className="text-[13px] text-muted">Your website&apos;s logo, colors, fonts and voice.</span>
+          </div>
+          {siteForm({ label: "Read my site" })}
+          <ErrorNote message={error} />
+        </div>
+      </Panel>
+    );
   const book = brand?.book ?? null;
   const svg = brand?.logo_svg ? cleanSvg(brand.logo_svg) : null;
   const headFont = book?.type.heading.family ?? t?.headingFont ?? t?.font;
@@ -109,9 +143,9 @@ export function BrandSettings({ sb, session, ws }: Pick<ViewProps, "sb" | "sessi
     <div className="flex flex-col gap-5">
       <ErrorNote message={error} />
       <Panel>
-        <CardHead label={brand ? host(brand.source_url) || brand.name : "No brand yet"}>
+        <CardHead label={host(brand.source_url) || brand.name}>
           {brand ? (
-            <span className="flex items-center gap-2">
+            <span className="flex flex-wrap items-center gap-2">
               {reading ? (
                 <Badge tone="amber" dot>
                   {brand.book_status === "reading" ? "Writing the brand book" : "Reading"}
@@ -128,12 +162,16 @@ export function BrandSettings({ sb, session, ws }: Pick<ViewProps, "sb" | "sessi
                   Read again
                 </Button>
               ) : null}
+              <Button variant="plain" className="h-7 px-2" disabled={busy || reading} onClick={() => setChanging((v) => !v)}>
+                Use another site
+              </Button>
               <Button variant="plain" className="h-7 px-2 text-rose" disabled={busy} onClick={() => void remove(brand)}>
                 Delete
               </Button>
             </span>
           ) : null}
         </CardHead>
+        {changing ? <div className="border-b border-line px-5 py-4">{siteForm({ autoFocus: true, label: "Read this site" })}</div> : null}
         {brand && t ? (
           <div className="flex flex-col gap-6 px-5 py-5">
             <div className="flex flex-wrap items-center gap-5">
@@ -159,7 +197,7 @@ export function BrandSettings({ sb, session, ws }: Pick<ViewProps, "sb" | "sessi
                     <span className="h-16" style={{ background: c.hex }} />
                     <span className="flex flex-col px-3 py-2">
                       <span className="text-[12.5px] font-medium text-ink">{c.name || ROLE_WORDS[c.role]}</span>
-                      <span className="text-[12px] text-muted">{ROLE_WORDS[c.role]}</span>
+                      {c.name ? <span className="text-[12px] text-muted">{ROLE_WORDS[c.role]}</span> : null}
                       <span className="font-mono text-[11.5px] text-muted">{c.hex}</span>
                     </span>
                   </div>
@@ -225,20 +263,6 @@ export function BrandSettings({ sb, session, ws }: Pick<ViewProps, "sb" | "sessi
             {brand.scan_error && !reading && !book ? <p className="text-[12px] text-muted">{brand.scan_error}</p> : null}
           </div>
         ) : null}
-      </Panel>
-
-      <Panel>
-        <CardHead label="Use another site" />
-        <form
-          className="flex flex-wrap items-center gap-2 px-5 py-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (url.trim() && !busy) void scan(url.trim());
-          }}
-        >
-          <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="yourcompany.com" aria-label="Website" className="h-9 min-w-[220px] flex-1 rounded-md border border-line-strong bg-card px-3 text-[13px] text-ink outline-none" />
-          <Button disabled={!url.trim() || busy}>{busy ? "Reading" : "Read this site"}</Button>
-        </form>
       </Panel>
 
       {kits.length > 1 ? (

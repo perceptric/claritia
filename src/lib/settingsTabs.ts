@@ -9,7 +9,7 @@ export type SettingsGroup = { label: string; tabs: { id: SettingsTab; label: str
 
 export const SETTINGS_GROUPS: SettingsGroup[] = [
   {
-    label: "Integrations",
+    label: "Connections",
     tabs: [
       { id: "sources", label: "Integrations", line: "The tools your forms and meetings connect to" },
       { id: "webhooks", label: "Webhooks", line: "Send each meeting to your own address" },
@@ -27,7 +27,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
     label: "Workspace",
     tabs: [
       { id: "workspace", label: "General", line: "Your workspace's name" },
-      { id: "brand", label: "Brand", line: "Your website's look, used by your forms and booking pages" },
+      { id: "brand", label: "Brand", line: "Your logo, colors, fonts and voice, used by your forms, booking pages and emails" },
       { id: "link_domain", label: "Link domain", line: "Your own address for forms and booking pages" },
       { id: "keys", label: "API keys", line: "Keys for your own code and the CLI" },
       { id: "billing", label: "Billing", line: "Your plan and this month's use" },

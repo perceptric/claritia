@@ -11,9 +11,9 @@ import { useEffect, useRef, useState } from "react";
 import { readEmailDoc, type EmailDoc } from "@/lib/design/email/doc";
 import { FIELDS_FOR, sampleFill, SYSTEM_FIELDS, SYSTEM_META, type SystemKey } from "@/lib/meetings/systemEmails";
 import type { CanvasKit } from "../emails/canvas/preview";
-import { Trash } from "../../Icons";
-import { Select } from "../Select";
-import { Badge, Button, ErrorNote, IconButton, Input } from "../ui";
+import { Fit, Trash } from "../../Icons";
+import { Badge, ErrorNote, IconButton, Input } from "../ui";
+import { InsertData } from "./Inspector";
 import { EmailInPanel } from "./EmailInPanel";
 
 export type SystemRow = { id: string; name: string; system_key: string; subject: string; preheader: string | null; doc: unknown };
@@ -83,19 +83,19 @@ export function MeetingEmailPanel({ sb, ws, keyName, row, kits, readOnly, onRemo
       ) : (
         <>
           <div className="flex flex-col gap-1.5">
-            <span className={label}>Subject</span>
-            <div className="flex min-w-0 items-center gap-2">
-              <Input aria-label="Subject" value={subject} onChange={(e) => change({ subject: e.target.value })} className="h-9 min-w-0 flex-1" disabled={readOnly} />
-              <Select<string> value="" options={fields.map((f) => ({ value: f.tag, label: f.label }))} onChange={(tag) => change({ subject: `${subject.trimEnd()} {{${tag}}}`.trim() })} ariaLabel="Insert data" placeholder="Insert data" plainPlaceholder disabled={readOnly} className="h-9 w-36" />
+            <div className="flex min-h-7 flex-wrap items-center justify-between gap-2">
+              <span className={label}>Subject</span>
+              <InsertData fields={fields} disabled={readOnly} onInsert={(tag) => change({ subject: `${subject.trimEnd()} ${tag}`.trim() })} />
             </div>
+            <Input aria-label="Subject" value={subject} onChange={(e) => change({ subject: e.target.value })} className="h-9" disabled={readOnly} />
           </div>
           <div className="flex flex-col gap-1.5">
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex min-h-7 flex-wrap items-center gap-2">
               <span className={`${label} flex-1`}>The email</span>
               {onOpenFull ? (
-                <Button size="sm" variant="ghost" onClick={onOpenFull}>
-                  Open full editor
-                </Button>
+                <IconButton label="Open full editor" onClick={onOpenFull} className="size-7">
+                  <Fit size={14} />
+                </IconButton>
               ) : null}
             </div>
             {doc && kits ? <EmailInPanel doc={doc} kits={kits} onChange={(d) => change({ doc: d })} readOnly={readOnly} fill={fill} fields={fields} footer={false} /> : <div className="h-40 rounded-[10px] bg-paper-deep" />}

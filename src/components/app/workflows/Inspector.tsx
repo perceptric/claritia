@@ -13,7 +13,7 @@ import { stepProblems } from "@/lib/workflows/check";
 import { MERGE_KEYS } from "@/lib/workflows/merge";
 import { segments, STOP_LINE } from "@/lib/texts/words";
 import { STEP_KINDS, STEP_LINE, TRIGGERS, type Body, type EmailBody, type Goal, type Step, type Trigger, type TriggerKind } from "@/lib/workflows/types";
-import { CalendarIcon, Clock, Copy, FormIcon, ListIcon, Mail, Plus, Signpost, Trash, Warn, X } from "../../Icons";
+import { CalendarIcon, Clock, Copy, Fit, FormIcon, ListIcon, Mail, Plus, Signpost, Trash, Warn, X } from "../../Icons";
 import { Popover } from "../FilterBar";
 import { AiMark } from "../Ai";
 import { askLines } from "../Dialogs";
@@ -53,19 +53,27 @@ const DATA: { group: string; keys: [string, string][] }[] = [
 ];
 
 /** Insert data: a merge field at the end of a message, with an empty fallback so a blank never leaves a gap. */
-function InsertData({ onInsert, disabled }: { onInsert: (tag: string) => void; disabled?: boolean }) {
+/** Insert data as a small pill beside a field's label: the contact's fields, or a given list (a meeting's). */
+export function InsertData({ onInsert, disabled, fields }: { onInsert: (tag: string) => void; disabled?: boolean; fields?: { tag: string; label: string }[] }) {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+  const groups = fields ? [{ group: "", keys: fields.map((f) => [f.tag, f.label] as [string, string]) }] : DATA;
   return (
     <>
-      <Button size="sm" variant="ghost" disabled={disabled} aria-haspopup="menu" onClick={(e) => setAnchor(anchor ? null : e.currentTarget)}>
-        Insert data
-      </Button>
+      <button
+        type="button"
+        disabled={disabled}
+        aria-haspopup="menu"
+        onClick={(e) => setAnchor(anchor ? null : e.currentTarget)}
+        className="press inline-flex h-7 shrink-0 items-center gap-1 rounded-full px-2.5 text-[12.5px] font-medium text-muted hover:bg-hover hover:text-ink disabled:opacity-45"
+      >
+        <Plus size={12} /> Insert data
+      </button>
       {anchor ? (
         <Popover anchor={anchor} onClose={() => setAnchor(null)} width={220}>
           <div role="menu" aria-label="Insert data" className="flex flex-col p-1.5">
-            {DATA.map((g) => (
-              <div key={g.group} className="flex flex-col">
-                <span className="px-2.5 pt-2 pb-1 text-[11.5px] font-medium text-faint">{g.group}</span>
+            {groups.map((g) => (
+              <div key={g.group || "fields"} className="flex flex-col">
+                {g.group ? <span className="px-2.5 pt-2 pb-1 text-[11.5px] font-medium text-faint">{g.group}</span> : null}
                 {g.keys.map(([k, label]) => (
                   <button
                     key={k}
@@ -73,7 +81,7 @@ function InsertData({ onInsert, disabled }: { onInsert: (tag: string) => void; d
                     role="menuitem"
                     onClick={() => {
                       setAnchor(null);
-                      onInsert(`{{${k}|}}`);
+                      onInsert(fields ? `{{${k}}}` : `{{${k}|}}`);
                     }}
                     className="flex h-8 items-center justify-between gap-3 rounded-md px-2.5 text-left text-[13px] text-ink hover:bg-hover"
                   >
@@ -582,20 +590,21 @@ export function StepPanel(p: {
               className="h-9 w-full"
             />
           </Group>
-          <Group name="Subject">
-            <div className="flex min-w-0 items-center gap-2">
-              <Input aria-label="Subject" value={s.email.subject} onChange={(e) => p.onPatch({ email: { ...s.email, subject: e.target.value } } as Partial<Step>, "subject")} className="h-9 min-w-0 flex-1" disabled={p.readOnly} />
+          <div className="flex flex-col gap-1.5">
+            <div className="flex min-h-7 flex-wrap items-center justify-between gap-2">
+              <span className={label}>Subject</span>
               <InsertData disabled={p.readOnly} onInsert={(t) => p.onPatch({ email: { ...s.email, subject: withTag(s.email.subject, t) } } as Partial<Step>)} />
             </div>
-          </Group>
+            <Input aria-label="Subject" value={s.email.subject} onChange={(e) => p.onPatch({ email: { ...s.email, subject: e.target.value } } as Partial<Step>, "subject")} className="h-9" disabled={p.readOnly} />
+          </div>
           <div className="flex flex-col gap-1.5">
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex min-h-7 flex-wrap items-center gap-2">
               <span className={`${label} flex-1`}>The email</span>
               {p.changedSinceLive ? <Badge tone="violet">Changed since publish</Badge> : null}
               {p.onEditEmail ? (
-                <Button size="sm" variant="ghost" onClick={p.onEditEmail}>
-                  Open full editor
-                </Button>
+                <IconButton label="Open full editor" onClick={p.onEditEmail} className="size-7">
+                  <Fit size={14} />
+                </IconButton>
               ) : null}
             </div>
             {s.email.doc ? (

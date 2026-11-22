@@ -809,9 +809,9 @@ function Brand(props: ViewProps) {
         </Button>
       }
     >
-      <div className="flex flex-col gap-4">
+      <div className="mx-auto flex w-full max-w-[880px] flex-col gap-4">
+        <BrandSettings sb={props.sb} session={props.session} ws={props.ws} intro />
         <Voice {...props} />
-        <BrandSettings sb={props.sb} session={props.session} ws={props.ws} />
       </div>
     </Page>
   );
@@ -848,7 +848,6 @@ function Voice({ sb, ws }: ViewProps) {
           <AiMark size={13} />
           Voice
         </label>
-        <span className="text-[12.5px] text-muted">{k.name}</span>
         <span className="flex-1" />
         {state ? <span className="text-[12px] text-muted">{state === "saving" ? "Saving…" : "Saved"}</span> : null}
       </div>
@@ -862,7 +861,7 @@ function Voice({ sb, ws }: ViewProps) {
         onBlur={() => void save()}
         rows={4}
         placeholder="Warm and calm. Short sentences. Speaks to one person by first name. No hype words."
-        className="w-full resize-y rounded-md bg-card px-3 py-2 text-[13.5px] leading-relaxed text-ink shadow-input outline-none"
+        className="w-full resize-none rounded-md bg-card px-3 py-2 text-[13.5px] leading-relaxed text-ink shadow-input outline-none"
       />
       <ErrorNote message={error} />
     </div>

@@ -25,6 +25,7 @@ import { designOf, emailSteps, sameEmail, withFooter } from "@/lib/workflows/ste
 import { flowKeys, isRequiredFlow, lockedStep } from "@/lib/workflows/meetingFlows";
 import { MeetingEmailPanel, type SystemRow } from "./MeetingEmailPanel";
 import { kitsBrandFirst } from "@/lib/brand/workspaceKit";
+import { draftSync } from "@/lib/workflows/draftSync";
 
 type SaveState = "idle" | "saving" | "saved" | "retry" | "conflict";
 const STATUS: Record<"draft" | "live" | "paused", [string, Tone]> = {
@@ -113,8 +114,10 @@ export function WorkflowEditor({
     latest.current = { body, name, n };
   });
 
-  // Load theirs: once their draft has been read, the editor starts from it in place (no remount).
+  // Use the newer version: once it has been read, the editor starts from it in place (no remount).
   const [taking, setTaking] = useState(false);
+  // Keep my changes: the next save goes through even though the draft changed elsewhere.
+  const force = useRef(false);
   useEffect(() => {
     if (!taking || data.wf.draft_revision === revRef.current) return;
     setTaking(false);
@@ -138,10 +141,14 @@ export function WorkflowEditor({
         p_id: id,
         p_name: cur.name.trim() || "Untitled workflow",
         p_draft: cur.body,
-        p_revision: revRef.current,
+        p_revision: force.current ? null : revRef.current,
       });
       if (!e && r) {
+        force.current = false;
         revRef.current = (r as { revision: number }).revision;
+        // The saved copy on screen keeps up, so opening this workflow again starts from this revision.
+        const rev = revRef.current;
+        patch?.((d) => ({ ...d, wf: { ...d.wf, draft_revision: rev, name: cur.name.trim() || "Untitled workflow" }, draft: cur.body }));
         savedRef.current = cur.n;
         setSavedN(cur.n);
         setAttempt(0);
@@ -162,7 +169,21 @@ export function WorkflowEditor({
     } finally {
       if (inflight.current === p) inflight.current = null;
     }
-  }, [sb, ws.id, id]);
+  }, [sb, ws.id, id, patch]);
+
+  // A newer draft than the one on screen (the saved copy was old, or another tab saved): taken quietly when nothing
+  // here is unsaved (draftSync.ts).
+  useEffect(() => {
+    if (taking) return;
+    const unsaved = latest.current.n !== savedRef.current;
+    if (draftSync({ server: data.wf.draft_revision, editor: revRef.current, unsaved, saving: !!inflight.current }) !== "take") return;
+    revRef.current = data.wf.draft_revision;
+    dispatch({ type: "reset", body: data.draft });
+    setName(data.wf.name);
+    setNameN(0);
+    savedRef.current = 0;
+    setSavedN(0);
+  }, [data, taking]);
 
   useEffect(() => {
     if (saveState === "conflict" || saveState === "saving" || n === savedN) return;
@@ -390,7 +411,17 @@ export function WorkflowEditor({
     >
       <div className="flex h-full min-h-0 flex-col">
         {saveState === "conflict" ? (
-          <Bar text="Someone else changed this workflow.">
+          <Bar text="This workflow was changed in another tab or by a teammate. Your latest edit isn't saved.">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                force.current = true;
+                setSaveState("idle");
+              }}
+            >
+              Keep my changes
+            </Button>
             <Button
               size="sm"
               onClick={() => {
@@ -398,7 +429,7 @@ export function WorkflowEditor({
                 void reload();
               }}
             >
-              Load theirs
+              Use the newer version
             </Button>
           </Bar>
         ) : viewing ? (
