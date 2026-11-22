@@ -94,3 +94,7 @@ two a team a month; the same read replays from the step cache.
 | Claude: brand books, 2 a team a month at $0.03 | $3 | $30 |
 | Web server time and bandwidth (existing machines) | $0 | $0 |
 | **Added monthly** | **about $3** | **about $30** |
+
+Using the brand in email templates (docs/email-studio-plan.md Part 8): the look costs nothing. Tia's rewrite in the
+brand's voice on Use template is one email chat turn on Sonnet 5.5, about $0.10 (check), so about $25 a month at Beta
+and $250 at Growth with 5 a team a month.

@@ -23,7 +23,7 @@ const kits = [
 ];
 
 /** Just enough of Supabase's query builder for these reads. */
-function fakeDb(brand: string | null, name = "Ridgeline Roofing"): SupabaseClient {
+function fakeDb(brand: string | null, name = "Ridgeline Roofing", named: boolean | null = null): SupabaseClient {
   const from = (table: string) => {
     const q = {
       select: () => q,
@@ -31,7 +31,7 @@ function fakeDb(brand: string | null, name = "Ridgeline Roofing"): SupabaseClien
       in: () => q,
       order: () => q,
       limit: () => q,
-      maybeSingle: async () => ({ data: table === "workspaces" ? { brand_kit_id: brand, name } : null, error: null }),
+      maybeSingle: async () => ({ data: table === "workspaces" ? { brand_kit_id: brand, name, named } : null, error: null }),
       then: (ok: (v: unknown) => unknown) => Promise.resolve({ data: table === "brand_kits" ? kits : [], error: null }).then(ok),
     };
     return q;
@@ -69,6 +69,8 @@ test("sends: a draft that names no kit compiles in the workspace's brand, its fo
   assert.ok(compileWithKit({ ...doc, kitId: OLD }, named, "live").html.includes("#000000"), "a draft that names a kit keeps it");
   const team = await loadKits(fakeDb(OLD, "Ridgeline Roofing"), "ws");
   assert.equal(team[0]!.brand_name, "Ridgeline Roofing", "no brand book: the team's name");
+  const auto = await loadKits(fakeDb(OLD, "ann's workspace", false), "ws");
+  assert.equal(auto[0]!.brand_name, null, "a team name made from the sign-up email never shows");
 });
 
 test("the logo block: the kit's logo, else the brand's name in its heading font, else nothing", () => {

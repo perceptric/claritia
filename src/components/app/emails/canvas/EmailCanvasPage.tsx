@@ -39,7 +39,6 @@ import { Inspector } from "./Inspector";
 import { LayerTree } from "./LayerTree";
 import { Overlay } from "./Overlay";
 import { docOf, previewHtml, sourceHtml, widthOf, type CanvasKit, type CanvasRow } from "./preview";
-import { cleanTokens } from "@/lib/forms/brand";
 import type { DesignSystem } from "@/lib/design/model";
 import { useCanvasEditor } from "./useCanvasEditor";
 import { useCanvasDrag } from "./useCanvasDrag";
@@ -64,6 +63,7 @@ import { FIELDS_FOR, isSystemKey, SYSTEM_FIELDS, SYSTEM_META, systemDefault } fr
 import { flowKeys } from "@/lib/workflows/meetingFlows";
 import { EmailBuilder } from "../../email/EmailBuilder";
 import { kitsBrandFirst } from "@/lib/brand/workspaceKit";
+import { emailTokens } from "@/lib/design/email/look";
 
 export const UNGROUPED = "ungrouped";
 /** The workspace's System emails (docs/system-emails.md): one canvas, "campaigns/group/system". */
@@ -82,7 +82,7 @@ function htmlFor(row: CanvasRow, kits: CanvasKit[], doc: EmailDoc, system: Desig
   const c = built.get(doc);
   if (c && c.system === system && c.dark === dark && c.kits === kits && c.status === row.status) return c.html;
   const k = kits.find((x) => x.id === doc.kitId) ?? kits[0];
-  const html = previewHtml(row, kits, { doc, system, tokens: cleanTokens((k?.tokens ?? {}) as object).tokens, dark });
+  const html = previewHtml(row, kits, { doc, system, tokens: emailTokens(k?.tokens), dark });
   built.set(doc, { system, dark, kits, status: row.status, html });
   return html;
 }

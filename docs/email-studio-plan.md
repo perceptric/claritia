@@ -400,15 +400,39 @@ disk, about $10 a month (check).
 **Built (Part 8):** 100 templates in nine folders (Newsletters, Product updates, Events and webinars, Welcome and
 onboarding, Nurture and win-back, Sales follow-up, Meetings and forms, Announcements, Holidays and seasons): the first
 21 in `templates.ts` and 79 more in `library.ts` on the same blocks, every color a brand variable, every one with a
-one-line blurb, placeholders in brackets and merge tags with fallbacks. Emails › Templates shows them by folder in the
-workspace's brand (`TemplateGallery.tsx`); Use template makes a campaign draft from it and opens the studio. Tia's
-`use_template` tool knows all 100. On the website, `/email-templates` and a page per template (claritia-site,
-`tools/email_templates.py` from `scripts/export-email-templates.ts`), each with the email itself in a frame and Use
-this template, which opens the app at `/emails/templates?use=<template>`. Form templates pointing to their follow-up
-email ("Pairs with") is not built yet. Tests: `tests/email-design.test.ts` (100, nine folders, the design check,
-no raw colors, blurbs, fallbacks, footers).
+one-line blurb and merge tags with fallbacks. Tia's `use_template` tool knows all 100. On the website,
+`/email-templates` and a page per template (claritia-site, `tools/email_templates.py` from
+`scripts/export-email-templates.ts`), each opening the app at `/emails/templates?use=<template>`. Form templates
+pointing to their follow-up email ("Pairs with") is not built yet.
 
-**Running cost**: $0 (data and static pages).
+**The redesign (22 November 2026):**
+
+- **Real sample copy.** Every template reads as a finished email for a made-up small business (names, dates, prices,
+  places). No brackets are left to fill.
+- **Six styles** in `templates.ts` (`kit`): a hero with an eyebrow, body text at 16px, a band in the button color, a
+  tinted band, number stats (`stats`) and a centered offer band (`offer`). Quiet buttons are accent links with an
+  arrow, 44px tall to tap. Cards and photos have 14px corners; the email has 16px.
+- **Photos.** 46 templates have a photo from the form photo set, cut to 1040 by 520 JPG by `scripts/email-photos.ts`
+  and served from `tryclaritia.com/assets/email-photos/` (`photos.ts`), each with alt text.
+- **Dark mode.** Every template has dark rules. The compiler works out a soft accent tint and a neutral surface for
+  light, and their dark versions; a near-black button turns light with dark words, and a dark accent is lifted
+  (`look.ts`, `washes`).
+- **No brand yet.** Emails use Claritia's calm look (`EMAIL_LOOK`: dark text, a dark pill button, Claritia green).
+  The gallery shows "Your logo" in previews only. A team name made from the sign-up email never shows.
+- **Tia rewrites it.** With a brand set, Use template saves the draft, then Tia rewrites every word in the brand's
+  voice through `/api/email/chat` (layout, photos and links stay). If that fails, the sample copy stays.
+- **Templates screen.** Bigger cards drawn at full email width, a preview with Desktop, Phone and Dark, and a compact
+  "Show in your brand" bar.
+- Tests: `tests/email-design.test.ts`, `tests/emailTemplates.test.ts` (no blanks, footers, the design check with no
+  notes, photos, dark rules, the calm look, washes, the logo slot), `tests/emailBrand.test.ts`.
+
+**Running cost**
+
+| | Beta (50 teams) | Growth (500 teams) |
+|---|---|---|
+| Photos on tryclaritia.com (46 files, about 4 MB, existing site) | $0 | $0 |
+| Claude Sonnet 5.5: Tia rewrite on Use template, about $0.10 each (check), 5 a team a month | $25 | $250 |
+| **Added monthly** | **about $25** | **about $250** |
 
 ## Part 9. For agents: MCP and API
 
@@ -525,11 +549,12 @@ Estimates. Model prices are Sonnet 5.5 at about $3 per million tokens in and $15
 | Claude: writing and editing emails (Part 3) | $55 (check) | $550 (check) |
 | Claude: automations from a prompt (Part 6) | $20 (check) | $200 (check) |
 | Claude: voice reads and segments from words (Parts 2, 4) | $1 (check) | $5 (check) |
+| Claude: Tia rewrites a template on Use template (Part 8) | $25 (check) | $250 (check) |
 | Sending on Resend (Part 10) | about $90 and up (check) | custom price (check) |
 | Or sending on SES instead | about $25 | about $250 |
 | VPS disk for email events (Part 7) | $0 | about $10 (check) |
-| **Total added, on Resend** | **about $166 a month (check)** | **about $765 a month plus Resend's custom price (check)** |
-| **Total added, on SES** | **about $101 a month (check)** | **about $1,015 a month (check)** |
+| **Total added, on Resend** | **about $191 a month (check)** | **about $1,015 a month plus Resend's custom price (check)** |
+| **Total added, on SES** | **about $126 a month (check)** | **about $1,265 a month (check)** |
 
 For scale: Brew charges $99 a month for one team's 50,000 sends. At Growth, Claritia's whole email bill is about $2 per
 team a month.

@@ -14,6 +14,7 @@ import { condHolds, type Block, type EmailCond, type EmailDoc, type Section } fr
 import { escapeAttr, escapeText, htmlToText } from "./html.ts";
 import { emailPartsOf, type EmailPartKey } from "./parts.ts";
 import { resolveEmail, type EmailBp, type EmailState } from "./style.ts";
+import { washes } from "./look.ts";
 
 export type CompileOpts = {
   tokens?: Partial<Tokens>;
@@ -21,6 +22,8 @@ export type CompileOpts = {
   logo?: string | null;
   /** The brand's name, set in its heading font where a Logo block has no picture at all. */
   brandName?: string | null;
+  /** Previews: a soft "Your logo" spot where a Logo block has no picture and the brand no name (never in a send). */
+  logoSlot?: boolean;
   /** A Google Fonts stylesheet for the fonts used, for clients that load web fonts. */
   fontUrl?: string;
   /** Builder previews: mark each element with data-eid, and each part with its class, so the canvas can find them. */
@@ -91,7 +94,7 @@ const cls = (id: string, part: EmailPartKey) => `c${id}-${part}`;
  * A part's inline style, and its phone, hover and dark rules collected for the <style> block. `skip` leaves out
  * properties placed elsewhere (margins go on the wrapper cell).
  */
-function style(ctx: Ctx, id: string, part: EmailPartKey, skip?: (p: Prop) => boolean): { inline: string; className: string; base: Partial<Record<Prop, string>> } {
+function style(ctx: Ctx, id: string, part: EmailPartKey, skip?: (p: Prop) => boolean): { inline: string; className: string; base: Partial<Record<Prop, string>>; darkBg?: string } {
   const css = cssFor(ctx.opts.client);
   const base = values(ctx, id, part);
   const sel = `.${cls(id, part)}`;
@@ -116,7 +119,7 @@ function style(ctx: Ctx, id: string, part: EmailPartKey, skip?: (p: Prop) => boo
     if (text) ctx.rules.ogsc.push(`[data-ogsc] ${sel}{${text}}`);
     if (back) ctx.rules.ogsc.push(`[data-ogsb] ${sel}{${back}}`);
   }
-  return { inline: css(base, skip), className: p || h || d || pd || ctx.opts.preview ? cls(id, part) : "", base };
+  return { inline: css(base, skip), className: p || h || d || pd || ctx.opts.preview ? cls(id, part) : "", base, ...(dark["background-color"] ? { darkBg: dark["background-color"] } : {}) };
 }
 
 const attrClass = (c: string) => (c ? ` class="${c}"` : "");
@@ -174,7 +177,14 @@ function button(ctx: Ctx, id: string, label: string, url: string, where: string,
   const text = escapeText(label);
   const vml = `<!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${safeUrl}" style="height:${height}px;v-text-anchor:middle;width:${full ? 520 : width}px;" arcsize="${Math.min(50, Math.round((radius / height) * 100))}%" strokecolor="${escapeAttr(bg)}" fillcolor="${escapeAttr(bg)}"><w:anchorlock/><center style="color:${escapeAttr(color)};font-family:${escapeAttr(font)};font-size:${size}px;font-weight:${escapeAttr(String(b["font-weight"] ?? "600"))};">${text}</center></v:roundrect><![endif]-->`;
   const link = `<!--[if !mso]><!--><a href="${safeUrl}"${attrClass(s.className)} style="display:${full ? "block" : "inline-block"};text-align:center;text-decoration:none;mso-padding-alt:0;${escapeAttr(s.inline)}">${text}</a><!--<![endif]-->`;
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="${where}"${full ? ' width="100%"' : ""} style="margin:0${where === "center" ? " auto" : ""}"><tr><td align="center" style="border-radius:${radius}px;background-color:${escapeAttr(bg)}">${vml}${link}</td></tr></table>`;
+  // The cell behind the link takes the link's dark fill too, or its light fill shows as a thin edge around it.
+  let cell = "";
+  if (s.darkBg) {
+    cell = `${cls(id, "button")}-cell`;
+    ctx.rules.dark.push(`.${cell}{background-color:${s.darkBg} !important}`);
+    ctx.rules.ogsc.push(`[data-ogsb] .${cell}{background-color:${s.darkBg} !important}`);
+  }
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="${where}"${full ? ' width="100%"' : ""} style="margin:0${where === "center" ? " auto" : ""}"><tr><td align="center"${attrClass(cell)} style="border-radius:${radius}px;background-color:${escapeAttr(bg)}">${vml}${link}</td></tr></table>`;
 }
 
 function image(ctx: Ctx, id: string, src: string, alt: string, width: number, url?: string, where = "center", part: EmailPartKey = "image", loading?: "lazy" | "eager"): string {
@@ -222,6 +232,7 @@ function blockHtml(ctx: Ctx, b: Block, width: number): string {
       const src = b.src ?? ctx.opts.logo ?? "";
       const name = ctx.opts.brandName?.trim();
       if (!src && name) return wordmark(ctx, b.id, name, align(b.align), b.url);
+      if (!src && ctx.opts.logoSlot) return `<div style="display:inline-block;padding:8px 14px;border:1px dashed #cfcfcf;border-radius:8px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#9a9a9a">Your logo</div>`;
       return image(ctx, b.id, src, b.alt, Math.min(b.width, width), b.url, align(b.align));
     }
     case "divider": {
@@ -338,6 +349,15 @@ export function compileEmail(system: DesignSystem, given: EmailDoc, opts: Compil
   // Component uses get their component's blocks, props and styles.
   const doc = expandComponents(given, system);
   const vars = new Map(allVariables(system, opts.tokens).map((v) => [v.id, v]));
+  // $tint and $surface, and $tint-dark and $accent-dark for dark mode: worked out from the brand, unless the design
+  // system names its own.
+  const w = washes({ accent: vars.get("accent")?.value, text: vars.get("text")?.value, background: vars.get("background")?.value, buttonBg: vars.get("button-bg")?.value, buttonText: vars.get("button-text")?.value });
+  if (!vars.has("tint")) vars.set("tint", { id: "tint", name: "Tint", kind: "color", value: w.tint });
+  if (!vars.has("surface")) vars.set("surface", { id: "surface", name: "Surface", kind: "color", value: w.surface });
+  if (!vars.has("tint-dark")) vars.set("tint-dark", { id: "tint-dark", name: "Tint, dark", kind: "color", value: w.tintDark });
+  if (!vars.has("accent-dark")) vars.set("accent-dark", { id: "accent-dark", name: "Accent, dark", kind: "color", value: w.accentDark });
+  if (!vars.has("button-bg-dark")) vars.set("button-bg-dark", { id: "button-bg-dark", name: "Button, dark", kind: "color", value: w.buttonBgDark });
+  if (!vars.has("button-text-dark")) vars.set("button-text-dark", { id: "button-text-dark", name: "Button text, dark", kind: "color", value: w.buttonTextDark });
   const ctx: Ctx = { system, doc, vars, opts, rules: { phone: [], hover: [], dark: [], ogsc: [], phoneDark: [] }, notes: [] };
   const width = doc.settings.width;
   const body = style(ctx, "email", "body", isMargin);
@@ -376,7 +396,7 @@ ${styleBlock}
 </style>
 </head>
 <body${attrClass(body.className)} style="margin:0;padding:0;background-color:${escapeAttr(bodyBg)}">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${escapeAttr(bodyBg)}" style="background-color:${escapeAttr(bodyBg)}"><tr><td align="${doc.settings.align}" style="${escapeAttr(body.inline)}">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"${attrClass(body.className)} bgcolor="${escapeAttr(bodyBg)}" style="background-color:${escapeAttr(bodyBg)}"><tr><td${attrClass(body.className)} align="${doc.settings.align}" style="${escapeAttr(body.inline)}">
 <!--[if mso]><table role="presentation" width="${width}" align="${doc.settings.align}" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
 <div class="clr-w" style="max-width:${width}px;${doc.settings.align === "center" ? "margin:0 auto;" : ""}">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"${attrClass(content.className)}${ctx.opts.preview ? ' data-eid="email"' : ""} style="${escapeAttr(content.inline)}">${sections || (ctx.opts.preview ? `<tr><td style="padding:16px">${EMPTY_BOX(120)}</td></tr>` : "")}</table>

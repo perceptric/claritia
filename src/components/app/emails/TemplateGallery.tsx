@@ -6,28 +6,33 @@
 // makes a campaign draft in the brand and opens the Email Studio, where Tia can fill it in. The website's template
 // pages link here with ?use=<key>.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { compileEmail } from "@/lib/design/email/compile";
 import { EMAIL_TEMPLATES, TEMPLATE_FOLDERS, type EmailTemplate, type TemplateFolder } from "@/lib/design/email/library";
 import { readSystem } from "@/lib/design/model";
 import { designFonts, fontUrl, tokenFonts } from "@/lib/design/fonts";
-import { cleanTokens, type Tokens } from "@/lib/forms/brand";
+import type { Tokens } from "@/lib/forms/brand";
 import { Modal } from "../meetings/parts";
-import { Button, ErrorNote, errorText, Input, invalidate, must, postJson, useQuery, type ViewProps } from "../ui";
+import { Button, ErrorNote, errorText, Input, invalidate, must, postJson, Segmented, useQuery, type ViewProps } from "../ui";
+import { AiMark } from "../Ai";
 import { kitsBrandFirst } from "@/lib/brand/workspaceKit";
 import { EmailTemplatesView } from "../workflows/EmailTemplatesView";
+import { emailTokens } from "@/lib/design/email/look";
 
-const SAMPLE_ADDRESS = "100 Main St, Austin, TX";
+const SAMPLE_ADDRESS = "Your address";
+/** What Tia is asked when a template is used (docs/email-studio-plan.md Part 8). */
+const REWRITE =
+  "Rewrite every word of this template in our brand's voice, for our business. Keep the layout, blocks, photos, buttons and links as they are. Replace the sample names, numbers, dates, prices and places with ones that fit us; where only we would know a detail, keep a believable example we can change. Write a subject line too.";
 const escText = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 /** Merge tags as a reader sees them: the fallback, and the workspace's postal address (a sample until it has one). */
 const filled = (html: string, address: string) =>
   html.replace(/\{\{\s*([a-z_]+)\s*(?:\|([^}]*))?\}\}/g, (_m, k: string, f?: string) => (k === "company_address" ? escText(address || SAMPLE_ADDRESS) : k === "unsubscribe_url" ? "#" : (f ?? "")));
 type Look = { id?: string; branded: boolean; tokens: Tokens; logo?: string; name: string; site: string | null; reading: boolean; address: string };
 /** A template as the server compiles it for a send (src/lib/design/email/server.ts): the brand's tokens, logo or name, and its Google Fonts. */
-function render(t: EmailTemplate, look: Look, preview = false): string {
+function render(t: EmailTemplate, look: Look, preview = false, dark = false): string {
   const system = readSystem({}, look.tokens);
   const doc = t.make();
-  return filled(compileEmail(system, doc, { tokens: look.tokens, logo: look.logo, brandName: look.name, fontUrl: fontUrl([...designFonts(system, doc.styles ?? null), ...tokenFonts(look.tokens)]), preview }).html, look.address);
+  return filled(compileEmail(system, doc, { tokens: look.tokens, logo: look.logo, brandName: look.name, logoSlot: true, forceDark: dark, fontUrl: fontUrl([...designFonts(system, doc.styles ?? null), ...tokenFonts(look.tokens)]), preview }).html, look.address);
 }
 
 export function TemplateGallery(props: ViewProps) {
@@ -35,15 +40,22 @@ export function TemplateGallery(props: ViewProps) {
   // The workspace's brand (the one it set, src/lib/brand/workspaceKit.ts) and the address its footers carry.
   const kit = useQuery(`email_kit:${ws.id}`, async (): Promise<Look> => {
     type Row = { id: string; tokens: Partial<Tokens> | null; logo_url: string | null; source_url: string | null; scan_status: string | null; book_name: string | null };
-    const [kits, send] = await Promise.all([kitsBrandFirst<Row>(sb, ws.id, "id, tokens, logo_url, source_url, scan_status, book_name:book->>name"), sb.from("send_settings").select("address").eq("workspace_id", ws.id).maybeSingle()]);
+    const [kits, send, team] = await Promise.all([
+      kitsBrandFirst<Row>(sb, ws.id, "id, tokens, logo_url, source_url, scan_status, book_name:book->>name"),
+      sb.from("send_settings").select("address").eq("workspace_id", ws.id).maybeSingle(),
+      sb.from("workspaces").select("name, named").eq("id", ws.id).maybeSingle(),
+    ]);
+    // The team's name only once its owner named it: never one made from the sign-up email.
+    const w = team.data as { name?: string | null; named?: boolean | null } | null;
+    const teamName = w?.named === false ? "" : (w?.name ?? ws.name ?? "").trim();
     const k = (kits.data ?? [])[0] ?? null;
     const branded = !!k && Object.keys(k.tokens ?? {}).length > 0;
     return {
       id: k?.id,
       branded,
-      tokens: cleanTokens(k?.tokens ?? {}).tokens,
+      tokens: emailTokens(k?.tokens),
       logo: k?.logo_url ?? undefined,
-      name: (branded && k?.book_name?.trim()) || ws.name,
+      name: (branded && k?.book_name?.trim()) || teamName,
       site: k?.source_url ?? null,
       reading: k?.scan_status === "scanning",
       address: ((send.data as { address?: string | null } | null)?.address ?? "").trim(),
@@ -57,15 +69,26 @@ export function TemplateGallery(props: ViewProps) {
   });
   const [folder, setFolder] = useState<TemplateFolder>(asked?.group ?? TEMPLATE_FOLDERS[0]!);
   const [open, setOpen] = useState<EmailTemplate | null>(asked ?? null);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<"" | "saving" | "writing">("");
   const [error, setError] = useState("");
   const use = async (t: EmailTemplate) => {
-    setBusy(true);
+    setBusy("saving");
     setError("");
     try {
       // The draft wears the brand it was previewed in.
       const doc = { ...t.make(), ...(kit.data?.id ? { kitId: kit.data.id } : {}) };
       const id = must(await sb.rpc("email_draft_save", { p_ws: ws.id, p_id: null, p_name: t.name, p_subject: "", p_preheader: "", p_doc: doc })) as string;
+      // Tia rewrites the words in the brand's voice (through the step cache; the sample is kept as the version before).
+      // With no brand to learn a voice from, or when Tia can't, the sample copy stays.
+      if (kit.data?.branded) {
+        setBusy("writing");
+        try {
+          const r = await postJson<{ doc?: unknown; subject?: string; ask?: string | null }>(props.session, "/api/email/chat", { workspaceId: ws.id, ref: `em:${id}`, doc, subject: "", message: REWRITE });
+          if (r.doc && !r.ask) must(await sb.rpc("email_draft_save", { p_ws: ws.id, p_id: id, p_name: t.name, p_subject: r.subject ?? "", p_preheader: "", p_doc: r.doc }));
+        } catch {
+          // The draft is already saved with the sample copy.
+        }
+      }
       invalidate(`email_campaigns:${ws.id}`);
       // From a canvas's Add email (?group=<id> or ungrouped): the draft lands in that group, picked on its canvas.
       if (forGroup) {
@@ -75,7 +98,7 @@ export function TemplateGallery(props: ViewProps) {
       navigate("emails", `campaigns/${id}`);
     } catch (e) {
       setError(errorText(e));
-      setBusy(false);
+      setBusy("");
     }
   };
   const shown = EMAIL_TEMPLATES.filter((t) => t.group === folder);
@@ -98,14 +121,14 @@ export function TemplateGallery(props: ViewProps) {
             </button>
           ))}
         </nav>
-        <ul className="grid min-w-0 flex-1 grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4">
+        <ul className="grid min-w-0 flex-1 grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-x-5 gap-y-7">
           {shown.map((t) => (
             <li key={t.key}>
               <button type="button" onClick={() => setOpen(t)} className="group flex w-full flex-col gap-2 text-left">
-                {kit.data ? <Thumb t={t} look={kit.data} /> : <div className="h-[260px] rounded-[10px] bg-paper shadow-rest" />}
-                <span className="flex flex-col">
-                  <span className="text-[13.5px] font-medium text-ink">{t.name}</span>
-                  {t.blurb ? <span className="text-[12.5px] text-muted">{t.blurb}</span> : null}
+                {kit.data ? <Thumb t={t} look={kit.data} /> : <div className="h-[340px] rounded-xl bg-paper shadow-rest" />}
+                <span className="flex flex-col gap-0.5">
+                  <span className="text-[14px] font-medium text-ink">{t.name}</span>
+                  {t.blurb ? <span className="text-[13px] text-muted">{t.blurb}</span> : null}
                 </span>
               </button>
             </li>
@@ -159,16 +182,18 @@ function BrandBar({ session, ws, navigate, look }: ViewProps & { look: Look }) {
   return (
     <form
       data-brand-bar=""
-      className="flex flex-col gap-2 rounded-xl bg-card px-4 py-3 shadow-rest"
+      className="flex flex-col gap-2"
       onSubmit={(e) => {
         e.preventDefault();
         void read();
       }}
     >
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[13px] font-medium text-ink">Your website</span>
-        <Input className="h-9 min-w-[200px] flex-1" value={site} onChange={(e) => setSite(e.target.value)} placeholder="yourcompany.com" inputMode="url" autoCapitalize="none" spellCheck={false} aria-label="Your website" />
-        <Button type="submit" className="h-9" disabled={busy || !site.trim()}>
+        <span className="text-[13px] font-medium text-ink">Show in your brand</span>
+        <div className="w-[260px] max-w-full">
+          <Input className="h-8" value={site} onChange={(e) => setSite(e.target.value)} placeholder="yourcompany.com" inputMode="url" autoCapitalize="none" spellCheck={false} aria-label="Your website" />
+        </div>
+        <Button type="submit" variant={site.trim() ? "primary" : "ghost"} className="h-8" disabled={busy || !site.trim()}>
           {busy ? "Reading your site…" : "Use my brand"}
         </Button>
       </div>
@@ -177,18 +202,41 @@ function BrandBar({ session, ws, navigate, look }: ViewProps & { look: Look }) {
   );
 }
 
-/** A template as it would arrive, scaled down to a card. */
+/** The email's width with the page around it, as the thumbnails draw it before scaling it to the card. */
+const DRAWN = 664;
+
+/** A template as it would arrive: the top of the real email, scaled to the card's width, every card the same height. */
 function Thumb({ t, look }: { t: EmailTemplate; look: Look }) {
   const html = useMemo(() => render(t, look), [t, look]);
+  const box = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(0.4);
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const fit = () => setScale(el.clientWidth / DRAWN);
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   return (
-    <div className="relative h-[260px] overflow-hidden rounded-[10px] bg-paper shadow-rest transition-[box-shadow,transform] duration-[150ms] ease-out group-hover:-translate-y-0.5 group-hover:shadow-hover motion-reduce:transform-none">
-      <iframe title="" aria-hidden="true" tabIndex={-1} loading="lazy" srcDoc={html} className="pointer-events-none absolute top-0 left-1/2 h-[720px] w-[640px] origin-top -translate-x-1/2 scale-[0.36] border-0 bg-paper" />
+    <div ref={box} className="relative h-[340px] overflow-hidden rounded-xl bg-paper shadow-rest transition-[box-shadow,transform] duration-[150ms] ease-out group-hover:-translate-y-0.5 group-hover:shadow-hover motion-reduce:transform-none">
+      <iframe
+        title=""
+        aria-hidden="true"
+        tabIndex={-1}
+        loading="lazy"
+        srcDoc={html}
+        style={{ width: DRAWN, height: Math.ceil(340 / scale), transform: `scale(${scale})` }}
+        className="pointer-events-none absolute top-0 left-0 origin-top-left border-0 bg-paper"
+      />
     </div>
   );
 }
 
-function Preview({ t, look, busy, onClose, onUse }: { t: EmailTemplate; look: Look; busy: boolean; onClose: () => void; onUse: () => void }) {
-  const html = useMemo(() => render(t, look, true), [t, look]);
+function Preview({ t, look, busy, onClose, onUse }: { t: EmailTemplate; look: Look; busy: "" | "saving" | "writing"; onClose: () => void; onUse: () => void }) {
+  const [view, setView] = useState<"desktop" | "phone" | "dark">("desktop");
+  const html = useMemo(() => render(t, look, true, view === "dark"), [t, look, view]);
   return (
     <Modal
       title={t.name}
@@ -196,16 +244,38 @@ function Preview({ t, look, busy, onClose, onUse }: { t: EmailTemplate; look: Lo
       wide
       footer={
         <>
-          <Button variant="plain" onClick={onClose}>
+          <Button variant="plain" onClick={onClose} disabled={!!busy}>
             Close
           </Button>
-          <Button onClick={onUse} disabled={busy}>
-            {busy ? "Opening…" : "Use template"}
+          <Button onClick={onUse} disabled={!!busy}>
+            {busy === "writing" ? (
+              <>
+                <AiMark />
+                Writing it in your voice…
+              </>
+            ) : busy ? (
+              "Opening…"
+            ) : (
+              "Use template"
+            )}
           </Button>
         </>
       }
     >
-      <iframe title={`${t.name} preview`} srcDoc={html} className="h-[60vh] w-full rounded-lg bg-paper shadow-rest" />
+      <div className="flex flex-col items-center gap-3">
+        <Segmented
+          size="sm"
+          label="Preview"
+          value={view}
+          onChange={setView}
+          options={[
+            { value: "desktop", label: "Desktop" },
+            { value: "phone", label: "Phone" },
+            { value: "dark", label: "Dark" },
+          ]}
+        />
+        <iframe title={`${t.name} preview`} srcDoc={html} className={`h-[62vh] max-w-full rounded-xl bg-paper shadow-rest ${view === "phone" ? "w-[390px]" : "w-full"}`} />
+      </div>
     </Modal>
   );
 }

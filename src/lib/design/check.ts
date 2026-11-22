@@ -78,7 +78,8 @@ export function checkEmailDesign(system: DesignSystem, given: EmailDoc, tokens: 
       // What's behind the text: the part's own background, a card's, the section's, the email's, the page's.
       const behind = (part: EmailPartKey) =>
         hex(val(b.id, part, "background-color", "base", mode)) ??
-        (part === "card-title" || part === "muted" || ((b.type === "product" || b.type === "event") && part === "text") ? hex(val(b.id, "card", "background-color", "base", mode)) : null) ??
+        // Only cards (product, event) put their words on the card's background; a signature's small line sits on the section.
+        ((b.type === "product" || b.type === "event") && (part === "card-title" || part === "muted" || part === "text") ? hex(val(b.id, "card", "background-color", "base", mode)) : null) ??
         hex(val(el.section.id, "section", "background-color", "base", mode)) ??
         hex(val("email", "content", "background-color", "base", mode)) ??
         hex(val("email", "body", "background-color", "base", mode)) ??

@@ -14,10 +14,11 @@ import { emptyHistory, push, redo as redoStep, undo as undoStep, dropKit, type H
 import type { EmailDoc } from "@/lib/design/email/doc";
 import type { EmailEdit } from "@/lib/design/email/edit";
 import { readSystem, type DesignSystem } from "@/lib/design/model";
-import { cleanTokens, type Tokens } from "@/lib/forms/brand";
+import type { Tokens } from "@/lib/forms/brand";
 import { saveDesign } from "../../forms/designSave";
 import type { Kit } from "../../forms/shared";
 import { docOf as rowDocOf, type CanvasRow } from "./preview";
+import { emailTokens } from "@/lib/design/email/look";
 
 export type EmailDraft = {
   id: string | null;
@@ -69,7 +70,7 @@ const kitSystems = new WeakMap<Kit, { system: DesignSystem; live: DesignSystem; 
 const kitRead = (k: Kit) => {
   let v = kitSystems.get(k);
   if (!v) {
-    const tokens = cleanTokens(k.tokens ?? {}).tokens;
+    const tokens = emailTokens(k.tokens);
     kitSystems.set(k, (v = { system: readSystem(k.design ?? {}, tokens), live: readSystem(k.design_live ?? {}, tokens), tokens }));
   }
   return v;

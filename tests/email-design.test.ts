@@ -367,5 +367,5 @@ test("corners: a top-left default rounds all four, and cards keep their corners"
   const d = emailTemplate("webinar_invite")!.make();
   const html = compileEmail(sys(), d, { tokens: { ...DEFAULT_TOKENS, buttonRadius: 999 } }).html;
   for (const c of ["top-left", "top-right", "bottom-right", "bottom-left"]) assert.match(html, new RegExp(`border-${c}-radius:999px`), `button ${c}`);
-  assert.match(html, /border-collapse:separate"><tr><td[^>]*border-top-left-radius:12px[^"]*border-bottom-right-radius:12px/, "the card's corners round");
+  assert.match(html, /border-collapse:separate"><tr><td[^>]*border-top-left-radius:14px[^"]*border-bottom-right-radius:14px/, "the card's corners round");
 });

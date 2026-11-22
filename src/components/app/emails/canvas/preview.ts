@@ -6,8 +6,9 @@ import { compileEmail } from "@/lib/design/email/compile";
 import { readEmailDoc, type EmailDoc } from "@/lib/design/email/doc";
 import { designFonts, fontUrl } from "@/lib/design/fonts";
 import { readSystem, type DesignSystem } from "@/lib/design/model";
-import { cleanTokens, type Tokens } from "@/lib/forms/brand";
+import type { Tokens } from "@/lib/forms/brand";
 import { sampleFill } from "@/lib/meetings/systemEmails";
+import { emailTokens } from "@/lib/design/email/look";
 
 export type CanvasKit = { id: string; tokens: Partial<Tokens> | null; logo_url: string | null; design: unknown };
 export type CanvasRow = { id: string; name: string; subject: string; preheader: string | null; status: string; doc: unknown; html: string; group_id: string | null; group_position: number; updated_at: string; /** An automation's email (163): its step. */ step_id?: string | null; /** A System email (164): its key, and when it was turned off. */ system_key?: string | null; paused_at?: string | null };
@@ -23,7 +24,7 @@ export const widthOf = (row: Pick<CanvasRow, "doc">): number => (row.doc ? docOf
 /** A document built in its brand: the draft styles (or the given live ones), with the canvas's marks when `marks`. */
 export function buildDoc(doc: EmailDoc, kits: CanvasKit[], o: { system?: DesignSystem; tokens?: Partial<Tokens>; marks?: boolean; dark?: boolean } = {}): string {
   const kit = kits.find((k) => k.id === doc.kitId) ?? kits[0];
-  const tokens = o.tokens ?? cleanTokens((kit?.tokens ?? {}) as object).tokens;
+  const tokens = o.tokens ?? emailTokens(kit?.tokens);
   const system = o.system ?? readSystem(kit?.design ?? {}, tokens);
   return compileEmail(system, doc, { tokens, logo: kit?.logo_url ?? null, fontUrl: fontUrl(designFonts(system, doc.styles ?? null)), ...(o.marks ? { preview: true } : {}), ...(o.dark ? { forceDark: true } : {}) }).html;
 }

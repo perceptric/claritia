@@ -8,9 +8,10 @@ import { compileWithKit, loadKits } from "../design/email/server.ts";
 import { readSystem } from "../design/model.ts";
 import { extractLinks } from "../email/track.ts";
 import { sendCheck } from "./sendCheck.ts";
-import { cleanTokens } from "../forms/brand.ts";
 import { bookingUrl } from "../meetings/links.ts";
 import { viaLink } from "../share/channels.ts";
+import { emailTokens } from "../design/email/look.ts";
+import { kitsBrandFirst } from "../brand/workspaceKit.ts";
 
 // What the Email Studio's server parts share (docs/email-studio-plan.md Parts 3, 5 and 9): the brand and the forms
 // and meetings a button can lead to for one email (the studio's chat and the MCP tools), one chat turn through the
@@ -22,14 +23,15 @@ export async function emailChatParts(db: SupabaseClient, ws: string, doc: EmailD
   const base = appBase();
   const [named, first, forms, types, slug] = await Promise.all([
     doc.kitId ? db.from("brand_kits").select(cols).eq("workspace_id", ws).eq("id", doc.kitId).maybeSingle() : Promise.resolve({ data: null }),
-    db.from("brand_kits").select(cols).eq("workspace_id", ws).order("created_at").limit(1).maybeSingle(),
+    // The workspace's brand (the kit it set, src/lib/brand/workspaceKit.ts), for an email that names no kit.
+    kitsBrandFirst<Record<string, unknown>>(db, ws, `${cols}, tokens`).then((r) => ({ data: (r.data ?? [])[0] ?? null })),
     // A failed read leaves a list empty, and link_to then says there's nothing to link to.
     db.from("forms").select("id, name").eq("workspace_id", ws).eq("status", "live").order("updated_at", { ascending: false }).limit(40),
     db.from("meeting_types").select("id, name, slug").eq("workspace_id", ws).eq("active", true).order("created_at").limit(40),
     db.from("workspaces").select("booking_slug").eq("id", ws).maybeSingle(),
   ]);
   const kit = (named.data ?? first.data) as { name: string; tokens: unknown; notes: string[] | null; brief: string | null; design: unknown } | null;
-  const tokens = cleanTokens((kit?.tokens ?? {}) as object).tokens;
+  const tokens = emailTokens(kit?.tokens);
   const wsSlug = (slug.data as { booking_slug?: string | null } | null)?.booking_slug ?? null;
   return {
     tokens,

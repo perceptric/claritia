@@ -19,7 +19,6 @@ import type { EmailBp, EmailState } from "@/lib/design/email/style";
 import { readSystem, type DesignSystem } from "@/lib/design/model";
 import { CLIENT_LABEL, type Client } from "@/lib/design/props";
 import { Select } from "../Select";
-import { cleanTokens } from "@/lib/forms/brand";
 import { ArrowDown, ArrowUp, Code, Copy, Monitor, Moon, Phone, Redo, Send, Sun, Trash, Undo, X } from "../../Icons";
 import { CodeView } from "./CodeView";
 import { askLines, tell } from "../Dialogs";
@@ -37,6 +36,7 @@ import { checkEmailDesign } from "@/lib/design/check";
 import { EmailCanvas } from "./EmailCanvas";
 import { EmailStylePanel } from "./EmailStyle";
 import { kitsBrandFirst } from "@/lib/brand/workspaceKit";
+import { emailTokens } from "@/lib/design/email/look";
 
 type Snap = { doc: EmailDoc; system: DesignSystem };
 type Rail = "add" | "layers";
@@ -113,7 +113,7 @@ export function EmailBuilder({
 
   const [doc, setDoc] = useState<EmailDoc>(() => readEmailDoc(start, { allowHtml: true }));
   const kit = kits.find((k) => k.id === doc.kitId) ?? kits[0] ?? null;
-  const tokens = useMemo(() => cleanTokens(kit?.tokens ?? {}).tokens, [kit?.tokens]);
+  const tokens = useMemo(() => emailTokens(kit?.tokens), [kit?.tokens]);
   const draft = useDesignDraft(session, workspaceId, kit, tokens);
   const system = draft.system;
 
