@@ -192,25 +192,6 @@ async function run(width: number, tag: string) {
   await shot("form-qr");
   check(await page.getByRole("img", { name: /QR code for/ }).isVisible(), `${tag}: the QR code`);
 
-  // Forms with folders: each under Forms in the sidebar with its count; a folder's page lists its forms.
-  if (width >= 1280) {
-    await page.goto(`${base}/?view=folders`);
-    await page.locator("[data-form-folders]").waitFor();
-    const nav = (await page.locator("[data-form-folders]").textContent()) ?? "";
-    check(nav.includes("Sales2") && nav.includes("Hiring0") && nav.includes("New folder"), `${tag}: the folders sit under Forms, each with its count (${nav})`);
-    await page.locator("[data-form-folders] button").filter({ hasText: "Sales" }).click();
-    await page.getByRole("heading", { name: "Sales" }).waitFor();
-    check((await page.getByText("Book a demo").isVisible()) && (await page.getByText("Pricing question").isVisible()) && !(await page.getByText("Job application").isVisible()), `${tag}: a folder's page lists only its forms`);
-    await page.locator("[data-form-folders] button").filter({ hasText: "Hiring" }).click();
-    check(await page.getByText("No forms in this folder").isVisible(), `${tag}: an empty folder says so, with New form`);
-    await page.locator("[data-form-folders] button").filter({ hasText: "New folder" }).click();
-    await page.getByRole("dialog").locator("input").fill("Events");
-    await page.getByRole("dialog").getByRole("button", { name: "Create folder" }).click();
-    await page.waitForFunction(() => (window as unknown as { rpcs: unknown[][] }).rpcs.some((r) => r[0] === "form_folder_save"));
-    check(((await page.evaluate(() => (window as unknown as { rpcs: [string, Record<string, unknown>][] }).rpcs.find((r) => r[0] === "form_folder_save")?.[1])) as { p_name?: string })?.p_name === "Events", `${tag}: New folder makes one, named in the app's dialog`);
-    await shot("form-folders");
-  }
-
   // Settings › Access: Pause the form, the dates, the most fills and the closed message, each saved on the form.
   await page.goto(`${base}/?view=access`);
   await page.getByRole("heading", { name: "Access" }).waitFor();

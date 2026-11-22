@@ -47,10 +47,7 @@ export function FormHeader({
   more,
   action,
   actionRef,
-  folder,
 }: Pick<ViewProps, "navigate"> & {
-  /** The folder the form is in, between Forms and its name. */
-  folder?: { name: string; open: () => void } | null;
   name: string;
   onRename?: (n: string) => void;
   state: HeaderState;
@@ -75,14 +72,6 @@ export function FormHeader({
         <span className="max-[860px]:hidden">Forms</span>
       </button>
       <span className="text-faint">/</span>
-      {folder ? (
-        <>
-          <button type="button" onClick={folder.open} className="font-normal text-muted transition-colors duration-[120ms] hover:text-ink max-[860px]:hidden">
-            {folder.name}
-          </button>
-          <span className="text-faint max-[860px]:hidden">/</span>
-        </>
-      ) : null}
       {onRename ? <NameInput value={name} onChange={onRename} /> : <span className="max-w-[40vw] truncate text-ink">{name}</span>}
       {tabs ? <span aria-hidden="true" className="mx-[8px] h-[20px] w-px shrink-0 bg-line-strong max-[1100px]:hidden" /> : null}
       {tabs ? (

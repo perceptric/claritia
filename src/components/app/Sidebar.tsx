@@ -1,7 +1,7 @@
 "use client";
 
 // The side rail (docs/app-structure.md Part 1, docs/email-canvas-plan.md Part A): Create, Search, then Forms and each
-// page of Meetings and Emails from src/lib/nav.ts, each under a row that opens and folds like Forms' folders, and Settings at the very bottom above
+// page of Meetings and Emails from src/lib/nav.ts, each under a row that opens and folds, and Settings at the very bottom above
 // the account row. Folded to icons, a thin line stands in for each label. Items can show a count. The
 // open item is a white chip on a ring shadow with a green icon. Folds to icons between 768 and 1,280 px, and on wider
 // screens when the person folds it (kept on this computer) or while Form Studio is open (docs/studio-v2-plan.md,
@@ -172,8 +172,6 @@ export type SidebarProps = {
   onPreload?: (r: Route) => void;
   create: CreateItem[];
   start?: React.ReactNode;
-  /** Shown under an item when the sidebar is wide: the form folders under Forms. */
-  under?: Partial<Record<string, React.ReactNode>>;
 };
 
 export function Sidebar(p: SidebarProps) {
@@ -218,7 +216,7 @@ export function Sidebar(p: SidebarProps) {
       </button>
       <nav aria-label="Main" className="-mx-1 flex gap-1 overflow-x-auto px-1 md:mt-3 md:min-h-0 md:flex-1 md:flex-col md:gap-0.5 md:overflow-y-auto md:overflow-x-hidden">
         {NAV.filter((n) => !n.section || NAV.find((m) => m.section === n.section) === n).map((n) => {
-          // Forms and Settings are single items; Meetings and Emails open and fold like Forms' folders.
+          // Forms and Settings are single items; Meetings and Emails open and fold.
           const items = n.section ? NAV.filter((m) => m.section === n.section) : [n];
           const link = (m: NavItem) => <NavLink key={m.key} n={m} on={active?.key === m.key} count={p.counts[m.key]} dot={!!p.dots?.[m.key]} navigate={p.navigate} preload={p.onPreload} rail={rail} />;
           if (!n.section)
@@ -226,7 +224,6 @@ export function Sidebar(p: SidebarProps) {
               // Settings sits at the bottom of the sidebar on wider screens; on phones it stays in the row.
               <span key={n.key} className={n.group === "settings" ? "contents md:hidden" : "contents"}>
                 {link(n)}
-                {p.under?.[n.key] && wide ? <span className="hidden md:contents">{p.under[n.key]}</span> : null}
               </span>
             );
           const sec = n.section;

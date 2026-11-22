@@ -16,7 +16,6 @@ import { Ic } from "./ic";
 import { BTN, copyText, GHOST, IB, Seg, SegN, Thumb, useNote } from "./parts";
 import { Menu } from "./Menu";
 import { confirmPause } from "./pause";
-import { folderKey, moveForm, renameFolder, useFormFolders } from "./folders";
 import { formLink } from "@/lib/forms/linkImport";
 
 export type ListRow = {
@@ -43,11 +42,8 @@ export type ListRow = {
 const GIMPORT = "clr-gimport-link";
 type KitLite = { id: string; tokens: Partial<Tokens>; source_url: string | null; scan_status: string | null; logo_url?: string | null; logo_svg?: string | null };
 
-export function FormHome(props: ViewProps & { folder?: string; studio?: React.ReactNode }) {
-  const { sb, session, ws, navigate, folder = "" } = props;
-  const fq = useFormFolders(sb, ws.id);
-  const folders = fq.data?.folders ?? [];
-  const inFolder = folder ? folders.find((f) => f.id === folder) ?? null : null;
+export function FormHome(props: ViewProps & { studio?: React.ReactNode }) {
+  const { sb, session, ws, navigate } = props;
   const list = useQuery(`forms:${ws.id}:home`, async () => {
     const [rows, kits, w] = await Promise.all([sb.rpc("forms_list", { p_ws: ws.id }), sb.from("brand_kits").select("*").eq("workspace_id", ws.id), sb.from("workspaces").select("brand_kit_id").eq("id", ws.id).maybeSingle()]);
     // The workspace's brand first (docs/brand-capture.md), so everything that picks "a kit" picks it.
@@ -60,14 +56,12 @@ export function FormHome(props: ViewProps & { folder?: string; studio?: React.Re
   const [filter, setFilter] = useKept<"all" | "live" | "draft">(`forms:${ws.id}:filter`, "all");
   const [q, setQ] = useKept(`forms:${ws.id}:q`, "");
   const [menu, setMenu] = useState<{ id: string; at: HTMLElement } | null>(null);
-  const [moving, setMoving] = useState<{ id: string; at: HTMLElement } | null>(null);
   const note = useNote();
 
   const rows = list.data?.rows;
   const kitOf = (id?: string | null) => list.data?.kits.find((k) => k.id === id);
   const live = (rows ?? []).filter((r) => r.status !== "draft").length;
-  // A folder that's gone (deleted elsewhere) shows every form.
-  const shown = (rows ?? []).filter((r) => (!inFolder || fq.data?.byForm[r.id] === inFolder.id) && (filter === "all" || (filter === "live" ? r.status !== "draft" : r.status === "draft")) && (!q.trim() || r.name.toLowerCase().includes(q.trim().toLowerCase())));
+  const shown = (rows ?? []).filter((r) => (filter === "all" || (filter === "live" ? r.status !== "draft" : r.status === "draft")) && (!q.trim() || r.name.toLowerCase().includes(q.trim().toLowerCase())));
   const week = (rows ?? []).reduce((n, r) => n + (r.week ?? 0), 0);
   const origin = typeof window === "undefined" ? "" : window.location.origin;
 
@@ -152,51 +146,12 @@ export function FormHome(props: ViewProps & { folder?: string; studio?: React.Re
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // New form from a folder lands in it (FormsView's Studio page moves it once it exists).
-  const startNew = () => {
-    try {
-      if (folder) sessionStorage.setItem("clr-new-form-folder", folder);
-      else sessionStorage.removeItem("clr-new-form-folder");
-    } catch {}
-    navigate("forms", "new");
-  };
-  const deleteFolder = () =>
-    act(async () => {
-      if (!inFolder) return;
-      if (!(await askConfirm(`Delete ${inFolder.name}?`, { body: "Its forms stay, under All forms.", ok: "Delete folder", danger: true }))) return;
-      must(await sb.rpc("form_folder_delete", { p_ws: ws.id, p_id: inFolder.id }));
-      invalidate(folderKey(ws.id));
-      navigate("forms");
-      note.show("Folder deleted");
-    });
+  const startNew = () => navigate("forms", "new");
   const header = (
     <div className="flex min-h-[48px] shrink-0 flex-wrap items-center gap-[8px] border-b border-line pr-[12px] pl-[16px] text-[14px] font-medium">
-      {inFolder ? (
-        <>
-          <button type="button" onClick={() => navigate("forms")} className="font-normal text-muted transition-colors duration-[120ms] hover:text-ink">
-            Forms
-          </button>
-          <span className="text-faint">/</span>
-          <h1 className="text-ink [overflow-wrap:anywhere]">{inFolder.name}</h1>
-          <span className="font-normal text-faint tabular-nums">{shown.length}</span>
-        </>
-      ) : (
-        <>
-          <h1 className="text-ink">Forms</h1>
-          {rows?.length ? <span className="font-normal text-faint tabular-nums">{rows.length}</span> : null}
-        </>
-      )}
+      <h1 className="text-ink">Forms</h1>
+      {rows?.length ? <span className="font-normal text-faint tabular-nums">{rows.length}</span> : null}
       <span className="flex-1" />
-      {inFolder ? (
-        <>
-          <button type="button" className={GHOST} onClick={() => void act(() => renameFolder(sb, ws.id, inFolder))}>
-            Rename folder
-          </button>
-          <button type="button" className={GHOST} onClick={() => void deleteFolder()}>
-            Delete folder
-          </button>
-        </>
-      ) : null}
       {rows?.length ? (
         <button type="button" className={GHOST} disabled={importing} onClick={() => void importGoogle()}>
           <Ic n="down" />
@@ -264,21 +219,10 @@ export function FormHome(props: ViewProps & { folder?: string; studio?: React.Re
           ))}
         </ul>
       ) : (
-        inFolder && !q.trim() && filter === "all" ? (
-          <div className="flex flex-col items-center gap-[8px] px-[16px] py-[56px] text-center">
-            <b className="font-medium text-ink">No forms in this folder</b>
-            <span className="text-muted">Create one here, or move a form in from its menu</span>
-            <button type="button" className={BTN} onClick={startNew}>
-              <Ic n="plus" />
-              New form
-            </button>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center gap-[4px] px-[16px] py-[56px] text-center">
-            <b className="font-medium text-ink">No matches</b>
-            <span className="text-muted">Try another name</span>
-          </div>
-        )
+        <div className="flex flex-col items-center gap-[4px] px-[16px] py-[56px] text-center">
+          <b className="font-medium text-ink">No matches</b>
+          <span className="text-muted">Try another name</span>
+        </div>
       )}
     </div>
   );
@@ -295,25 +239,12 @@ export function FormHome(props: ViewProps & { folder?: string; studio?: React.Re
           items={[
             { icon: "build", label: "Open", run: () => navigate("forms", open.id) },
             { icon: "dup", label: "Duplicate", run: () => void duplicate(open) },
-            ...(fq.data?.ready ? [{ icon: "folder", label: "Move to folder", run: () => setMoving({ id: open.id, at: menu.at }) }] : []),
             { icon: "link", label: "Copy link", disabled: !open.version, run: () => void copyText(`${origin}/f/${open.id}`).then((ok) => note.show(ok ? "Link copied" : "Couldn't copy the link")) },
             open.status === "paused"
               ? { icon: "eye", label: "Resume the form", run: () => void offline(open, true) }
               : { icon: "eye", label: "Pause the form", disabled: open.status === "draft", run: () => void offline(open, false) },
             "hr",
             { icon: "trash", label: "Delete", danger: true, run: () => void remove(open) },
-          ]}
-        />
-      ) : null}
-      {moving ? (
-        <Menu
-          anchor={moving.at}
-          onClose={() => setMoving(null)}
-          width={220}
-          items={[
-            ...folders.map((f) => ({ icon: fq.data?.byForm[moving.id] === f.id ? "check" : "folder", label: f.name, run: () => void act(async () => (await moveForm(sb, ws.id, moving.id, f.id), note.show(`Moved to ${f.name}`))) })),
-            ...(folders.length ? (["hr"] as const) : []),
-            { icon: "x", label: "No folder", disabled: !fq.data?.byForm[moving.id], run: () => void act(async () => (await moveForm(sb, ws.id, moving.id, null), note.show("Moved out of the folder"))) },
           ]}
         />
       ) : null}

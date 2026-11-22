@@ -24,7 +24,6 @@ import { brandPlan } from "@/lib/meetings/brandPage";
 import { entryOf } from "@/lib/sources/catalog";
 import { lockLine, planFor, toolFeature } from "@/lib/plans";
 import { planHas } from "../../PlanLock";
-import { moveForm } from "../folders";
 import { meetingsApi } from "../../meetings/parts";
 import { workspacePeople } from "../../shared";
 
@@ -381,13 +380,6 @@ export function Studio({ sb, session, ws, navigate, formId = "", chatId = "", fr
       templatePage: async (id, css) => (await import("@/lib/forms/gallery/studioList")).templatePreview(id, css),
       useTemplate: async (id, look) => {
         const r = await postJson<{ id: string; workflowError?: string }>(sessionRef.current, "/api/forms/templates", { workspaceId: ws.id, template: id, ...look });
-        // New form from a folder's page: it goes in that folder.
-        let to = "";
-        try {
-          to = sessionStorage.getItem("clr-new-form-folder") ?? "";
-          sessionStorage.removeItem("clr-new-form-folder");
-        } catch {}
-        if (to) await moveForm(sb, ws.id, r.id, to).catch(() => undefined);
         invalidate(`forms:${ws.id}:home`);
         invalidate(`form_names:${ws.id}`);
         invalidate("app_counts");

@@ -6,7 +6,6 @@
 // the first time it opens. A form that reads the site's own form has no page, so it has no Build and opens on Share.
 // Drafts save as you go; Publish checks the form first and makes the draft live.
 
-import { folderPage, moveForm, useFormFolders } from "./folders";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { applyOp, type Op } from "@/lib/forms/ops";
 import { checkForm, emptyForm, type Form } from "@/lib/forms/schema";
@@ -45,7 +44,8 @@ export function FormsView(props: ViewProps) {
         <TemplatesPage {...props} />
       </Suspense>
     );
-  if (props.id.startsWith("folder:")) return <FormHome key={props.id} {...props} folder={props.id.slice(7)} />;
+  // Old folder pages (folders are gone) open the forms list.
+  if (props.id.startsWith("folder:")) return <FormHome key={props.id} {...props} />;
   if (props.id && props.id !== "overview") return <FormPage key={props.id} {...props} />;
   return <FormHome {...props} studio={<StudioPage key="first" {...props} />} />;
 }
@@ -82,17 +82,6 @@ function StudioPage(props: ViewProps & { fresh?: boolean }) {
   // ?ask=<words>: the gallery's Describe your form, put in the message box of the new chat.
   const [ask] = useState(() => (typeof window === "undefined" ? "" : (new URLSearchParams(window.location.search).get("ask") ?? "")));
   const pill: HeaderState = !st || st.state === "new" || st.state === "draft" ? "draft" : st.state === "changed" ? "changed" : "live";
-  // New form from a folder's page: once the form exists, it goes in that folder.
-  const formId = st?.formId ?? "";
-  useEffect(() => {
-    if (!formId) return;
-    let to = "";
-    try {
-      to = sessionStorage.getItem("clr-new-form-folder") ?? "";
-      sessionStorage.removeItem("clr-new-form-folder");
-    } catch {}
-    if (to) void moveForm(props.sb, props.ws.id, formId, to).catch(() => undefined);
-  }, [formId, props.sb, props.ws.id]);
   const go = (t: FormTab) => {
     if (st?.formId && t !== "build") navigate("forms", st.formId, `tab=${t}`);
   };
@@ -520,8 +509,6 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
       : pill === "live"
         ? { label: "Share", onClick: () => setTab("share") }
         : { label: pill === "changed" ? "Publish changes" : "Publish", onClick: onPublish, problems };
-  const fq = useFormFolders(sb, ws.id);
-  const inFolder = fq.data?.folders.find((f) => f.id === fq.data?.byForm[row.id]) ?? null;
   const studioMsg = isStudio && studio?.msg && !/first$/.test(studio.msg) ? studio.msg : "";
 
   return (
@@ -536,7 +523,6 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
         onTab={setTab}
         build={isStudio}
         subs={data.subs}
-        folder={inFolder ? { name: inFolder.name, open: () => navigate("forms", folderPage(inFolder.id)) } : null}
         tools={tab === "build" && isStudio ? <StudioTools st={studio} control={control} /> : undefined}
         syncDot={failedWeek ? `${failedWeek} ${failedWeek === 1 ? "lead didn't" : "leads didn't"} reach the CRM` : undefined}
         more={
