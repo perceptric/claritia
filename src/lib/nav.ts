@@ -42,7 +42,6 @@ export const NAV: NavItem[] = [
   pageItem("meetings", "scheduling", "links", "Links and polls"),
   pageItem("emails", "emails", "automations", "Workflows"),
   pageItem("emails", "emails", "audiences", "Audiences"),
-  pageItem("emails", "emails", "templates", "Templates"),
   pageItem("emails", "emails", "brand", "Brand"),
   item("settings", "settings", "Settings"),
 ];
@@ -144,19 +143,18 @@ export const SCHEDULING_TABS: (Tab<SchedulingPageKey> & { icon: SchedulingTabIco
   { value: "links", label: "Links and polls", icon: "link" },
 ];
 
-export type EmailsPageKey = "campaigns" | "automations" | "audiences" | "templates" | "brand";
+export type EmailsPageKey = "campaigns" | "automations" | "audiences" | "brand";
 /** Emails' tabs (docs/email-studio-plan.md Part 1). Campaigns is the route's first page (""). */
 export const EMAILS_TABS: Tab<EmailsPageKey>[] = [
   { value: "automations", label: "Workflows" },
   { value: "audiences", label: "Audiences" },
-  { value: "templates", label: "Templates" },
   { value: "brand", label: "Brand" },
 ];
 
 /**
  * Emails' page from its address: "" or "campaigns" is Campaigns, "campaigns/<id>" one email in the studio,
  * "campaigns/group/<id>" a group, "automations/<id>" one workflow open beside its folders, "automations/new" the
- * templates, the rest by name. The old tabs forward: Journeys to Automations, Library to Templates. Anything else opens Campaigns.
+ * templates, the rest by name. The old tabs forward: Journeys to Automations. Templates and Library are gone (Tia writes each new email): they open Workflows, as does anything else.
  */
 export function emailsPage(id: string): { page: EmailsPageKey; id: string; open?: string; group?: string; wf?: string } {
   const [raw = "", b = "", c = ""] = id.split("/");
@@ -167,8 +165,8 @@ export function emailsPage(id: string): { page: EmailsPageKey; id: string; open?
   // the System emails as campaigns/group/system (docs/system-emails.md).
   if (raw === "campaigns" && b === "group" && (UUID.test(c) || c === "ungrouped" || c === "system" || (c.startsWith("wf:") && UUID.test(c.slice(3))))) return { page: "campaigns", id: `campaigns/group/${c}`, group: c };
   if (raw === "campaigns" && UUID.test(b)) return { page: "campaigns", id: `campaigns/${b}`, open: b };
-  const a = ({ journeys: "automations", library: "templates" } as Record<string, string>)[raw] ?? raw;
-  if (a === "automations" || a === "audiences" || a === "templates" || a === "brand") return { page: a, id: a };
+  const a = ({ journeys: "automations" } as Record<string, string>)[raw] ?? raw;
+  if (a === "automations" || a === "audiences" || a === "brand") return { page: a, id: a };
   // There's no Emails page: every email is edited in its workflow. Its old address opens Workflows.
   return { page: "automations", id: "automations" };
 }
@@ -206,7 +204,7 @@ export const availabilityPage = (sub: string): AvailabilityTab => (sub === "cale
 const MOVED: Record<string, { route: Route; id?: string; keepId?: boolean }> = {
   journeys: { route: "emails", id: "automations" },
   nurture: { route: "emails", id: "automations" },
-  templates: { route: "emails", id: "templates" },
+  templates: { route: "emails", id: "automations" },
   analytics: { route: "emails" },
 };
 

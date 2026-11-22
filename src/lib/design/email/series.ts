@@ -1,6 +1,6 @@
 // Many new emails from one prompt (docs/email-canvas-b5.md section 3): Tia plans a short series (each email's name,
 // subject and one line on what it says, at most 10, in order), the person says Write them, and each email is then
-// written through the existing chat (runEmailChat), from a template and in the brand's styles. Server only for the
+// written through the existing chat (runEmailChat) with compose_email, in the brand's styles. Server only for the
 // model calls; the plan's reading and the messages are pure and tested with a scripted model.
 
 import type Anthropic from "@anthropic-ai/sdk";
@@ -60,7 +60,7 @@ export async function planSeries(model: Model, message: string, ctx: { group: st
 export function buildMessage(items: PlanItem[], index: number, asked: string): string {
   const it = items[index]!;
   const others = items.map((x, i) => `${i + 1}. ${x.name}: ${x.subject}`).join("\n");
-  return `Write email ${index + 1} of ${items.length} in a new series. The person asked: "${asked.slice(0, 1000)}".\nThis email: ${it.name}. Subject: ${it.subject}. It says: ${it.brief}\nThe whole series:\n${others}\nStart from the template that fits this email best, write its words in the brand's voice, set its subject (and a preview line), and keep the footer.`;
+  return `Write email ${index + 1} of ${items.length} in a new series. The person asked: "${asked.slice(0, 1000)}".\nThis email: ${it.name}. Subject: ${it.subject}. It says: ${it.brief}\nThe whole series:\n${others}\nWrite it with compose_email, every word in the brand's voice, with this subject (and a preview line). Each email of the series should look like it belongs with the others.`;
 }
 
 /** The document a series email starts from: a footer only, with fixed ids so the same request replays from cache. */

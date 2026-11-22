@@ -56,7 +56,7 @@ test("a part scope lets its words and looks change and refuses structure, the su
   assert.equal(scopeRefusal(scope, "update_block", { block_id: "h1" }, d), null);
   assert.equal(scopeRefusal(scope, "set_style", { element_id: "h1" }, d), null);
   assert.match(scopeRefusal(scope, "update_block", { block_id: "t1" }, d)!, /isn't one of the parts/);
-  for (const tool of ["add_block", "remove_block", "move_block", "set_columns", "set_subject", "use_template", "add_class", "use_component"]) assert.ok(scopeRefusal(scope, tool, { id: "h1", block_id: "h1" }, d), tool);
+  for (const tool of ["add_block", "remove_block", "move_block", "set_columns", "set_subject", "compose_email", "add_class", "use_component"]) assert.ok(scopeRefusal(scope, tool, { id: "h1", block_id: "h1" }, d), tool);
   assert.match(scopeRefusal(scope, "set_style", { element_id: "h1", on: "all_emails" }, d)!, /yes/);
   assert.equal(scopeRefusal({ kind: "email" }, "remove_block", { id: "t1" }, d), null, "an email scope allows structure");
   assert.equal(scopeRefusal(undefined, "remove_block", { id: "t1" }, d), null, "the Email Studio has no scope");

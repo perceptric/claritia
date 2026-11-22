@@ -274,7 +274,6 @@ export function ClientApp({ config, turnstileSiteKey = null }: { config: SupaCon
     { group: "Meetings", label: "Meeting type", run: () => navigate("scheduling", "types/new") },
     { group: "Meetings", label: "Single-use link", run: () => navigate("scheduling", "links", "create=single_use") },
     { group: "Meetings", label: "Poll", run: () => navigate("scheduling", "links", "create=poll") },
-    { group: "Emails", label: "Email template", run: () => navigate("emails", "templates", "create=1") },
     { group: "Emails", label: "Workflow", run: () => navigate("workflows", "new") },
   ];
 

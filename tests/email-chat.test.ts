@@ -78,16 +78,41 @@ test("the design check gets one pass after the AI's changes", async () => {
   assert.equal(seen.length, 4, "only one extra pass");
 });
 
-test("replacing an email asks first, then uses the template", async () => {
-  const no = scripted([msg([{ name: "use_template", input: { template: "newsletter" } }]), msg([{ name: "ask", input: { question: "Replace this email with the newsletter?", choices: ["Yes", "No"] } }])]);
+const SPEC = { subject: "Three things worth your time", preheader: "Our month, in short.", parts: [{ kind: "hero", title: "Three things worth your time" }, { kind: "photo", photo: "person-reading-open" }, { kind: "text", paragraphs: ["Clients who book a short call finish sooner."] }, { kind: "button", label: "Book a call" }] };
+
+test("compose_email writes a whole email: an empty one at once, one with content only after a yes", async () => {
+  const empty = () => readEmailDoc({ sections: [{ id: "s2", columns: [{ id: "c2", blocks: [{ id: "f1", type: "footer" }] }] }] });
+  const fresh = scripted([msg([{ name: "compose_email", input: SPEC }]), msg([], "Wrote it.")]);
+  const w = await runEmailChat(fresh.model, "A note on our month", { ...ctx(), doc: empty(), subject: "" });
+  assert.deepEqual(w.lines, ["Wrote the email"]);
+  assert.equal(w.subject, "Three things worth your time");
+  const blocks = w.doc.sections.flatMap((s) => s.columns.flatMap((c) => c.blocks));
+  assert.deepEqual(blocks.map((b) => b.type), ["logo", "heading", "image", "text", "button", "footer"], "the header and footer are added");
+  assert.match(JSON.stringify(blocks), /email-photos\/general-newsletter-welcome\.jpg/);
+  assert.equal(w.doc.settings.preheader, "Our month, in short.");
+
+  const no = scripted([msg([{ name: "compose_email", input: SPEC }]), msg([{ name: "ask", input: { question: "Replace this email?", choices: ["Yes", "No"] } }])]);
   const a = await runEmailChat(no.model, "Make it a newsletter", ctx());
   assert.match(results(no.seen[1]!), /needs the person's yes/);
-  assert.deepEqual(a.ask, { question: "Replace this email with the newsletter?", choices: ["Yes", "No"] });
   assert.equal(a.doc.sections[0]!.columns[0]!.blocks[0]!.id, "h1", "nothing changed yet");
-  const yes = scripted([msg([{ name: "use_template", input: { template: "newsletter" } }]), msg([], "Started from the newsletter.")]);
+  const yes = scripted([msg([{ name: "compose_email", input: SPEC }]), msg([], "Wrote it.")]);
   const b = await runEmailChat(yes.model, "Yes", { ...ctx(), confirmed: true });
-  assert.deepEqual(b.lines, ["Started from the Monthly newsletter template"]);
-  assert.ok(b.doc.sections.length > 2);
+  assert.deepEqual(b.lines, ["Wrote the email"]);
+});
+
+test("compose_email refuses a made-up photo, too many main buttons and markup, and the refusal goes back", async () => {
+  const bad = scripted([
+    msg([{ name: "compose_email", input: { ...SPEC, parts: [{ kind: "hero", title: "Hi" }, { kind: "photo", photo: "a-beach" }] } }]),
+    msg([{ name: "compose_email", input: { ...SPEC, parts: [{ kind: "button", label: "A" }, { kind: "button", label: "B" }, { kind: "meeting", label: "C" }] } }]),
+    msg([{ name: "compose_email", input: { ...SPEC, parts: [{ kind: "text", paragraphs: ["<script>x</script> & <b>bold</b>"] }] } }]),
+    msg([], "Done."),
+  ]);
+  const empty = readEmailDoc({ sections: [{ id: "s2", columns: [{ id: "c2", blocks: [{ id: "f1", type: "footer" }] }] }] });
+  const r = await runEmailChat(bad.model, "Write it", { ...ctx(), doc: empty, subject: "" });
+  assert.match(results(bad.seen[1]!), /no photo \\"a-beach\\"/);
+  assert.match(results(bad.seen[2]!), /one or two main buttons/);
+  const html = compileEmail(readSystem({}, DEFAULT_TOKENS), r.doc, { tokens: DEFAULT_TOKENS }).html;
+  assert.ok(!html.includes("<script>") && html.includes("&lt;b&gt;bold"), "words go in as words");
 });
 
 test("a block from a component: the AI changes this email's words for it, unless the component is locked", async () => {

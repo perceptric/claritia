@@ -8,7 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { brandOf, kitsBrandFirst } from "../src/lib/brand/workspaceKit.ts";
 import { compileWithKit, loadKits } from "../src/lib/design/email/server.ts";
 import { compileEmail } from "../src/lib/design/email/compile.ts";
-import { EMAIL_TEMPLATES } from "../src/lib/design/email/library.ts";
+import { sampleEmail } from "./fixtures/emailSample.ts";
 import { readSystem } from "../src/lib/design/model.ts";
 import { cleanTokens } from "../src/lib/forms/brand.ts";
 import { fontUrl, tokenFonts } from "../src/lib/design/fonts.ts";
@@ -59,7 +59,7 @@ test("sends: a draft that names no kit compiles in the workspace's brand, its fo
   assert.equal(list[0]!.id, NEW, "the brand leads, so it's the fallback");
   assert.equal(list.length, 1, "with ids, only the named kits and the brand");
   assert.equal(list[0]!.brand_name, "Momos", "the brand book's name");
-  const doc = EMAIL_TEMPLATES[0]!.make();
+  const doc = sampleEmail();
   const out = compileWithKit(doc, list, "live");
   assert.ok(out.html.includes("#d73e33"), "the brand's color");
   assert.ok(out.html.includes("family=Poppins"), "the brand's Google font loads");
@@ -75,7 +75,7 @@ test("sends: a draft that names no kit compiles in the workspace's brand, its fo
 
 test("the logo block: the kit's logo, else the brand's name in its heading font, else nothing", () => {
   const tokens = cleanTokens({ headingFont: "Inter, sans-serif", text: "#15181e" }).tokens;
-  const doc = EMAIL_TEMPLATES[0]!.make();
+  const doc = sampleEmail();
   const sys = readSystem({}, tokens);
   const logo = compileEmail(sys, doc, { tokens, logo: "https://acme.test/logo.png", brandName: "Acme" }).html;
   assert.ok(logo.includes('src="https://acme.test/logo.png"') && !logo.includes(">Acme</div>"));

@@ -17,7 +17,6 @@ import { StatCards } from "../StatCards";
 import { AiMark } from "../Ai";
 import { ToolIntro } from "../ToolIntro";
 import { BrandSettings } from "../views/BrandSettings";
-import { TemplateGallery } from "./TemplateGallery";
 import { FillsFrom, ImportHistory } from "./AudienceParts";
 import { ImportSheet } from "./ImportSheet";
 import { ColumnsMenu, EditCell, PersonSheet, useColumns, type EditField, type PersonRow } from "./AudienceTable";
@@ -39,8 +38,6 @@ export function EmailsView(props: ViewProps) {
         <Automations {...props} wf={p.wf && p.wf !== "" ? p.wf : ""} />
       ) : p.page === "audiences" ? (
         <Audiences {...props} />
-      ) : p.page === "templates" ? (
-        <TemplateGallery {...props} />
       ) : p.page === "brand" ? (
         <Brand {...props} />
       ) : p.group ? (

@@ -1,7 +1,6 @@
 import "server-only";
 import type { ApiCaller } from "../apiAuth.ts";
 import { readEmailDoc, newBlock, newSection, type EmailDoc } from "../design/email/doc.ts";
-import { EMAIL_TEMPLATES } from "../design/email/library.ts";
 import { readyProblem, sendReady } from "../email/ready.ts";
 import { claudeChat } from "../forms/claude.ts";
 import { ToolError, type Tool } from "../mcpProtocol.ts";
@@ -95,15 +94,14 @@ export const emailTools: Tool<ApiCaller>[] = [
   {
     name: "create_email",
     title: "Write an email",
-    description: `Write a new campaign email with Tia, in the workspace's brand and voice, from what it's about. Optionally start from a template: ${EMAIL_TEMPLATES.map((t) => t.key).join(", ")}. It's saved as a draft; change it with change_email, then send_test and schedule_campaign.`,
-    inputSchema: { type: "object", properties: { about: { type: "string", description: "What the email is about: the news, the date, who it's for, where the button goes." }, name: { type: "string" }, template: { type: "string", enum: EMAIL_TEMPLATES.map((t) => t.key) } }, required: ["about"] },
+    description: `Write a new campaign email with Tia, in the workspace's brand and voice, from what it's about: Tia writes every word and lays it out. It's saved as a draft; change it with change_email, then send_test and schedule_campaign.`,
+    inputSchema: { type: "object", properties: { about: { type: "string", description: "What the email is about: the news, the date, who it's for, where the button goes." }, name: { type: "string" } }, required: ["about"] },
     async run(ctx, args) {
       const about = typeof args.about === "string" ? args.about.trim().slice(0, 4000) : "";
       if (about.length < 8) throw new ToolError("Say what the email is about in a sentence or two.");
       const person = await keyPerson(ctx);
-      const t = EMAIL_TEMPLATES.find((x) => x.key === args.template);
-      const name = typeof args.name === "string" && args.name.trim() ? args.name.trim().slice(0, 200) : t?.name ?? "Untitled email";
-      const { data, error } = await ctx.sb.from("emails").insert({ workspace_id: ctx.workspaceId, name, kind: "broadcast", subject: "", preheader: "", html: "", text: "", doc: t ? t.make() : blank(), status: "draft", created_by: person.user }).select("id, name, subject, status, doc").single();
+      const name = typeof args.name === "string" && args.name.trim() ? args.name.trim().slice(0, 200) : "Untitled email";
+      const { data, error } = await ctx.sb.from("emails").insert({ workspace_id: ctx.workspaceId, name, kind: "broadcast", subject: "", preheader: "", html: "", text: "", doc: blank(), status: "draft", created_by: person.user }).select("id, name, subject, status, doc").single();
       if (error) throw new Error(error.message);
       const d = data as Draft;
       const r = await writeWithTia(ctx, d, about);

@@ -375,64 +375,44 @@ that's about 7.5 million rows a month; raw events older than 13 months are rolle
 about 2 GB a month at Growth before rollup (check the plan's disk). $0 extra at Beta; at Growth possibly a larger VPS
 disk, about $10 a month (check).
 
-## Part 8. Email templates
+## Part 8. Tia writes each email (templates removed)
 
 **What people see**
 
-- **Templates tab**: folders by purpose: Newsletters, Product updates, Events and webinars, Welcome and onboarding,
-  Nurture and win-back, Sales follow-up, Meetings and forms, Announcements, Holidays. Each previews in the team's brand.
-- About 100 templates at launch, built from the 15 designs in `templates.ts` so they share one design language, each
-  written for a job ("Workshop reminder, 24 hours before", "We'd love your feedback after the meeting").
-- "Use template" opens it in the studio with the brand applied; Tia fills it when the person types what it's for.
-- The team's own saved emails sit in the same folders, marked as theirs.
-- On the website, like the form gallery: `/email-templates`, a page per template with a live preview and "Use this
-  template", which opens the app with it. The form template pages get "Pairs with" links to the email that follows
-  them up (a workshop sign-up form and its reminder email).
+- There is no Templates page. On a canvas, **New email** opens one box: "What's it about?" Tia writes the whole email
+  in the brand (words, layout, a photo when one fits, the subject and preview line) and it lands on the canvas,
+  picked. **Start blank** makes an email with only the logo and footer.
+- In any email's Tia chat, asking for a new email does the same; replacing an email that has content asks first.
+- A series from one prompt (docs/email-canvas-b5.md) writes each email the same way.
+- Old addresses (`/emails/templates`, `/emails/library`, `/templates`) open Workflows.
 
-**How it fits**
+**How it works**
 
-- Templates are data, written with a short builder like the form gallery (`src/lib/forms/gallery/templates/build.ts`),
-  checked by a script before they join, and exported to the site with the forms.
-- Forms' wired templates (they come with a meeting and a follow-up) take their follow-up from this library.
-
-**Data**: templates are code; `email_templates.folder` for the team's own.
-
-**Built (Part 8):** 100 templates in nine folders (Newsletters, Product updates, Events and webinars, Welcome and
-onboarding, Nurture and win-back, Sales follow-up, Meetings and forms, Announcements, Holidays and seasons): the first
-21 in `templates.ts` and 79 more in `library.ts` on the same blocks, every color a brand variable, every one with a
-one-line blurb and merge tags with fallbacks. Tia's `use_template` tool knows all 100. On the website,
-`/email-templates` and a page per template (claritia-site, `tools/email_templates.py` from
-`scripts/export-email-templates.ts`), each opening the app at `/emails/templates?use=<template>`. Form templates
-pointing to their follow-up email ("Pairs with") is not built yet.
-
-**The redesign (22 November 2026):**
-
-- **Real sample copy.** Every template reads as a finished email for a made-up small business (names, dates, prices,
-  places). No brackets are left to fill.
-- **Six styles** in `templates.ts` (`kit`): a hero with an eyebrow, body text at 16px, a band in the button color, a
-  tinted band, number stats (`stats`) and a centered offer band (`offer`). Quiet buttons are accent links with an
-  arrow, 44px tall to tap. Cards and photos have 14px corners; the email has 16px.
-- **Photos.** 46 templates have a photo from the form photo set, cut to 1040 by 520 JPG by `scripts/email-photos.ts`
-  and served from `tryclaritia.com/assets/email-photos/` (`photos.ts`), each with alt text.
-- **Dark mode.** Every template has dark rules. The compiler works out a soft accent tint and a neutral surface for
-  light, and their dark versions; a near-black button turns light with dark words, and a dark accent is lifted
+- Tia's `compose_email` tool (`src/lib/design/email/chat.ts`) takes an outline: a subject, a preview line and up to
+  14 parts (hero, photo, text, list, button, band, stats, offer, event, cards, quote, meeting, sign).
+  `readComposeSpec` checks it (required words, sizes, one photo from the set, one or two main buttons) and a refused
+  outline goes back to Tia with the reason. `composeEmail` (`src/lib/design/email/compose.ts`) draws it with one
+  design language and adds the header and footer. Words go in as text, never as markup.
+- Every color is a brand variable, and every part has dark rules. The compiler works out a soft accent tint and a
+  neutral surface, and their dark versions; a near-black button turns light in dark mode and a dark accent is lifted
   (`look.ts`, `washes`).
-- **No brand yet.** Emails use Claritia's calm look (`EMAIL_LOOK`: dark text, a dark pill button, Claritia green).
-  The gallery shows "Your logo" in previews only. A team name made from the sign-up email never shows.
-- **Tia rewrites it.** With a brand set, Use template saves the draft, then Tia rewrites every word in the brand's
-  voice through `/api/email/chat` (layout, photos and links stay). If that fails, the sample copy stays.
-- **Templates screen.** Bigger cards drawn at full email width, a preview with Desktop, Phone and Dark, and a compact
-  "Show in your brand" bar.
-- Tests: `tests/email-design.test.ts`, `tests/emailTemplates.test.ts` (no blanks, footers, the design check with no
-  notes, photos, dark rules, the calm look, washes, the logo slot), `tests/emailBrand.test.ts`.
+- Photos: 46 from the form photo set, cut to 1040 by 520 JPG by `scripts/email-photos.ts`, served from
+  `tryclaritia.com/assets/email-photos/` (`photos.ts`). Tia sees each photo's id and what it shows, and picks one or
+  none.
+- No brand yet: Claritia's calm look (`EMAIL_LOOK`). A team name made from the sign-up email never shows.
+- The MCP `create_email` tool writes the same way (`src/lib/emails/mcp.ts`).
+- The website's `/email-templates` pages are gone; their addresses send people to the email page.
+- Tests: `tests/emailCompose.test.ts` (every part in two brands with no design notes, the outline's checks, markup,
+  photos, the calm look, dark mode), `tests/email-chat.test.ts` (compose_email at once on an empty email, after a yes
+  on one with content, refusals go back), `tests/email-design.test.ts`, `tests/nav.test.ts`.
 
 **Running cost**
 
 | | Beta (50 teams) | Growth (500 teams) |
 |---|---|---|
 | Photos on tryclaritia.com (46 files, about 4 MB, existing site) | $0 | $0 |
-| Claude Sonnet 5.5: Tia rewrite on Use template, about $0.10 each (check), 5 a team a month | $25 | $250 |
-| **Added monthly** | **about $25** | **about $250** |
+| Claude Sonnet 5.5: one new email written by Tia, about $0.08 each (check), 10 a team a month | $40 | $400 |
+| **Added monthly** | **about $40** | **about $400** |
 
 ## Part 9. For agents: MCP and API
 
@@ -549,12 +529,12 @@ Estimates. Model prices are Sonnet 5.5 at about $3 per million tokens in and $15
 | Claude: writing and editing emails (Part 3) | $55 (check) | $550 (check) |
 | Claude: automations from a prompt (Part 6) | $20 (check) | $200 (check) |
 | Claude: voice reads and segments from words (Parts 2, 4) | $1 (check) | $5 (check) |
-| Claude: Tia rewrites a template on Use template (Part 8) | $25 (check) | $250 (check) |
+| Claude: Tia writes each new email (Part 8) | $40 (check) | $400 (check) |
 | Sending on Resend (Part 10) | about $90 and up (check) | custom price (check) |
 | Or sending on SES instead | about $25 | about $250 |
 | VPS disk for email events (Part 7) | $0 | about $10 (check) |
-| **Total added, on Resend** | **about $191 a month (check)** | **about $1,015 a month plus Resend's custom price (check)** |
-| **Total added, on SES** | **about $126 a month (check)** | **about $1,265 a month (check)** |
+| **Total added, on Resend** | **about $206 a month (check)** | **about $1,165 a month plus Resend's custom price (check)** |
+| **Total added, on SES** | **about $141 a month (check)** | **about $1,415 a month (check)** |
 
 For scale: Brew charges $99 a month for one team's 50,000 sends. At Growth, Claritia's whole email bill is about $2 per
 team a month.

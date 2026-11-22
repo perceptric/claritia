@@ -422,7 +422,7 @@ try {
   if (process.env.SHOTS_DIR) {
     for (const theme of ["light", "dark"]) {
       await page.evaluate((t) => localStorage.setItem("claritia:theme", t), theme);
-      for (const r of ["contacts", "contacts/overview", "workflows", "routing", "routing/rules", "enrichment", "forms", "scheduling/types", "scheduling/availability", "visitors", "emails", "emails/templates", "segments", "scoring", "settings"]) {
+      for (const r of ["contacts", "contacts/overview", "workflows", "routing", "routing/rules", "enrichment", "forms", "scheduling/types", "scheduling/availability", "visitors", "emails", "segments", "scoring", "settings"]) {
         await page.goto(`${base}/${r}`);
         await page.locator("h1").first().waitFor({ timeout: 60_000 });
         await page.waitForTimeout(1500);

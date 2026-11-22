@@ -327,44 +327,27 @@ test("components: save, reuse with props, lock, change everywhere, detach and de
   assert.ok("error" in c.saveAsComponent({ system: sys(), doc: doc({ sections: [{ id: "x", columns: [{ id: "y", blocks: [{ id: "z", type: "html", html: "<p>x</p>" }] }] }] }) }, "x", "Raw"));
 });
 
-test("templates: 100 in 9 folders, each reads back, builds under the size limit and passes the design check", async () => {
-  const { EMAIL_TEMPLATES, TEMPLATE_FOLDERS } = await import("../src/lib/design/email/library.ts");
+test("a written email reads back, builds small, passes the design check and uses only brand colors", async () => {
+  const { composeEmail } = await import("../src/lib/design/email/compose.ts");
+  const { SAMPLE_SPEC } = await import("./fixtures/emailSample.ts");
   const { checkEmailDesign } = await import("../src/lib/design/check.ts");
-  assert.equal(EMAIL_TEMPLATES.length, 100);
-  assert.equal(new Set(EMAIL_TEMPLATES.map((t) => t.key)).size, 100);
-  assert.equal(new Set(EMAIL_TEMPLATES.map((t) => t.name)).size, 100, "every name is its own");
-  assert.equal(TEMPLATE_FOLDERS.length, 9);
-  for (const f of TEMPLATE_FOLDERS) assert.ok(EMAIL_TEMPLATES.filter((t) => t.group === f).length >= 8, `${f} has 8 or more`);
-  for (const t of EMAIL_TEMPLATES) {
-    assert.ok(t.blurb && t.blurb.length < 90, `${t.key} has a one-line blurb`);
-    const words = JSON.stringify(t.make());
-    assert.ok(!/!/.test(words.replace(/<!--[\s\S]*?-->/g, "")), `${t.key} has no exclamation marks`);
-    for (const m of words.matchAll(/\{\{([^}]*)\}\}/g)) assert.ok(m[1]!.includes("|"), `${t.key}: {{${m[1]}}} has a fallback`);
-    assert.ok(t.make().sections.some((s) => s.columns.some((c) => c.blocks.some((b) => b.type === "footer"))), `${t.key} has the footer`);
-  }
   const brand = sys({ variables: [], email: { globals: { heading: { base: { color: "#123456" } } } } });
-  for (const t of EMAIL_TEMPLATES) {
-    const d = t.make();
-    assert.deepEqual(readEmailDoc(d), d, `${t.key} reads back the same`);
-    const out = compileEmail(brand, d, { tokens: DEFAULT_TOKENS, logo: "https://cdn.test/logo.png" });
-    assert.ok(out.size < 40_000, `${t.key} is small (${out.size})`);
-    const blocking = checkEmailDesign(brand, d, DEFAULT_TOKENS).filter((n) => n.level === "block" || /hard to read|fallback/.test(n.text));
-    assert.deepEqual(blocking, [], `${t.key} passes the check`);
-    // No colors of its own: every color is a brand variable.
-    for (const [el, parts] of Object.entries(d.styles ?? {}))
-      for (const [part, st] of Object.entries(parts ?? {}))
-        for (const [prop, v] of Object.entries(st?.base ?? {}))
-          if (/color|background|border/.test(prop) && /#|rgb|hsl/i.test(String(v))) assert.fail(`${t.key} ${el} ${part} ${prop} uses a raw color`);
-    // A big heading that keeps the brand's heading color (one on a band takes the button's text color instead).
-    const plain = d.sections.flatMap((s) => s.columns.flatMap((c) => c.blocks)).some((b) => b.type === "heading" && b.level <= 2 && !d.styles?.[b.id]?.heading?.base?.color);
-    if (plain) assert.match(out.html, /color:#123456/, `${t.key} shows in the brand`);
-  }
-  assert.notEqual(EMAIL_TEMPLATES[0]!.make().sections[0]!.id, EMAIL_TEMPLATES[0]!.make().sections[0]!.id, "each copy gets fresh ids");
+  const d = composeEmail(SAMPLE_SPEC);
+  assert.deepEqual(readEmailDoc(d), d, "reads back the same");
+  const out = compileEmail(brand, d, { tokens: DEFAULT_TOKENS, logo: "https://cdn.test/logo.png" });
+  assert.ok(out.size < 40_000, `small (${out.size})`);
+  assert.deepEqual(checkEmailDesign(brand, d, DEFAULT_TOKENS).filter((n) => n.level === "block" || /hard to read|fallback/.test(n.text)), []);
+  for (const [el, parts] of Object.entries(d.styles ?? {}))
+    for (const [part, st] of Object.entries(parts ?? {}))
+      for (const [prop, v] of Object.entries(st?.base ?? {}))
+        if (/color|background|border/.test(prop) && /#|rgb|hsl/i.test(String(v))) assert.fail(`${el} ${part} ${prop} uses a raw color`);
+  assert.match(out.html, /color:#123456/, "shows in the brand");
+  assert.notEqual(composeEmail(SAMPLE_SPEC).sections[0]!.id, composeEmail(SAMPLE_SPEC).sections[0]!.id, "each email gets fresh ids");
 });
 
 test("corners: a top-left default rounds all four, and cards keep their corners", async () => {
-  const { emailTemplate } = await import("../src/lib/design/email/library.ts");
-  const d = emailTemplate("webinar_invite")!.make();
+  const { composeEmail } = await import("../src/lib/design/email/compose.ts");
+  const d = composeEmail({ preheader: "", parts: [{ kind: "hero", title: "Win back an hour a day" }, { kind: "event", title: "Live webinar", when: "Thursday, 10 AM", where: "Online", button: "Save my seat" }] });
   const html = compileEmail(sys(), d, { tokens: { ...DEFAULT_TOKENS, buttonRadius: 999 } }).html;
   for (const c of ["top-left", "top-right", "bottom-right", "bottom-left"]) assert.match(html, new RegExp(`border-${c}-radius:999px`), `button ${c}`);
   assert.match(html, /border-collapse:separate"><tr><td[^>]*border-top-left-radius:14px[^"]*border-bottom-right-radius:14px/, "the card's corners round");

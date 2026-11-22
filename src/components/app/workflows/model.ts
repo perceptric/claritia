@@ -82,7 +82,6 @@ export type Names = {
   forms: { id: string; name: string }[];
   types: { id: string; name: string }[];
   members: { id: string; name: string; email: string }[];
-  templates: { id: string; name: string; /** Read when picked. */ body?: unknown }[];
   /** Teams and Discord connections, for the chat step. */
   chats?: { id: string; name: string; kind: string }[];
   /** Segment, PostHog, Mixpanel and Amplitude connections, for the event step. */

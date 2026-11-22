@@ -233,9 +233,11 @@ try {
   await p.keyboard.press("Shift+Digit1");
   await settle();
 
-  // 10. Add email › New email: a draft at the end of the group, picked
+  // 10. Add email › New email › Start blank: a draft at the end of the group, picked
   await p.getByRole("button", { name: /Add email/ }).click();
   await p.getByRole("menuitem", { name: "New email" }).click();
+  check((await p.getByRole("dialog", { name: "New email" }).isVisible()) && (await p.getByRole("button", { name: "Write it" }).isDisabled()), "New email asks what it's about; Write it waits for words");
+  await p.getByRole("button", { name: "Start blank" }).click();
   await settle();
   const add = await calls();
   check(add.some((c) => c.mode === "email_draft_save" && !c.body.p_id) && add.some((c) => c.mode === "email_group_place" && c.body.p_position === null), "New email makes a draft at the end of the group");
@@ -1457,6 +1459,33 @@ try {
     await se.keyboard.press("Escape");
     if (shots) await se.screenshot({ path: `${shots}/20-system.png` });
     await se.close();
+  }
+
+  // 10b. New email › Write it: Tia writes the whole email, it lands at the end of the group, named by its subject. A
+  // failed write keeps the words and the draft, and trying again fills that draft in place of making another.
+  {
+    const tw = await ctx.newPage();
+    tw.on("pageerror", (e) => errors.push(e.message));
+    await tw.goto(`http://localhost:${port}/`);
+    await tw.waitForFunction(() => document.querySelectorAll("[data-email] iframe").length >= 3, null, { timeout: 15000 });
+    const before = await tw.locator("[data-email]").count();
+    await tw.evaluate(() => ((window as unknown as { failCompose: boolean }).failCompose = true));
+    await tw.getByRole("button", { name: /Add email/ }).click();
+    await tw.getByRole("menuitem", { name: "New email" }).click();
+    await tw.getByRole("textbox", { name: "What the email is about" }).fill("Invite past clients to our spring workshop on Saturday at 10 AM");
+    await tw.getByRole("button", { name: "Write it" }).click();
+    await tw.getByText(/Tia couldn't write it/).waitFor({ timeout: 5000 });
+    check((await tw.getByRole("textbox", { name: "What the email is about" }).inputValue()).includes("spring workshop"), "a failed write says so and keeps the words");
+    await tw.getByRole("button", { name: "Write it" }).click();
+    await tw.getByRole("dialog", { name: "New email" }).waitFor({ state: "detached", timeout: 5000 });
+    await tw.waitForTimeout(300);
+    const made = (await tw.evaluate(() => (window as unknown as { calls: Call[] }).calls)).filter((c) => c.mode === "email_draft_save");
+    const chat = (await tw.evaluate(() => (window as unknown as { calls: Call[] }).calls)).filter((c) => c.mode === "chat");
+    check(made.filter((c) => !c.body.p_id).length === 1 && made.some((c) => c.body.p_id && c.body.p_name === "Our spring workshop"), `one draft, filled by Tia and named by its subject (${made.length} saves)`);
+    check(chat.length === 2 && String(chat[1]!.body.message).includes("spring workshop"), "Tia gets what it's about");
+    check((await tw.locator("[data-email]").count()) === before + 1 && (await tw.locator("[data-canvas-item]", { hasText: "Our spring workshop" }).count()) >= 1, "the written email is on the canvas");
+    if (shots) await tw.screenshot({ path: `${shots}/21-tia-wrote.png` });
+    await tw.close();
   }
 
   // 12. A row of 60 emails: only those near the view load

@@ -17,7 +17,8 @@ import { BLOCK_TYPES, isEmailPart, type BlockType, type EmailPartKey } from "./p
 import { newBlock, PROP_KEYS, readBlock, readEmailDoc, type Block, type EmailDoc } from "./doc.ts";
 import { addEmailClass, setEmailProp } from "./edit.ts";
 import { addBlock, findEl, moveBlock, removeEl, setColumns, setSettings, updateBlock } from "./ops.ts";
-import { EMAIL_TEMPLATES } from "./library.ts";
+import { composeEmail, PART_KINDS, readComposeSpec } from "./compose.ts";
+import { EMAIL_PHOTOS } from "./photos.ts";
 import { scopeBreach, scopeContext, scopeRefusal, type Scope } from "./scope.ts";
 
 export const EMAIL_CHAT_MODEL = "claude-sonnet-5-5";
@@ -80,7 +81,39 @@ export const EMAIL_CHAT_TOOLS: Anthropic.Beta.BetaTool[] = [
   },
   { name: "add_class", description: "Put a class on an element by name (made if new), so its looks can be shared.", input_schema: { type: "object", properties: { element_id: { type: "string" }, name: { type: "string" } }, required: ["element_id", "name"] } },
   { name: "use_component", description: "Put in one of the brand's components as a new section at an index.", input_schema: { type: "object", properties: { component_id: { type: "string" }, section_index: { type: "integer", minimum: 0 } }, required: ["component_id"] } },
-  { name: "use_template", description: "Start over from a template. Replacing an email with content needs the person's yes (call ask first).", input_schema: { type: "object", properties: { template: { type: "string", enum: EMAIL_TEMPLATES.map((t) => t.key) } }, required: ["template"] } },
+  {
+    name: "compose_email",
+    description:
+      "Write a whole new email from an outline of parts, drawn in the brand's design. Use it for a new or empty email, or when the person asks for a different email. Replacing an email that has content needs the person's yes (call ask first). The header (logo) and footer are added for you. Afterwards, small changes go through the other tools.",
+    input_schema: {
+      type: "object",
+      properties: {
+        subject: { type: "string", description: "The subject line: short and specific, under 60 characters." },
+        preheader: { type: "string", description: "The preview text after the subject, under 100 characters." },
+        parts: {
+          type: "array",
+          minItems: 1,
+          maxItems: 14,
+          description: `The email from top to bottom. Each part has a kind (${PART_KINDS.join(", ")}):
+hero: eyebrow (2-3 words, optional), title, lead (one or two sentences, optional). Start with it.
+photo: photo (an id from the photo list). At most one, right after the hero or before it.
+text: heading (optional), paragraphs (1-3 short ones), link (optional label of a secondary link).
+list: heading (optional), items (2-6), ordered.
+button: label. The one main step.
+band: title, text, button (optional). A bold block in the brand's button color for the one thing that matters.
+stats: items, 2-3 of { number, label }.
+offer: title, text, button, meeting (true when the button books a time). A centered closing step on the brand's tint.
+event: title, when, where, button.
+cards: heading (optional), items, 2-3 of { title, text, link (optional label) }.
+quote: text, cite.
+meeting: text (optional), label. A button to book a time.
+sign: text (optional closing line), name, title.`,
+          items: { type: "object", properties: { kind: { type: "string", enum: [...PART_KINDS] } }, required: ["kind"] },
+        },
+      },
+      required: ["subject", "parts"],
+    },
+  },
   {
     name: "link_to",
     description: "Point a Button or Meeting link block at one of the workspace's forms or meetings, by its id from the lists. Use it for every form or booking link; never type those addresses.",
@@ -96,6 +129,8 @@ How emails work here:
 - An email is sections (rows) of columns of blocks. Each block, section and column has an id.
 - Looks come from the brand's design system: variables (colors, fonts, sizes) and classes. Use variables ($id) and existing classes first. Use a raw color only when the person asks for that exact color, and pass raw: true.
 - To send people to one of the workspace's forms or to book a meeting, add a Button (or Meeting link) block and call link_to with the form's or meeting's id. Never write those addresses yourself.
+- To write a new email (an empty one, or when the person asks for one), call compose_email once with the whole email, then use link_to for buttons that go to a form or meeting. Write every word for this business and this reader, in the brand's voice. Pick a photo only when one in the photo list fits; leave it out otherwise.
+- A good email: one idea, a clear title, two or three short paragraphs or a short list, one main button. Add numbers, cards, a quote or a band only when the person gave you something real to put in them.
 - Every marketing email needs the Footer block. Merge tags look like {{first_name|there}} and always need a fallback after the bar.
 - Write plainly and briefly. Never invent facts, prices, numbers, quotes or customer names; leave a clear placeholder like "Your price" instead, and say so.
 - With a screenshot: rebuild its layout and words with blocks in the brand's variables. Don't copy its colors unless the person asks; leave pictures as Image blocks without a picture, and say so.
@@ -117,6 +152,7 @@ export function emailContext(ctx: EmailChatCtx, doc: EmailDoc, subject: string):
     ctx.links?.forms.length ? `Forms (for link_to):\n${ctx.links.forms.map((f) => `${f.id}: ${f.name}`).join("\n")}` : "",
     ctx.links?.meetings.length ? `Meetings (for link_to):\n${ctx.links.meetings.map((m) => `${m.id}: ${m.name}`).join("\n")}` : "",
     scopeContext(doc, ctx.scope, ctx.turnWith ?? []),
+    `Photos (for compose_email): ${Object.entries(EMAIL_PHOTOS).map(([id, p]) => `${id} (${p.alt})`).join("; ")}`,
     `The email now:\n${JSON.stringify(doc)}`,
   ]
     .filter(Boolean)
@@ -221,12 +257,13 @@ function applyTool(name: string, input: Record<string, unknown>, doc: EmailDoc, 
       if (!r) return { error: "No such component." };
       return { doc: r.doc, system, line: "Added a component" };
     }
-    case "use_template": {
-      const t = EMAIL_TEMPLATES.find((x) => x.key === input.template);
-      if (!t) return { error: "Unknown template." };
+    case "compose_email": {
+      const spec = readComposeSpec(input);
+      if ("error" in spec) return spec;
       const hasContent = doc.sections.some((s) => s.columns.some((c) => c.blocks.some((b) => b.type !== "footer" && b.type !== "logo")));
       if (hasContent && !ctx.confirmed) return { error: "Replacing the email needs the person's yes. Call ask first." };
-      return { doc: { ...t.make(), ...(doc.kitId ? { kitId: doc.kitId } : {}) }, system, line: `Started from the ${t.name} template` };
+      const subject = str(input.subject)?.trim().slice(0, 200);
+      return { doc: { ...composeEmail(spec), ...(doc.kitId ? { kitId: doc.kitId } : {}) }, system, ...(subject ? { subject } : {}), line: "Wrote the email" };
     }
     case "link_to": {
       const id = str(input.block_id) ?? "";

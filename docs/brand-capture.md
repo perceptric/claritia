@@ -95,6 +95,6 @@ two a team a month; the same read replays from the step cache.
 | Web server time and bandwidth (existing machines) | $0 | $0 |
 | **Added monthly** | **about $3** | **about $30** |
 
-Using the brand in email templates (docs/email-studio-plan.md Part 8): the look costs nothing. Tia's rewrite in the
-brand's voice on Use template is one email chat turn on Sonnet 5.5, about $0.10 (check), so about $25 a month at Beta
-and $250 at Growth with 5 a team a month.
+Using the brand in email (docs/email-studio-plan.md Part 8): the look costs nothing. Tia writing a new email in the
+brand's voice is one email chat turn on Sonnet 5.5, about $0.08 (check), so about $40 a month at Beta and $400 at
+Growth with 10 a team a month.

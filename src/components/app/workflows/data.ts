@@ -22,13 +22,11 @@ export type Loaded = { wf: Workflow; draft: Body; live: Body | null; versions: V
 export const loadNames = (sb: SupabaseClient, ws: string): Promise<Names> => cached(`workflow_names:${ws}`, () => readNames(sb, ws));
 
 async function readNames(sb: SupabaseClient, ws: string): Promise<Names> {
-  const [forms, typeRows, people, profiles, templates, chats, events, lists] = await Promise.all([
+  const [forms, typeRows, people, profiles, chats, events, lists] = await Promise.all([
     sb.from("forms").select("id, name").eq("workspace_id", ws).order("name"),
     meetingTypes(sb, ws),
     workspacePeople(sb, ws),
     sb.from("booking_profiles").select("user_id, name").eq("workspace_id", ws),
-    // Names only; a template's body is read when it's picked.
-    sb.from("email_templates").select("id, name").eq("workspace_id", ws).order("name"),
     sb.from("sources").select("id, name, kind, account").eq("workspace_id", ws).in("kind", ["teams", "discord"]).neq("status", "disconnected").order("created_at"),
     sb.from("sources").select("id, name, kind").eq("workspace_id", ws).in("kind", ["segment", "posthog", "mixpanel", "amplitude"]).neq("status", "disconnected").order("created_at"),
     // Before 151 there are no lists: none to pick.
@@ -40,7 +38,6 @@ async function readNames(sb: SupabaseClient, ws: string): Promise<Names> {
     forms: (must(forms) ?? []) as Names["forms"],
     types: (must(types) ?? []) as Names["types"],
     members: people.map((p) => ({ id: p.id, email: p.email, name: named.get(p.id) || p.email.replace(/@.*/, "") })),
-    templates: (must(templates) ?? []) as Names["templates"],
     events: ((events.data ?? []) as { id: string; name: string; kind: string }[]).map((c) => ({ id: c.id, kind: c.kind, name: c.name })),
     chats: ((chats.data ?? []) as { id: string; name: string; kind: string; account: string | null }[]).map((c) => ({ id: c.id, kind: c.kind, name: c.name })),
     lists: (lists.data ?? []) as { id: string; name: string }[],

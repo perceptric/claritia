@@ -16,7 +16,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { boundsOf, dropSlot, firstView, nearView, rowLayout, snapWidth, toolbarSpot, toScreen, toWorld, type Box, type Camera, type Size } from "@/lib/canvas/view";
 import { literal } from "@/lib/design/cascade";
-import { newBlock, newEmailId, newSection, readBlock, readEmailDoc, type Block, type EmailDoc } from "@/lib/design/email/doc";
+import { newBlock, newEmailId, readBlock, readEmailDoc, type Block, type EmailDoc } from "@/lib/design/email/doc";
 import { addBlock, duplicateEl, findEl, removeEl, updateBlock, updateSection, type Place } from "@/lib/design/email/ops";
 import { insertComponent } from "@/lib/design/email/components";
 import { pastePlace, transferEl } from "@/lib/design/email/clip";
@@ -53,6 +53,8 @@ import { Composer, Pin, ThreadCard, type CommentRow } from "./Comments";
 import { Check, Message, Moon, Sun, Warn } from "../../../Icons";
 import { compileEmail } from "@/lib/design/email/compile";
 import { useImageResize } from "./useImageResize";
+import { ComposeDialog } from "./ComposeDialog";
+import { blankEmail } from "@/lib/design/email/compose";
 import { useCanvasClipboard } from "./useCanvasClipboard";
 import { FormatBar } from "./FormatBar";
 import { useTyping } from "./useTyping";
@@ -171,6 +173,10 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
   const [drag, setDrag] = useState<{ id: string; x0: number; y0: number; on: boolean; dx: number; dy: number; slot: number; shift: Record<string, number>; lineX: number } | null>(null);
   const [resize, setResize] = useState<{ id: string; side: "l" | "r"; x0: number; w0: number } | null>(null);
   const [menu, setMenu] = useState<Menu>(null);
+  // New email: Tia writes it from what it's about (ComposeDialog); null when closed.
+  const [compose, setCompose] = useState<{ busy: boolean; error: string | null } | null>(null);
+  // The draft a failed write made, so trying again fills it in place of making another.
+  const composed = useRef<string | null>(null);
   const [sending, setSending] = useState<CanvasRow | null>(null);
   const [code, setCode] = useState<{ html: string; name: string } | null>(null);
   // The classic editor (the block builder) open on one email.
@@ -908,14 +914,36 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
       await postJson(session, "/api/email/test", { workspaceId: ws.id, subject: r.subject, doc: r.doc, ...(keyOf(r) ? { system: keyOf(r) } : {}) });
       say("Test sent to you");
     });
-  const addNew = () =>
-    run(async () => {
-      const nid = must(await sb.rpc("email_draft_save", { p_ws: ws.id, p_id: null, p_name: "Untitled email", p_subject: "", p_preheader: "", p_doc: { ...readEmailDoc({}), sections: [newSection([newBlock("footer")])] } })) as string;
-      if (!ungrouped) await place(nid, groupId, null);
+  /** A new draft in this group: Tia writes it from `about`, or it starts with only the header and footer. */
+  const addNew = async (about: string | null) => {
+    setCompose({ busy: true, error: null });
+    try {
+      const doc = blankEmail();
+      const made = composed.current;
+      const nid = made ?? (must(await sb.rpc("email_draft_save", { p_ws: ws.id, p_id: null, p_name: "Untitled email", p_subject: "", p_preheader: "", p_doc: doc })) as string);
+      if (!made && !ungrouped) await place(nid, groupId, null);
+      composed.current = nid;
+      if (about) {
+        try {
+          const r = await postJson<{ doc?: unknown; subject?: string; ask?: unknown }>(session, "/api/email/chat", { workspaceId: ws.id, ref: `em:${nid}`, doc, subject: "", message: `Write a new email. ${about}` });
+          if (r.doc && !r.ask) must(await sb.rpc("email_draft_save", { p_ws: ws.id, p_id: nid, p_name: (r.subject || "Untitled email").slice(0, 200), p_subject: r.subject ?? "", p_preheader: "", p_doc: r.doc }));
+        } catch (e) {
+          // The draft is made; Tia's words didn't come back. Say so and keep the dialog's words for another try.
+          await rows.reload();
+          invalidate(`email_campaigns:${ws.id}`);
+          setPicked([nid]);
+          return setCompose({ busy: false, error: `Tia couldn't write it: ${errorText(e)}` });
+        }
+      }
       await rows.reload();
       invalidate(`email_campaigns:${ws.id}`);
       setPicked([nid]);
-    });
+      composed.current = null;
+      setCompose(null);
+    } catch (e) {
+      setCompose({ busy: false, error: errorText(e) });
+    }
+  };
   const addMenu = (anchor: HTMLElement) => {
     const loose = ungrouped ? [] : null;
     void (async () => {
@@ -923,8 +951,7 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
       setMenu({
         anchor,
         items: [
-          { label: "New email", run: () => void addNew() },
-          { label: "From a template", run: () => navigate("emails", "templates", `group=${groupId}`) },
+          { label: "New email", run: () => setCompose({ busy: false, error: null }) },
           ...others.map((o, i) => ({ label: o.name, hint: LABEL[o.status] ?? o.status, group: i === 0 ? "From Campaigns" : undefined, run: () => void run(async () => (await place(o.id, groupId, null), await rows.reload(), setPicked([o.id]))) })),
         ],
       });
@@ -1807,10 +1834,7 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
                 <Sketch name="envelopes" size={220} />
                 <h2 className="text-[18px] font-medium tracking-[-0.02em] text-ink">Add the first email to {g.name}</h2>
                 <div className="flex flex-wrap justify-center gap-2">
-                  <Button onClick={() => void addNew()}>New email</Button>
-                  <Button variant="ghost" onClick={() => navigate("emails", "templates", `group=${groupId}`)}>
-                    From a template
-                  </Button>
+                  <Button onClick={() => setCompose({ busy: false, error: null })}>New email</Button>
                   {!ungrouped ? (
                     <Button variant="ghost" onClick={(e) => addMenu(e.currentTarget)}>
                       From Campaigns
@@ -1956,6 +1980,7 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
         />
       ) : null}
       {code ? <CodeView html={code.html} name={code.name} onClose={() => setCode(null)} /> : null}
+      {compose ? <ComposeDialog busy={compose.busy} error={compose.error} onWrite={(about) => void addNew(about)} onBlank={() => void addNew(null)} onClose={() => ((composed.current = null), setCompose(null))} /> : null}
       {classic
         ? (() => {
             const r = rowOf(classic);

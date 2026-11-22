@@ -1,10 +1,14 @@
 // The Email Canvas with a stand-in database (scripts/email-canvas-check.ts): the real page (EmailCanvasPage), an
 // in-memory `emails`, `email_groups` and `brand_kits`, and the calls it makes (email_group_place, email_draft_save,
-// email_draft_delete, email_group_save, email_campaigns). Real templates are the emails, so the build is real.
+// email_draft_delete, email_group_save, email_campaigns). Five saved sample emails (samples.json) are the emails, so the build is real.
 // ?group=<id>&n=<count> picks the canvas; window.calls records every write. B2: one brand kit, whose design draft saves
 // through a stand-in /api/design/save and publishes through brand_kit_design_publish.
 import { createRoot } from "react-dom/client";
-import { EMAIL_TEMPLATES } from "../../src/lib/design/email/library.ts";
+import samples from "./samples.json";
+import { composeEmail, type ComposeSpec } from "../../src/lib/design/email/compose.ts";
+
+const SAMPLE = samples as unknown as Record<string, Record<string, unknown>>;
+const sample = (i: number) => structuredClone(SAMPLE[String(i)]!);
 import { DialogHost } from "../../src/components/app/Dialogs.tsx";
 import { EmailCanvasPage } from "../../src/components/app/emails/canvas/EmailCanvasPage.tsx";
 import { SYSTEM_KEYS, SYSTEM_META, systemDefault } from "../../src/lib/meetings/systemEmails.ts";
@@ -21,7 +25,7 @@ let seq = 0;
 const id = () => `e0000000-0000-4000-8000-${String(++seq).padStart(12, "0")}`;
 const now = Date.now();
 const email = (name: string, t: number, group: string | null, pos: number, status = "draft"): Row => ({
-  id: id(), workspace_id: "ws1", kind: "broadcast", name, subject: `${name} subject`, preheader: "", status, doc: EMAIL_TEMPLATES[t]!.make(), html: "", group_id: group, group_position: pos, created_at: new Date(now - (100 - seq) * 1000).toISOString(), updated_at: new Date(now - seq * 60000).toISOString(),
+  id: id(), workspace_id: "ws1", kind: "broadcast", name, subject: `${name} subject`, preheader: "", status, doc: sample(t), html: "", group_id: group, group_position: pos, created_at: new Date(now - (100 - seq) * 1000).toISOString(), updated_at: new Date(now - seq * 60000).toISOString(),
 });
 // B4: two brand kits. The first has a saved component; the second a class. "Monthly news" uses the second.
 const K1 = "aaaaaaaa-0000-4000-8000-000000000001";
@@ -36,7 +40,7 @@ const withDark = (r: Row): Row => {
 };
 const db: Record<string, Row[]> = {
   email_groups: [{ id: G, workspace_id: "ws1", name: "Welcome series", created_at: new Date(now - 86400000).toISOString() }, { id: "22222222-2222-4222-8222-222222222222", workspace_id: "ws1", name: "Holiday promo", created_at: new Date(now).toISOString() }],
-  emails: [withDark(email("Welcome", 0, G, 0)), email("Class reminder", 3, G, 1), { ...email("Monthly news", 6, G, 2), doc: { ...EMAIL_TEMPLATES[6]!.make(), kitId: K2 } }, email("Spring workshop", 9, null, 0)],
+  emails: [withDark(email("Welcome", 0, G, 0)), email("Class reminder", 3, G, 1), { ...email("Monthly news", 6, G, 2), doc: { ...sample(6), kitId: K2 } }, email("Spring workshop", 9, null, 0)],
   email_versions: [],
   email_comments: [],
   brand_kits: [{ id: K1, workspace_id: "ws1", name: "Juniper", design: K1_DESIGN, design_live: K1_DESIGN, tokens: {}, logo_url: LOGO, design_rev: 0, created_at: new Date(now - 86400000).toISOString() },
@@ -76,6 +80,16 @@ window.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     await new Promise((r) => setTimeout(r, Number((window as unknown as { chatDelay?: number }).chatDelay ?? 400)));
     if (/everywhere/.test(body.message) && !body.confirmed)
       return new Response(JSON.stringify({ doc: body.doc, system: null, subject: body.subject, reply: "", lines: [], ask: { question: "This changes every email on the brand. Go ahead?", choices: ["Yes, every email", "Only this one"] } }), { status: 200 });
+    // New email: Tia writes it with compose_email. window.composeSpec sets what it writes (scripts/email-canvas-check.ts).
+    if (/^Write a new email\./.test(body.message)) {
+      const ws = window as unknown as { composeSpec?: ComposeSpec & { subject: string }; failCompose?: boolean };
+      if (ws.failCompose) {
+        ws.failCompose = false;
+        return new Response(JSON.stringify({ error: "The AI didn't answer: overloaded" }), { status: 502 });
+      }
+      const spec = ws.composeSpec ?? { subject: "Our spring workshop", preheader: "Saturday, 10 AM.", parts: [{ kind: "hero", title: "Our spring workshop" }, { kind: "text", paragraphs: ["Two hours, hands on."] }, { kind: "button", label: "Save my seat" }] };
+      return new Response(JSON.stringify({ doc: composeEmail(spec), system: null, subject: spec.subject, reply: "Wrote it.", lines: ["Wrote the email"], ask: null }), { status: 200 });
+    }
     const doc = JSON.parse(JSON.stringify(body.doc)) as typeof body.doc;
     const blocks = doc.sections.flatMap((x) => x.columns.flatMap((c) => c.blocks));
     const target = body.scope?.kind === "parts" ? blocks.find((b) => body.scope!.ids!.includes(b.id) && b.type === "heading") : blocks.find((b) => b.type === "heading");
@@ -92,7 +106,7 @@ window.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       w.failSeries = null;
       return new Response(JSON.stringify({ error: "The AI didn't answer: overloaded" }), { status: 502 });
     }
-    return new Response(JSON.stringify({ doc: { ...EMAIL_TEMPLATES[1]!.make(), settings: { width: 600, align: "center", darkMode: "auto", preheader: "Preview", lang: "en" } }, subject: body.items![body.index!]!.subject }), { status: 200 });
+    return new Response(JSON.stringify({ doc: { ...sample(1), settings: { width: 600, align: "center", darkMode: "auto", preheader: "Preview", lang: "en" } }, subject: body.items![body.index!]!.subject }), { status: 200 });
   }
   return realFetch(input, init);
 }) as typeof window.fetch;

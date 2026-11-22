@@ -108,9 +108,9 @@ test("a sent email can't change or send again; another workspace's email isn't f
   assert.match(await refusal(tool("schedule_campaign").run(w.ctx("k-owner"), { email: "Winter" })), /isn't a draft/);
   assert.match(await refusal(tool("schedule_campaign").run(w.ctx("k-owner"), { email: "Secret" })), /not found/);
   assert.match(await refusal(tool("schedule_campaign").run(w.ctx("k-owner"), { email: "Spring", list: "Nope" })), /List Nope not found/);
-  // A template sent as it comes stops at the send check: its links aren't filled in.
+  // An email whose button has no address stops at the send check: its links aren't filled in.
   const raw = world();
-  raw.emails[0]!.doc = (await import("../src/lib/design/email/library.ts")).EMAIL_TEMPLATES[0]!.make();
+  raw.emails[0]!.doc = (await import("./fixtures/emailSample.ts")).sampleEmail();
   assert.match(await refusal(tool("schedule_campaign").run(raw.ctx("k-owner"), { email: "Spring" })), /Fill in|working link/);
   const r = world({ refuse: "Pick who gets it" });
   assert.equal(await refusal(tool("schedule_campaign").run(r.ctx("k-owner"), { email: "Spring" })), "Pick who gets it");

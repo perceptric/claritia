@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readEmailDoc, type Block, type EmailDoc } from "../src/lib/design/email/doc.ts";
-import { EMAIL_TEMPLATES } from "../src/lib/design/email/library.ts";
+import { sampleEmail } from "./fixtures/emailSample.ts";
 import { linkWorks, placeholdersIn, sendCheck } from "../src/lib/emails/sendCheck.ts";
 
 let n = 0;
@@ -21,10 +21,9 @@ test("placeholders: brackets with words, never merge tags or numbers", () => {
   assert.deepEqual(placeholdersIn("On [date] at [time], see [1] and {{first_name|[there]}}"), ["[date]", "[time]"]);
 });
 
-test("a template sent as it comes stops: placeholders and links to fill in", () => {
-  const t = EMAIL_TEMPLATES.find((x) => x.make().sections.some((s) => s.columns.some((c) => c.blocks.some((b) => b.type === "button"))))!;
-  const r = sendCheck(t.make(), "Hello");
-  assert.ok(r.stops.some((s) => /no working link/.test(s)), t.key);
+test("an email whose button has no address yet stops", () => {
+  const r = sendCheck(sampleEmail(), "Hello");
+  assert.ok(r.stops.some((s) => /no working link/.test(s)));
 });
 
 test("a filled email passes; a placeholder in the subject stops it; broken text links stop it", () => {
