@@ -19,9 +19,6 @@ services:
         generateValue: true
       - key: RESEND_API_KEY
         sync: false
-      # Sending (docs/sending-setup.md): the SNS topic SES events arrive on.
-      - key: SES_SNS_TOPIC_ARN
-        sync: false
       - key: STRIPE_SECRET_KEY
         sync: false
       # Sources (docs/sources-setup.md). APP_URL only when the app isn't at https://app.tryclaritia.com.
