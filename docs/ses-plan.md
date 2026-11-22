@@ -1,6 +1,6 @@
 # Moving Claritia's email from Resend to Amazon SES
 
-Status: Steps 1, 3 and 4 built, all switched off until set on the server (`EMAIL_SES_DOMAINS`, `EMAIL_SES_MOVE`), 12 November 2026. SES keys, the configuration set and the SNS subscription are live; production access is with AWS.
+Status: Steps 1, 3 and 4 built, all switched off until set on the server (`EMAIL_SES_DOMAINS`, `EMAIL_SES_MOVE`). SES keys, the configuration set and the SNS subscription are live. Production access approved (seen in the SES console on 22 November 2026: 50,000 a day, 14 a second, account health Healthy). Next: Step 2.
 
 Done so far: AWS account, SES in us-east-2 on the Essentials plan, `tryclaritia.com` verified (three DKIM records and
 MAIL FROM `mail.tryclaritia.com`, added through the Hostinger DNS API), `vincent@perceptric.com` verified, production
@@ -58,8 +58,8 @@ back, fitted to today's `provider.ts`. `sending_domains` still has `mail_from` a
 
 ### Step 0. AWS ready (you, in the console, about an hour)
 
-1. Production access approved. If AWS asks questions, answer with the use case in `docs/sending-setup.md`.
-2. Raise limits when approved: ask for 200,000 a day and 50 a second (Service Quotas › SES).
+1. Production access approved (done, 22 November 2026). If AWS asks questions, answer with the use case in `docs/sending-setup.md`.
+2. Raise limits when approved: ask for 200,000 a day and 50 a second (Service Quotas › SES). Granted so far: 50,000 a day, 14 a second.
 3. SNS topic `claritia-ses-events`, with a delivery policy that retries for 24 hours.
 4. Configuration set `claritia`: event destination SNS for Bounce, Complaint, Delivery, Reject, DeliveryDelay and
    RenderingFailure. Engagement tracking off (Claritia tracks clicks itself).
@@ -69,7 +69,7 @@ back, fitted to today's `provider.ts`. `sending_domains` still has `mail_from` a
 8. CloudWatch alarms: `Reputation.BounceRate` at 4% and `Reputation.ComplaintRate` at 0.08%, to SNS and the team's
    email. AWS reviews an account at 5% and 0.1% and can pause it at 10% and 0.5% (check).
 9. Budgets: a monthly alert at $50.
-10. Keys on the VPS yourself (Hostinger › Docker Manager › claritia › Environment), never in chat:
+10. Keys on the OVH server yourself, in the `.env` of the `claritia-web` and `claritia-intel` Compose projects (README, Deploy), never in chat:
     `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `SES_REGION=us-east-2`, `SES_CONFIGURATION_SET=claritia`,
     `SES_SNS_TOPIC_ARN`, later `SES_SMTP_USER`, `SES_SMTP_PASS`.
 

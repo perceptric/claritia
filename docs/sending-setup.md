@@ -154,7 +154,7 @@ fly secrets unset --app claritia-web SES_SNS_TOPIC_ARN
 SES runs next to Resend. `EMAIL_SES_DOMAINS` names the From domains that go through SES (`tryclaritia.com`, a list
 with commas, or `all`); a subdomain follows its parent. Empty, everything stays on Resend.
 
-On the VPS (Hostinger › Docker Manager › claritia › Environment), set by the owner, never pasted in chat:
+On the OVH server, in the `.env` of the `claritia-web` and `claritia-intel` Compose projects (README, Deploy), set by the owner, never pasted in chat. Restart both after a change (`docker compose up -d` in each folder):
 
 | Variable | Value |
 |---|---|
