@@ -152,7 +152,7 @@ fly secrets unset --app claritia-web SES_SNS_TOPIC_ARN
 ## Amazon SES (docs/ses-plan.md)
 
 SES runs next to Resend. `EMAIL_SES_DOMAINS` names the From domains that go through SES (`tryclaritia.com`, a list
-with commas, or `all`); a subdomain follows its parent. Empty, everything stays on Resend.
+with commas, or `all`); a subdomain follows its parent. Unset or empty means `tryclaritia.com`; `off` keeps everything on Resend.
 
 On the OVH server, in the `.env` of the `claritia-web` and `claritia-intel` Compose projects (README, Deploy), set by the owner, never pasted in chat. Restart both after a change (`docker compose up -d` in each folder):
 
@@ -163,7 +163,7 @@ On the OVH server, in the `.env` of the `claritia-web` and `claritia-intel` Comp
 | `SES_CONFIGURATION_SET` | `claritia` |
 | `SES_SNS_TOPIC_ARN` | The ARN of `claritia-ses-events` |
 | `SES_MAX_RATE` | Optional: the send rate to start from before SES says (default 1 a second) |
-| `EMAIL_SES_DOMAINS` | Empty at first, then `tryclaritia.com`, later `all` |
+| `EMAIL_SES_DOMAINS` | Unset or empty means `tryclaritia.com`; `off` sends everything through Resend; later `all` |
 | `EMAIL_SES_MOVE` | `1` makes new customer domains on SES and offers "Move to new sending" (docs/ses-plan.md Steps 3 and 4) |
 | `CLARITIA_OWN_DOMAINS` | Optional: domains no workspace may add (default `tryclaritia.com,perceptric.com`) |
 

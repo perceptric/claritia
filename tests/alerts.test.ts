@@ -5,6 +5,8 @@ import { seal } from "../src/lib/seal.ts";
 
 process.env.SECRETS_KEY = "a-local-check-key-that-is-long-enough-1234";
 process.env.RESEND_API_KEY = "re_test";
+// These cover the Resend path; Claritia's own mail would otherwise go through SES when AWS keys are around.
+process.env.EMAIL_SES_DOMAINS = "off";
 const { sendAlerts } = await import("../src/lib/alertSender.ts");
 
 const fail = (over: Partial<AlertFailure> = {}): AlertFailure => ({ runId: "r1", test: "Checkout", environment: "staging", source: "schedule", verdict: "app_bug", reason: "Save answers 500.", failedStep: { position: 3, label: "Check: It says saved" }, ...over });

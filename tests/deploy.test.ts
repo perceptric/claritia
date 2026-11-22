@@ -15,12 +15,30 @@ const scriptText = read("../deploy/deploy.sh");
 
 test("/api/version answers the commit the image was built from", async () => {
   const { GET } = await import("../src/app/api/version/route.ts");
-  process.env.GIT_COMMIT = "a".repeat(40);
-  const res = GET();
-  assert.deepEqual(await res.json(), { commit: "a".repeat(40) });
-  assert.equal(res.headers.get("Cache-Control"), "no-store");
-  delete process.env.GIT_COMMIT;
-  assert.deepEqual(await GET().json(), { commit: null });
+  const keep = { id: process.env.AWS_ACCESS_KEY_ID, secret: process.env.AWS_SECRET_ACCESS_KEY, domains: process.env.EMAIL_SES_DOMAINS };
+  delete process.env.AWS_ACCESS_KEY_ID;
+  delete process.env.AWS_SECRET_ACCESS_KEY;
+  delete process.env.EMAIL_SES_DOMAINS;
+  try {
+    process.env.GIT_COMMIT = "a".repeat(40);
+    const res = GET();
+    assert.deepEqual(await res.json(), { commit: "a".repeat(40), ses: { keys: false, own: false } });
+    assert.equal(res.headers.get("Cache-Control"), "no-store");
+    delete process.env.GIT_COMMIT;
+    assert.deepEqual(await GET().json(), { commit: null, ses: { keys: false, own: false } });
+    // SES as yes or no only: never a key.
+    process.env.AWS_ACCESS_KEY_ID = "AKIDSECRETLOOKING";
+    process.env.AWS_SECRET_ACCESS_KEY = "s3cr3t";
+    const on = await GET().text();
+    assert.equal(on, JSON.stringify({ commit: null, ses: { keys: true, own: true } }));
+    process.env.EMAIL_SES_DOMAINS = "off";
+    assert.deepEqual((await GET().json()).ses, { keys: true, own: false });
+  } finally {
+    for (const [k, v] of [["AWS_ACCESS_KEY_ID", keep.id], ["AWS_SECRET_ACCESS_KEY", keep.secret], ["EMAIL_SES_DOMAINS", keep.domains]] as const) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
 });
 
 test("every image is built with its commit, and the deploy waits for /api/version to show it", () => {

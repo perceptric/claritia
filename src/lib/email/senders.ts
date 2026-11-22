@@ -1,6 +1,7 @@
 // Which provider sends each email (docs/ses-plan.md). EMAIL_SES_DOMAINS on the server names the From domains that go
 // through Amazon SES ("tryclaritia.com", a list with commas, or "all"); a subdomain follows its parent. Everything else
-// stays on Resend. With the variable empty, or SES not set up, nothing changes.
+// stays on Resend. Unset or empty means tryclaritia.com (Step 2); "off" sends everything through Resend. Without SES
+// keys nothing changes.
 
 import { domainOf, SendError, type Outgoing, type Sender } from "./provider.ts";
 import type { Resend } from "./resend.ts";
@@ -9,8 +10,18 @@ import { resendFromEnv } from "./resend.ts";
 
 export type OnSes = (from: string) => boolean;
 
-export function sesDomains(env: NodeJS.ProcessEnv = process.env): OnSes {
+/** Claritia's own mail goes through SES unless the server says otherwise (docs/ses-plan.md Step 2). */
+export const SES_DEFAULT_DOMAINS = "tryclaritia.com";
+
+/** What EMAIL_SES_DOMAINS means on this server: a list, "all", or "" for none. */
+export function sesDomainSetting(env: NodeJS.ProcessEnv = process.env): string {
   const v = (env.EMAIL_SES_DOMAINS ?? "").trim().toLowerCase();
+  if (!v) return SES_DEFAULT_DOMAINS;
+  return v === "off" || v === "none" ? "" : v;
+}
+
+export function sesDomains(env: NodeJS.ProcessEnv = process.env): OnSes {
+  const v = sesDomainSetting(env);
   if (!v) return () => false;
   if (v === "all") return (from) => !!domainOf(from);
   const list = v.split(",").map((x) => x.trim().replace(/^@/, "")).filter(Boolean);

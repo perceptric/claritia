@@ -1,6 +1,6 @@
 # Moving Claritia's email from Resend to Amazon SES
 
-Status: Steps 1, 3 and 4 built, all switched off until set on the server (`EMAIL_SES_DOMAINS`, `EMAIL_SES_MOVE`). SES keys, the configuration set and the SNS subscription are live. Production access approved (seen in the SES console on 22 November 2026: 50,000 a day, 14 a second, account health Healthy). Next: Step 2.
+Status: Steps 1, 3 and 4 built, all switched off until set on the server (`EMAIL_SES_DOMAINS`, `EMAIL_SES_MOVE`). SES keys, the configuration set and the SNS subscription are live. Production access approved (seen in the SES console on 22 November 2026: 50,000 a day, 14 a second, account health Healthy). Step 2 is on by default from 22 November 2026.
 
 Done so far: AWS account, SES in us-east-2 on the Essentials plan, `tryclaritia.com` verified (three DKIM records and
 MAIL FROM `mail.tryclaritia.com`, added through the Hostinger DNS API), `vincent@perceptric.com` verified, production
@@ -92,11 +92,11 @@ Migration 144 (`sending_domains.provider`) moves to Step 3, where it's first use
 
 ### Step 2. Claritia's own mail on SES (one week of watching)
 
-`EMAIL_SES_DOMAINS=tryclaritia.com`: alerts, form codes, teammate alerts, meeting emails from `mail.tryclaritia.com`
+On by default (22 November 2026): with `EMAIL_SES_DOMAINS` unset or empty, the server treats it as `tryclaritia.com`: alerts, form codes, teammate alerts, meeting emails from `mail.tryclaritia.com`
 and Claritia's own workflows go through SES (the subdomain follows its parent).
 Done when: a week with bounces under 2%, complaints under 0.05%, no `unknown` sends, events arriving for every
 delivery.
-Back out: empty the variable.
+Back out: set `EMAIL_SES_DOMAINS=off` on `claritia-web` and `claritia-intel` and restart them. `GET /api/version` shows `ses.keys` and `ses.own` (yes or no) so the switch can be checked from outside.
 
 ### Steps 3 and 4. Customer domains on SES (built)
 

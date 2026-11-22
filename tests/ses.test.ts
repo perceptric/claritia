@@ -89,14 +89,17 @@ test("the bucket keeps sends under the account's rate, with no burst above one s
   assert.ok(n >= 1900, `11 at 5 a second take about 2 seconds (${n} ms)`);
 });
 
-test("EMAIL_SES_DOMAINS: listed domains and their subdomains go to SES; empty means none, all means all", () => {
+test("EMAIL_SES_DOMAINS: listed domains and their subdomains go to SES; unset means tryclaritia.com, off means none, all means all", () => {
   const on = sesDomains({ EMAIL_SES_DOMAINS: "tryclaritia.com, @acme.io" });
   assert.equal(on("Claritia <alerts@mail.tryclaritia.com>"), true);
   assert.equal(on("x@tryclaritia.com"), true);
   assert.equal(on("x@acme.io"), true);
   assert.equal(on("x@nottryclaritia.com"), false, "a look-alike domain isn't a subdomain");
   assert.equal(on("x@other.com"), false);
-  assert.equal(sesDomains({})("x@tryclaritia.com"), false);
+  assert.equal(sesDomains({})("x@tryclaritia.com"), true, "unset: Claritia's own mail goes through SES");
+  assert.equal(sesDomains({ EMAIL_SES_DOMAINS: "" })("Claritia <alerts@mail.tryclaritia.com>"), true, "empty is the same as unset");
+  assert.equal(sesDomains({})("x@acme.com"), false, "customer domains stay where they are");
+  for (const off of ["off", " OFF ", "none"]) assert.equal(sesDomains({ EMAIL_SES_DOMAINS: off })("x@tryclaritia.com"), false, off);
   assert.equal(sesDomains({ EMAIL_SES_DOMAINS: "all" })("x@anything.co"), true);
   assert.equal(sesDomains({ EMAIL_SES_DOMAINS: "all" })("not an address"), false);
   assert.equal(domainOf('"Acme, Inc" <News@Acme.COM>'), "acme.com");
