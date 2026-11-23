@@ -7,7 +7,9 @@ import { seal, unseal } from "../seal.ts";
 import { makeCtx } from "./ctx.ts";
 import type { SavedMapping } from "./map.ts";
 import { connectorFor } from "./registry.ts";
-import { applyHooks, pull, push, type Counts, type Deps } from "./sync.ts";
+import { push } from "./push.ts";
+import { applyHooks, pull } from "./sync.ts";
+import type { Counts, Deps } from "./syncDeps.ts";
 import { AuthError, type Creds, type HookEvent, type SourceRow } from "./types.ts";
 
 export type RunOpts = {
