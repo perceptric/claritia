@@ -9,6 +9,7 @@ import pw from "playwright-core";
 import { addStep } from "../extension/steps.js";
 import { buildLock, parseLock } from "../src/lib/lock.ts";
 import { executeRun } from "../worker/runner.ts";
+import { check, done } from "./checks.ts";
 
 const chromiumPath = process.env.CHROMIUM_PATH;
 const content = await readFile(new URL("../extension/content.js", import.meta.url), "utf8");
@@ -44,11 +45,6 @@ const server = createServer((req, res) => {
 await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
 const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
 
-let failures = 0;
-const check = (ok: boolean, what: string) => {
-  console.log(`${ok ? "PASS" : "FAIL"} ${what}`);
-  if (!ok) failures++;
-};
 
 // 1. Record.
 type Step = { kind: "do" | "check"; text: string; code: string[]; key?: string; checkDone?: boolean };
@@ -127,5 +123,4 @@ check(statuses.length === steps.length && statuses.every((s) => s.endsWith(":pas
 
 server.closeAllConnections();
 server.close();
-console.log(failures ? `${failures} failed` : "All recorder checks passed");
-process.exit(failures ? 1 : 0);
+done("recorder");

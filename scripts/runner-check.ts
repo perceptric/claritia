@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { isPrivateAddress } from "../src/lib/privateNet.ts";
 import { executeRun, type StepUpdate } from "../worker/runner.ts";
 import { maskSecrets } from "../worker/secrets.ts";
+import { check, done } from "./checks.ts";
 
 const PASSWORD = "hunter2-very-secret";
 const pages: Record<string, string> = {
@@ -29,11 +30,6 @@ const server = createServer((req, res) => {
 await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
 const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
 const chromiumPath = process.env.CHROMIUM_PATH;
-let failures = 0;
-const check = (ok: boolean, what: string) => {
-  console.log(`${ok ? "PASS" : "FAIL"} ${what}`);
-  if (!ok) failures++;
-};
 const lock = (body: string) => `import { test, expect } from '@playwright/test';\n\ntest('Check', async ({ page }) => {\n${body}\n});\n`;
 const run = async (body: string, positions: number[], opts: { allowPrivate?: boolean } = {}) => {
   const updates: StepUpdate[] = [];
@@ -133,5 +129,4 @@ check(maskSecrets(`pw=${PASSWORD}`, { P: PASSWORD }) === "pw=••••", "sec
 }
 
 server.close();
-console.log(failures ? `${failures} failed` : "All runner checks passed");
-process.exit(failures ? 1 : 0);
+done("runner");

@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { parseLock } from "../src/lib/lock.ts";
 import { executeRun, type RunStep, type StepUpdate } from "../worker/runner.ts";
 import type { WriteReply, WriteRequest, Writer } from "../worker/writer.ts";
+import { check, done } from "./checks.ts";
 
 const PASSWORD = "s3cret-pass-998877";
 const pages: Record<string, string> = {
@@ -36,11 +37,6 @@ await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
 const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
 const chromiumPath = process.env.CHROMIUM_PATH;
 
-let failures = 0;
-const check = (ok: boolean, what: string) => {
-  console.log(`${ok ? "PASS" : "FAIL"} ${what}`);
-  if (!ok) failures++;
-};
 
 const STEPS: RunStep[] = [
   { position: 1, kind: "do", label: "Go to the contact page", intent: "Go to the contact page" },
@@ -185,5 +181,4 @@ let savedLock = "";
 }
 
 server.close();
-console.log(failures ? `${failures} failed` : "All writer checks passed");
-process.exit(failures ? 1 : 0);
+done("writer");

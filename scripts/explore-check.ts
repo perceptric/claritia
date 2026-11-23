@@ -9,6 +9,7 @@ import { createServer } from "node:http";
 import { handleExploration, type Exploration } from "../worker/exploreHandle.ts";
 import { explore, patternOf, shouldFollow, type FoundPage } from "../worker/explorer.ts";
 import type { Namer } from "../worker/namer.ts";
+import { check, done } from "./checks.ts";
 
 process.env.SECRETS_KEY = "a-local-check-key-that-is-long-enough-1234";
 const chromiumPath = process.env.CHROMIUM_PATH;
@@ -72,11 +73,6 @@ const server = createServer((req, res) => {
 await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
 const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
 
-let failures = 0;
-const check = (ok: boolean, what: string) => {
-  console.log(`${ok ? "PASS" : "FAIL"} ${what}`);
-  if (!ok) failures++;
-};
 
 // Patterns and link rules, no browser.
 check(patternOf(new URL("https://x.com/orders/123")) === "/orders/:id", "numbers in addresses become :id");
@@ -226,5 +222,4 @@ test('Sign in', async ({ page }) => {
 
 server.closeAllConnections();
 server.close();
-console.log(failures ? `${failures} failed` : "All explore checks passed");
-process.exit(failures ? 1 : 0);
+done("explore");

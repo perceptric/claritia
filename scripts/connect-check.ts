@@ -6,6 +6,7 @@
 import { rmSync } from "node:fs";
 import { createServer } from "node:http";
 import pw from "playwright-core";
+import { check, done } from "./checks.ts";
 
 const KEY = "clr_" + "k".repeat(40);
 const page = `<!doctype html><title>Connect</title><button id="go">Connect</button><p id="out"></p><script>
@@ -24,11 +25,6 @@ const app = createServer((req, res) => {
 });
 await new Promise<void>((r) => app.listen(3000, "0.0.0.0", r));
 
-let failures = 0;
-const check = (ok: boolean, what: string) => {
-  console.log(`${ok ? "PASS" : "FAIL"} ${what}`);
-  if (!ok) failures++;
-};
 const ext = new URL("../extension", import.meta.url).pathname;
 const profile = "/tmp/claritia-connect-profile";
 rmSync(profile, { recursive: true, force: true });
@@ -67,5 +63,4 @@ check((await popup.locator("#projects button").allTextContents()).includes("Arro
 
 await ctx.close();
 app.close();
-console.log(failures ? `${failures} failed` : "All connect checks passed");
-process.exit(failures ? 1 : 0);
+done("connect");

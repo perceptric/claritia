@@ -5,6 +5,7 @@
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import pw from "playwright-core";
+import { check, done } from "./checks.ts";
 
 type Hit = { path: string; body: Record<string, unknown> | null; status: number; at: number };
 type Ev = { id: string; k: string; u: string; ti?: string; n?: string; d?: Record<string, unknown> };
@@ -63,11 +64,6 @@ function port() {
 }
 const base = `http://localhost:${port()}`;
 
-let failures = 0;
-const check = (ok: boolean, what: string) => {
-  console.log(`${ok ? "PASS" : "FAIL"} ${what}`);
-  if (!ok) failures++;
-};
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const events = (from = 0) => hits.slice(from).filter((h) => h.path === "/e" && h.status === 200).flatMap((h) => (h.body?.events as Ev[]) ?? []);
 const until = async (fn: () => boolean, ms = 3000) => {
@@ -250,5 +246,4 @@ await cctx.close();
 
 await browser.close();
 server.close();
-console.log(failures ? `${failures} failed` : "All script checks passed");
-process.exit(failures ? 1 : 0);
+done("script");

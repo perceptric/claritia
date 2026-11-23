@@ -1,4 +1,4 @@
-# Deploy to Fly.io on every push to main: the checks first, then each of the app, the runner, the tunnel relay,
+# Deploy to Fly.io on every push to main: the checks first (ci.yml), then each of the app, the runner, the tunnel relay,
 # collect and intel whose files the push changed. A manual run deploys all five.
 # Needs one repository secret, FLY_API_TOKEN (from `fly tokens create org`). Without it, the deploy steps are skipped.
 name: Deploy to Fly.io
@@ -14,19 +14,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # The same checks as pull requests get: lint, types, unit tests, database tests and browser checks.
   checks:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run lint
-      - run: npm run typecheck
-      - run: npm test
-      - run: npm run build:script
+    uses: ./.github/workflows/ci.yml
 
   deploy:
     needs: checks

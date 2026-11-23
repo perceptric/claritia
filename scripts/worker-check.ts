@@ -6,6 +6,7 @@ import { createServer } from "node:http";
 import { seal } from "../src/lib/seal.ts";
 import { handleRun } from "../worker/handle.ts";
 import type { Writer } from "../worker/writer.ts";
+import { check, done } from "./checks.ts";
 
 const KEY = "a-local-check-key-that-is-long-enough-1234";
 process.env.SECRETS_KEY = KEY;
@@ -79,11 +80,6 @@ test('Sign in', async ({ page }) => {
 });
 `;
 
-let failures = 0;
-const check = (ok: boolean, what: string) => {
-  console.log(`${ok ? "PASS" : "FAIL"} ${what}`);
-  if (!ok) failures++;
-};
 
 await handleRun(sb as never, { id: "run1", workspace_id: "ws1", environment_id: "env1", base_url: base, lock, attempts: 1 }, { workerId: "w1", chromiumPath: process.env.CHROMIUM_PATH, allowPrivate: true, heartbeatMs: 200 });
 
@@ -178,5 +174,4 @@ check(run8.status === "passed" && run8.video_path === null && run8.console_path 
 check(logged.some((m) => /upload of video\.webm failed: storage is down/.test(m)) && logged.some((m) => /upload of step-1\.jpg failed/.test(m)), "each failed upload is logged");
 
 server.close();
-console.log(failures ? `${failures} failed` : "All worker checks passed");
-process.exit(failures ? 1 : 0);
+done("worker");

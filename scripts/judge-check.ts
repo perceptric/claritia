@@ -7,6 +7,7 @@
 import { createServer } from "node:http";
 import { handleRun } from "../worker/handle.ts";
 import type { Judge, JudgeRequest, JudgeReply } from "../worker/judge.ts";
+import { check, done } from "./checks.ts";
 
 process.env.SECRETS_KEY = "a-local-check-key-that-is-long-enough-1234";
 
@@ -59,11 +60,6 @@ const sb = {
   storage: { from: () => ({ upload: async () => ({ error: null }), remove: async () => ({ data: [], error: null }) }) },
 };
 
-let failures = 0;
-const check = (ok: boolean, what: string) => {
-  console.log(`${ok ? "PASS" : "FAIL"} ${what}`);
-  if (!ok) failures++;
-};
 
 let n = 0;
 const lockOf = (body: string) => `import { test, expect } from '@playwright/test';\n\ntest('Check', async ({ page }) => {\n${body}\n});\n`;
@@ -145,5 +141,4 @@ function scripted(reply: Omit<JudgeReply, "usage">) {
 }
 
 server.close();
-console.log(failures ? `${failures} failed` : "All judge checks passed");
-process.exit(failures ? 1 : 0);
+done("judge");

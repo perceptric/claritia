@@ -15,6 +15,7 @@
     "typecheck": "next typegen && tsc --noEmit -p tsconfig.check.json",
     "test": "node --conditions=react-server --test tests/*.test.ts",
     "test:db": "bash scripts/test-db.sh",
+    "test:browser": "bash scripts/browser-checks.sh",
     "pack:extension": "node scripts/pack-extension.ts",
     "build:script": "node collect/script/build.mts",
     "check:script": "node scripts/script-check.ts"

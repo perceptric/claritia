@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { buildLock } from "../src/lib/lock.ts";
 import { executeRun, type RunStep, type StepUpdate } from "../worker/runner.ts";
 import type { WriteReply, WriteRequest, Writer } from "../worker/writer.ts";
+import { check, done } from "./checks.ts";
 
 // The site changes between versions, like a real app after a release.
 let version: "v1" | "v2" | "gone" = "v1";
@@ -29,11 +30,6 @@ const server = createServer((req, res) => {
 await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
 const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
 
-let failures = 0;
-const check = (ok: boolean, what: string) => {
-  console.log(`${ok ? "PASS" : "FAIL"} ${what}`);
-  if (!ok) failures++;
-};
 
 const STEPS: RunStep[] = [
   { position: 1, kind: "do", label: "Open the contact page", intent: "Open the contact page" },
@@ -138,5 +134,4 @@ const run = async (lock: string, writer: Writer | undefined, opts: { steps?: Run
 }
 
 server.close();
-console.log(failures ? `${failures} failed` : "All heal checks passed");
-process.exit(failures ? 1 : 0);
+done("heal");

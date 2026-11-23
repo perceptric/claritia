@@ -11,6 +11,7 @@ import { explore, type FoundPage } from "../worker/explorer.ts";
 import { judgeByRules } from "../worker/judge.ts";
 import { executeRun } from "../worker/runner.ts";
 import { tunnelFor } from "../worker/tunnel.ts";
+import { check, done } from "./checks.ts";
 
 const chromiumPath = process.env.CHROMIUM_PATH;
 const SECRET = "a-relay-secret-that-is-long-enough-123456";
@@ -42,11 +43,6 @@ const ac = new AbortController();
 void runTunnel({ key: KEY, relay: relayUrl, ports: [appPort], out: () => undefined, err: (s: string) => console.log("  tunnel:", s), signal: ac.signal, onOpen: (id: string) => (tunnelId = id) });
 for (let i = 0; i < 100 && !tunnelId; i++) await new Promise((r) => setTimeout(r, 20));
 
-let failures = 0;
-const check = (ok: boolean, what: string) => {
-  console.log(`${ok ? "PASS" : "FAIL"} ${what}`);
-  if (!ok) failures++;
-};
 const sb = (rows: unknown[]) => ({ rpc: async () => ({ data: rows, error: null }) });
 const relayOpts = { url: relayUrl, secret: SECRET };
 const base = `http://localhost:${appPort}`;
@@ -112,5 +108,4 @@ ac.abort();
 await relay.close();
 app.closeAllConnections();
 app.close();
-console.log(failures ? `${failures} failed` : "All tunnel checks passed");
-process.exit(failures ? 1 : 0);
+done("tunnel");

@@ -11,6 +11,7 @@ import { join } from "node:path";
 import type { InboxMail } from "../worker/mail.ts";
 import { executeRun, type Inbox, type StepUpdate } from "../worker/runner.ts";
 import type { Writer } from "../worker/writer.ts";
+import { check, done } from "./checks.ts";
 
 // The stand-in mail service. The site "sends" mail here; the runner reads it through the Inbox.
 const mailbox: (InboxMail & { to: string })[] = [];
@@ -65,11 +66,6 @@ const server = createServer((req, res) => {
 await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
 const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
 
-let failures = 0;
-const check = (ok: boolean, what: string) => {
-  console.log(`${ok ? "PASS" : "FAIL"} ${what}`);
-  if (!ok) failures++;
-};
 
 let runNo = 0;
 const inboxFor = (code: string): Inbox => ({
@@ -179,5 +175,4 @@ const SIGN_UP = `  // step 1: Sign up with a new email
 }
 
 server.close();
-console.log(failures ? `${failures} failed` : "All inbox checks passed");
-process.exit(failures ? 1 : 0);
+done("inbox");

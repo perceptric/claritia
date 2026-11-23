@@ -9,6 +9,7 @@ import pw from "playwright-core";
 import { createApp } from "../collect/app.ts";
 import { WriteBuffer } from "../collect/buffer.ts";
 import { PgStore } from "../collect/store.ts";
+import { check, done } from "./checks.ts";
 
 const url = process.env.PG_URL;
 if (!url) throw new Error("PG_URL is not set");
@@ -56,11 +57,6 @@ const server = createServer(async (req, res) => {
 await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
 const base = `http://localhost:${(server.address() as { port: number }).port}`;
 
-let failures = 0;
-const check = (ok: boolean, what: string) => {
-  console.log(`${ok ? "PASS" : "FAIL"} ${what}`);
-  if (!ok) failures++;
-};
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const until = async (fn: () => Promise<boolean>, ms = 5000) => {
   const end = Date.now() + ms;
@@ -145,5 +141,4 @@ check(customs.length === 1, `the last event made it (${JSON.stringify(customs)})
 await browser.close();
 server.close();
 await store.pool.end();
-console.log(failures ? `${failures} failed` : "All collect checks passed");
-process.exit(failures ? 1 : 0);
+done("collect");
