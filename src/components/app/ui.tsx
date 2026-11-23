@@ -367,7 +367,8 @@ export function duration(ms: number | null | undefined) {
 }
 
 export type Verdict = "app_bug" | "flaky" | "setup";
-const VERDICT: Record<Verdict, { label: string; tone: Tone }> = {
+/** The Judge's three kinds of failure, in the order screens list them. */
+export const VERDICT: Record<Verdict, { label: string; tone: Tone }> = {
   app_bug: { label: "App bug", tone: "red" },
   flaky: { label: "Flaky", tone: "amber" },
   setup: { label: "Setup", tone: "gray" },

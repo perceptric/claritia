@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { FINISHED, statsByTest, type InsightRow as Row } from "@/lib/insights";
 import { BarChart } from "../../Icons";
-import { Badge, Empty, ErrorNote, Loading, must, Page, Panel, Segmented, StatusTag, Td, Th, timeAgo, useLoad, type Verdict, type ViewProps } from "../ui";
+import { Empty, ErrorNote, Loading, must, Page, Panel, Segmented, StatusTag, Td, Th, timeAgo, useLoad, VERDICT, VerdictTag, type Verdict, type ViewProps } from "../ui";
 
 type Range = "7" | "30";
 
@@ -62,15 +62,9 @@ export function InsightsView({ sb, project, navigate }: ViewProps) {
                 <span className="label-mono">Failures by kind</span>
               </div>
               <div className="grid grid-cols-3 divide-x divide-line">
-                {(
-                  [
-                    ["app_bug", "App bug", "red"],
-                    ["flaky", "Flaky", "amber"],
-                    ["setup", "Setup", "gray"],
-                  ] as const
-                ).map(([v, label, tone]) => (
+                {(Object.keys(VERDICT) as Verdict[]).map((v) => (
                   <div key={v} className="flex flex-col items-start gap-1.5 px-4 py-3">
-                    <Badge tone={tone}>{label}</Badge>
+                    <VerdictTag verdict={v} />
                     <span className="text-[24px] leading-tight font-medium text-ink">{count(v)}</span>
                   </div>
                 ))}
