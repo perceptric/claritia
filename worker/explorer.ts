@@ -3,13 +3,11 @@
 // links and a screenshot. It only follows links; it never clicks buttons or submits forms, so it changes nothing.
 // Links that would sign out or delete something are skipped.
 
-import { lookup } from "node:dns/promises";
 import { mkdir } from "node:fs/promises";
-import { isIP } from "node:net";
 import { join } from "node:path";
 import pw from "playwright-core";
 import type { Browser, BrowserContext, Page } from "playwright-core";
-import { isPrivateAddress } from "./runner.ts";
+import { cachedHostCheck } from "../src/lib/privateNet.ts";
 import { isLocalHost, tunnelFetch, type TunnelClient } from "./tunnel.ts";
 
 export type PageElements = {
@@ -51,7 +49,6 @@ export type ExploreInput = {
 export type ExploreResult = { status: "done" | "error" | "canceled"; error: string | null; pages: number; durationMs: number };
 
 const VIEWPORT = { width: 1280, height: 720 };
-const LOCAL_NAMES = /(^|\.)(localhost|local|internal|localdomain|home\.arpa)$/i;
 const FILES = /\.(pdf|zip|gz|tgz|rar|7z|dmg|exe|msi|apk|png|jpe?g|gif|webp|svg|ico|mp4|mov|webm|mp3|wav|csv|xlsx?|docx?|pptx?|json|xml|txt|ics)$/i;
 // Links that would sign out, delete or unsubscribe. The Explorer stays signed in and changes nothing.
 const RISKY = /(log[-_ ]?out|sign[-_ ]?out|signout|logoff|delete|destroy|remove|unsubscribe|deactivate|cancel[-_ ]?(account|subscription|plan)|revoke|disconnect)/i;
@@ -124,25 +121,7 @@ export async function explore(input: ExploreInput, onPage: (p: FoundPage) => Pro
   await mkdir(input.dir, { recursive: true });
 
   // Same guard as runs: hosts that resolve to private addresses are refused.
-  const hostChecks = new Map<string, Promise<boolean>>();
-  const hostIsPrivate = (host: string) => {
-    if (!hostChecks.has(host)) {
-      hostChecks.set(
-        host,
-        (async () => {
-          const bare = host.replace(/^\[|\]$/g, "");
-          if (LOCAL_NAMES.test(bare)) return true;
-          if (isIP(bare)) return isPrivateAddress(bare);
-          try {
-            return (await lookup(bare, { all: true })).some((a) => isPrivateAddress(a.address));
-          } catch {
-            return false;
-          }
-        })(),
-      );
-    }
-    return hostChecks.get(host)!;
-  };
+  const hostIsPrivate = cachedHostCheck();
 
   const queue: { url: URL; depth: number; from: string | null }[] = [{ url: base, depth: 0, from: null }];
   const queued = new Set<string>([patternOf(base)]);

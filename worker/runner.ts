@@ -2,15 +2,13 @@
 // with Playwright. Records a video, a trace, a screenshot after each step, and the page's console.
 // Knows nothing about the database: the worker passes in what to run and gets results back through hooks.
 
-import { lookup } from "node:dns/promises";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { isIP } from "node:net";
 import { join } from "node:path";
 import { unzipSync, zipSync } from "fflate";
 import pw from "playwright-core";
 import type { Browser, BrowserContext, Locator, Page } from "playwright-core";
 import { buildLock, lockSections, parseLock, type Action, type Arg, type Call } from "../src/lib/lock.ts";
-import { isPrivateAddress, LOCAL_NAMES } from "../src/lib/privateNet.ts";
+import { cachedHostCheck } from "../src/lib/privateNet.ts";
 import { isLocalHost, tunnelFetch, type TunnelClient } from "./tunnel.ts";
 import type { Writer } from "./writer.ts";
 
@@ -112,8 +110,6 @@ const same = (a: string, b: string) => a.replace(/\s+/g, " ").trim().toLowerCase
 
 const VIEWPORT = { width: 1280, height: 720 };
 
-// Private and local addresses the browser may never reach from our servers (src/lib/privateNet.ts).
-export { isPrivateAddress };
 
 /** Hide every secret value in a piece of text. */
 export function maskSecrets(text: string, secrets: Record<string, string>) {
@@ -201,26 +197,7 @@ export async function executeRun(input: RunInput, hooks: Hooks): Promise<RunResu
   let pageStart = Date.now();
 
   // Hosts are looked up once per run, and private ones are refused.
-  const hostChecks = new Map<string, Promise<boolean>>();
-  const hostIsPrivate = (host: string) => {
-    if (!hostChecks.has(host)) {
-      hostChecks.set(
-        host,
-        (async () => {
-          const bare = host.replace(/^\[|\]$/g, "");
-          if (LOCAL_NAMES.test(bare)) return true;
-          if (isIP(bare)) return isPrivateAddress(bare);
-          try {
-            const all = await lookup(bare, { all: true });
-            return all.some((a) => isPrivateAddress(a.address));
-          } catch {
-            return false;
-          }
-        })(),
-      );
-    }
-    return hostChecks.get(host)!;
-  };
+  const hostIsPrivate = cachedHostCheck();
 
   // Mail sent before the run started doesn't count, so an old code is never used by mistake.
   const inboxSince = new Date(started - 5000);

@@ -8,7 +8,8 @@ import { existsSync, mkdtempSync, readFileSync, statSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { executeRun, isPrivateAddress, maskSecrets, type StepUpdate } from "../worker/runner.ts";
+import { isPrivateAddress } from "../src/lib/privateNet.ts";
+import { executeRun, maskSecrets, type StepUpdate } from "../worker/runner.ts";
 
 const PASSWORD = "hunter2-very-secret";
 const pages: Record<string, string> = {

@@ -33,3 +33,12 @@ export async function hostIsPrivate(host: string, resolve: typeof lookup = looku
     return false;
   }
 }
+
+/** hostIsPrivate with each host looked up once, for a run or an exploration that asks about the same hosts again and again. */
+export function cachedHostCheck(): (host: string) => Promise<boolean> {
+  const checks = new Map<string, Promise<boolean>>();
+  return (host) => {
+    if (!checks.has(host)) checks.set(host, hostIsPrivate(host));
+    return checks.get(host)!;
+  };
+}
