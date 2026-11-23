@@ -284,7 +284,7 @@ src/lib/filters.ts     the filter bar's filters
 src/lib/jobs.ts        the jobs queue
 worker-intel/jobs/     company, imports, segments, signals, sources, stitch (one file per group of job kinds)
 worker/                the test runner, with Chromium
-supabase/migrations/   020 to 039 built, 040 onward planned (Part 8)
+supabase/migrations/   020 to 040 built, 041 onward planned (Part 8)
 ```
 
 Segments compile to SQL in the database (`037_segments.sql`); the rule editor is `src/components/app/views/SegmentRules.tsx`. The Omniscient client is a source connector (`src/lib/sources/omniscient.ts`).
@@ -342,7 +342,7 @@ Migrations `020` to `039` exist. Part 8.1 lists their tables.
 - **Jobs queue** (`020_foundation.sql`, `src/lib/jobs.ts`): `enqueue_job`, `claim_job`, `extend_job`, `finish_job`, `prune_jobs`, and the `minute_tick` that pg_cron runs every minute. Jobs that share a key run one at a time, and only one waits per key, so bursts collapse. Leases that run out go back in line, retries back off (1, 5, 30 minutes, then 2 and 6 hours), and finished jobs are pruned. Server-only. Tests: `tests/db/jobs.sql` and `tests/jobs.test.ts`. Runs, plans and explorations keep their own claim functions. New work (M1 onward) uses the queue.
 - **Features flag:** `workspaces.features` (`testing`, `marketing`). Only the server changes it. Existing workspaces kept `testing`; new workspaces start on `marketing` (`031_marketing_default.sql`). With both, the testing screens sit under one Testing group. Logic in `src/lib/nav.ts`, tested in `tests/nav.test.ts`.
 - **First screen** (`ToolIntro`) for Visitors (`src/components/app/views/MarketingIntros.tsx`). The plan also had first screens for Journeys, Pages and Reports; those screens don't exist yet.
-- **Suite connections:** Settings › Suite was built and then removed, because nothing opened it. Omniscient now connects as a source in Settings › Sources (5.5), and `/settings/suite` sends people there, because Omniscient links to it. The `suite_connections` table stays in `020_foundation.sql` until a database cleanup. Arrowsterr has no connection screen.
+- **Suite connections:** Settings › Suite was built and then removed, because nothing opened it. Omniscient now connects as a source in Settings › Sources (5.5), and `/settings/suite` sends people there, because Omniscient links to it. `040_drop_unused.sql` drops the `suite_connections` table when it is empty, and keeps it with a notice when it holds rows. Arrowsterr has no connection screen.
 - **Tables:** `audit_log` and `privacy_requests` (owners read, server writes), plus leak tests for every new table.
 - **Moved later:** Stripe plans for the platform (Part 14) move to before the Beta. There's nothing to meter until contacts and emails exist.
 
@@ -1372,11 +1372,11 @@ Work on the Arrowsterr side: an API key and 3 endpoints if they don't exist yet 
 
 Every table has RLS, leak tests in `tests/db/leaks.sql`, and functions that check membership.
 
-### 8.1 Built migrations (020 to 039)
+### 8.1 Built migrations (020 to 040)
 
 | Migration | What it holds |
 |---|---|
-| `020_foundation.sql` | `jobs` and its functions, `minute_tick`, `audit_log`, `privacy_requests`, `suite_connections`, `workspaces.features` |
+| `020_foundation.sql` | `jobs` and its functions, `minute_tick`, `audit_log`, `privacy_requests`, `suite_connections` (dropped in 040 when empty), `workspaces.features` |
 | `021_web.sql` to `032_visitor_path.sql` | M1: sites, devices, sessions, events, rollups (`site_daily`, `account_daily`), identity evidence, people and identifiers, identity undo and privacy, accounts, signals and scores, screens, account alerts, identity settings, the person page, the marketing default, visitor paths (`docs/m1-website-intelligence.md` Part 4) |
 | `033_contacts.sql` | `companies`, `contacts`, `fields`, `field_writes`, `topics`, `consents`, `subscriptions`, `segments`, `segment_members`, `contact_events`, `imports`, `saved_views` |
 | `034_records.sql` | `source_kinds`, `field_order`, `field_settings`, `object_layouts`, `objects`, `records`, `record_links`, `field_history`, `suppressions` |
@@ -1385,28 +1385,29 @@ Every table has RLS, leak tests in `tests/db/leaks.sql`, and functions that chec
 | `037_segments.sql` | The rule tree compiler, live count, sample and refresh for `segments` |
 | `038_warehouses.sql` | `source_event_keys`, and warehouse rows as contacts, companies, activity or records |
 | `039_source_hook_secret.sql` | `source_hook_secret_save`, for a signing secret a tool hands back after setup (Omniscient) |
+| `040_drop_unused.sql` | Drops `email_tokens`, never used, and `suite_connections` when it is empty |
 
 The CP plan named these `034_imports.sql`, `035_sources.sql` and `036_objects.sql`. Records took `034`, so imports became `035` and sources `036`; custom objects landed in `034_records.sql`, segments in `037` and warehouses in `038`. Tables the CP plan listed for those migrations that the build left out or renamed:
 - `import_files` and `import_rows` (staging): replaced by one import run (5.4).
 - `hooks`: became `hook_events` (staged deliveries), with each source's webhook token sealed on the source.
 - `campaigns`, `campaign_members`, `deals`, `deal_contacts`, `account_events`, `warehouse_queries`: not built. Warehouse queries are saved on their source. The others have no migration number yet; they land with the first week that needs them.
 
-### 8.2 Planned migrations (040 onward)
+### 8.2 Planned migrations (041 onward)
 
-CP's later migrations, renumbered to follow `039`:
+CP's later migrations, renumbered to follow `040`:
 
 | Migration | Week | Tables |
 |---|---|---|
-| `040_email.sql` | 9 | `sending_domains`, `templates`, `emails`, `email_messages`, `send_limits`, `brand_kits`, `email_stats` |
-| `041_workflows.sql` | 11 | `workflows`, `workflow_nodes`, `workflow_edges`, `enrollments`, `node_runs`; `approvals` gains kinds |
-| `042_pages.sql` | 15 | `forms`, `form_fields`, `submissions`, `pages`, `page_versions`, `page_domains` |
-| `043_scoring.sql` | 16 | `score_models`, `routing_rules`, `rep_capacity`, `handoffs`, `sla_timers` |
-| `044_abm.sql` | 17 | `account_lists`, `account_list_members`, `buying_roles` |
-| `045_ads.sql` | 18 | `ad_accounts`, `audiences`, `audience_members`, `ad_spend`, `conversions_out` |
-| `046_attribution.sql` | 18 | `touches`, `attribution_models`, `attributed` |
-| `047_agents.sql` | 19 | `agent_tools`, `agent_runs`, `agent_steps`, `agent_schedules`, `plays`, `play_runs` |
-| `048_migrations.sql` | 20 | `migrations`, `migration_items` (with the proof for each) |
-| `049_api.sql` | 21 | `api_idempotency` |
+| `041_email.sql` | 9 | `sending_domains`, `templates`, `emails`, `email_messages`, `send_limits`, `brand_kits`, `email_stats` |
+| `042_workflows.sql` | 11 | `workflows`, `workflow_nodes`, `workflow_edges`, `enrollments`, `node_runs`; `approvals` gains kinds |
+| `043_pages.sql` | 15 | `forms`, `form_fields`, `submissions`, `pages`, `page_versions`, `page_domains` |
+| `044_scoring.sql` | 16 | `score_models`, `routing_rules`, `rep_capacity`, `handoffs`, `sla_timers` |
+| `045_abm.sql` | 17 | `account_lists`, `account_list_members`, `buying_roles` |
+| `046_ads.sql` | 18 | `ad_accounts`, `audiences`, `audience_members`, `ad_spend`, `conversions_out` |
+| `047_attribution.sql` | 18 | `touches`, `attribution_models`, `attributed` |
+| `048_agents.sql` | 19 | `agent_tools`, `agent_runs`, `agent_steps`, `agent_schedules`, `plays`, `play_runs` |
+| `049_migrations.sql` | 20 | `migrations`, `migration_items` (with the proof for each) |
+| `050_api.sql` | 21 | `api_idempotency` |
 
 Brand Brain (8.3) and Buyer Analytics (6.3) have no number. The MP plan numbered its module migrations `023` to `027`; those numbers are taken.
 
@@ -1427,7 +1428,7 @@ send_limits     (workspace_id, per_second, per_day, paused bool, paused_reason)
 
 M5 Brand Brain (MP `025_brain.sql`): `brain_sources`, `atoms (id, workspace_id, kind, text, source_id, span, tags jsonb, embedding vector(1024), expires_at)`, `voice (workspace_id, guide jsonb, approved_by, approved_at)`.
 
-M4 Journeys (MP `026_journeys.sql`; compare `041_workflows.sql` above, open question in 6.6):
+M4 Journeys (MP `026_journeys.sql`; compare `042_workflows.sql` above, open question in 6.6):
 
 ```
 journeys      (id, workspace_id, name, trigger jsonb, goal jsonb, reentry jsonb, mode text, status, version int)
@@ -1438,7 +1439,7 @@ step_runs     (id, enrollment_id, step_id, started_at, finished_at, outcome json
 approvals     (id, workspace_id, kind, ref_id, payload jsonb, status, decided_by, decided_at, edit_ratio numeric)
 ```
 
-M6 Pages (MP `027_pages.sql`; compare `042_pages.sql` above): `pages`, `page_versions`, `page_variants`, `page_views`, `forms`, `form_fields`, `form_submissions`, `domains`, `bookings`.
+M6 Pages (MP `027_pages.sql`; compare `043_pages.sql` above): `pages`, `page_versions`, `page_variants`, `page_views`, `forms`, `form_fields`, `form_submissions`, `domains`, `bookings`.
 
 M7 (MP): `scores`, `routing_rules`, `handoffs (id, contact_id, owner_id, target, target_ids jsonb, at, touched_at, outcome)`.
 
@@ -1491,19 +1492,19 @@ Brand Brain (MP weeks 13 and 14) and Funnel QA (MP week 26) have no week in the 
 | 6 | Marketo, Pardot, Eloqua, HubSpot Marketing, Customer.io, Iterable, Braze, Intercom; other CRMs (Pipedrive, Zoho, Dynamics, Attio, Close, Copper, Freshsales, monday, Affinity); Airtable, Notion | Each passes its recorded test | Intercom, Pipedrive, Attio, Close built (Part 10) |
 | 7 | Live sources: forms, scheduling, events (Zoom, Cvent, Luma, Eventbrite, Goldcast, Livestorm, ON24), ad lead forms, Zapier, Make, n8n, `POST /api/v1/contacts/import` | A Typeform fill and a Zoom registration reach a contact in under 10 s | Typeform, Tally, Webflow, Calendly, Cal.com and any JSON built (Part 10) |
 | 8 | Custom objects (`034_records.sql`), `037_segments.sql`, `038_warehouses.sql`, 7 warehouses, Segment, RudderStack, PostHog, Mixpanel, Amplitude, Stripe, Shopify, billing and support tools, data vendors, Outreach, Salesloft; segments with live count | 30 rule types pass; a warehouse row becomes an event on schedule | Segments and warehouses built (5.6) |
-| 9 | `040_email.sql`, domains, SES, send guard, SNS, suppression at send | A test domain verifies and an email sends with one-click unsubscribe | Started and reverted |
+| 9 | `041_email.sql`, domains, SES, send guard, SNS, suppression at send | A test domain verifies and an email sends with one-click unsubscribe | Started and reverted |
 | 10 | Block editor, brand kit, tokens, preview, test send, broadcasts, A/B, reports, campaign link | A broadcast to 500 contacts sends and clicks show in the CRM campaign | |
-| 11 | `041_workflows.sql`, engine, waits, branches, splits, exits, re-entry | 10,000-enrollment test passes | |
+| 11 | `042_workflows.sql`, engine, waits, branches, splits, exits, re-entry | 10,000-enrollment test passes | |
 | 12 | Canvas, side panel, validation, versions, live counts | A 12-node workflow is built and published | |
 | 13 | All steps and triggers | Each has a passing test | |
 | 14 | AI Decide, Classify and Write, review modes, Approvals, Simulate | Simulate on 20 contacts shows every path and email with no sends | |
-| 15 | `042_pages.sql`, forms, landing pages on custom domains, AI page build, Funnel QA | A page with a form publishes and Funnel QA passes | |
-| 16 | `043_scoring.sql`, score v0 and v1, reasons, CRM score sync, routing with capacity, SLA | A Ready lead reaches the right rep in Slack within 2 minutes p95 | |
-| 17 | `044_abm.sql`, account lists, buying groups, account journeys, account score | A target account list runs an account journey | |
-| 18 | `045_ads.sql`, `046_attribution.sql`, audiences, conversions out, spend, attribution models, weekly summary | An audience syncs to LinkedIn; a won deal shows credited touches | |
-| 19 | `047_agents.sql`, agents in app, Slack, Linear, schedules, webhooks; plays; MCP draft tools; Skills pack; knowledge graph | "Build a nurture for webinar signups" makes drafts; a play runs on a hot account | |
-| 20 | `048_migrations.sql`, migration agent for 8 platforms | A recorded Marketo instance migrates with every proof passing | |
-| 21 | `049_api.sql`, REST API, customer setup docs, quality page, 2 design partners live | Partners import from their old tools and run a live workflow. All 11.2 tests green. | |
+| 15 | `043_pages.sql`, forms, landing pages on custom domains, AI page build, Funnel QA | A page with a form publishes and Funnel QA passes | |
+| 16 | `044_scoring.sql`, score v0 and v1, reasons, CRM score sync, routing with capacity, SLA | A Ready lead reaches the right rep in Slack within 2 minutes p95 | |
+| 17 | `045_abm.sql`, account lists, buying groups, account journeys, account score | A target account list runs an account journey | |
+| 18 | `046_ads.sql`, `047_attribution.sql`, audiences, conversions out, spend, attribution models, weekly summary | An audience syncs to LinkedIn; a won deal shows credited touches | |
+| 19 | `048_agents.sql`, agents in app, Slack, Linear, schedules, webhooks; plays; MCP draft tools; Skills pack; knowledge graph | "Build a nurture for webinar signups" makes drafts; a play runs on a hot account | |
+| 20 | `049_migrations.sql`, migration agent for 8 platforms | A recorded Marketo instance migrates with every proof passing | |
+| 21 | `050_api.sql`, REST API, customer setup docs, quality page, 2 design partners live | Partners import from their old tools and run a live workflow. All 11.2 tests green. | |
 
 ### 9.2 MP timeline (30 weeks)
 
@@ -1608,7 +1609,7 @@ Each week lists its tables, code, jobs, screens, tests, what the founder needs t
 
 **Goal:** a verified domain sends with every guard on. Started once and reverted (5.7).
 
-**Database: `040_email.sql`** with `sending_domains`, `templates`, `emails`, `email_messages`, `send_limits`, `brand_kits`, `email_stats` (from M3, 6.4). `suppressions` exists.
+**Database: `041_email.sql`** with `sending_domains`, `templates`, `emails`, `email_messages`, `send_limits`, `brand_kits`, `email_stats` (from M3, 6.4). `suppressions` exists.
 
 **Code:** `src/lib/email/ses.ts`, `domains.ts` (DNS records and checks), `guard.ts` (consent, suppression, frequency cap, quiet hours by time zone), `track.ts` (link rewrite, click tokens, scanner filter), SNS route `src/app/api/ses/route.ts` with signature check; jobs `send`, `ses_event`, `domain_check`.
 
@@ -1640,7 +1641,7 @@ Each week lists its tables, code, jobs, screens, tests, what the founder needs t
 
 **Goal:** an engine that never loses or doubles an enrollment.
 
-**Database: `041_workflows.sql`** with `workflows`, `workflow_nodes`, `workflow_edges`, `enrollments` (unique open enrollment per contact and workflow), `node_runs`; `approvals` gains kinds.
+**Database: `042_workflows.sql`** with `workflows`, `workflow_nodes`, `workflow_edges`, `enrollments` (unique open enrollment per contact and workflow), `node_runs`; `approvals` gains kinds.
 
 **Code:** `src/lib/workflows/graph.ts` (schema, validation, versions), `engine.ts` (enroll, step, wait, branch, split, exit, re-entry), `steps/` one file per step; job `workflow_step`.
 
@@ -1682,7 +1683,7 @@ Each week lists its tables, code, jobs, screens, tests, what the founder needs t
 
 ### Week 15. Forms and landing pages
 
-**Database: `042_pages.sql`** with `forms`, `form_fields`, `submissions`, `pages`, `page_versions`, `page_domains`.
+**Database: `043_pages.sql`** with `forms`, `form_fields`, `submissions`, `pages`, `page_versions`, `page_domains`.
 
 **Code:** form renderer (embed script and in-page block), consent block by region, Turnstile, progressive fields; page sections and blocks; `collect` serves pages by host with HTTPS (certificates through Fly, check; open question in 6.7); AI page draft from Brand Brain facts (Sonnet); Funnel QA check on publish and daily (existing runner).
 
@@ -1696,7 +1697,7 @@ Each week lists its tables, code, jobs, screens, tests, what the founder needs t
 
 ### Week 16. Scoring and routing
 
-**Database: `043_scoring.sql`** with `score_models`, `routing_rules`, `rep_capacity`, `handoffs`, `sla_timers`.
+**Database: `044_scoring.sql`** with `score_models`, `routing_rules`, `rep_capacity`, `handoffs`, `sla_timers`.
 
 **Code:** `src/lib/scoring/contact.ts` (v0 weights, reasons), `train.ts` (v1 logistic regression, AUC gate), `routing.ts` (owner, account owner, named list, territory, segment, weighted round robin by capacity, out of office), `sla.ts`; CRM score sync; jobs `score_contact`, `score_train`, `route`, `sla_check`.
 
@@ -1710,7 +1711,7 @@ Each week lists its tables, code, jobs, screens, tests, what the founder needs t
 
 ### Week 17. ABM
 
-**Database: `044_abm.sql`** with `account_lists`, `account_list_members`, `buying_roles`.
+**Database: `045_abm.sql`** with `account_lists`, `account_list_members`, `buying_roles`.
 
 **Code:** account lists (static and rules), buying group by role from title department and seniority, gaps, account score, account journeys (workflows on accounts).
 
@@ -1724,7 +1725,7 @@ Each week lists its tables, code, jobs, screens, tests, what the founder needs t
 
 ### Week 18. Ads and attribution
 
-**Database: `045_ads.sql`** (`ad_accounts`, `audiences`, `audience_members`, `ad_spend`, `conversions_out`) and `046_attribution.sql` (`touches`, `attribution_models`, `attributed`).
+**Database: `046_ads.sql`** (`ad_accounts`, `audiences`, `audience_members`, `ad_spend`, `conversions_out`) and `047_attribution.sql` (`touches`, `attribution_models`, `attributed`).
 
 **Code:** audience sync to LinkedIn Matched Audiences, Google Customer Match and Meta Custom Audiences (hashed emails, strict-region "No basis" left out); offline conversions out; daily spend in; touches built nightly; models (first, last, linear, time decay, W-shaped, custom; open question in 6.10); weekly summary job.
 
@@ -1740,7 +1741,7 @@ Each week lists its tables, code, jobs, screens, tests, what the founder needs t
 
 ### Week 19. Agents, plays, MCP drafts, Skills
 
-**Database: `047_agents.sql`** with `agent_tools`, `agent_runs`, `agent_steps`, `agent_schedules`, `plays`, `play_runs`.
+**Database: `048_agents.sql`** with `agent_tools`, `agent_runs`, `agent_steps`, `agent_schedules`, `plays`, `play_runs`.
 
 **Code:** `src/lib/agent/tools.ts` (settings per tool), `run.ts` (loop, caching, 8-call cap; open question in 6.12), `slack.ts` (mentions, DMs, approve buttons), `linear.ts` (ticket assign, links), webhook start; plays engine; knowledge graph build (nightly); MCP draft tools; Skills pack in `skills/` (Brand voice, ICP and scoring, Campaign brief, Launch checklist, Event follow-up, Import cleanup); campaigns as code (YAML export and import).
 
@@ -1756,7 +1757,7 @@ Each week lists its tables, code, jobs, screens, tests, what the founder needs t
 
 ### Week 20. Migration agent
 
-**Database: `048_migrations.sql`** with `migrations`, `migration_items` (kind, source id, raw, translated, proof, state).
+**Database: `049_migrations.sql`** with `migrations`, `migration_items` (kind, source id, raw, translated, proof, state).
 
 **Code:** inventory per source; translators (smart lists → rule trees, HTML → blocks, tokens, forms, programs and workflows → our graph, score rules → v0 weights) with Sonnet for what rules can't map; proofs (counts within 1%, renders, form submits, simulated paths vs history, scores within 5 points); cutover checklist.
 
@@ -1770,7 +1771,7 @@ Each week lists its tables, code, jobs, screens, tests, what the founder needs t
 
 ### Week 21. API, docs, design partners
 
-**Database: `049_api.sql`** with `api_idempotency`.
+**Database: `050_api.sql`** with `api_idempotency`.
 
 **Code:** REST API (contacts, imports, events, segments, workflows enroll) with scopes; OpenAPI file; customer setup docs per source (`src/app/docs/` pages from the specs); internal quality page (sync loops, doubled contacts, suppressed sends, complaint rate, costs vs plan).
 

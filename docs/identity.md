@@ -635,7 +635,7 @@ The migrations are the schema. This part only says where each identity table liv
 |---|---|
 | `021_web.sql` | `devices` (state, taint, `no_backfill`), `sessions` (the person and account columns, `split_from`), `salts`, `opt_outs`, `hop_nonces` |
 | `022_evidence.sql` | `identity_evidence` |
-| `023_identity.sql` | `identity_settings`, `persons`, `person_aliases`, `identifiers`, `device_links`, `merge_proposals`, `sessions.split_to`, `ip_cache`, `learned_networks`, `erasures` (the erasure record), `email_tokens` |
+| `023_identity.sql` | `identity_settings`, `persons`, `person_aliases`, `identifiers`, `device_links`, `merge_proposals`, `sessions.split_to`, `ip_cache`, `learned_networks`, `erasures` (the erasure record). Its `email_tokens` table was never used and is dropped in `040_drop_unused.sql`. |
 | `024_identity_ops.sql` | `privacy_exports`, and the undo and privacy functions (7.11, Part 15) |
 | `029_identity_settings.sql`, `030_person.sql` | The functions behind Settings › Identity and the Person page (Part 13) |
 
