@@ -4,7 +4,7 @@
 
 **The bet:** soon most code will be written by AI agents. Writing code gets cheap. Knowing it works gets expensive. Claritia is the check that sits between "the agent says it's done" and "it's live for customers."
 
-This doc builds on `docs/plan.md`. It adds what we learned from TestSprite and BugBug, and the design choices that keep Claritia ready for better AI models every year.
+This is the testing product's plan: what we learned from TestSprite and BugBug, the design choices that keep Claritia ready for better AI models every year, the roadmap and the numbers. What's built is in `docs/testing.md`; prices are in `src/lib/plans.ts`.
 
 ---
 
@@ -254,6 +254,13 @@ At Growth, 500 teams on an average of $120 a month is $60,000 in revenue against
 - **The app map.** It gets richer with every run and makes PR-aware testing smarter over time.
 - **The heal history.** Every approved or rejected fix trains better healing for that app.
 - **The agent loop.** Once Claude Code checks its own work with Claritia, it becomes part of how a team ships.
+
+### The hard parts
+
+- **Flaky results**: if Claritia flags fake bugs, teams stop trusting it in a week. Reliability comes before features.
+- **AI cost per run**: replaying the lock keeps margins healthy.
+- **Logins and private sites**: saved sessions, test inboxes and the tunnel solve this.
+- **Big labs**: browser agents keep getting better. The edge is the workflow around the agent: repo files, CI gates, healing reviews and history.
 
 ## 11. Numbers to watch
 

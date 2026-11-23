@@ -142,7 +142,7 @@ The cards are built from `src/lib/plans.ts`, the same list Settings and the data
 | Business | Custom | billed yearly | Higher limits, SSO, private runners, data region, managed test writing | Talk to us |
 
 Small line under it: "A cloud minute is a minute of browser time. An AI credit is one call to write a step. Managed service: we write and keep your top flows green."
-Prices are a draft. Check them against the cost model before launch (see `docs/plan.md`).
+Prices are a draft. The live prices are in `src/lib/plans.ts`; the cost model is in `docs/vision.md` Part 9.
 
 ## 10. Final call (dark)
 

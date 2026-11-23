@@ -1,6 +1,6 @@
 # The testing product
 
-AI end-to-end testing, the product Claritia started as. Describe a user flow in plain English, and Claritia turns it into a Playwright test, runs it on every push, and fixes it when the UI changes. It stays on for workspaces with the `testing` feature. Its plan is `docs/plan.md` and its vision `docs/vision.md`.
+AI end-to-end testing, the product Claritia started as. Describe a user flow in plain English, and Claritia turns it into a Playwright test, runs it on every push, and fixes it when the UI changes. It stays on for workspaces with the `testing` feature. Its plan, roadmap and costs are in `docs/vision.md`.
 
 ## What it does
 
