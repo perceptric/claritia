@@ -11,9 +11,11 @@ import { AccountAlertsPanel } from "./AccountAlertsPanel";
 import { IdentityPanel } from "./IdentityPanel";
 import { IcpPanel, SitesPanel } from "./SitesPanel";
 import { settingsGroups, type SettingsTab } from "@/lib/settingsTabs";
-import { FieldsSettings, ObjectsSettings } from "./FieldsSettings";
+import { FieldsSettings } from "./FieldsSettings";
+import { ObjectsSettings } from "./ObjectsSettings";
 import { ImportsSettings } from "./ImportsSettings";
-import { SourcesSettings, SyncLog } from "./SourcesSettings";
+import { SourcesSettings } from "./SourcesSettings";
+import { SyncLog } from "./SyncLog";
 import { announceChange, attempt, Avatar, Badge, Button, CardHead, ErrorNote, errorText, Loading, must, Page, Panel, postJson, timeAgo, useCopy, useLoad, type ViewProps } from "../ui";
 
 type Usage = { plan: PlanId; period_start: string; period_end: string; minutes_used: number; minutes_limit: number | null; credits_used: number; credits_limit: number | null; projects_used: number; projects_limit: number | null };
