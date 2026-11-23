@@ -2,9 +2,15 @@
 FROM node:22-bookworm-slim
 ENV NODE_ENV=production PORT=8080
 WORKDIR /app
-# The image root is the package, so shared files under src/ and collect/ find the same node_modules.
-COPY worker-intel/package.json worker-intel/package-lock.json ./
-RUN npm ci --omit=dev --no-audit --no-fund && rm -rf /root/.npm
+# Packages come from the repo's one lockfile, installed for the intel workspace only, into /app/node_modules,
+# where the shared files under src/ find them too.
+COPY package.json package-lock.json ./
+COPY collect/package.json collect/
+COPY worker/package.json worker/
+COPY worker-intel/package.json worker-intel/
+RUN npm ci -w worker-intel --omit=dev --no-audit --no-fund && rm -rf /root/.npm
+# The shared files under src/ are ES modules too.
+RUN echo '{"type":"module"}' > /app/package.json
 COPY worker-intel/ ./worker-intel/
 COPY src/lib/jobs.ts src/lib/seal.ts src/lib/sign.ts src/lib/site.ts src/lib/uuid.ts ./src/lib/
 COPY src/lib/identity/ ./src/lib/identity/
