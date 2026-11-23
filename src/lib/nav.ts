@@ -10,7 +10,6 @@ export type Route =
   | "objects"
   | "visitors"
   | "accounts"
-  | "people"
   | "journeys"
   | "pages"
   | "reports"
@@ -51,7 +50,7 @@ const TESTING: NavItem[] = [
 ];
 
 // Screens reached from other screens, never from the sidebar.
-const LINKED: Partial<Record<Route, string>> = { people: "marketing", objects: "marketing" };
+const LINKED: Partial<Record<Route, string>> = { objects: "marketing" };
 
 export const TESTING_ROUTES = new Set<Route>(TESTING.map((n) => n.route));
 

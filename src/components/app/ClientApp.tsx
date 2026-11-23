@@ -38,7 +38,6 @@ const ICONS: Record<NavRoute, React.ReactNode> = {
   objects: <Box size={15} />,
   visitors: <Eye size={15} />,
   accounts: <Users size={15} />,
-  people: <Users size={15} />,
   journeys: <Branch size={15} />,
   pages: <FileText size={15} />,
   reports: <BarChart size={15} />,

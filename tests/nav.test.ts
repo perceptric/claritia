@@ -33,8 +33,8 @@ test("no features falls back to the testing product", () => {
   assert.ok(routes([]).includes("tests"));
 });
 
-test("the person page opens from marketing screens only", () => {
-  assert.equal(allowedRoute(["marketing"], "people"), "people");
-  assert.equal(allowedRoute(["testing"], "people"), "tests");
-  assert.ok(!routes(["marketing"]).includes("people"), "it isn't in the sidebar");
+test("a custom object's page opens from marketing screens only", () => {
+  assert.equal(allowedRoute(["marketing"], "objects"), "objects");
+  assert.equal(allowedRoute(["testing"], "objects"), "tests");
+  assert.ok(!routes(["marketing"]).includes("objects"), "it isn't in the sidebar");
 });
