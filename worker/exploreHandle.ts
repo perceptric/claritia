@@ -103,7 +103,8 @@ export async function handleExploration(sb: SupabaseClient, x: Exploration, opts
         if (p.screenshot) {
           const path = `${x.workspace_id}/explore/${x.id}/${found.length}.jpg`;
           const { error } = await sb.storage.from("runs").upload(path, await readFile(p.screenshot), { contentType: "image/jpeg", upsert: true });
-          if (!error) screenshot_path = path;
+          if (error) log(`Exploration ${x.id}: screenshot of ${p.pattern} not saved: ${error.message}`);
+          else screenshot_path = path;
         }
         const now = new Date().toISOString();
         const { data, error } = await sb
@@ -117,13 +118,17 @@ export async function handleExploration(sb: SupabaseClient, x: Exploration, opts
         if (error) throw new Error(`Saving ${p.pattern}: ${error.message}`);
         ids.set(p.pattern, data.id);
         pagesFound = found.length;
-        await sb.from("explorations").update({ pages_found: pagesFound }).eq("id", x.id);
+        const { error: countErr } = await sb.from("explorations").update({ pages_found: pagesFound }).eq("id", x.id);
+        if (countErr) log(`Exploration ${x.id}: page count not saved: ${countErr.message}`);
       },
     );
 
     // 3. Link the pages: each page to the pages it links to.
     const links = found.flatMap((p) => p.links.filter((to) => ids.has(to)).map((to) => ({ project_id: x.project_id, workspace_id: x.workspace_id, from_page: ids.get(p.pattern)!, to_page: ids.get(to)! })));
-    for (let i = 0; i < links.length; i += 500) await sb.from("app_links").upsert(links.slice(i, i + 500), { onConflict: "from_page,to_page", ignoreDuplicates: true });
+    for (let i = 0; i < links.length; i += 500) {
+      const { error } = await sb.from("app_links").upsert(links.slice(i, i + 500), { onConflict: "from_page,to_page", ignoreDuplicates: true });
+      if (error) throw new Error(`Saving links: ${error.message}`);
+    }
 
     // 4. Name the pages, within the plan's AI credits. Naming that fails leaves the page unnamed, nothing more.
     if (opts.namer && found.length) {
@@ -137,7 +142,11 @@ export async function handleExploration(sb: SupabaseClient, x: Exploration, opts
           ai.input += r.usage.input;
           ai.output += r.usage.output;
           if (left !== null) left--;
-          for (const n of r.names) if (ids.has(n.pattern)) await sb.from("app_pages").update({ name: n.name, purpose: n.purpose }).eq("id", ids.get(n.pattern)!);
+          for (const n of r.names) {
+            if (!ids.has(n.pattern)) continue;
+            const { error } = await sb.from("app_pages").update({ name: n.name, purpose: n.purpose }).eq("id", ids.get(n.pattern)!);
+            if (error) log(`Exploration ${x.id}: name of ${n.pattern} not saved: ${error.message}`);
+          }
         } catch (e) {
           log(`Exploration ${x.id}: naming failed: ${e instanceof Error ? e.message : e}`);
         }
