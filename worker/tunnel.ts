@@ -4,6 +4,7 @@
 
 import { request as httpRequest, type IncomingHttpHeaders } from "node:http";
 import { Duplex } from "node:stream";
+import type { BrowserContext } from "playwright-core";
 
 export type TunnelClient = { stream: (host: string, port: number) => Duplex; close: () => void; ports: number[] };
 
@@ -166,4 +167,34 @@ export async function tunnelFor(sb: Rpc, workspaceId: string, baseUrl: string, r
   } catch (e) {
     return { error: `Couldn't connect to the tunnel: ${e instanceof Error ? e.message : e}` };
   }
+}
+
+/**
+ * Routes a browser context's requests for runs and explorations: localhost goes through the developer's tunnel (never
+ * the runner's own localhost), and hosts on private networks are refused unless private addresses are allowed.
+ */
+export async function guardContext(
+  context: BrowserContext,
+  o: { tunnel?: TunnelClient; allowPrivate?: boolean; isPrivate: (host: string) => Promise<boolean>; onTunnelError?: (e: unknown) => void; onBlocked?: (host: string) => void },
+) {
+  if (o.allowPrivate && !o.tunnel) return;
+  await context.route("**/*", async (route) => {
+    const req = route.request();
+    const url = new URL(req.url());
+    const web = url.protocol === "http:" || url.protocol === "https:";
+    if (web && o.tunnel && isLocalHost(url.hostname.replace(/^\[|\]$/g, ""))) {
+      try {
+        const res = await tunnelFetch(o.tunnel, { url: req.url(), method: req.method(), headers: await req.allHeaders(), body: req.postDataBuffer() });
+        return route.fulfill({ status: res.status, headers: res.headers, body: res.body });
+      } catch (e) {
+        o.onTunnelError?.(e);
+        return route.abort("connectionfailed");
+      }
+    }
+    if (!o.allowPrivate && web && (await o.isPrivate(url.hostname))) {
+      o.onBlocked?.(url.hostname);
+      return route.abort("blockedbyclient");
+    }
+    return route.continue();
+  });
 }

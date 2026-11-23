@@ -8,7 +8,7 @@ import { join } from "node:path";
 import pw from "playwright-core";
 import type { Browser, BrowserContext, Page } from "playwright-core";
 import { cachedHostCheck } from "../src/lib/privateNet.ts";
-import { isLocalHost, tunnelFetch, type TunnelClient } from "./tunnel.ts";
+import { guardContext, type TunnelClient } from "./tunnel.ts";
 
 export type PageElements = {
   headings: string[];
@@ -231,20 +231,7 @@ export async function explore(input: ExploreInput, onPage: (p: FoundPage) => Pro
     context.setDefaultTimeout(10_000);
     // Pages that open new windows: close them, the crawl follows links in its own tabs.
     context.on("page", (p) => void p.opener().then((o) => (o ? p.close() : undefined)).catch(() => undefined));
-    if (!input.allowPrivate || input.tunnel) {
-      const tunnel = input.tunnel;
-      await context.route("**/*", async (route) => {
-        const url = new URL(route.request().url());
-        const web = url.protocol === "http:" || url.protocol === "https:";
-        if (web && tunnel && isLocalHost(url.hostname.replace(/^\[|\]$/g, ""))) {
-          const req = route.request();
-          const res = await tunnelFetch(tunnel, { url: req.url(), method: req.method(), headers: await req.allHeaders(), body: req.postDataBuffer() }).catch(() => null);
-          return res ? route.fulfill({ status: res.status, headers: res.headers, body: res.body }) : route.abort("connectionfailed");
-        }
-        if (!input.allowPrivate && web && (await hostIsPrivate(url.hostname))) return route.abort("blockedbyclient");
-        return route.continue();
-      });
-    }
+    await guardContext(context, { tunnel: input.tunnel, allowPrivate: input.allowPrivate, isPrivate: hostIsPrivate });
     // The first page alone, so a site that doesn't load fails fast and clearly.
     const first = queue.shift()!;
     const page = await context.newPage();
