@@ -62,7 +62,10 @@ export async function connectSource(db: SupabaseClient, o: { ws: string; user: s
   if (c.setup && o.creds.type !== "hook") {
     const extra = await c.setup(makeCtx({ source: { ...fakeRow(o.ws, o.kind), id: id as string }, creds: o.creds }), hookUrl(o.kind, id as string, token));
     // A tool that hands back a signing secret for the hooks it sends (Omniscient).
-    if (extra?.hook_secret) await db.rpc("source_connect", { p_ws: o.ws, p_user: o.user, p_kind: o.kind, p_name: e.label, p_account: account.id || account.label, p_sealed: seal(JSON.stringify(o.creds)), p_settings: {}, p_hook_sealed: seal(JSON.stringify({ token, secret: extra.hook_secret })), p_composio: composio });
+    if (extra?.hook_secret) {
+      const { error: hookError } = await db.rpc("source_hook_secret_save", { p_id: id, p_hook_sealed: seal(JSON.stringify({ token, secret: extra.hook_secret })) });
+      if (hookError) throw new Error(hookError.message);
+    }
   }
   return { id: id as string, token, label: account.label };
 }
