@@ -4,9 +4,10 @@
 // with a 120-second limit, 5,000 rows a page, ordered by the cursor column, and the next run reads on from the
 // last cursor. Hosts on private networks are refused.
 
-import { createHash, createPrivateKey, createPublicKey, createSign } from "node:crypto";
+import { createHash, createPrivateKey, createPublicKey } from "node:crypto";
 import pg from "pg";
 import { hostIsPrivate } from "../privateNet.ts";
+import { jwtRs256 } from "../sign.ts";
 import type { Connector, Ctx, ObjectKind, Page, RawRecord, SourceRow } from "./types.ts";
 
 import { bindCursor, queryError, START_CURSOR, type WhQuery } from "./sql.ts";
@@ -90,12 +91,6 @@ async function runClickhouse(ctx: Ctx, sql: string, cursor: string, limit: numbe
   return { columns, rows: rowsOf(columns, d.data) };
 }
 
-const b64url = (b: Buffer | string) => Buffer.from(b).toString("base64url");
-function jwt(header: object, claims: object, key: string) {
-  const head = `${b64url(JSON.stringify(header))}.${b64url(JSON.stringify(claims))}`;
-  return `${head}.${b64url(createSign("RSA-SHA256").update(head).sign(createPrivateKey(key)))}`;
-}
-
 async function runBigquery(ctx: Ctx, sql: string, cursor: string, limit: number): Promise<Result> {
   let sa: { client_email: string; private_key: string; project_id: string };
   try {
@@ -104,7 +99,7 @@ async function runBigquery(ctx: Ctx, sql: string, cursor: string, limit: number)
     throw new Error("Paste the service account's JSON key.");
   }
   const now = Math.floor(Date.now() / 1000);
-  const assertion = jwt({ alg: "RS256", typ: "JWT" }, { iss: sa.client_email, scope: "https://www.googleapis.com/auth/bigquery", aud: "https://oauth2.googleapis.com/token", iat: now, exp: now + 3600 }, sa.private_key);
+  const assertion = jwtRs256({ iss: sa.client_email, scope: "https://www.googleapis.com/auth/bigquery", aud: "https://oauth2.googleapis.com/token", iat: now, exp: now + 3600 }, sa.private_key);
   const tok = await ctx.api<{ access_token: string }>("https://oauth2.googleapis.com/token", {
     method: "POST",
     auth: false,
@@ -146,7 +141,7 @@ export function snowflakeJwt(account: string, user: string, privateKey: string, 
   const der = createPublicKey(createPrivateKey(privateKey)).export({ type: "spki", format: "der" });
   const fp = `SHA256:${createHash("sha256").update(der).digest("base64")}`;
   const u = user.toUpperCase();
-  return jwt({ alg: "RS256", typ: "JWT" }, { iss: `${acct}.${u}.${fp}`, sub: `${acct}.${u}`, iat: now, exp: now + 3540 }, privateKey);
+  return jwtRs256({ iss: `${acct}.${u}.${fp}`, sub: `${acct}.${u}`, iat: now, exp: now + 3540 }, privateKey);
 }
 
 async function runSnowflake(ctx: Ctx, sql: string, cursor: string, limit: number): Promise<Result> {

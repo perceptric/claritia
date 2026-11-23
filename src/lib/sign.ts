@@ -1,7 +1,7 @@
 // Checking secrets and signatures: a comparison whose time doesn't depend on where two values differ, HMAC-SHA256,
-// and short signed tokens that carry a JSON body. Used by the app, collect and intel.
+// short signed tokens that carry a JSON body, and RS256 JWTs. Used by the app, collect and intel.
 
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, createPrivateKey, createSign, timingSafeEqual } from "node:crypto";
 
 /** Whether a and b are equal, in time that doesn't give away where they differ. */
 export function same(a: string | Buffer, b: string | Buffer): boolean {
@@ -29,4 +29,12 @@ export function readToken(raw: string | null, key: string | Buffer): Record<stri
   } catch {
     return null;
   }
+}
+
+const b64url = (s: string | Buffer) => Buffer.from(s).toString("base64url");
+
+/** A JWT with these claims, signed RS256 with a PEM private key (GitHub apps, Google and Snowflake service accounts). */
+export function jwtRs256(claims: object, privateKey: string): string {
+  const head = `${b64url(JSON.stringify({ alg: "RS256", typ: "JWT" }))}.${b64url(JSON.stringify(claims))}`;
+  return `${head}.${b64url(createSign("RSA-SHA256").update(head).sign(createPrivateKey(privateKey)))}`;
 }
