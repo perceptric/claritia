@@ -3,6 +3,7 @@
 // before running it, so the model can only do what a person could write in the Code tab.
 
 import Anthropic from "@anthropic-ai/sdk";
+import { jsonRequest, textOf, usageOf } from "../src/lib/claude.ts";
 
 export type WriteRequest = {
   testName: string;
@@ -130,26 +131,16 @@ export function claudeWriter(opts: { apiKey: string; model?: string; effort?: "l
     content.push({ type: "text", text: prompt(r) });
     let res: Anthropic.Beta.BetaMessage;
     try {
-      res = await client.beta.messages.create({
-        model,
-        max_tokens: 16000,
-        betas: ["server-side-fallback-2026-07-01"],
-        fallbacks: "default",
-        thinking: { type: "adaptive" },
-        output_config: { effort: opts.effort ?? "medium", format: { type: "json_schema", schema: SCHEMA } },
-        system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
-        messages: [{ role: "user", content }],
-      });
+      res = await client.beta.messages.create(jsonRequest({ model, maxTokens: 16000, effort: opts.effort ?? "medium", schema: SCHEMA, system: SYSTEM, content, fallback: true }));
     } catch (e) {
       if (e instanceof Anthropic.AuthenticationError) throw new Error("The runner's ANTHROPIC_API_KEY was refused.");
       if (e instanceof Anthropic.APIError) throw new Error(`Claude couldn't write this step (${e.status ?? "no answer"}).`);
       throw e;
     }
-    const u = res.usage;
-    const usage = { input: (u.input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0), output: u.output_tokens ?? 0 };
+    const usage = usageOf(res);
     if (res.stop_reason === "refusal") return { lines: [], done: false, problem: "Claude declined to write this step.", usage };
     if (res.stop_reason === "max_tokens") return { lines: [], done: false, problem: "Claude's answer was cut off.", usage };
-    const text = res.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
+    const text = textOf(res);
     let out: { lines?: unknown; done?: unknown; problem?: unknown };
     try {
       out = JSON.parse(text);

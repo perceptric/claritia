@@ -2,6 +2,7 @@
 // Planner. Pages go to Claude Haiku in batches of up to 10, as text (address, title, headings, forms, buttons).
 
 import Anthropic from "@anthropic-ai/sdk";
+import { jsonRequest, textOf, usageOf } from "../src/lib/claude.ts";
 import type { PageElements } from "./explorer.ts";
 
 export type PageToName = { pattern: string; title: string; elements: PageElements };
@@ -55,18 +56,10 @@ export function claudeNamer(opts: { apiKey: string; model?: string }): Namer {
   const client = new Anthropic({ apiKey: opts.apiKey, maxRetries: 3, timeout: 60_000 });
   const model = opts.model || "claude-haiku-5-5";
   return async (site, pages) => {
-    const res = await client.beta.messages.create({
-      model,
-      max_tokens: 4000,
-      thinking: { type: "adaptive" },
-      output_config: { effort: "low", format: { type: "json_schema", schema: SCHEMA } },
-      system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
-      messages: [{ role: "user", content: describePages(site, pages) }],
-    });
-    const u = res.usage;
-    const usage = { input: (u.input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0), output: u.output_tokens ?? 0 };
+    const res = await client.beta.messages.create(jsonRequest({ model, maxTokens: 4000, effort: "low", schema: SCHEMA, system: SYSTEM, content: describePages(site, pages), fallback: false }));
+    const usage = usageOf(res);
     if (res.stop_reason === "refusal" || res.stop_reason === "max_tokens") throw new Error("Claude gave no page names.");
-    const out = JSON.parse(res.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("")) as { pages?: PageName[] };
+    const out = JSON.parse(textOf(res)) as { pages?: PageName[] };
     const wanted = new Set(pages.map((p) => p.pattern));
     const names = (out.pages ?? [])
       .filter((p) => wanted.has(p.pattern) && typeof p.name === "string" && typeof p.purpose === "string")
