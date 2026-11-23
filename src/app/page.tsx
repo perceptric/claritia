@@ -5,7 +5,7 @@ import { SiteFooter, SiteHeader } from "@/components/Site";
 import { amount, PLANS } from "@/lib/plans";
 import { APP_URL, CONTACT_EMAIL } from "@/lib/site";
 
-const INTEGRATIONS = ["GitHub", "GitLab", "Vercel", "Netlify", "Slack", "Playwright", "Claude Code", "Cursor"];
+const INTEGRATIONS = ["GitHub", "Vercel", "Slack", "Playwright", "Claude Code", "Cursor"];
 
 const STEPS = [
   { n: "01", title: "Describe", body: "Write the flow the way you'd explain it to a new teammate. Or paste your product spec." },
@@ -15,7 +15,6 @@ const STEPS = [
 ];
 
 const STATS = [
-  { value: "5 min", label: "to your first passing test" },
   { value: "100%", label: "of runs saved with video" },
   { value: "0", label: "lines of selector code" },
   { value: "None", label: "lock-in" },
@@ -353,7 +352,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="mt-20 grid gap-px border border-white/15 bg-white/15 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="mt-20 grid gap-px border border-white/15 bg-white/15 sm:grid-cols-3">
               {STATS.map((s) => (
                 <div key={s.label} className="bg-ink p-6">
                   <p className="font-mono text-[10px] tracking-[0.18em] text-white/45 uppercase">
@@ -409,7 +408,6 @@ export default function Home() {
                 <div key={p.name} className={`flex flex-col p-6 ${p.featured ? "frame border border-ink bg-ink text-white" : "border border-line bg-white"}`}>
                   <div className="flex items-center justify-between">
                     <p className="text-[15px] font-medium">{p.name}</p>
-                    {p.featured ? <Tag tone="brand">Most popular</Tag> : null}
                   </div>
                   <p className="mt-6 text-[40px] font-medium tracking-[-0.03em]">{p.price}</p>
                   <p className={`text-[13px] ${p.featured ? "text-white/60" : "text-faint"}`}>{p.note}</p>
