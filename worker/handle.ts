@@ -65,6 +65,7 @@ async function inboxFor(sb: SupabaseClient, run: Run, domain: string): Promise<I
 /** AI credits left this period. Null means no limit. A failed lookup never blocks a run. */
 export async function creditsLeft(sb: SupabaseClient, workspaceId: string): Promise<number | null> {
   const { data, error } = await sb.rpc("workspace_usage", { p_workspace: workspaceId });
+  if (error) console.error(`Workspace ${workspaceId}: couldn't read AI credits, running without a limit: ${error.message}`);
   const u = (data as { credits_used: number; credits_limit: number | null }[] | null)?.[0];
   if (error || !u || u.credits_limit == null) return null;
   return Math.max(0, u.credits_limit - u.credits_used);
