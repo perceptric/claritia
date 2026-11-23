@@ -75,7 +75,7 @@ The Stripe and Resend webhooks keep working: they use `app.tryclaritia.com`, whi
 
 ## 6. Delete the Render services
 
-Once the app loads on `app.tryclaritia.com` from Fly and `tryclaritia.com` shows the Hostinger site, delete `claritia` and `claritia-runner` in Render (the service → Settings → Delete). Billing stops then. `render.yaml` can be deleted from the repo too.
+Once the app loads on `app.tryclaritia.com` from Fly and `tryclaritia.com` shows the Hostinger site, delete `claritia` and `claritia-runner` in Render (the service → Settings → Delete). Billing stops then. (`render.yaml` is already gone from the repo.)
 
 ## Deploying after this
 

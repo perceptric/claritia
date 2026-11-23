@@ -2,7 +2,7 @@
 
 Everything here is done once by us, never by customers. Customers click "Connect HubSpot" and sign in. Without the sign-in app for a tool, that tool falls back to a pasted key.
 
-The app is assumed to live at `https://app.tryclaritia.com`. If it doesn't, set `APP_URL` on Render to the real address and use that address everywhere below.
+The app is assumed to live at `https://app.tryclaritia.com`. If it doesn't, set `APP_URL` on the `claritia-web` Fly app to the real address and use that address everywhere below.
 
 ## 1. Database
 
@@ -46,9 +46,9 @@ fly deploy --config fly.intel.toml
 
 The deploy also raises the worker to 1 GB (`fly.intel.toml`): about $3 a month more (check).
 
-## 4. Render (web app) environment
+## 4. Web app environment
 
-Render → `claritia` → Environment. The Blueprint (`render.yaml`) now lists these, so a Blueprint sync prompts for them.
+Set these on the `claritia-web` Fly app (`fly secrets set NAME=value --app claritia-web`).
 
 | Variable | What it's for |
 |---|---|
