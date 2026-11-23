@@ -55,10 +55,6 @@ export function SiteFooter() {
         <div className="space-y-4">
           <Logo />
           <p className="max-w-xs text-[14px] leading-relaxed text-muted">Tests that write and fix themselves. Built for teams who would rather ship than babysit a test suite.</p>
-          <p className="inline-flex items-center gap-2 border border-line px-2.5 py-1 font-mono text-[10.5px] tracking-[0.08em] text-muted uppercase">
-            <span className="mk-pulse size-1.5 rounded-full bg-emerald-500" />
-            All systems running
-          </p>
         </div>
         {FOOTER.map((col) => (
           <div key={col.title}>
