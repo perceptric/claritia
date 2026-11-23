@@ -271,7 +271,10 @@ export function createApp(deps: Deps) {
       key,
       t,
       campaign,
-      () => store.priorSession(site.id, device ? { deviceId: device } : { ckey: ckey! }),
+      async () => {
+        const old = await store.priorSession(site.id, device ? { deviceId: device } : { ckey: ckey! });
+        return old && { ...old, hosting: verdict === "hosting" };
+      },
       async () => {
         const id = uuid7(t);
         const a = attribute(landing, typeof firstView?.r === "string" ? firstView.r : null, [site.domain, ...site.extra_domains]);

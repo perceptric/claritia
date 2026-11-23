@@ -9,7 +9,7 @@ import { cleanIp, ipNet, readRecord, type Geo } from "../collect/geo.ts";
 import { cookielessKey, deviceBornAt, hopKey, makeHop, readHop, signDevice, siteKey, uuid7, verifyDevice } from "../collect/ids.ts";
 import { Buckets } from "../collect/limits.ts";
 import { continues, Sessions, type Live } from "../collect/sessions.ts";
-import type { EventRow, EvidenceRow, Prior, SessionRow, Site, Store } from "../collect/store.ts";
+import type { EventRow, EvidenceRow, SessionRow, Site, Store } from "../collect/store.ts";
 import { parseAgent } from "../collect/ua.ts";
 import { decide, regionOf, type ConsentState, type Region } from "../src/lib/web/policy.ts";
 
@@ -203,7 +203,7 @@ test("two requests for one device at once start one visit", async () => {
 
 test("a visit found in Postgres goes on; a stale one doesn't", async () => {
   const s = new Sessions();
-  const prior: Prior = { id: "old", startedAt: 0, endedAt: 10 * 60_000, campaign: null, pageviews: 3 };
+  const prior = { id: "old", startedAt: 0, endedAt: 10 * 60_000, campaign: null, pageviews: 3, bot: false, hosting: false };
   const start = async (): Promise<Live> => ({ id: "new", startedAt: 0, lastAt: 0, campaign: null, pageviews: 0, inputs: 0, bot: false, hosting: false });
   assert.equal((await s.current("d1", 20 * 60_000, null, async () => prior, start)).s.id, "old");
   assert.equal((await s.current("d2", 45 * 60_000, null, async () => prior, start)).s.id, "new");
@@ -298,7 +298,7 @@ class FakeStore implements Store {
   }
   async priorSession(_site: string, by: { deviceId?: string; ckey?: Buffer }) {
     const s = [...this.sessions].reverse().find((x) => (by.deviceId ? x.device_id === by.deviceId : x.cookieless_key?.equals(by.ckey!)));
-    return s ? { id: s.id, startedAt: +s.started_at, endedAt: +s.ended_at, campaign: s.campaign, pageviews: 0 } : null;
+    return s ? { id: s.id, startedAt: +s.started_at, endedAt: +s.ended_at, campaign: s.campaign, pageviews: 0, bot: this.bots.get(s.id) ?? s.is_bot } : null;
   }
   async isOptedOut(_s: string, d: string) {
     return this.opted.has(d);
@@ -464,6 +464,24 @@ test("cloud network is marked, then unmarked by real input", async () => {
   const cookie = r.cookies[0].split(";")[0];
   assert.equal(store.sessions[0].is_bot, true);
   await send("/e", batch([ev("engage", { d: { active_s: 5, scroll: 50 } })], { m: "s", human: { pointer: 3, scroll: 2, keys: 0, first_input_ms: 900 } }), { cookie });
+  assert.equal(store.bots.get(store.sessions[0].id), false);
+});
+
+test("a cloud-network visit picked up from Postgres after a restart is still marked, and real input still unmarks it", async () => {
+  const geo = { ...US, asn: 8075 };
+  const { send, batch, ev, store } = setup(geo);
+  const r = await send("/e", batch([ev("view")], { m: "s" }));
+  const cookie = r.cookies[0].split(";")[0];
+  assert.equal(store.sessions[0].is_bot, true);
+  // A new instance: nothing in memory, so the visit comes back from the store.
+  const { app } = createApp({ store, secret: SECRET, geo: () => geo });
+  const res = await app.request("/e", {
+    method: "POST",
+    body: JSON.stringify(batch([ev("engage", { d: { active_s: 5, scroll: 50 } })], { m: "s", human: { pointer: 3, scroll: 2, keys: 0, first_input_ms: 900 } })),
+    headers: { origin: "https://www.acme.com", "user-agent": CHROME, "fly-client-ip": "203.0.113.9", "content-type": "text/plain", cookie },
+  });
+  assert.equal(res.status, 200);
+  assert.equal(store.sessions.length, 1, "the same visit goes on");
   assert.equal(store.bots.get(store.sessions[0].id), false);
 });
 

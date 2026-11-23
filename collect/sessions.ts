@@ -49,7 +49,7 @@ export class Sessions {
     key: string,
     now: number,
     campaign: string | null,
-    prior: () => Promise<Prior | null>,
+    prior: () => Promise<(Prior & { hosting: boolean }) | null>,
     start: () => Promise<Live>,
   ): Promise<{ s: Live; fresh: boolean }> {
     const waiting = this.pending.get(key);
@@ -68,7 +68,8 @@ export class Sessions {
       if (!hit) {
         const old = await prior();
         if (old) {
-          const s: Live = { id: old.id, startedAt: old.startedAt, lastAt: old.endedAt, campaign: old.campaign, pageviews: old.pageviews, inputs: 1, bot: false, hosting: false };
+          // Input counts aren't stored, so a resumed visit counts as having had input and isn't marked automated for it.
+          const s: Live = { id: old.id, startedAt: old.startedAt, lastAt: old.endedAt, campaign: old.campaign, pageviews: old.pageviews, inputs: 1, bot: old.bot, hosting: old.hosting };
           if (continues(s, now, campaign)) {
             s.lastAt = now;
             return { s, fresh: false };

@@ -73,7 +73,7 @@ export type EvidenceRow = {
   server_at?: Date;
 };
 
-export type Prior = { id: string; startedAt: number; endedAt: number; campaign: string | null; pageviews: number };
+export type Prior = { id: string; startedAt: number; endedAt: number; campaign: string | null; pageviews: number; bot: boolean };
 
 export interface Store {
   siteByKey(key: string): Promise<Site | null>;
@@ -115,13 +115,13 @@ export class PgStore implements Store {
   async priorSession(siteId: string, by: { deviceId?: string; ckey?: Buffer }): Promise<Prior | null> {
     const col = by.deviceId ? "device_id" : "cookieless_key";
     const r = await this.pool.query(
-      `select id, started_at, ended_at, campaign, pageviews from sessions
+      `select id, started_at, ended_at, campaign, pageviews, is_bot from sessions
        where site_id = $1 and ${col} = $2 and ended_at > now() - interval '30 minutes'
        order by started_at desc limit 1`,
       [siteId, by.deviceId ?? by.ckey],
     );
     const s = r.rows[0];
-    return s ? { id: s.id, startedAt: +s.started_at, endedAt: +s.ended_at, campaign: s.campaign, pageviews: s.pageviews } : null;
+    return s ? { id: s.id, startedAt: +s.started_at, endedAt: +s.ended_at, campaign: s.campaign, pageviews: s.pageviews, bot: s.is_bot === true } : null;
   }
 
   async isOptedOut(siteId: string, deviceId: string): Promise<boolean> {
