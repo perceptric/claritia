@@ -374,8 +374,9 @@ async function linkDevice(db: Db, e: Evidence, person: string, level: "verified"
     else await openLink();
     const wasFresh = dev.state === "fresh" || dev.state === "probable";
     await setState("linked", false);
-    const backfilled = wasFresh && !dev.no_backfill ? await backfill(db, device, person, level, t, session?.id ?? null) : await liveSession(db, session, person, level);
-    return { device: "linked", backfilled };
+    if (wasFresh && !dev.no_backfill) return { device: "linked", backfilled: await backfill(db, device, person, level, t, session?.id ?? null) };
+    await liveSession(db, session, person, level);
+    return { device: "linked", backfilled: 0 };
   }
   if (open.level === "probable") {
     await db.query(`update device_links set to_at = $2 where id = $1`, [open.id, at]);
@@ -408,15 +409,14 @@ async function currentSession(db: Db, e: Evidence, device: string, t: number): P
   return (s as Sess | undefined) ?? null;
 }
 
-async function liveSession(db: Db, s: Sess | null, person: string, level: string): Promise<number> {
-  if (!s) return 0;
+async function liveSession(db: Db, s: Sess | null, person: string, level: string): Promise<void> {
+  if (!s) return;
   // The second part of a split visit keeps saying so (a rebuild lands here instead of splitting again).
   await db.query(
     `update sessions set person_id = $2, person_level = $3, person_source = case when split_from is not null then 'split' else 'live' end
      where id = $1 and policy = any($4) and not internal`,
     [s.id, person, level, IDENTITY_POLICIES],
   );
-  return 0;
 }
 
 /** Earlier visits on this device (90 days) move to the person, if they allowed identity and weren't bots. */
