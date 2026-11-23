@@ -30,8 +30,7 @@ function cellText(v: unknown): string {
     if (Array.isArray(o.richText)) return (o.richText as { text: string }[]).map((t) => t.text).join("");
     if ("result" in o) return cellText(o.result);
     if ("text" in o) return cellText(o.text);
-    if ("error" in o) return "";
-    return "";
+    return ""; // an error cell, or anything else that isn't text
   }
   return String(v);
 }
