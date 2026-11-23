@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Badge, Button, CardHead, ErrorNote, errorText, Field, Input, Loading, must, Panel, postJson, useLoad, type ViewProps } from "../ui";
+import { attempt, Badge, Button, CardHead, ErrorNote, Field, Input, Loading, must, Panel, postJson, useLoad, type ViewProps } from "../ui";
 
 type Saved = { slack_hint: string | null; emails: string[]; on_failure: boolean; on_heal: boolean };
 
@@ -42,17 +42,9 @@ function AlertsForm({ session, projectId, saved, onSaved }: { session: ViewProps
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
 
-  const run = async (which: string, fn: () => Promise<unknown>) => {
-    setBusy(which);
-    setError("");
+  const run = (which: string, fn: () => Promise<unknown>) => {
     setNote("");
-    try {
-      await fn();
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy("");
-    }
+    return attempt(fn, { setError, setBusy: (on) => setBusy(on ? which : "") });
   };
   const save = (slack?: string | null) =>
     postJson(session, "/api/alerts/settings", {

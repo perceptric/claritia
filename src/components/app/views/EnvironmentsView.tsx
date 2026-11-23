@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Globe, Key, Plus, Trash } from "../../Icons";
 import { askConfirm, askText } from "../Dialogs";
-import { Badge, Button, CardHead, cleanUrl, Empty, ErrorNote, errorText, Input, Loading, must, Page, Panel, postJson, timeAgo, useLoad, type Environment, type Secret, type ViewProps } from "../ui";
+import { attempt, Badge, Button, CardHead, cleanUrl, Empty, ErrorNote, Input, Loading, must, Page, Panel, postJson, timeAgo, useLoad, type Environment, type Secret, type ViewProps } from "../ui";
 
 type EnvWithSecrets = Environment & { secrets: Secret[] };
 
@@ -52,15 +52,7 @@ function AddSecret({ onAdd }: { onAdd: (name: string, value: string) => Promise<
 
 function EnvironmentCard({ env, onChanged, sb, session }: { env: EnvWithSecrets; onChanged: () => void } & Pick<ViewProps, "sb" | "session">) {
   const [error, setError] = useState("");
-  const run = async (fn: () => Promise<unknown>) => {
-    setError("");
-    try {
-      await fn();
-      onChanged();
-    } catch (e) {
-      setError(errorText(e));
-    }
-  };
+  const run = (fn: () => Promise<unknown>) => attempt(fn, { setError, after: onChanged });
 
   return (
     <Panel>
@@ -146,14 +138,7 @@ export function EnvironmentsView({ sb, session, project }: ViewProps) {
     return list.map((e) => ({ ...e, secrets: secrets.filter((s) => s.environment_id === e.id) }));
   }, project?.id ?? "none");
 
-  const act = async (fn: () => Promise<unknown>) => {
-    setError("");
-    try {
-      await fn();
-    } catch (e) {
-      setError(errorText(e));
-    }
-  };
+  const act = (fn: () => Promise<unknown>) => attempt(fn, { setError });
 
   const addEnvironment = () =>
     act(async () => {

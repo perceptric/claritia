@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Branch, Plus } from "../../Icons";
 import { askConfirm } from "../Dialogs";
 import { Select } from "../Select";
-import { Badge, Button, CardHead, ErrorNote, errorText, Field, Loading, must, Panel, postJson, Segmented, useLoad, type ViewProps } from "../ui";
+import { attempt, Badge, Button, CardHead, ErrorNote, errorText, Field, Loading, must, Panel, postJson, Segmented, useLoad, type ViewProps } from "../ui";
 
 type RunOn = "pull_request" | "preview";
 type Scope = "all" | "use_case";
@@ -43,17 +43,7 @@ export function GitHubPanel({ sb, session, ws, project }: Pick<ViewProps, "sb" |
     };
   }, `${ws.id}:${project.id}`);
 
-  const act = async (fn: () => Promise<unknown>) => {
-    setError("");
-    setBusy(true);
-    try {
-      await fn();
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy(false);
-    }
-  };
+  const act = (fn: () => Promise<unknown>) => attempt(fn, { setError, setBusy });
   const connect = () =>
     act(async () => {
       const { url } = await postJson<{ url: string }>(session, "/api/github/connect", { workspaceId: ws.id });

@@ -13,7 +13,7 @@ import { BrandLogo } from "../BrandLogo";
 import { askConfirm } from "../Dialogs";
 import { Select } from "../Select";
 import { SampleStats, ToolIntro } from "../ToolIntro";
-import { Badge, Button, CardHead, ErrorNote, errorText, Field, Input, Loading, must, Panel, postJson, Td, Th, timeAgo, useLoad, type Tone, type ViewProps } from "../ui";
+import { attempt, Badge, Button, CardHead, ErrorNote, errorText, Field, Input, Loading, must, Panel, postJson, Td, Th, timeAgo, useLoad, type Tone, type ViewProps } from "../ui";
 import { CheckBox } from "../records/RecordTable";
 import { SidePanel } from "../records/SidePanel";
 
@@ -294,16 +294,14 @@ function SourcePanel({ sb, session, wsId, source, owner, onClose, changed }: { s
   const runs = useLoad(async () => must(await sb.from("source_runs").select("id, object, direction, started_at, finished_at, pulled, written, skipped, errors, error").eq("source_id", source.id).order("started_at", { ascending: false }).limit(20)) as Run[], source.id);
   const hook = useLoad(async () => (e?.hook && owner && source.status !== "disconnected" ? (await getJson<{ url: string }>(session, `/api/sources/hook-url?id=${source.id}`)).url : null), source.id);
   const [state, tone] = STATE[source.status] ?? [source.status, "gray" as Tone];
-  const act = async (fn: () => Promise<unknown>) => {
-    setError("");
-    try {
-      await fn();
-      changed();
-      runs.reload();
-    } catch (err) {
-      setError(errorText(err));
-    }
-  };
+  const act = (fn: () => Promise<unknown>) =>
+    attempt(fn, {
+      setError,
+      after: () => {
+        changed();
+        runs.reload();
+      },
+    });
   const objects = settings.objects ?? {};
   const setObject = (o: string, v: string) => setSettings({ ...settings, objects: { ...objects, [o]: v } });
 
@@ -490,17 +488,7 @@ function QueryPanel({ sb, session, wsId, source, owner, changed }: { sb: ViewPro
     ...(objects.data ?? []).map((o) => ({ value: `object:${o.key}`, label: o.plural })),
   ];
   const wrong = queryError(q);
-  const run = async (label: string, fn: () => Promise<void>) => {
-    setError("");
-    setBusy(label);
-    try {
-      await fn();
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy("");
-    }
-  };
+  const run = (label: string, fn: () => Promise<void>) => attempt(fn, { setError, setBusy: (on) => setBusy(on ? label : "") });
   const set = (patch: Partial<WhQuery>) => {
     setQ({ ...q, ...patch });
     setSaved(false);

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Check, X } from "../../Icons";
-import { Badge, Button, CardHead, ErrorNote, errorText, must, Panel, PriorityBars, useLoad, type ViewProps } from "../ui";
+import { attempt, Badge, Button, CardHead, ErrorNote, errorText, must, Panel, PriorityBars, useLoad, type ViewProps } from "../ui";
 
 type Plan = { id: string; status: "queued" | "running" | "done" | "error"; proposals: number; error: string | null; created_at: string };
 type Step = { kind: "do" | "check"; text: string } | { kind: "use"; block: string };
@@ -34,14 +34,7 @@ export function Proposals({ sb, project, navigate, asking, onAsked, onAccepted }
     return () => clearInterval(t);
   }, [planning, data.reload]);
 
-  const act = async (fn: () => Promise<unknown>) => {
-    setError("");
-    try {
-      await fn();
-    } catch (e) {
-      setError(errorText(e));
-    }
-  };
+  const act = (fn: () => Promise<unknown>) => attempt(fn, { setError });
 
   const d = data.data;
   if (!d) return null;

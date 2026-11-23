@@ -78,7 +78,7 @@ export function must<T>(res: { data: T | null; error: { message: string } | null
   return res.data as T;
 }
 
-export const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
+export { attempt, errorText } from "@/lib/attempt";
 
 export function timeAgo(iso: string | null) {
   if (!iso) return "—";

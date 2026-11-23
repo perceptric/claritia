@@ -8,7 +8,7 @@ import { useState } from "react";
 import { FIELD_KINDS, LEAD_STAGES, optionsOf, PACKS, type CustomField, type FieldKind, type Option } from "@/lib/records/fields";
 import { askConfirm, askLines, askText } from "../Dialogs";
 import { Select } from "../Select";
-import { Badge, Button, CardHead, ErrorNote, errorText, Field, Input, Loading, must, Panel, Segmented, useLoad, type ViewProps } from "../ui";
+import { announceChange, attempt, Badge, Button, CardHead, ErrorNote, Field, Input, Loading, must, Panel, Segmented, useLoad, type ViewProps } from "../ui";
 import { useMeta } from "../records/meta";
 
 const CLASSES: { value: string; label: string }[] = [
@@ -53,20 +53,16 @@ export function FieldsSettings({ sb, ws, role }: Pick<ViewProps, "sb" | "ws" | "
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const run = async (fn: () => Promise<unknown>) => {
-    setError("");
-    setBusy(true);
-    try {
-      await fn();
-      meta.reload();
-      order.reload();
-      window.dispatchEvent(new Event("claritia:changed"));
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy(false);
-    }
-  };
+  const run = (fn: () => Promise<unknown>) =>
+    attempt(fn, {
+      setError,
+      setBusy,
+      after: () => {
+        meta.reload();
+        order.reload();
+        announceChange();
+      },
+    });
   const objectOptions = [{ value: "contact", label: "Contacts" }, { value: "company", label: "Companies" }, ...(objects.data ?? []).map((o) => ({ value: o.key, label: o.plural }))];
   if (!meta.data) return meta.error ? <ErrorNote message={meta.error} /> : <Loading />;
 
@@ -408,16 +404,14 @@ export function ObjectsSettings({ sb, ws, role, navigate }: Pick<ViewProps, "sb"
   const [label, setLabel] = useState("");
   const [plural, setPlural] = useState("");
   const [error, setError] = useState("");
-  const run = async (fn: () => Promise<unknown>) => {
-    setError("");
-    try {
-      await fn();
-      objects.reload();
-      window.dispatchEvent(new Event("claritia:changed"));
-    } catch (e) {
-      setError(errorText(e));
-    }
-  };
+  const run = (fn: () => Promise<unknown>) =>
+    attempt(fn, {
+      setError,
+      after: () => {
+        objects.reload();
+        announceChange();
+      },
+    });
   return (
     <div className="flex flex-col gap-5">
       <ErrorNote message={error} />

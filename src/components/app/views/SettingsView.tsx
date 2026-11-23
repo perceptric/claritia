@@ -14,23 +14,7 @@ import { settingsGroups, type SettingsTab } from "@/lib/settingsTabs";
 import { FieldsSettings, ObjectsSettings } from "./FieldsSettings";
 import { ImportsSettings } from "./ImportsSettings";
 import { SourcesSettings, SyncLog } from "./SourcesSettings";
-import {
-  announceChange,
-  Avatar,
-  Badge,
-  Button,
-  CardHead,
-  ErrorNote,
-  errorText,
-  Loading,
-  must,
-  Page,
-  Panel,
-  postJson,
-  timeAgo,
-  useLoad,
-  type ViewProps,
-} from "../ui";
+import { announceChange, attempt, Avatar, Badge, Button, CardHead, ErrorNote, errorText, Loading, must, Page, Panel, postJson, timeAgo, useLoad, type ViewProps } from "../ui";
 
 type Usage = { plan: PlanId; period_start: string; period_end: string; minutes_used: number; minutes_limit: number | null; credits_used: number; credits_limit: number | null; projects_used: number; projects_limit: number | null };
 
@@ -147,14 +131,7 @@ function KeysPanel({ sb, session, ws }: Pick<ViewProps, "sb" | "session" | "ws">
   const keys = useLoad(async () => must(await sb.from("api_keys").select("id, name, prefix, created_at, last_used_at").eq("workspace_id", ws.id).is("revoked_at", null).order("created_at")) as ApiKey[], ws.id);
   const [fresh, setFresh] = useState<{ name: string; key: string } | null>(null);
   const [error, setError] = useState("");
-  const act = async (fn: () => Promise<unknown>) => {
-    setError("");
-    try {
-      await fn();
-    } catch (e) {
-      setError(errorText(e));
-    }
-  };
+  const act = (fn: () => Promise<unknown>) => attempt(fn, { setError });
 
   return (
     <Panel>
@@ -234,14 +211,7 @@ export function SettingsView({ sb, session, ws, role, project, projectsChanged, 
   const inbox = useLoad(async () => (project ? ((must(await sb.from("projects").select("inbox_id").eq("id", project.id).single()) as { inbox_id: string }).inbox_id) : ""), project?.id ?? "none");
   const members = useLoad(async () => must(await sb.from("workspace_members").select("user_id, role, created_at").eq("workspace_id", ws.id).order("created_at")) as { user_id: string; role: string }[], ws.id);
 
-  const act = async (fn: () => Promise<unknown>) => {
-    setError("");
-    try {
-      await fn();
-    } catch (e) {
-      setError(errorText(e));
-    }
-  };
+  const act = (fn: () => Promise<unknown>) => attempt(fn, { setError });
 
   const pages: Record<SettingsTab, React.ReactNode> = {
     fields: <FieldsSettings sb={sb} ws={ws} role={role} />,

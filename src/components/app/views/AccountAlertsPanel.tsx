@@ -6,7 +6,7 @@ import { useState } from "react";
 import { ruleText, type AlertRule } from "@/lib/web/accountAlerts";
 import { askConfirm } from "../Dialogs";
 import { Select } from "../Select";
-import { Button, CardHead, ErrorNote, errorText, Field, Input, Loading, must, Panel, postJson, useLoad, type ViewProps } from "../ui";
+import { attempt, Button, CardHead, ErrorNote, Field, Input, Loading, must, Panel, postJson, useLoad, type ViewProps } from "../ui";
 
 type Saved = { id: string; rule: AlertRule; slack_hint: string | null; daily_cap: number };
 
@@ -19,17 +19,7 @@ export function AccountAlertsPanel({ sb, session, ws }: Pick<ViewProps, "sb" | "
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
 
-  const run = async (what: string, fn: () => Promise<unknown>) => {
-    setBusy(what);
-    setError("");
-    try {
-      await fn();
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy("");
-    }
-  };
+  const run = (what: string, fn: () => Promise<unknown>) => attempt(fn, { setError, setBusy: (on) => setBusy(on ? what : "") });
   const add = () =>
     run("add", async () => {
       const rule: AlertRule = { when, ...(when === "intent" ? { intent: Number(intent) } : {}), ...(fit.trim() ? { fit_min: Number(fit) } : {}) };

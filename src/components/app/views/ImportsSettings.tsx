@@ -6,7 +6,7 @@
 import { useEffect, useState } from "react";
 import { Download } from "../../Icons";
 import { askConfirm } from "../Dialogs";
-import { Badge, Button, CardHead, ErrorNote, errorText, Loading, must, Panel, Td, Th, timeAgo, useLoad, type Tone, type ViewProps } from "../ui";
+import { attempt, Badge, Button, CardHead, ErrorNote, Loading, must, Panel, Td, Th, timeAgo, useLoad, type Tone, type ViewProps } from "../ui";
 
 type Imp = {
   id: string;
@@ -51,15 +51,7 @@ export function ImportsSettings({ sb, ws }: Pick<ViewProps, "sb" | "ws">) {
     return () => clearInterval(t);
   }, [busy, reload]);
 
-  const run = async (fn: () => Promise<unknown>) => {
-    setError("");
-    try {
-      await fn();
-      reload();
-    } catch (e) {
-      setError(errorText(e));
-    }
-  };
+  const run = (fn: () => Promise<unknown>) => attempt(fn, { setError, after: reload });
 
   const download = (i: Imp) =>
     run(async () => {

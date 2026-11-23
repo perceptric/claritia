@@ -11,7 +11,7 @@ import type { CustomField } from "@/lib/records/fields";
 import { Upload } from "../../Icons";
 import { askConfirm, askText } from "../Dialogs";
 import { Select } from "../Select";
-import { Badge, Button, ErrorNote, errorText, Field, Loading, must, Panel, postJson, Segmented, Td, Th, type Tone, type ViewProps } from "../ui";
+import { attempt, Badge, Button, ErrorNote, errorText, Field, Loading, must, Panel, postJson, Segmented, Td, Th, type Tone, type ViewProps } from "../ui";
 import { SidePanel } from "./SidePanel";
 
 type Inspect = { kind: string; size: number; sheets: string[]; sheet: string | null; header: string[]; samples: string[][]; rows: number; exact: boolean; guessed: Target[] };
@@ -59,17 +59,7 @@ export function ImportPanel({
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
 
-  const run = async (label: string, fn: () => Promise<void>) => {
-    setError("");
-    setBusy(label);
-    try {
-      await fn();
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy("");
-    }
-  };
+  const run = (label: string, fn: () => Promise<void>) => attempt(fn, { setError, setBusy: (on) => setBusy(on ? label : "") });
 
   const inspect = (f: { name: string; path: string }, sheet?: string | null) =>
     run("inspect", async () => {

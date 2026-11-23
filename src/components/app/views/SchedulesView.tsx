@@ -5,26 +5,7 @@ import { DAYS, describeSchedule, two } from "@/lib/schedules";
 import { Clock, Plus, Trash } from "../../Icons";
 import { askConfirm } from "../Dialogs";
 import { Select } from "../Select";
-import {
-  announceChange,
-  Badge,
-  Button,
-  CardHead,
-  Empty,
-  ErrorNote,
-  errorText,
-  Field,
-  Input,
-  Loading,
-  must,
-  Page,
-  Panel,
-  Segmented,
-  timeAgo,
-  useLoad,
-  type Environment,
-  type ViewProps,
-} from "../ui";
+import { announceChange, attempt, Badge, Button, CardHead, Empty, ErrorNote, errorText, Field, Input, Loading, must, Page, Panel, Segmented, timeAgo, useLoad, type Environment, type ViewProps } from "../ui";
 
 type Every = "hour" | "day" | "weekday" | "week";
 type Scope = "all" | "use_case" | "tests";
@@ -319,16 +300,14 @@ export function SchedulesView({ sb, project }: ViewProps) {
   const [editing, setEditing] = useState<string | null>(null);
   const [error, setError] = useState("");
 
-  const act = async (fn: () => Promise<unknown>) => {
-    setError("");
-    try {
-      await fn();
-      data.reload();
-      announceChange();
-    } catch (e) {
-      setError(errorText(e));
-    }
-  };
+  const act = (fn: () => Promise<unknown>) =>
+    attempt(fn, {
+      setError,
+      after: () => {
+        data.reload();
+        announceChange();
+      },
+    });
 
   const save = async (id: string | null, d: Draft) => {
     const row = {
