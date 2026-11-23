@@ -9,12 +9,12 @@ import { basisFor, BASES, type Basis } from "./consent.ts";
 import { customValue, LIFECYCLES, type CustomField } from "../records/fields.ts";
 import { countryCode } from "./fields.ts";
 import type { ContactInput } from "./import.ts";
+import { setTimeout as wait } from "node:timers/promises";
 
 /** A source kind from source_kinds (supabase/migrations/034_records.sql), like "csv", "hubspot" or "manual". */
 export type Source = string;
 export type Written = { created: number; updated: number; ids: string[] };
 
-const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Send contacts in batches. Each batch is tried up to `tries` times. */
 export async function writeContacts(

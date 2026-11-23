@@ -1,6 +1,7 @@
 import "server-only";
 import { authConfigEnv, COMPOSIO_TOOLS, composioBase, composioExtras, composioFetch, composioHeaders, failureOf, type ComposioTool } from "./composio.ts";
 import type { Creds } from "./types.ts";
+import { setTimeout as sleepFor } from "node:timers/promises";
 
 // Connecting a tool on Composio (docs/sources-setup.md, "Composio"): find the tool's auth config (one set by hand in
 // COMPOSIO_AUTH_CONFIG_<TOOLKIT>, else the project's own, else a new Composio-managed one, as the SDK's
@@ -87,7 +88,7 @@ export type ConnectedAccount = {
 export async function activeAccount(kind: string, ws: string, id: string, o: Net & { sleep?: (ms: number) => Promise<void>; tries?: number } = {}): Promise<ConnectedAccount> {
   const t = COMPOSIO_TOOLS[kind];
   if (!t || !/^[A-Za-z0-9_-]{4,100}$/.test(id)) throw new Error("Could not connect.");
-  const sleep = o.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  const sleep = o.sleep ?? ((ms: number) => sleepFor(ms));
   // The way back names the account in its query, which anyone can change: it counts only if it's this workspace's
   // own (its Composio user) for this tool.
   const mine = await call<{ items?: { id: string }[] }>(`/api/v3.1/connected_accounts?${new URLSearchParams({ user_ids: ws, toolkit_slugs: t.toolkit, limit: "200" })}`, o);

@@ -20,6 +20,7 @@ import { awayMail, calendarMail, followupMail, formMail, helpMail, limitMail, re
 import { periodOf, pickStep, sentSteps, TEMPLATE_COUNT, type TipStep } from "./plan.ts";
 import { tipsToken } from "./token.ts";
 import { isUuid } from "../uuid.ts";
+import { setTimeout as sleepFor } from "node:timers/promises";
 
 const HOUR = 36e5;
 const DAY = 864e5;
@@ -333,7 +334,7 @@ export async function tipOne(db: Db, who: Who, o: TipsOpts & { cfg: TipsConfig }
   const claim = await db.query(`insert into public.tips_log (workspace_id, user_id, step, period) values ($1::uuid, $2::uuid, $3, $4) on conflict do nothing returning step`, [who.id, who.user_id, step, period]);
   if (!claim.rows.length) return "skipped";
   const giveBack = () => db.query(`delete from public.tips_log where workspace_id = $1::uuid and user_id = $2::uuid and step = $3 and period = $4`, [who.id, who.user_id, step, period]).catch(() => undefined);
-  const wait = o.wait ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
+  const wait = o.wait ?? ((ms: number) => sleepFor(ms));
   for (let attempt = 0; ; attempt++) {
     try {
       await o.mailer!.send({ from: o.cfg.from, to: who.email, raw, tags: { tips: step } });

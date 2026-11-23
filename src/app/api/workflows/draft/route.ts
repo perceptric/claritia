@@ -1,12 +1,11 @@
 import { briefDomains, claudeDrafter, draftSteps } from "@/lib/nurture/draft";
 import { requireUser, roleIn } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
+import { bad } from "@/lib/http";
 
 // AI drafts for a workflow's emails (docs/enrich-workflows-reports.md 2.2): POST { workspaceId, brief, count,
 // existing } answers that many emails written from the brief only, with what a person should check. Nothing is
 // saved: the editor adds them unapproved, and a person approves each one. Answers go through the step cache.
-
-const bad = (error: string, status = 400) => Response.json({ error }, { status });
 
 export async function POST(request: Request) {
   const auth = await requireUser(request);

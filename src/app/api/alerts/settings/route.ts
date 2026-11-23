@@ -3,6 +3,7 @@ import { SLACK_WEBHOOK } from "@/lib/alerts";
 import { seal } from "@/lib/seal";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
+import { bad } from "@/lib/http";
 
 /**
  * Save a project's alerts: { projectId, emails, onFailure, onHeal, slackUrl? }. slackUrl null removes Slack; leaving
@@ -13,7 +14,6 @@ export async function POST(request: Request) {
   const auth = await requireUser(request);
   if ("denied" in auth) return auth.denied;
   const body = (await request.json().catch(() => ({}))) as { projectId?: unknown; emails?: unknown; onFailure?: unknown; onHeal?: unknown; slackUrl?: unknown; test?: unknown };
-  const bad = (error: string, status = 400) => Response.json({ error }, { status });
   if (typeof body.projectId !== "string") return bad("Missing project.");
 
   if (body.test === true) {

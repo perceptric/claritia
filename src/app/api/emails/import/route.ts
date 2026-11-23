@@ -2,6 +2,7 @@ import { cleanPeople, parsePeople, type Given, type Pasted } from "@/lib/emails/
 import { requireUser, roleIn } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { isUuid } from "@/lib/uuid";
+import { bad } from "@/lib/http";
 
 // Add people to a list (docs/email-studio-plan.md Parts 4 and 10, and step 2 of the Brew comparison): POST
 // { workspaceId, listId, consent, text } with people pasted one a line, or { ..., rows, fileName } with people from a
@@ -15,7 +16,6 @@ import { isUuid } from "@/lib/uuid";
 
 const MAX = 5000;
 const BATCH = 1000;
-const bad = (error: string, status = 400) => Response.json({ error }, { status });
 type Db = NonNullable<ReturnType<typeof serviceClient>>;
 
 async function addPeople(db: Db, ws: string, list: string | null, rows: Pasted[], consent: boolean): Promise<{ added: number; created: number } | { error: string }> {

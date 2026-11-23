@@ -10,6 +10,7 @@
 import type { Rpc } from "./jobs.ts";
 import { allows, FEATURES, linkFeature, lockLine, type Feature } from "./plans.ts";
 import { isMissingFunction } from "./rpcCompat.ts";
+import { setTimeout as pause } from "node:timers/promises";
 
 export async function planCheck(rpc: Rpc, fn: "plan_check_type" | "plan_check_calendar", args: Record<string, unknown>): Promise<string | null> {
   const { data, error } = await rpc(fn, args);
@@ -23,7 +24,6 @@ export async function planCheck(rpc: Rpc, fn: "plan_check_type" | "plan_check_ca
 /** A failure worth trying again: the database or the network was slow, busy or away for a moment. */
 export const TRANSIENT = /time(d)? ?out|timeout|ECONN|ETIMEDOUT|EAI_AGAIN|ENOTFOUND|fetch failed|network|socket|terminat|connection|too many|rate limit|busy|unavailable|\b(408|425|429|5\d\d)\b/i;
 
-const pause = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 export type PlanRead = { tries?: number; wait?: (ms: number) => Promise<void> };
 

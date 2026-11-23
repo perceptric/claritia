@@ -4,12 +4,11 @@ import { isMember } from "@/lib/contacts/server";
 import { catalogLines, localMatch, MATCH_MODEL, MATCH_SYSTEM, readMatch } from "@/lib/forms/gallery/match";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
+import { bad } from "@/lib/http";
 
 // Describe your form (docs/form-templates-plan.md 5.5): POST { workspaceId, text } answers { ids } (up to 3 template
 // ids, best first). Words that hit the catalog match without AI; the rest go to Claude Haiku through the step cache.
 // A model that doesn't answer leaves the list empty: the Build with AI button works either way.
-
-const bad = (error: string, status = 400) => Response.json({ error }, { status });
 
 export async function POST(request: Request) {
   const auth = await requireUser(request);

@@ -8,6 +8,7 @@ import { readScope } from "@/lib/design/email/scope";
 import { emailChatParts } from "@/lib/emails/server";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
+import { bad } from "@/lib/http";
 
 // One AI turn on an email built with blocks (docs/design-system.md Part 7.2): POST { workspaceId, ref?, doc, subject,
 // message, history?, confirmed?, variants? }. The email and the brand kit's draft styles go to runEmailChat through
@@ -16,7 +17,6 @@ import { serviceClient } from "@/lib/serviceClient";
 // from (for an A/B send). On the canvas (docs/email-canvas-b5.md section 2), `scope` says what the turn may change (the
 // parts the person added, or the whole email) and `turnWith` names the other emails in the same turn.
 
-const bad = (error: string, status = 400) => Response.json({ error }, { status });
 const REF = /^(wf:[0-9a-f-]{36}:[A-Za-z0-9_-]{1,40}|tpl:[0-9a-f-]{36}|em:[0-9a-f-]{36})$/;
 
 export async function POST(request: Request) {

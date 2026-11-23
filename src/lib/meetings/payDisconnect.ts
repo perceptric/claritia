@@ -10,10 +10,10 @@
 
 import type { Rpc } from "../jobs.ts";
 import { TRANSIENT } from "../planGate.ts";
+import { setTimeout as pause } from "node:timers/promises";
 
 export type Disconnected = { account: string | null; types: string[] };
 
-const pause = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 export async function disconnectStripe(rpc: Rpc, ws: string, o: { tries?: number; wait?: (ms: number) => Promise<void> } = {}): Promise<Disconnected> {
   const tries = Math.max(1, o.tries ?? 4);

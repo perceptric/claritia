@@ -5,13 +5,12 @@ import { compileWithKit, loadKits } from "@/lib/design/email/server";
 import { serviceClient } from "@/lib/serviceClient";
 import { valuesOf, type Facts } from "@/lib/workflows/facts";
 import { isUuid } from "@/lib/uuid";
+import { bad } from "@/lib/http";
 
 // Try a contact (docs/enrich-workflows-reports.md 2.4): POST { body, contactId } answers the path that contact would
 // take through the draft, with each email as they'd read it (its design built in the brand kit, merge fields filled)
 // and when each Delay would end if they entered now (docs/email-unify-plan.md, E4: the panel's Test tab). Nothing is
 // sent or saved.
-
-const bad = (error: string, status = 400) => Response.json({ error }, { status });
 
 export async function POST(request: Request) {
   const auth = await requireUser(request);

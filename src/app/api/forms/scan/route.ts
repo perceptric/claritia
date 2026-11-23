@@ -6,13 +6,13 @@ import { hostIsPrivate } from "@/lib/privateNet";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { isUuid } from "@/lib/uuid";
+import { bad } from "@/lib/http";
 
 // Read a site's brand into a brand kit: POST { workspaceId, url, kitId?, formId? } (docs/brand-capture.md). The quick
 // read fills the kit within seconds; the deep read and the brand book follow in the background, then the runner's
 // browser scan fills anything left. A form with no kit yet takes the new one; the workspace's first kit is its brand.
 
 export const maxDuration = 300;
-const bad = (error: string, status = 400) => Response.json({ error }, { status });
 
 export async function POST(request: Request) {
   const auth = await requireUser(request);

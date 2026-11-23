@@ -4,12 +4,11 @@ import { serviceClient } from "@/lib/serviceClient";
 import { formLink } from "@/lib/share/formLink";
 import { personalLink, personalToken, PERSONAL_DAYS } from "@/lib/share/personal";
 import { isUuid } from "@/lib/uuid";
+import { bad } from "@/lib/http";
 
 // Share › Personal link (docs/sharing-plan.md, Personal links): POST { workspaceId, formId, email } answers { url,
 // contact } with the form's link for that one person, good for 90 days. The form fills in what Claritia knows about
 // them (their contact, when there is one, else just the email). The link holds a signed token, never their details.
-
-const bad = (error: string, status = 400) => Response.json({ error }, { status });
 
 export async function POST(request: Request) {
   const auth = await requireUser(request);

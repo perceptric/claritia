@@ -7,6 +7,7 @@ import { requireUser, roleIn } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { SITE_HOST } from "@/lib/site";
 import { isUuid } from "@/lib/uuid";
+import { bad } from "@/lib/http";
 
 // Settings › Link domain (docs/sharing-plan.md step 4).
 //   GET ?workspaceId=      the workspace's subdomain (when those are on), its custom domain and its state, and the
@@ -17,7 +18,6 @@ import { isUuid } from "@/lib/uuid";
 //   POST { workspaceId, action: "remove" }          owners: the domain stops serving and its certificate goes
 
 const COLS = "workspace_id, hostname, status, dns_ok, cert_ok, last_error, checked_at";
-const bad = (error: string, status = 400) => Response.json({ error }, { status });
 
 async function context(request: Request, ws: unknown) {
   const auth = await requireUser(request);

@@ -6,11 +6,10 @@ import { prepareSubmit } from "@/lib/forms/submit";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { isUuid } from "@/lib/uuid";
+import { bad } from "@/lib/http";
 
 // The Test button: POST { workspaceId, id }. Sends a fill marked as a test through the live version and every
 // destination (docs/form-builder.md Part 10). The app then watches its deliveries turn green or red.
-
-const bad = (error: string, status = 400) => Response.json({ error }, { status });
 
 export async function POST(request: Request) {
   const auth = await requireUser(request);

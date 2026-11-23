@@ -8,6 +8,7 @@ import { cleanTags, listOf, NEW_RULES, rulesOf, targetOf } from "@/lib/delivery/
 import { lockFor, planRefusal } from "@/lib/planGate";
 import { destinationFeature } from "@/lib/plans";
 import { isUuid } from "@/lib/uuid";
+import { bad } from "@/lib/http";
 
 // Add or change where a form's leads go: POST { workspaceId, formId, id?, kind, sourceId?, name, url?, rules?, list?, tags? }
 // (docs/form-builder.md 7.1). Addresses are sealed; only the host is kept where people can see it. A new webhook
@@ -15,8 +16,6 @@ import { isUuid } from "@/lib/uuid";
 // `rules` changes them on an existing one. An email tool's `list` ({ id, name }) and `tags` are kept beside them.
 // A tool or Slack is on Starter and up, Salesforce on Business (docs/pricing.md); a webhook on every plan. A lower plan
 // gets 402 with the line. Removing or pausing a destination is never held back.
-
-const bad = (error: string, status = 400) => Response.json({ error }, { status });
 
 export async function POST(request: Request) {
   const auth = await requireUser(request);

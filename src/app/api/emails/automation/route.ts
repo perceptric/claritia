@@ -8,13 +8,12 @@ import { viaLink } from "@/lib/share/channels";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { AUTOMATION_SYSTEM, AUTOMATION_TOOLS, automationFromWords, type FromWords, type FromWordsCtx } from "@/lib/workflows/fromWords";
+import { bad } from "@/lib/http";
 
 // An automation from a sentence (docs/email-studio-plan.md Part 6): POST { workspaceId, words } answers { name, body }
 // for a draft workflow, or { error }. The workspace's forms, meeting types and lists (by id, with the forms' and
 // meetings' public addresses) and its brand brief go to the model through the step cache, so the same words on the
 // same workspace replay without a call. The person's own client saves the draft, so nothing is saved here.
-
-const bad = (error: string, status = 400) => Response.json({ error }, { status });
 
 export async function POST(request: Request) {
   const auth = await requireUser(request);

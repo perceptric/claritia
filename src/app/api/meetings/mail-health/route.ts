@@ -4,8 +4,7 @@
 import { mailHealth } from "@/lib/meetings/mailHealth";
 import { requireUser, roleIn } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
-
-const bad = (error: string, status = 400) => Response.json({ error }, { status });
+import { bad } from "@/lib/http";
 
 export async function GET(request: Request) {
   const auth = await requireUser(request);

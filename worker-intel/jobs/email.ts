@@ -19,6 +19,7 @@ import { call, JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
 import { reconnectNote, viaMailbox, type Broken } from "../../src/lib/mailbox/server.ts";
 import { mime } from "../../src/lib/meetings/emails.ts";
 import { isUuid } from "../../src/lib/uuid.ts";
+import { setTimeout as sleepFor } from "node:timers/promises";
 
 const NOT_SET = "Resend isn't set up on the worker (RESEND_API_KEY).";
 
@@ -128,7 +129,7 @@ export const send =
     if (!ws) throw new JobError("send needs a workspace", { retry: false });
     if (!o.sender) throw new JobError(NOT_SET, { retry: false });
     const sender = o.sender;
-    const sleep = o.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
+    const sleep = o.sleep ?? ((ms: number) => sleepFor(ms));
     const until = Date.now() + (o.roundMs ?? 50_000);
     let limit = 14;
     while (!signal.aborted) {

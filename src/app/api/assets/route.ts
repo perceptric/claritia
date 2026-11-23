@@ -3,13 +3,12 @@ import { MAX_ASSET_BYTES, photoWidths, sniffImage, stripImageMeta } from "@/lib/
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { isUuid } from "@/lib/uuid";
+import { bad } from "@/lib/http";
 
 // Images for emails and forms (docs/design-system.md Part 6). POST multipart { workspaceId, file } → { id, url,
 // width, height }: the file is checked by its bytes (PNG, JPEG, GIF or WebP, up to 5 MB), photo metadata is taken
 // out, and it's stored in the public "assets" bucket, with WebP copies at 640, 1280 and 1920 wide for forms' photos
 // (docs/forms-media-plan.md). DELETE ?id= removes one from the list, its file and its copies.
-
-const bad = (error: string, status = 400) => Response.json({ error }, { status });
 
 export async function POST(request: Request) {
   const auth = await requireUser(request);

@@ -7,6 +7,7 @@ import { addressesOf, MAX_TO, shareEmail } from "@/lib/share/shareEmail";
 import { formLink } from "@/lib/share/formLink";
 import { viaLink } from "@/lib/share/channels";
 import { isUuid } from "@/lib/uuid";
+import { bad } from "@/lib/http";
 
 // Share › Email › Send the link (docs/sharing-plan.md): one short email with the form's link, to up to 200 addresses,
 // from the team or from the person sending it (their name on the team's address). POST { workspaceId, formId,
@@ -14,8 +15,6 @@ import { isUuid } from "@/lib/uuid";
 // each person is. It goes through the send pipeline like every
 // email: the From domain must be verified, a pause stops it, and suppressed or bounced addresses are skipped. The same
 // address twice gets it once (email_queue_to, 117).
-
-const bad = (error: string, status = 400) => Response.json({ error }, { status });
 
 export async function POST(request: Request) {
   const auth = await requireUser(request);

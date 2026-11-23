@@ -17,6 +17,7 @@ import { hostLogo, hostOf, readPage, readSite, readSource } from "@/lib/studio/s
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { isUuid } from "@/lib/uuid";
+import { bad } from "@/lib/http";
 
 // Form Studio (docs/forms-chat-plan.md). POST { workspaceId, mode, ... }:
 //   site    { url }                  → { site, name, logo }   the quick look the owner confirms: name and real logo, no AI
@@ -43,7 +44,6 @@ import { isUuid } from "@/lib/uuid";
 // step cache: the same inputs replay the saved answer.
 
 export const maxDuration = 300;
-const bad = (error: string, status = 400) => Response.json({ error }, { status });
 const ZERO: Usage = { input: 0, output: 0, cache_read: 0, cache_write: 0 };
 
 type Turn = { role: "user" | "assistant"; content: string };

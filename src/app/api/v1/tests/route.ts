@@ -2,6 +2,7 @@ import { findProject, requireKey } from "@/lib/apiAuth";
 import { buildLock, firstError, parseLock } from "@/lib/lock";
 import { APP_URL } from "@/lib/site";
 import { stepId } from "@/lib/testfile";
+import { bad } from "@/lib/http";
 
 /** A project's tests: GET /api/v1/tests?project=<id or name>. */
 export async function GET(request: Request) {
@@ -27,7 +28,6 @@ type RecordedStep = { kind: "do" | "check"; text: string; code: string[] };
 export async function POST(request: Request) {
   const caller = await requireKey(request);
   if ("denied" in caller) return caller.denied;
-  const bad = (error: string, status = 400) => Response.json({ error }, { status });
   const body = (await request.json().catch(() => ({}))) as { project?: unknown; name?: unknown; use_case?: unknown; steps?: unknown };
   const project = await findProject(caller, body.project);
   if ("denied" in project) return project.denied;

@@ -11,8 +11,11 @@ type Contact = { id: string; email: string | null; name: string | null; title: s
 type Opportunity = { id: string; name: string | null; account_id: string | null; stage_name: string | null; stage_kind: string; amount: number | null; close_date: string | null; updated_at: string };
 type Account = { id: string; name: string | null; domain: string | null; fields: Record<string, unknown>; created_at: string };
 
+/** Omniscient's address: OMNISCIENT_URL on this server, or its public app. */
+export const omniscientBase = () => process.env.OMNISCIENT_URL?.trim().replace(/\/+$/, "") || "https://app.tryomniscient.com";
+
 const url = (ctx: Ctx) => {
-  const u = ctx.secret("url") || "https://app.tryomniscient.com";
+  const u = ctx.secret("url") || omniscientBase();
   if (!/^https:\/\//.test(u) && !/^http:\/\/localhost/.test(u)) throw new Error("Connect Omniscient again.");
   return u.replace(/\/+$/, "");
 };

@@ -4,14 +4,13 @@ import { notReady, sendReady } from "@/lib/email/ready";
 import { requireUser, roleIn } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { isUuid } from "@/lib/uuid";
+import { bad } from "@/lib/http";
 
 // Send or schedule a campaign draft (docs/email-studio-plan.md Part 5): POST { workspaceId, emailId, lists, everyone,
 // topicId, sendAt, fromName, fromEmail, replyTo, spreadHours, smart }. The From address must be on one of the workspace's
 // verified domains (156); spreadHours is Gradual Send and smart is Intelligent Send (159). The draft's blocks are made into HTML here (the same draft styles the builder showed), sending is
 // checked ready, and email_campaign_send (151) freezes the audience and queues it in one transaction. A repeat of the
 // same send answers what the first queued.
-
-const bad = (error: string, status = 400) => Response.json({ error }, { status });
 
 export async function POST(request: Request) {
   const auth = await requireUser(request);

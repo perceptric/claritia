@@ -7,13 +7,12 @@ import { emailChatParts } from "@/lib/emails/server";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { isUuid } from "@/lib/uuid";
+import { bad } from "@/lib/http";
 
 // Many new emails from one prompt (docs/email-canvas-b5.md section 3). POST { workspaceId, step: "plan", message,
 // group, history? } plans a series (names, subjects, one line each, at most 10) or answers with a question;
 // POST { workspaceId, step: "build", items, index, message, kitId? } writes one email of the plan through the email
 // chat and sends it back, for the browser to save as a draft in the group. Both go through the step cache.
-
-const bad = (error: string, status = 400) => Response.json({ error }, { status });
 
 export async function POST(request: Request) {
   const auth = await requireUser(request);

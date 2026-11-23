@@ -6,6 +6,7 @@
 import { composioFetch } from "./composio.ts";
 import { OAUTH, oauthRefresh } from "./oauth.ts";
 import { AuthError, RateLimited, type Creds, type Ctx, type SourceRow } from "./types.ts";
+import { setTimeout as wait } from "node:timers/promises";
 
 export type CtxOpts = {
   source: SourceRow;
@@ -29,11 +30,10 @@ const BACKOFF_S = [1, 5, 30];
 // is put back in line for then (worker-intel/jobs/sources.ts) and a person's request answers at once.
 const MAX_429_SLEEP_S = 5;
 const CALL_TIMEOUT_MS = 15_000;
-const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 export function makeCtx(o: CtxOpts): Ctx {
   const fetcher = o.fetcher ?? fetch;
-  const sleep = o.sleep ?? wait;
+  const sleep = o.sleep ?? ((ms: number) => wait(ms));
   let creds = o.creds;
   let last = 0;
   // A call with the sign-in goes through Composio for a Composio connection; one with `auth: false` (a pre-signed

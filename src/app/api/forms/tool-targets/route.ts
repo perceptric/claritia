@@ -7,6 +7,7 @@ import { deps } from "@/lib/sources/run";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { isUuid } from "@/lib/uuid";
+import { bad } from "@/lib/http";
 
 // Where a form's rows go (docs/integrations-plan.md step 2), for the form's Sync tab. Read live from the tool.
 //   GET ?workspaceId=&sourceId=                                  → { targets: [{ id, name, url }] }  Airtable, Notion
@@ -17,7 +18,6 @@ import { isUuid } from "@/lib/uuid";
 // The caller must be in the workspace and the tool one of its connected sheets and databases.
 
 const TIMEOUT_MS = 15_000;
-const bad = (error: string, status = 400) => Response.json({ error }, { status });
 
 async function load(request: Request, ws: unknown, sourceId: unknown) {
   const auth = await requireUser(request);

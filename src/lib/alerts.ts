@@ -1,6 +1,7 @@
 // Alert messages for Slack and email: one message per project, listing real failures and fixes waiting for approval.
 
 import { APP_URL } from "./site.ts";
+import { cut } from "./text.ts";
 
 export type AlertFailure = {
   runId: string;
@@ -33,7 +34,6 @@ export function alertTitle(project: string, failures: AlertFailure[], heals: Ale
 const why = (f: AlertFailure) => [f.verdict ? KIND[f.verdict] : "Failed", f.reason].filter(Boolean).join(": ");
 const where = (f: AlertFailure) => `${f.environment}${SOURCE[f.source] ? `, ${SOURCE[f.source]}` : ""}`;
 const slackText = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-const cut = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
 /** A Slack incoming-webhook message (Block Kit). */
 export function slackMessage(project: string, failures: AlertFailure[], heals: AlertHeal[]) {

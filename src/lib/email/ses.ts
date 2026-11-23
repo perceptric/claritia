@@ -10,6 +10,7 @@
 import type { SesIdentity } from "./domains.ts";
 import { SendError, type Outgoing } from "./provider.ts";
 import { signV4, type Creds } from "./sigv4.ts";
+import { setTimeout as sleepFor } from "node:timers/promises";
 
 export type Identity = SesIdentity;
 
@@ -22,7 +23,7 @@ const WAIT = new Set(["LimitExceededException", "SendingPausedException", "Accou
 /** A token bucket: at most `rate()` calls a second, with no burst above one second's worth. */
 export function rateBucket(o: { rate: () => number; now?: () => number; sleep?: (ms: number) => Promise<void> }) {
   const now = o.now ?? Date.now;
-  const sleep = o.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  const sleep = o.sleep ?? ((ms: number) => sleepFor(ms));
   let tokens = 1;
   let last = now();
   return {

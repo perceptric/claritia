@@ -10,12 +10,12 @@ import { everyOption, type Form } from "../src/lib/forms/schema.ts";
 import { qaToken, type PublicForm } from "../src/lib/forms/submit.ts";
 import { JobError, type Job } from "../src/lib/jobs.ts";
 import { isUuid } from "../src/lib/uuid.ts";
+import { setTimeout as wait } from "node:timers/promises";
 
 export type QaOpts = { appUrl: string; secret: string; chromiumPath?: string; loadMs?: number; reachMs?: number; deliverMs?: number; pollMs?: number; log?: (...a: unknown[]) => void };
 type Step = { name: string; ok: boolean; detail?: string };
 type Progress = { submission_id: string; deliveries: { name: string; status: string; error: string | null }[] } | null;
 
-const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const OPEN = new Set(["queued", "sending", "retrying", "held"]);
 
 async function rpc<T>(sb: SupabaseClient, fn: string, args: Record<string, unknown>): Promise<T> {

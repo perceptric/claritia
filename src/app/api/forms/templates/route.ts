@@ -4,13 +4,12 @@ import { makeFromTemplate, ownKit } from "@/lib/forms/gallery/make";
 import { isTheme } from "@/lib/forms/gallery/themes";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
+import { bad } from "@/lib/http";
 
 // Use template (docs/form-templates.md, docs/forms-chat-plan.md Part 8): POST { workspaceId, template, kitId?, theme?,
 // plain?, pages? } makes a Form Studio form from a gallery template, in a workspace brand, a style (the template's own unless
 // one is named) or the plain look, on one page or in pages ("one" or "multi", else as the template is), with its meeting and draft follow-ups (src/lib/forms/gallery/make.ts), and
 // answers { id, kitId, workflows, workflowError? }.
-
-const bad = (error: string, status = 400) => Response.json({ error }, { status });
 
 export async function POST(request: Request) {
   const auth = await requireUser(request);

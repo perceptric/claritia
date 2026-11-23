@@ -9,6 +9,8 @@ import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { lockFor, planRefusal } from "@/lib/planGate";
 import { toolFeature } from "@/lib/plans";
+import { bad } from "@/lib/http";
+import { omniscientBase } from "@/lib/sources/omniscient";
 
 // Connect a tool: POST { workspaceId, kind, keys?, hookSecret?, settings? }. A tool that signs in on Composio
 // (src/lib/sources/composio.ts) returns Composio's connect page, which asks for the sign-in or the key and comes back
@@ -18,7 +20,6 @@ import { toolFeature } from "@/lib/plans";
 // Business, the webhook and Google Forms import on every plan (docs/pricing.md): a lower plan gets 402 with the line,
 // before any sign-in page opens.
 
-const bad = (error: string, status = 400) => Response.json({ error }, { status });
 
 export async function GET(request: Request) {
   const auth = await requireUser(request);
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
 
   try {
     if (kind === "omniscient") {
-      const base = process.env.OMNISCIENT_URL?.trim().replace(/\/+$/, "") || "https://app.tryomniscient.com";
+      const base = omniscientBase();
       const state = signState({ ws, user: auth.user.id, kind });
       return Response.json({ url: `${base}/connect?${new URLSearchParams({ app: "claritia", redirect_uri: redirect, state })}` });
     }

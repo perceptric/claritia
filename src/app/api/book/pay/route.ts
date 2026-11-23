@@ -6,14 +6,13 @@ import { republishFormsUsing } from "@/lib/routing/formPublish";
 import { requireUser, roleIn } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { isUuid } from "@/lib/uuid";
+import { bad } from "@/lib/http";
 
 // A workspace's Stripe account for paid meeting types (Connect Standard), for owners:
 //   POST { workspaceId, action: "connect" } → { url }: Stripe's page to connect or finish connecting the account.
 //   POST { workspaceId, action: "refresh" } → { ready }: read the account again after Stripe sends them back.
 //   POST { workspaceId, action: "disconnect" } → { ok, off }: forget the account and turn off the meeting types that
 //     take payment on it (src/lib/meetings/payDisconnect.ts); `off` is how many. Booked meetings stay. Safe to repeat.
-
-const bad = (error: string, status = 400) => Response.json({ error }, { status });
 
 export async function POST(request: Request) {
   const auth = await requireUser(request);
