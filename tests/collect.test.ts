@@ -596,6 +596,26 @@ test("reset gives a new device", async () => {
   assert.ok(store.jobs.some((j) => j.kind === "device_reset"));
 });
 
+test("reset still gives a new device when its job can't be queued, and logs why", async () => {
+  const store = new FakeStore();
+  const logged: string[] = [];
+  const { app } = createApp({ store, secret: SECRET, geo: () => US, log: (m) => logged.push(m) });
+  const send = (body: unknown, cookie?: string) =>
+    app.request(body === "reset" ? "/reset" : "/e", {
+      method: "POST",
+      body: JSON.stringify({ v: 1, site: store.key, m: "a", consent: { state: "unknown", tool: "none" }, gpc: false, events: body === "reset" ? [] : [{ id: uuid7(), k: "view", t: Date.now(), u: "/" }] }),
+      headers: { origin: "https://www.acme.com", "user-agent": CHROME, "fly-client-ip": "203.0.113.9", "content-type": "text/plain", ...(cookie ? { cookie } : {}) },
+    });
+  const cookie = (await send("view")).headers.getSetCookie()[0].split(";")[0];
+  store.enqueue = async () => {
+    throw new Error("database down");
+  };
+  const reset = await send("reset", cookie);
+  assert.equal(reset.status, 200);
+  assert.notEqual(reset.headers.getSetCookie()[0].split(";")[0], cookie, "the next person doesn't get the old device");
+  assert.ok(logged.includes("device reset enqueue failed"));
+});
+
 test("paused site stops the script", async () => {
   const { send, batch, ev, store } = setup(US);
   store.site.paused = true;

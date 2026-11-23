@@ -331,7 +331,7 @@ export function createApp(deps: Deps) {
     }
     if ((touched.get(site.id) ?? 0) < t - 60_000) {
       touched.set(site.id, t);
-      void store.touchSite(site.id, x.mode === "a" ? "proxy" : x.mode === "s" ? "cname" : "direct").catch(() => {});
+      void store.touchSite(site.id, x.mode === "a" ? "proxy" : x.mode === "s" ? "cname" : "direct").catch((e) => log("touch site failed", { e: String(e) }));
     }
 
     const out: Record<string, string> = { p: decision.mode };
@@ -386,12 +386,12 @@ export function createApp(deps: Deps) {
       // A cloud network with real input is a person on a cloud desktop.
       if (n > 0 && s.bot && s.hosting && verdict !== "mark") {
         s.bot = false;
-        await store.setBot(s.id, false).catch(() => {});
+        await store.setBot(s.id, false).catch((e) => log("bot mark failed", { e: String(e) }));
       }
     }
     if (!s.bot && looksAutomated(s, t)) {
       s.bot = true;
-      await store.setBot(s.id, true).catch(() => {});
+      await store.setBot(s.id, true).catch((e) => log("bot mark failed", { e: String(e) }));
     }
   };
 
@@ -483,7 +483,8 @@ export function createApp(deps: Deps) {
     const old = readDevice(c, x.site, x.mode, b.did);
     if (old) {
       sessions.forget(old);
-      await store.enqueue(x.site.workspace_id, "device_reset", old, { device_id: old, at: new Date(now()).toISOString() }).catch(() => {});
+      // The fresh device is given even if the job can't be queued: keeping the old one would tie the next person to this one.
+      await store.enqueue(x.site.workspace_id, "device_reset", old, { device_id: old, at: new Date(now()).toISOString() }).catch((e) => log("device reset enqueue failed", { e: String(e) }));
     }
     if (x.decision.mode !== "full") return c.json({ p: x.decision.mode });
     const fresh = uuid7(now());
