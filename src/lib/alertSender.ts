@@ -12,12 +12,13 @@ type RunRow = { id: string; test_name: string; environment_name: string; trigger
 const MAX_ATTEMPTS = 5;
 export const alertsFrom = () => process.env.ALERTS_FROM?.trim() || "Claritia <alerts@mail.tryclaritia.com>";
 
-export type Channels = { slack: string | null; emails: string[] };
+/** `problem` is a channel that's set but can't be used, such as a Slack address that no longer unseals. */
+export type Channels = { slack: string | null; emails: string[]; problem: string | null };
 export type Message = { project: string; failures: AlertFailure[]; heals: AlertHeal[] };
 
 /** Send one project's alert to its Slack and email. Returns an error per channel that failed. */
 export async function deliver(to: Channels, m: Message, fetchFn: typeof fetch = fetch): Promise<{ delivered: number; errors: string[] }> {
-  const errors: string[] = [];
+  const errors: string[] = to.problem ? [to.problem] : [];
   let delivered = 0;
   if (to.slack) {
     const res = await fetchFn(to.slack, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(slackMessage(m.project, m.failures, m.heals)), signal: AbortSignal.timeout(10_000) }).catch((e: Error) => e);
@@ -37,14 +38,15 @@ export async function deliver(to: Channels, m: Message, fetchFn: typeof fetch = 
 
 export function channelsOf(s: Settings | undefined): Channels {
   let slack: string | null = null;
+  let problem: string | null = null;
   if (s?.slack_sealed) {
     try {
       slack = unseal(s.slack_sealed);
-    } catch {
-      slack = null;
+    } catch (e) {
+      problem = `Slack: the saved address can't be read (${e instanceof Error ? e.message : e}). Save it again in Settings.`;
     }
   }
-  return { slack, emails: s?.emails ?? [] };
+  return { slack, emails: s?.emails ?? [], problem };
 }
 
 /** Send every queued alert: one message per project, then mark the events sent. */
@@ -73,7 +75,8 @@ export async function sendAlerts(sb: SupabaseClient, fetchFn: typeof fetch = fet
   const parentIds = runRows.map((r) => r.retry_of).filter((x): x is string => !!x);
   const parents = new Map<string, string>();
   if (parentIds.length) {
-    const { data: p } = await sb.from("runs").select("id, trigger").in("id", parentIds);
+    const { data: p, error: parentErr } = await sb.from("runs").select("id, trigger").in("id", parentIds);
+    if (parentErr) return { sent: 0, errors: [parentErr.message] };
     for (const r of (p ?? []) as { id: string; trigger: string }[]) parents.set(r.id, r.trigger);
   }
   const stepRows = (steps.data ?? []) as { run_id: string; position: number; label: string }[];
@@ -98,8 +101,12 @@ export async function sendAlerts(sb: SupabaseClient, fetchFn: typeof fetch = fet
     const now = new Date().toISOString();
     const channels = channelsOf(((settings.data ?? []) as Settings[]).find((s) => s.project_id === projectId));
 
-    if ((!failures.length && !pendingHeals.length) || (!channels.slack && !channels.emails.length)) {
-      await sb.from("alert_events").update({ sent_at: now }).in("id", ids);
+    const mark = async (fields: Record<string, unknown>) => {
+      const { error: markErr } = await sb.from("alert_events").update(fields).in("id", ids);
+      if (markErr) errors.push(`Marking alerts: ${markErr.message}`);
+    };
+    if ((!failures.length && !pendingHeals.length) || (!channels.slack && !channels.emails.length && !channels.problem)) {
+      await mark({ sent_at: now });
       continue;
     }
     const name = ((projects.data ?? []) as { id: string; name: string }[]).find((p) => p.id === projectId)?.name ?? "Claritia";
@@ -109,10 +116,10 @@ export async function sendAlerts(sb: SupabaseClient, fetchFn: typeof fetch = fet
     if (result.errors.length) errors.push(`${name}: ${error}`);
     // Sent once any channel took it, so a working channel never gets the same alert twice.
     if (result.delivered > 0 || attempts >= MAX_ATTEMPTS) {
-      await sb.from("alert_events").update({ sent_at: now, attempts, error }).in("id", ids);
+      await mark({ sent_at: now, attempts, error });
       if (result.delivered > 0) sent++;
     } else {
-      await sb.from("alert_events").update({ attempts, error }).in("id", ids);
+      await mark({ attempts, error });
     }
   }
   return { sent, errors };

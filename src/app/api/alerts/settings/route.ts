@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     if (!sb) return bad("The server is not set up for alerts.", 500);
     const { data: s } = await sb.from("alert_settings").select("project_id, slack_sealed, emails").eq("project_id", project.id).maybeSingle();
     const to = channelsOf(s ?? undefined);
-    if (!to.slack && !to.emails.length) return bad("Add a Slack address or an email first.");
+    if (!to.slack && !to.emails.length && !to.problem) return bad("Add a Slack address or an email first.");
     const sample = { runId: "00000000-0000-0000-0000-000000000000", test: "Sample test", environment: "staging", source: "schedule", verdict: "app_bug" as const, reason: "This is a test alert from Claritia.", failedStep: { position: 2, label: "Check: It says saved" } };
     const result = await deliver(to, { project: project.name, failures: [sample], heals: [] });
     return result.errors.length ? bad(result.errors.join(" ")) : Response.json({ ok: true, delivered: result.delivered });
