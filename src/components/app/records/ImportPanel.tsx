@@ -1,6 +1,6 @@
 "use client";
 
-// The import wizard (docs/conversion-parity.md 4.9): upload or paste, map columns, say what the list is and where it
+// The import wizard (docs/marketing-platform.md 6.2.9): upload or paste, map columns, say what the list is and where it
 // came from, preview 20 rows with what will happen to each, run, then the report with the error file and Undo.
 // Files go straight to storage; small ones import at once, big ones run in the background and show progress.
 

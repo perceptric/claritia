@@ -1,4 +1,4 @@
-// Cleaning on the way in (docs/conversion-parity.md 4.7): phones to one format, names in Name Case, "Doe, Jane"
+// Cleaning on the way in (docs/marketing-platform.md 6.2.7): phones to one format, names in Name Case, "Doe, Jane"
 // split right, and a title's seniority and department by rules. Runs in the browser and on the server.
 
 import { parsePhoneNumberFromString, type CountryCode } from "libphonenumber-js";

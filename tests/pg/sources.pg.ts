@@ -1,4 +1,4 @@
-// Sources on a real database (docs/conversion-weeks.md week 3): HubSpot two-way through 1,000 random changes on
+// Sources on a real database (docs/marketing-platform.md 5.5): HubSpot two-way through 1,000 random changes on
 // both sides, with dropped and repeated webhooks, 429s and an expired token. Both sides end equal, nothing is
 // doubled, and once settled another round writes nothing either way (no echo loops).
 import assert from "node:assert/strict";

@@ -1,4 +1,4 @@
-// Writing contacts (docs/conversion-parity.md Part 3): cleaning one contact typed into the app, and sending batches
+// Writing contacts (docs/marketing-platform.md 6.2.1 and 6.2.2): cleaning one contact typed into the app, and sending batches
 // to contacts_upsert. A batch is safe to send twice (it upserts by cleaned email), so a batch whose answer was lost
 // is sent again, never skipped. Server only.
 

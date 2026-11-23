@@ -1,4 +1,4 @@
-// Sources on claritia-intel (docs/conversion-weeks.md weeks 3 to 7): scheduled pulls with a push after, pushes
+// Sources on claritia-intel (docs/marketing-platform.md 5.5): scheduled pulls with a push after, pushes
 // when contacts change here, and staged webhooks. A long pull stops after 4 minutes and queues the rest.
 
 import type pg from "pg";

@@ -1,4 +1,4 @@
--- Segments (docs/conversion-parity.md Part 10, docs/conversion-weeks.md week 8): a rule tree of AND and OR groups,
+-- Segments (docs/marketing-platform.md 6.2.11 and 5.6): a rule tree of AND and OR groups,
 -- up to 3 levels, over contact and company fields, custom objects, events, website visits, consent, sources and
 -- other segments. A tree compiles to one SQL condition whose values are read from the tree itself as $2, so
 -- nothing a person types becomes SQL. Dynamic segments refresh hourly and when saved; joining or leaving is a

@@ -22,7 +22,7 @@ Rules come from three specs, and this plan doesn't repeat them:
 4. Open an **Account page**: why-now line, timeline of sessions and pages, known people, firmographics, and score details.
 5. Open a **Person page**: identifiers with levels, devices, evidence, sessions, plus Unmerge, Unlink and Erase.
 6. Get a **Slack alert** when a target account heats up.
-7. See hot accounts **pushed to Omniscient** as an activity on the account (once the Omniscient API from `docs/marketing-platform.md` Part 5.1 is live).
+7. See hot accounts **pushed to Omniscient** as an activity on the account (once the Omniscient API from `docs/marketing-platform.md` 7.1 is live).
 8. Handle privacy requests from the **Privacy** screen and the API.
 
 ### 1.2 In and out
@@ -750,7 +750,7 @@ The `hutk` lookup waits for the HubSpot sync (1.2). The evidence row for `hutk` 
 | Geo file (IPinfo free country-ASN, or MaxMind GeoLite2) | $0 (check terms) | $0 (check terms) |
 | **M1 total** | **About $866–$1,166** | **About $6,450** |
 
-This is part of the platform total in `docs/marketing-platform.md` Part 11. There, the Coresignal line also covers people and briefs in later modules.
+This is part of the platform total in `docs/marketing-platform.md` 15.2. There, the Coresignal line also covers people and briefs in later modules.
 
 ---
 

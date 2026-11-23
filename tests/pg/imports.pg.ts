@@ -1,4 +1,4 @@
-// Imports at full size on a real database (docs/conversion-weeks.md week 2): a big file stopped twice and picked
+// Imports at full size on a real database (docs/marketing-platform.md 5.4): a big file stopped twice and picked
 // up again lands every row once; undo after an overlapping import takes back only what the first one did.
 import assert from "node:assert/strict";
 import { after, test } from "node:test";

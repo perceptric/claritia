@@ -1,6 +1,6 @@
 # Account Intelligence: full build spec
 
-The goal is the best account intelligence product on the market, built so it can be shown to any privacy lawyer. This doc covers Phase 1 in full depth: website intelligence (M1), identity (`docs/identity.md`), company resolution, enrichment, HubSpot, signals, scoring, AI research, delivery and compliance. Buyer Analytics (M2) keeps its spec in `docs/pivot-plan.md`.
+The goal is the best account intelligence product on the market, built so it can be shown to any privacy lawyer. This doc covers Phase 1 in full depth: website intelligence (M1), identity (`docs/identity.md`), company resolution, enrichment, HubSpot, signals, scoring, AI research, delivery and compliance. Buyer Analytics keeps its spec in `docs/marketing-platform.md` 6.3, where its scope is an open question.
 
 ---
 
@@ -262,7 +262,7 @@ This is how every source maps to exactly one account.
 
 ### 6.1 Website (M1)
 
-As in `docs/pivot-plan.md` M1 and `docs/identity.md`, plus the region policy, URL scrubbing and never-collect rules in Part 3.
+As in `docs/m1-website-intelligence.md` Part 5 and `docs/identity.md`, plus the region policy, URL scrubbing and never-collect rules in Part 3.
 
 Additions for intelligence:
 
@@ -514,7 +514,7 @@ intent = 100 × (1 − e^(−raw / k))
 
 ### 8.3 Stage, temperature and priority
 
-**Stage:** the rules in `docs/pivot-plan.md` M3, plus mapping from HubSpot lifecycle (the team's mapping wins when it's more advanced).
+**Stage:** the rules in `docs/marketing-platform.md` 6.8.3, plus mapping from HubSpot lifecycle (the team's mapping wins when it's more advanced).
 
 Stages only move forward automatically. They move back only:
 - after 45 days of no signals (to Engaged), or 90 days (to Unknown);
@@ -874,7 +874,7 @@ History; see git.
 | SOC 2 compliance tool | — | $850 (check) |
 | **Phase 1 total** | **$3,799** | **$33,220** |
 
-This replaces the Phase 1 line in `docs/pivot-plan.md` ($2,054 Beta, $17,530 Growth). The increase comes from Coresignal, the verifier, news watch, Ask, and the SOC 2 tool at Growth.
+This replaces the Phase 1 line in the old buyer enablement plan ($2,054 Beta, $17,530 Growth; see git). The increase comes from Coresignal, the verifier, news watch, Ask, and the SOC 2 tool at Growth.
 
 Ways to cut the bill:
 - Company enrichment only for accounts with a real session or CRM activity.

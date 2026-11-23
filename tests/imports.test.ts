@@ -1,4 +1,4 @@
-// Import files (docs/conversion-weeks.md week 2): streaming CSV in any encoding, Excel, vCard, and cleaning.
+// Import files (docs/marketing-platform.md 5.4): streaming CSV in any encoding, Excel, vCard, and cleaning.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import ExcelJS from "exceljs";

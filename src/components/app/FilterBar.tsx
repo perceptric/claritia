@@ -1,6 +1,6 @@
 "use client";
 
-// The filter bar for Contacts, Visitors and Accounts (docs/conversion-parity.md Part 6): a view menu with built-in and
+// The filter bar for Contacts, Visitors and Accounts (docs/marketing-platform.md 6.2.11): a view menu with built-in and
 // saved views, each filter as a square tag, and "+ Filter" to add one. Saved views are shared in the workspace.
 
 import type { SupabaseClient } from "@supabase/supabase-js";

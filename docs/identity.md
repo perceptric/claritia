@@ -620,7 +620,7 @@ Internal devices and sessions are removed before signals, scores and agents. The
 | A stolen or replayed hop token | 2-minute expiry, one use (nonce), bound to the target site |
 | A forwarded email token | One-token-many-devices rule (5.6) |
 | Fake client IPs through the proxy header | The header is only trusted with the per-site proxy secret |
-| Flooding collect | Size and rate limits, site key and origin checks (`docs/pivot-plan.md` M1) |
+| Flooding collect | Size and rate limits, site key and origin checks (`docs/m1-website-intelligence.md` Part 5) |
 | Reading data through collect | Collect has no read endpoints. Every read goes through the authenticated app with RLS. |
 | Staff misuse | No standing access. Time-limited, logged support grants. |
 | One customer seeing another's data | No shared person tables. RLS. Leak tests. Caches hold company data only. |

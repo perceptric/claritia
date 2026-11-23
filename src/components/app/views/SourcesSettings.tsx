@@ -1,6 +1,6 @@
 "use client";
 
-// Settings › Sources and Settings › Sync log (docs/conversion-weeks.md weeks 3 to 7): every tool contacts come
+// Settings › Sources and Settings › Sync log (docs/marketing-platform.md 5.5): every tool contacts come
 // from, connected in one click where the tool allows it, with its objects, schedule, consent, mapping and runs.
 
 import { useState } from "react";

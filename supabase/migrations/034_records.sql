@@ -1,4 +1,4 @@
--- Records (docs/conversion-parity.md Parts 4 and 7): the customizable core under Contacts, Leads, Companies and
+-- Records (docs/marketing-platform.md 6.2 and 6.2.10): the customizable core under Contacts, Leads, Companies and
 -- custom objects.
 --   Field types: text, long text, number, currency, percent, date, date and time, select, multi-select, checkbox,
 --   URL, email, phone, user and relation. Fields have a position, a group and a "required" switch.

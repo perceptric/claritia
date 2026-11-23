@@ -1,7 +1,7 @@
 "use client";
 
 // Settings › Imports: every import in the workspace with its state and counts, the rows that didn't come in, and
-// undo for 30 days (docs/conversion-weeks.md week 2).
+// undo for 30 days (docs/marketing-platform.md 5.4).
 
 import { useState } from "react";
 import { Download } from "../../Icons";

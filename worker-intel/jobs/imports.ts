@@ -1,4 +1,4 @@
-// Imports on claritia-intel (docs/conversion-weeks.md week 2): big files, undo, and clearing old files.
+// Imports on claritia-intel (docs/marketing-platform.md 5.4): big files, undo, and clearing old files.
 
 import type pg from "pg";
 import type { Ctx } from "../../src/lib/contacts/import.ts";

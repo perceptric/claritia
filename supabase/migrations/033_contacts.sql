@@ -1,4 +1,4 @@
--- Contacts (docs/conversion-parity.md 4.1, week 1): contacts, companies, custom fields, consent, topics, the tables
+-- Contacts (docs/marketing-platform.md 6.2.1 and 5.3): contacts, companies, custom fields, consent, topics, the tables
 -- segments build on, contact events, imports and saved views for the filter bar.
 --   Writes that need a cleaned email (imports, adding or editing a contact) come from the server with the service
 --   role, after src/lib/contacts cleans each email. Members read their own workspace's rows, and change them only
@@ -123,7 +123,7 @@ create policy "members read" on public.topics for select using (is_member(worksp
 revoke all on public.topics from anon;
 revoke insert, update, delete on public.topics from authenticated;
 
--- A log: the latest row per contact and channel is the one that counts (docs/marketing-platform.md 9.1).
+-- A log: the latest row per contact and channel is the one that counts (docs/marketing-platform.md 12.1).
 create table if not exists public.consents (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references public.workspaces (id) on delete cascade,

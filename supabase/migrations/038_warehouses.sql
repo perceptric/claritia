@@ -1,4 +1,4 @@
--- Warehouses and databases as sources (docs/contact-sources.md Part 8, docs/conversion-weeks.md week 8). A source
+-- Warehouses and databases as sources (docs/contact-sources.md Part 8, docs/marketing-platform.md 5.6). A source
 -- is a saved read-only query that runs on a schedule and continues from its last cursor. Its rows become contacts,
 -- companies, activity on contacts, or records of a custom object. A row read twice (the cursor overlaps) lands once.
 

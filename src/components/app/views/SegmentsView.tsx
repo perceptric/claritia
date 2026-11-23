@@ -1,6 +1,6 @@
 "use client";
 
-// Segments (docs/conversion-parity.md Part 10): groups of contacts by any rule, AND and OR up to 3 levels deep,
+// Segments (docs/marketing-platform.md 6.2.11): groups of contacts by any rule, AND and OR up to 3 levels deep,
 // with a live count and ten of the people while editing. Dynamic segments refresh hourly; lists from a tool are
 // static segments and show here too.
 

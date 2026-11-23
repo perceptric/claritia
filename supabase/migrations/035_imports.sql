@@ -1,4 +1,4 @@
--- Imports at full size (docs/conversion-weeks.md week 2): files of any size through storage, progress that
+-- Imports at full size (docs/marketing-platform.md 5.4): files of any size through storage, progress that
 -- survives a restart, unsubscribes and bounces in before any contact, and undo for 30 days.
 --   Files live in the private "imports" bucket under <workspace id>/<upload id>/<file name>. Members upload into
 --   their own workspace's folder and read it back; the server reads it to import. Files go after 30 days.

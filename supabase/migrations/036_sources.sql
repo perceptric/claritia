@@ -1,4 +1,4 @@
--- Sources: every tool contacts come from, through one pipeline (docs/conversion-weeks.md weeks 3 to 7,
+-- Sources: every tool contacts come from, through one pipeline (docs/marketing-platform.md 5.5,
 -- docs/contact-sources.md). A source is one connected tool in a workspace. Its records link to ours by the tool's
 -- own id (source_links), each pull keeps a cursor per object, hooks are staged before they're applied, and every
 -- change in or out is one row in the sync log. Credentials live apart, where only the server reaches them.

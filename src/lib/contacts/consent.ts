@@ -1,4 +1,4 @@
-// Email consent for contacts (docs/marketing-platform.md 9.1). Every contact carries a basis for email. In strict
+// Email consent for contacts (docs/marketing-platform.md 12.1). Every contact carries a basis for email. In strict
 // regions (the EU, EEA, UK and the others in src/lib/web/policy.ts, and anywhere unknown) only opt-in or soft opt-in
 // count; any other basis is kept as "none", and the contact can't be emailed. Runs in the browser and on the server.
 
@@ -15,7 +15,7 @@ export const BASES: { value: Basis; label: string }[] = [
 
 export const BASIS_LABEL: Record<Basis, string> = Object.fromEntries(BASES.map((b) => [b.value, b.label])) as Record<Basis, string>;
 
-// Where an imported list came from. Bought or rented lists are refused (9.2).
+// Where an imported list came from. Bought or rented lists are refused (docs/marketing-platform.md 12.2).
 export type ImportSource = "event" | "signups" | "customers" | "crm_export" | "partner" | "bought";
 export const IMPORT_SOURCES: { value: ImportSource; label: string }[] = [
   { value: "signups", label: "Website or product signups" },

@@ -1,4 +1,4 @@
-// The filter bar's filters (docs/conversion-parity.md Part 6): a field, a condition and values. Visitors and Accounts
+// The filter bar's filters (docs/marketing-platform.md 6.2.11): a field, a condition and values. Visitors and Accounts
 // filter the rows they loaded with matches() here; Contacts filters in the database with contacts_where
 // (supabase/migrations/033_contacts.sql), which gives every condition the same meaning.
 

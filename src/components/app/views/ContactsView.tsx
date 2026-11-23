@@ -1,6 +1,6 @@
 "use client";
 
-// Contacts, Leads and the contact page (docs/conversion-parity.md Parts 4 and 17). The lists run on the shared
+// Contacts, Leads and the contact page (docs/marketing-platform.md 6.2 and 1.4). The lists run on the shared
 // records list (src/components/app/records): views, filters, table or board, columns, inline edits and bulk
 // actions. The add and edit forms live here.
 

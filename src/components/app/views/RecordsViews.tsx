@@ -1,6 +1,6 @@
 "use client";
 
-// Companies and custom objects (docs/conversion-parity.md Part 7): lists on the shared records list, and a record
+// Companies and custom objects (docs/marketing-platform.md 6.2.10): lists on the shared records list, and a record
 // page with editable fields in sections, links both ways, and the change history.
 
 import { useState } from "react";

@@ -1,4 +1,4 @@
-// Segments on a real database (docs/conversion-weeks.md week 8): 30 rule types against a hand-counted fixture,
+// Segments on a real database (docs/marketing-platform.md 5.6): 30 rule types against a hand-counted fixture,
 // values that look like SQL, custom object joins, groups 3 deep, and a refresh that logs who joined and who left.
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";

@@ -1,6 +1,6 @@
 # Contact sources: one spec per source
 
-The detail behind `docs/conversion-parity.md` Part 4. Each source is a connector in `src/lib/sources/<kind>.ts` that plugs into one pipeline. This file says, for each source, how it signs in, what it pulls, how it finds changes, how it maps consent and suppression, and what it needs from the founder before it's built.
+The detail behind `docs/marketing-platform.md` 6.2. Each source is a connector in `src/lib/sources/<kind>.ts` that plugs into one pipeline. This file says, for each source, how it signs in, what it pulls, how it finds changes, how it maps consent and suppression, and what it needs from the founder before it's built.
 
 **Check before building.** Endpoints, scopes, page sizes, rate limits and field names below are from memory. Each one is to be confirmed on the vendor's current docs when its connector is built, and the connector's recorded-response test is made from a real account at that time.
 
@@ -116,7 +116,7 @@ One-click app key from Omniscient (its migration 032). Contacts, accounts, deals
 
 ## Part 5. Marketing automation and email tools
 
-Each one: contacts, lists, custom fields, suppressions first, consent, and 13 months of email activity. The four migration sources also feed the migration agent (`docs/conversion-parity.md` Part 5).
+Each one: contacts, lists, custom fields, suppressions first, consent, and 13 months of email activity. The four migration sources also feed the migration agent (`docs/marketing-platform.md` 6.13).
 
 ### Marketo
 

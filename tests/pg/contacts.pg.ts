@@ -1,4 +1,4 @@
-// Contacts week 1 on a real database (docs/conversion-parity.md Part 14): a 10,000-row import with dedupe, batches
+// Contacts week 1 on a real database (docs/marketing-platform.md 5.3): a 10,000-row import with dedupe, batches
 // sent twice and imports at once, filters that mean the same in the database and the browser, and contacts that
 // follow their identity person through merges, rebuilds and erasure.
 import assert from "node:assert/strict";
