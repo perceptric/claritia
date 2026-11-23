@@ -200,20 +200,21 @@ export const kit: Connector = {
     return { id: d.primary_email_address, label: d.name || d.primary_email_address };
   },
   async pull(ctx, object, cursor): Promise<Page> {
-    // Unsubscribes come from the cancelled list; everyone else from the subscriber list by last update.
+    // Unsubscribes come from the cancelled list; everyone else from the subscriber list by last update. Kit filters by
+    // day, so the next pass starts from the day this one started (`max`), and changes made during a pass are read again.
     const c = readCursor<{ page: number; since: string | null; max: string }>(cursor, { page: 1, since: null, max: "" });
-    const path = object === "suppressions" ? "/subscribers" : "/subscribers";
-    const d = await ctx.api<{ subscribers: { id: number; first_name: string | null; email_address: string; state: string; created_at: string; fields: Record<string, unknown> }[]; total_pages: number }>(
-      `https://api.convertkit.com/v3${path}?${qs({ api_secret: ctx.secret("api_key"), page: c.page, sort_order: "asc", sort_field: "updated_at", updated_from: c.since, subscriber_state: object === "suppressions" ? "cancelled" : null })}`,
+    const max = c.page === 1 || !c.max ? new Date().toISOString().slice(0, 10) : c.max;
+    const d = await ctx.api<{ subscribers: { id: number; first_name: string | null; email_address: string; state: string; fields: Record<string, unknown> }[]; total_pages: number }>(
+      `https://api.convertkit.com/v3/subscribers?${qs({ api_secret: ctx.secret("api_key"), page: c.page, sort_order: "asc", sort_field: "updated_at", updated_from: c.since, subscriber_state: object === "suppressions" ? "cancelled" : null })}`,
       { auth: false },
     );
     const records: RawRecord[] = (d.subscribers ?? []).map((s) =>
       object === "suppressions"
         ? { id: String(s.id), data: { email: s.email_address, reason: "unsubscribed" } }
-        : { id: String(s.id), updatedAt: s.created_at, data: { email: s.email_address, first_name: s.first_name, state: s.state, ...(s.fields ?? {}) } },
+        : { id: String(s.id), data: { email: s.email_address, first_name: s.first_name, state: s.state, ...(s.fields ?? {}) } },
     );
-    if (c.page < (d.total_pages ?? 1)) return { records, cursor: JSON.stringify({ ...c, page: c.page + 1 }), more: true };
-    return { records, cursor: JSON.stringify({ page: 1, since: new Date(Date.now() - 86_400_000).toISOString().slice(0, 10), max: "" }), more: false };
+    if (c.page < (d.total_pages ?? 1)) return { records, cursor: JSON.stringify({ ...c, page: c.page + 1, max }), more: true };
+    return { records, cursor: JSON.stringify({ page: 1, since: max, max: "" }), more: false };
   },
   consent(r) {
     const s = String(r.data.state ?? "");
