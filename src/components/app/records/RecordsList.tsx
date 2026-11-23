@@ -372,8 +372,7 @@ export function RecordsList({
               onChange={(group) => change({ group })}
               ariaLabel="Group by"
               placeholder="Group by"
-              options={groupable.map((f) => ({ value: f.key, label: f.label }))}
-              className="h-8 w-40 rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong"
+              options={groupable.map((f) => ({ value: f.key, label: f.label }))} size="sm" className="w-40"
             />
           ) : (
             <Button variant="ghost" className="h-8 px-2.5" onClick={(e) => setPop({ kind: "columns", anchor: e.currentTarget })}>
@@ -616,8 +615,7 @@ function BulkEdit({ sb, wsId, fields, onDone }: { sb: ViewProps["sb"]; wsId: str
         onChange={setKey}
         ariaLabel="Field"
         placeholder="Field"
-        options={fields.map((f) => ({ value: f.key, label: f.label }))}
-        className="h-9 w-full rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong"
+        options={fields.map((f) => ({ value: f.key, label: f.label }))} className="w-full"
       />
       {field ? <FieldEditor key={field.key} sb={sb} wsId={wsId} field={field} value={null} onSave={(v) => onDone(field, v)} onCancel={() => onDone(null, null)} /> : null}
     </div>

@@ -6,6 +6,8 @@ import { Check, ChevronsUpDown } from "../Icons";
 
 export type Option<T extends string | number> = { value: T; label: string };
 
+const FIELD = "rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong";
+
 /**
  * The app's own dropdown, so menus look the same on every computer. The menu opens in a layer above the
  * page, so tables and scrolling panels never cut it off.
@@ -21,6 +23,8 @@ export function Select<T extends string | number>({
   onClose,
   disabled = false,
   plainPlaceholder = false,
+  size = "md",
+  look = "field",
 }: {
   value: T;
   options: Option<T>[];
@@ -33,6 +37,10 @@ export function Select<T extends string | number>({
   disabled?: boolean;
   /** Show the placeholder in normal text, for a menu that works like a button. */
   plainPlaceholder?: boolean;
+  /** md is a form field's height; sm fits filter bars and table rows. */
+  size?: "sm" | "md";
+  /** "field" is the app's input look; "none" leaves the whole look to className. */
+  look?: "field" | "none";
 }) {
   const [open, setOpen] = useState(autoOpen);
   const [active, setActive] = useState(0);
@@ -114,7 +122,7 @@ export function Select<T extends string | number>({
             }
           }
         }}
-        className={`inline-flex items-center justify-between gap-2 text-left ${className}`}
+        className={`inline-flex items-center justify-between gap-2 text-left ${look === "field" ? `${size === "sm" ? "h-8" : "h-9"} ${FIELD}` : ""} ${className}`}
       >
         <span className={`truncate ${current || plainPlaceholder ? "" : "text-faint"}`}>{current?.label ?? placeholder}</span>
         <ChevronsUpDown size={13} className="shrink-0 text-faint" />

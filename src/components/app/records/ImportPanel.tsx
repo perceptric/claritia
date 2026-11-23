@@ -339,8 +339,7 @@ export function ImportPanel({
                   value={info.sheet ?? info.sheets[0]}
                   onChange={(s) => void inspect(file!, s)}
                   ariaLabel="Sheet"
-                  options={info.sheets.map((s) => ({ value: s, label: s }))}
-                  className="ml-auto h-8 w-48 rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong"
+                  options={info.sheets.map((s) => ({ value: s, label: s }))} size="sm" className="ml-auto w-48"
                 />
               ) : null}
             </div>
@@ -397,7 +396,8 @@ export function ImportPanel({
                               onChange={(t) => choose(i, t)}
                               ariaLabel={`Field for ${h}`}
                               options={targetOptions}
-                              className={`h-8 w-full rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong ${columns[i] === "skip" ? "text-faint" : ""}`}
+                              size="sm"
+                              className={`w-full ${columns[i] === "skip" ? "text-faint" : ""}`}
                             />
                           </Td>
                         </tr>
@@ -424,8 +424,7 @@ export function ImportPanel({
                       onChange={setSource}
                       ariaLabel="Source"
                       placeholder="Choose…"
-                      options={IMPORT_SOURCES}
-                      className="h-9 w-full rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong"
+                      options={IMPORT_SOURCES} className="w-full"
                     />
                   </Field>
                   {!blocking ? (
@@ -435,8 +434,7 @@ export function ImportPanel({
                         onChange={setBasis}
                         ariaLabel="Email consent"
                         placeholder="Choose…"
-                        options={BASES}
-                        className="h-9 w-full rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong"
+                        options={BASES} className="w-full"
                       />
                     </Field>
                   ) : null}

@@ -88,8 +88,7 @@ export function FieldsSettings({ sb, ws, role }: Pick<ViewProps, "sb" | "ws" | "
             setEditing(null);
           }}
           ariaLabel="Object"
-          options={objectOptions}
-          className="h-9 w-56 rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong"
+          options={objectOptions} className="w-56"
         />
         <Button className="ml-auto" onClick={() => setAdding(true)} disabled={adding}>
           Add field
@@ -334,8 +333,7 @@ function FieldForm({ start, objects, busy, onSave, onCancel }: { start?: CustomF
             onChange={setType}
             disabled={!!start}
             ariaLabel="Type"
-            options={FIELD_KINDS}
-            className="h-9 w-full rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong disabled:opacity-60"
+            options={FIELD_KINDS} className="w-full disabled:opacity-60"
           />
         </Field>
         {picks ? (
@@ -352,8 +350,7 @@ function FieldForm({ start, objects, busy, onSave, onCancel }: { start?: CustomF
                 onChange={setTarget}
                 disabled={!!start}
                 ariaLabel="Links to"
-                options={objects}
-                className="h-9 w-full rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong disabled:opacity-60"
+                options={objects} className="w-full disabled:opacity-60"
               />
             </Field>
             <Field label="How many">

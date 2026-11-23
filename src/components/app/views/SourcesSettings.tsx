@@ -39,7 +39,6 @@ const EVERY = [
   { value: 360, label: "Every 6 hours" },
   { value: 1440, label: "Every day" },
 ];
-const SEL = "h-9 w-full rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong";
 const OBJECT_LABEL: Record<string, string> = { contacts: "Contacts", companies: "Companies", lists: "Lists", suppressions: "Unsubscribes", events: "Activity", records: "Records" };
 
 const search = () => (typeof window === "undefined" ? new URLSearchParams() : new URLSearchParams(window.location.search));
@@ -357,7 +356,7 @@ function SourcePanel({ sb, session, wsId, source, owner, onClose, changed }: { s
               {(e?.warehouse ? [] : (e?.objects ?? [])).map((o) => (
                 <Field key={o} label={OBJECT_LABEL[o] ?? o}>
                   <Select
-                    className={SEL}
+                    className="w-full"
                     value={objects[o] ?? (o === "companies" ? "off" : "in")}
                     onChange={(v) => setObject(o, v)}
                     options={[...(o === "contacts" && e?.twoWay ? [{ value: "both", label: "Both ways" }] : []), { value: "in", label: "In only" }, { value: "off", label: "Off" }]}
@@ -366,16 +365,16 @@ function SourcePanel({ sb, session, wsId, source, owner, onClose, changed }: { s
               ))}
               {!e?.hook ? (
                 <Field label="Schedule">
-                  <Select className={SEL} value={settings.every_min ?? 60} onChange={(v) => setSettings({ ...settings, every_min: v })} options={EVERY} />
+                  <Select className="w-full" value={settings.every_min ?? 60} onChange={(v) => setSettings({ ...settings, every_min: v })} options={EVERY} />
                 </Field>
               ) : null}
               <Field label="Email consent when the tool doesn't say">
-                <Select className={SEL} value={settings.basis ?? "none"} onChange={(v) => setSettings({ ...settings, basis: v })} options={BASES} />
+                <Select className="w-full" value={settings.basis ?? "none"} onChange={(v) => setSettings({ ...settings, basis: v })} options={BASES} />
               </Field>
               {e?.twoWay && objects.contacts === "both" ? (
                 <Field label={`New contacts to ${source.name}`}>
                   <Select
-                    className={SEL}
+                    className="w-full"
                     value={settings.push_new ?? "lifecycle"}
                     onChange={(v) => setSettings({ ...settings, push_new: v })}
                     options={[
@@ -389,7 +388,7 @@ function SourcePanel({ sb, session, wsId, source, owner, onClose, changed }: { s
               {!e?.hook && !e?.warehouse ? (
                 <Field label="When a contact is deleted there">
                   <Select
-                    className={SEL}
+                    className="w-full"
                     value={settings.follow_deletes ? "delete" : "keep"}
                     onChange={(v) => setSettings({ ...settings, follow_deletes: v === "delete" })}
                     options={[
@@ -501,7 +500,7 @@ function QueryPanel({ sb, session, wsId, source, owner, changed }: { sb: ViewPro
         />
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Rows become">
-            <Select className={SEL} value={q.target} onChange={(t) => set({ target: t as WhQuery["target"] })} options={targets} disabled={!owner} />
+            <Select className="w-full" value={q.target} onChange={(t) => set({ target: t as WhQuery["target"] })} options={targets} disabled={!owner} />
           </Field>
           <Field label="Key column">
             <Input value={q.key} onChange={(e) => set({ key: e.target.value.trim() })} disabled={!owner} className="font-mono" />
@@ -644,7 +643,7 @@ function MappingPanel({ sb, session, wsId, source, owner, hasCompanies }: { sb: 
                 <Td className="font-mono text-[12px]">{r.col}</Td>
                 <Td className="max-w-[220px] truncate text-muted">{r.sample || "—"}</Td>
                 <Td className="w-56">
-                  <Select className={`${SEL} h-8 ${r.target === "skip" ? "text-faint" : ""}`} value={r.target} onChange={(v) => choose(r.col, v)} options={options as { value: string; label: string }[]} disabled={!owner} />
+                  <Select size="sm" className={`w-full ${r.target === "skip" ? "text-faint" : ""}`} value={r.target} onChange={(v) => choose(r.col, v)} options={options as { value: string; label: string }[]} disabled={!owner} />
                 </Td>
               </tr>
             ))}
@@ -694,9 +693,9 @@ export function SyncLog({ sb, ws, navigate }: Pick<ViewProps, "sb" | "ws" | "nav
     <div className="flex flex-col gap-4">
       <ErrorNote message={error} />
       <div className="flex flex-wrap items-center gap-2">
-        <Select className={`${SEL} !w-48`} value={source} onChange={setSource} options={[{ value: "", label: "All sources" }, ...(sources.data ?? []).map((s) => ({ value: s.id, label: s.name }))]} />
-        <Select className={`${SEL} !w-36`} value={direction} onChange={setDirection} options={[{ value: "", label: "In and out" }, { value: "in", label: "In" }, { value: "out", label: "Out" }]} />
-        <Select className={`${SEL} !w-40`} value={action} onChange={setAction} options={[{ value: "", label: "Every change" }, ...Object.entries(ACTION).map(([value, [label]]) => ({ value, label }))]} />
+        <Select className="w-48" value={source} onChange={setSource} options={[{ value: "", label: "All sources" }, ...(sources.data ?? []).map((s) => ({ value: s.id, label: s.name }))]} />
+        <Select className="w-36" value={direction} onChange={setDirection} options={[{ value: "", label: "In and out" }, { value: "in", label: "In" }, { value: "out", label: "Out" }]} />
+        <Select className="w-40" value={action} onChange={setAction} options={[{ value: "", label: "Every change" }, ...Object.entries(ACTION).map(([value, [label]]) => ({ value, label }))]} />
         {picked.size ? (
           <Button className="ml-auto" onClick={retry}>
             <Refresh size={14} />

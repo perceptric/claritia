@@ -314,8 +314,7 @@ export function ClientApp({ config }: { config: SupaConfig }) {
           options={options}
           onChange={pickProject}
           ariaLabel="Project"
-          placeholder="No project yet"
-          className="h-9 w-full rounded-md border border-line bg-panel px-2.5 text-[13px] font-medium hover:border-line-strong"
+          placeholder="No project yet" className="w-full font-medium"
         />
         ) : null}
         <nav className="flex gap-1 overflow-x-auto md:flex-col md:overflow-visible">{navLinks}</nav>

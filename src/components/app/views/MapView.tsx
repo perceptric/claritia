@@ -10,7 +10,6 @@ type Exploration = { id: string; status: "queued" | "running" | "done" | "error"
 type MapPage = { id: string; pattern: string; sample_url: string; title: string | null; name: string | null; purpose: string | null; status_code: number | null; screenshot_path: string | null; elements: { forms?: unknown[] }; last_seen: string };
 type Size = "25" | "50" | "100" | "200";
 
-const selectClass = "h-9 w-full rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong";
 const ACTIVE = new Set(["queued", "running"]);
 
 /** The app map: every kind of page the Explorer found, with what people do there. */
@@ -175,10 +174,10 @@ function ExploreForm({ envs, signInTests, onStart, onCancel }: { envs: { id: str
         }}
       >
         <Field label="Environment">
-          <Select value={env} options={envs.map((x) => ({ value: x.id, label: x.name }))} onChange={setEnv} ariaLabel="Environment" className={selectClass} />
+          <Select value={env} options={envs.map((x) => ({ value: x.id, label: x.name }))} onChange={setEnv} ariaLabel="Environment" className="w-full" />
         </Field>
         <Field label="Sign in first with">
-          <Select value={signIn} options={[{ value: "", label: "No sign-in" }, ...signInTests.map((t) => ({ value: t.id, label: t.name }))]} onChange={setSignIn} ariaLabel="Sign-in test" className={selectClass} />
+          <Select value={signIn} options={[{ value: "", label: "No sign-in" }, ...signInTests.map((t) => ({ value: t.id, label: t.name }))]} onChange={setSignIn} ariaLabel="Sign-in test" className="w-full" />
         </Field>
         <div className="flex flex-col gap-2 sm:col-span-2">
           <span className="label-mono">Pages</span>

@@ -12,7 +12,6 @@ type Link = { id: string; repo_full_name: string; run_on: RunOn; scope: Scope; u
 type Repo = { id: number; full_name: string; installation_id: number };
 type Draft = { repo: string; run_on: RunOn; environment_id: string; scope: Scope; use_case: string; pick_tests: boolean };
 
-const selectClass = "h-9 w-full rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong";
 
 /** A project's GitHub links: which repository's pull requests (or preview deploys) run its tests. */
 export function GitHubPanel({ sb, session, ws, project }: Pick<ViewProps, "sb" | "session" | "ws"> & { project: NonNullable<ViewProps["project"]> }) {
@@ -201,10 +200,10 @@ function LinkForm({ repos, envs, useCases, onSave, onCancel }: { repos: Repo[]; 
       }}
     >
       <Field label="Repository">
-        <Select value={d.repo} options={repos.map((r) => ({ value: String(r.id), label: r.full_name }))} onChange={(v) => set("repo", v)} ariaLabel="Repository" placeholder="Pick a repository" className={selectClass} />
+        <Select value={d.repo} options={repos.map((r) => ({ value: String(r.id), label: r.full_name }))} onChange={(v) => set("repo", v)} ariaLabel="Repository" placeholder="Pick a repository" className="w-full" />
       </Field>
       <Field label={d.run_on === "preview" ? "Secrets from" : "Environment"}>
-        <Select value={d.environment_id} options={envs.map((e) => ({ value: e.id, label: e.name }))} onChange={(v) => set("environment_id", v)} ariaLabel="Environment" className={selectClass} />
+        <Select value={d.environment_id} options={envs.map((e) => ({ value: e.id, label: e.name }))} onChange={(v) => set("environment_id", v)} ariaLabel="Environment" className="w-full" />
       </Field>
       <div className="flex flex-col gap-2">
         <span className="label-mono">Runs on</span>
@@ -234,7 +233,7 @@ function LinkForm({ repos, envs, useCases, onSave, onCancel }: { repos: Repo[]; 
           />
           {d.scope === "use_case" ? (
             <div className="min-w-40">
-              <Select value={d.use_case} options={useCases.map((u) => ({ value: u, label: u }))} onChange={(v) => set("use_case", v)} ariaLabel="Use case" placeholder="Pick a use case" className={selectClass} />
+              <Select value={d.use_case} options={useCases.map((u) => ({ value: u, label: u }))} onChange={(v) => set("use_case", v)} ariaLabel="Use case" placeholder="Pick a use case" className="w-full" />
             </div>
           ) : null}
         </div>

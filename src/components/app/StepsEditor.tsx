@@ -161,6 +161,7 @@ export function StepsEditor({ steps, onChange, blocks, allowUse }: { steps: Step
             placeholder="Use a block"
             plainPlaceholder
             ariaLabel="Use a block"
+            look="none"
             className="h-8 rounded-md border border-line bg-panel px-3 text-[13px] font-medium text-ink hover:border-line-strong hover:bg-canvas"
           />
         ) : null}

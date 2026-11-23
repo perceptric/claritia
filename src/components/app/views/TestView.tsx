@@ -242,7 +242,7 @@ export function TestView({ sb, session, project, id, navigate }: ViewProps) {
             <Trash size={14} />
           </button>
           {envs.length > 1 ? (
-            <Select value={envId} options={envs.map((e) => ({ value: e.id, label: e.name }))} onChange={setEnvId} ariaLabel="Environment" className="hidden h-8 rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong sm:inline-flex" />
+            <Select value={envId} options={envs.map((e) => ({ value: e.id, label: e.name }))} onChange={setEnvId} ariaLabel="Environment" size="sm" className="hidden sm:inline-flex" />
           ) : null}
           <Button variant="ghost" onClick={run} disabled={dirty || starting || !saved.steps.length} title={dirty ? "Save first" : !saved.steps.length ? "Add a step first" : undefined}>
             <Play size={13} />
@@ -293,8 +293,7 @@ export function TestView({ sb, session, project, id, navigate }: ViewProps) {
                       if (v !== NEW_USE_CASE) return setDoc({ ...doc, use_case: v });
                       const name = await askText("New use case", { placeholder: "Checkout", ok: "Add" });
                       if (name) setDoc({ ...doc, use_case: name.slice(0, 60) });
-                    }}
-                    className="h-9 w-full rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong"
+                    }} className="w-full"
                   />
                 </Field>
                 <Field label="Priority">

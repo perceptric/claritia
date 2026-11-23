@@ -90,8 +90,6 @@ function ScheduleForm({
   const zones = [...new Set([myZone(), d.timezone, ...COMMON_ZONES])];
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) =>
     setD({ ...d, [k]: v });
-  const selectClass =
-    "h-9 w-full rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong";
 
   return (
     <form
@@ -124,7 +122,7 @@ function ScheduleForm({
           options={envs.map((e) => ({ value: e.id, label: e.name }))}
           onChange={(v) => set("environment_id", v)}
           ariaLabel="Environment"
-          className={selectClass}
+          className="w-full"
         />
       </Field>
       <div className="flex flex-col gap-2 sm:col-span-2">
@@ -149,7 +147,7 @@ function ScheduleForm({
               onChange={(v) => set("use_case", v)}
               ariaLabel="Use case"
               placeholder="Pick a use case"
-              className={selectClass}
+              className="w-full"
             />
           </div>
         ) : null}
@@ -202,7 +200,7 @@ function ScheduleForm({
                 options={DAYS.map((name, i) => ({ value: i, label: name }))}
                 onChange={(v) => set("weekday", v)}
                 ariaLabel="Day"
-                className={selectClass}
+                className="w-full"
               />
             </div>
           ) : null}
@@ -216,7 +214,7 @@ function ScheduleForm({
                 }))}
                 onChange={(v) => set("at_hour", v)}
                 ariaLabel="Hour"
-                className={selectClass}
+                className="w-full"
               />
             </div>
           ) : null}
@@ -229,7 +227,7 @@ function ScheduleForm({
               }))}
               onChange={(v) => set("at_minute", v)}
               ariaLabel="Minute"
-              className={selectClass}
+              className="w-full"
             />
           </div>
           {d.every !== "hour" ? (
@@ -239,7 +237,7 @@ function ScheduleForm({
                 options={zones.map((z) => ({ value: z, label: z }))}
                 onChange={(v) => set("timezone", v)}
                 ariaLabel="Time zone"
-                className={selectClass}
+                className="w-full"
               />
             </div>
           ) : null}

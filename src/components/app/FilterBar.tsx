@@ -141,8 +141,7 @@ export function FilterEditor({ fields, start, onDone }: { fields: AnyField[]; st
             value={op}
             onChange={setOp}
             ariaLabel="Condition"
-            options={OPS[field.type].map((o) => ({ value: o, label: OP_LABEL[o] }))}
-            className="ml-auto h-8 w-36 rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong"
+            options={OPS[field.type].map((o) => ({ value: o, label: OP_LABEL[o] }))} size="sm" className="ml-auto w-36"
           />
         ) : null}
       </div>
@@ -249,8 +248,7 @@ export function FilterBar({
         ariaLabel="View"
         placeholder="Custom view"
         plainPlaceholder
-        options={views.map((v) => ({ value: v.value, label: v.label }))}
-        className="h-8 w-44 rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong"
+        options={views.map((v) => ({ value: v.value, label: v.label }))} size="sm" className="w-44"
       />
       {filters.map((f, i) => (
         <span key={i} className="inline-flex h-8 items-center border border-line bg-panel text-[12.5px]">

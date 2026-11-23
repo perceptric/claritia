@@ -197,6 +197,7 @@ export function FieldEditor({
         autoOpen
         ariaLabel={field.label}
         options={[{ value: "", label: "None" }, ...field.options.map((o) => ({ value: o.value, label: o.label }))]}
+        look="none"
         className={selectClass}
       />
     );
@@ -214,6 +215,7 @@ export function FieldEditor({
           { value: "true", label: "Yes" },
           { value: "false", label: "No" },
         ]}
+        look="none"
         className={selectClass}
       />
     );

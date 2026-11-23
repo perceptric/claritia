@@ -27,7 +27,6 @@ type Node = Group | Leaf;
 type Segment = { id: string; name: string; kind: "dynamic" | "static"; rules: Group | Record<string, never>; count: number; refreshed_at: string | null; error: string | null; source_id: string | null };
 type Ctx = { sb: ViewProps["sb"]; wsId: string; sources: { value: string; label: string }[]; objects: { value: string; label: string }[] };
 
-const SEL = "h-8 rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong";
 const isGroup = (n: Node): n is Group => "rules" in n;
 const EVENTS = [
   { value: "email.clicked", label: "Clicked an email" },
@@ -366,7 +365,7 @@ function RuleRow({ rule, onChange, onRemove, ctx, fields, anyFields }: EditorPro
     body = (
       <>
         <Select
-          className={SEL}
+          size="sm"
           value={rule.op}
           onChange={(op) => onChange({ ...rule, op })}
           options={[
@@ -375,7 +374,7 @@ function RuleRow({ rule, onChange, onRemove, ctx, fields, anyFields }: EditorPro
           ]}
         />
         {rule.kind === "event" ? (
-          <Select className={SEL} value={rule.event} onChange={(event) => onChange({ ...rule, event })} options={EVENTS} />
+          <Select size="sm" value={rule.event} onChange={(event) => onChange({ ...rule, event })} options={EVENTS} />
         ) : (
           <Input className="h-8 !w-44" value={rule.path ?? ""} onChange={(e) => onChange({ ...rule, path: e.target.value.slice(0, 300) })} placeholder="/pricing or /blog/*" aria-label="Page" />
         )}
@@ -393,7 +392,7 @@ function RuleRow({ rule, onChange, onRemove, ctx, fields, anyFields }: EditorPro
   } else if (rule.kind === "consent") {
     body = (
       <Select
-        className={SEL}
+        size="sm"
         value={rule.state}
         onChange={(state) => onChange({ ...rule, state })}
         options={[
@@ -407,7 +406,7 @@ function RuleRow({ rule, onChange, onRemove, ctx, fields, anyFields }: EditorPro
     body = (
       <>
         <Select
-          className={SEL}
+          size="sm"
           value={rule.op}
           onChange={(op) => onChange({ ...rule, op })}
           options={[
@@ -415,7 +414,7 @@ function RuleRow({ rule, onChange, onRemove, ctx, fields, anyFields }: EditorPro
             { value: "not_in", label: "Not in" },
           ]}
         />
-        <Select className={SEL} value={rule.source_id} onChange={(source_id) => onChange({ ...rule, source_id })} options={ctx.sources} />
+        <Select size="sm" value={rule.source_id} onChange={(source_id) => onChange({ ...rule, source_id })} options={ctx.sources} />
       </>
     );
   } else if (rule.kind === "object") {
@@ -439,7 +438,7 @@ function ObjectRule({ rule, onChange, ctx }: { rule: Extract<Leaf, { kind: "obje
   return (
     <>
       <Select
-        className={SEL}
+        size="sm"
         value={rule.op}
         onChange={(op) => onChange({ ...rule, op })}
         options={[
@@ -447,7 +446,7 @@ function ObjectRule({ rule, onChange, ctx }: { rule: Extract<Leaf, { kind: "obje
           { value: "has_not", label: "Has no" },
         ]}
       />
-      <Select className={SEL} value={rule.object} onChange={(object) => onChange({ ...rule, object, filters: [] })} options={ctx.objects} />
+      <Select size="sm" value={rule.object} onChange={(object) => onChange({ ...rule, object, filters: [] })} options={ctx.objects} />
       {rule.filters.map((f, i) => (
         <span key={i} className="inline-flex h-8 items-center gap-1 border border-line bg-panel pr-1 pl-2.5 text-[13px]">
           <button type="button" onClick={(e) => setEditing({ anchor: e.currentTarget, index: i })}>

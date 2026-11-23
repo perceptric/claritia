@@ -311,13 +311,12 @@ function ContactPanel({
             value={form.lifecycle ?? ""}
             onChange={(v) => setForm({ ...form, lifecycle: v })}
             ariaLabel="Lifecycle"
-            options={[{ value: "", label: "None" }, ...LIFECYCLES]}
-            className="h-9 w-full rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong"
+            options={[{ value: "", label: "None" }, ...LIFECYCLES]} className="w-full"
           />
         </Field>
         {!id ? (
           <Field label="Email consent">
-            <Select<Basis> value={basis} onChange={setBasis} ariaLabel="Email consent" options={BASES} className="h-9 w-full rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong" />
+            <Select<Basis> value={basis} onChange={setBasis} ariaLabel="Email consent" options={BASES} className="w-full" />
           </Field>
         ) : null}
         {custom.map((f) => (
@@ -330,8 +329,7 @@ function ContactPanel({
                 options={[
                   { value: "", label: "None" },
                   ...(f.type === "checkbox" ? [{ value: "yes", label: "Yes" }, { value: "no", label: "No" }] : (f.options ?? []).map((o) => (typeof o === "string" ? { value: o, label: o } : o))),
-                ]}
-                className="h-9 w-full rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong"
+                ]} className="w-full"
               />
             ) : (
               <Input value={fields[f.key] ?? ""} onChange={(e) => setFields({ ...fields, [f.key]: e.target.value })} placeholder={f.type === "date" ? "2026-03-31" : undefined} inputMode={f.type === "number" ? "decimal" : undefined} />
