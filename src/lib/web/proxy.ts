@@ -47,3 +47,47 @@ export async function proxyToCollect(req: Request, path: string, opts: ProxyOpti
   for (const c of res.headers.getSetCookie()) out.append("set-cookie", c);
   return new Response(res.status === 204 ? null : await res.arrayBuffer(), { status: res.status, headers: out });
 }
+
+/**
+ * The same proxy as a file a customer pastes into their own Next.js app. Built from the header lists above, so it
+ * can't drift from the route tryclaritia.com runs. The IP comes from headers the host's edge sets: Fly, Cloudflare,
+ * Akamai or Vercel ("check" Vercel's header name against its docs).
+ */
+export function nextProxyFile(collectUrl: string): string {
+  return `// app/_clr/[...path]/route.ts (folder name: %5Fclr)
+const COLLECT = ${JSON.stringify(collectUrl.replace(/\/+$/, ""))};
+const PASS_UP = ${JSON.stringify(PASS_UP)};
+const PASS_DOWN = ${JSON.stringify(PASS_DOWN)};
+async function handle(req: Request, { params }: { params: Promise<{ path: string[] }> }) {
+  const path = (await params).path.join("/");
+  if (!/^[\\w./-]{1,64}$/.test(path) || path.includes("..")) return new Response(null, { status: 404 });
+  const src = new URL(req.url);
+  const headers = new Headers();
+  for (const h of PASS_UP) {
+    const v = req.headers.get(h);
+    if (v) headers.set(h, v);
+  }
+  const ip = req.headers.get("fly-client-ip") || req.headers.get("cf-connecting-ip") || req.headers.get("true-client-ip") || req.headers.get("x-vercel-forwarded-for");
+  if (ip && process.env.CLR_PROXY_SECRET) {
+    headers.set("x-clr-proxy", process.env.CLR_PROXY_SECRET);
+    headers.set("x-clr-client-ip", ip);
+  }
+  headers.set("x-forwarded-proto", src.protocol.replace(":", ""));
+  let res: Response;
+  try {
+    res = await fetch(\`\${COLLECT}/\${path}\${src.search}\`, { method: req.method, headers, body: req.method === "POST" ? await req.text() : undefined, redirect: "manual", signal: AbortSignal.timeout(5000) });
+  } catch {
+    return new Response(null, { status: 503, headers: { "retry-after": "5" } });
+  }
+  const out = new Headers();
+  for (const h of PASS_DOWN) {
+    const v = res.headers.get(h);
+    if (v) out.set(h, v);
+  }
+  for (const c of res.headers.getSetCookie()) out.append("set-cookie", c);
+  return new Response(res.status === 204 ? null : await res.arrayBuffer(), { status: res.status, headers: out });
+}
+export const GET = handle;
+export const POST = handle;
+export const OPTIONS = handle;`;
+}

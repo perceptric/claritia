@@ -5,9 +5,10 @@
 import { useState } from "react";
 import { askText } from "../Dialogs";
 import { Badge, Button, CardHead, ErrorNote, errorText, Field, Input, Loading, must, Panel, Tabs, timeAgo, useLoad, type ViewProps } from "../ui";
+import { COLLECT_URL as COLLECT } from "@/lib/site";
+import { nextProxyFile } from "@/lib/web/proxy";
 import type { SiteHealth } from "./VisitorsView";
 
-const COLLECT = "https://claritia-collect.fly.dev";
 
 export function Copy({ text }: { text: string }) {
   const [done, setDone] = useState(false);
@@ -33,32 +34,7 @@ export function Copy({ text }: { text: string }) {
 function Install({ site }: { site: SiteHealth }) {
   const [mode, setMode] = useState<"direct" | "proxy">("direct");
   const tag = (src: string) => `<script defer src="${src}" data-site="${site.site_key}"></script>`;
-  const next = `// app/_clr/[...path]/route.ts (folder name: %5Fclr)
-const COLLECT = "${COLLECT}";
-async function handle(req: Request, { params }: { params: Promise<{ path: string[] }> }) {
-  const { path } = await params;
-  const url = new URL(req.url);
-  const headers = new Headers();
-  for (const h of ["cookie", "origin", "referer", "user-agent", "accept-language", "content-type", "dnt"]) {
-    const v = req.headers.get(h);
-    if (v) headers.set(h, v);
-  }
-  const ip = req.headers.get("cf-connecting-ip") || req.headers.get("x-real-ip");
-  if (ip) {
-    headers.set("x-clr-proxy", process.env.CLR_PROXY_SECRET!);
-    headers.set("x-clr-client-ip", ip);
-  }
-  const res = await fetch(\`\${COLLECT}/\${path.join("/")}\${url.search}\`, { method: req.method, headers, body: req.method === "POST" ? await req.text() : undefined });
-  const out = new Headers();
-  for (const h of ["content-type", "cache-control", "retry-after", "access-control-allow-origin", "access-control-allow-credentials", "vary"]) {
-    const v = res.headers.get(h);
-    if (v) out.set(h, v);
-  }
-  for (const c of res.headers.getSetCookie()) out.append("set-cookie", c);
-  return new Response(await res.arrayBuffer(), { status: res.status, headers: out });
-}
-export const GET = handle;
-export const POST = handle;
+  const next = `${nextProxyFile(COLLECT)}
 
 // .env
 CLR_PROXY_SECRET=${site.proxy_secret}`;

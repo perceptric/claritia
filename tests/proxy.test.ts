@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
-import { proxyToCollect } from "../src/lib/web/proxy.ts";
+import { pathToFileURL } from "node:url";
+import { nextProxyFile, proxyToCollect } from "../src/lib/web/proxy.ts";
 
 test("the proxy forwards the visitor's IP with the secret, and passes cookies both ways", async () => {
   let seen: { url: string; headers: Headers; body?: string } | null = null;
@@ -34,4 +38,31 @@ test("no secret means no IP header; bad paths and a down collect are handled", a
     throw new Error("refused");
   }) as unknown as typeof fetch;
   assert.equal((await proxyToCollect(new Request("https://a.com/_clr/e", { method: "POST", body: "{}" }), "e", { collectUrl: "https://c", fetcher: down })).status, 503);
+});
+
+test("the file customers copy runs and forwards the same request as our own route", async () => {
+  const file = join(mkdtempSync(join(tmpdir(), "clr-")), "route.ts");
+  writeFileSync(file, nextProxyFile("https://collect.example/"));
+  const copied = (await import(pathToFileURL(file).href)) as Record<string, (r: Request, c: { params: Promise<{ path: string[] }> }) => Promise<Response>>;
+  assert.equal(typeof copied.OPTIONS, "function", "preflight requests are handled");
+
+  const sent: { url: string; headers: [string, string][] }[] = [];
+  const fake = (async (url: URL | string, init: RequestInit) => {
+    sent.push({ url: url.toString(), headers: [...new Headers(init.headers)].sort() });
+    return new Response("{}", { status: 200, headers: { "content-type": "application/json" } });
+  }) as unknown as typeof fetch;
+  const req = () => new Request("https://shop.example/_clr/e?x=1", { method: "POST", body: "{}", headers: { cookie: "_clr_id=a", origin: "https://shop.example", "fly-client-ip": "198.51.100.7", "x-real-ip": "6.6.6.6" } });
+
+  await proxyToCollect(req(), "e", { collectUrl: "https://collect.example/", clientIp: "198.51.100.7", proxySecret: "s3", fetcher: fake });
+  const real = globalThis.fetch;
+  process.env.CLR_PROXY_SECRET = "s3";
+  globalThis.fetch = fake;
+  try {
+    assert.equal((await copied.POST(req(), { params: Promise.resolve({ path: ["e"] }) })).status, 200);
+  } finally {
+    globalThis.fetch = real;
+    delete process.env.CLR_PROXY_SECRET;
+  }
+  assert.deepEqual(sent[1], sent[0]);
+  assert.ok(sent[1].headers.some(([k, v]) => k === "x-clr-client-ip" && v === "198.51.100.7"), "a header a browser can set isn't trusted");
 });
