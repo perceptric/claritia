@@ -56,16 +56,19 @@ export async function executeImport(rpc: Rpc, imp: ImportRow, ctx: Ctx, opts: { 
         await call(rpc, "import_progress", { p_import: imp.id, p_rows_done: done, p_progress: { stage: "running", rows: done, totals: t } });
       },
     });
+    // The rows have landed, so a file of skipped rows that can't be saved doesn't fail the import. It says so instead.
     let errorsPath: string | null = null;
+    let note: string | null = null;
     if (errors.length) {
       errorsPath = `${imp.workspace_id}/${imp.id}/errors.csv`;
       try {
         await putFile(errorsPath, errorsCsv(errors), "text/csv");
-      } catch {
+      } catch (e) {
         errorsPath = null;
+        note = `The file of skipped rows couldn't be saved: ${e instanceof Error ? e.message : String(e)}`;
       }
     }
-    await call(rpc, "imports_finish", { p_import: imp.id, p_status: "done", p_counts: totals, p_error: null, p_errors_path: errorsPath });
+    await call(rpc, "imports_finish", { p_import: imp.id, p_status: "done", p_counts: totals, p_error: note, p_errors_path: errorsPath });
     return totals;
   } catch (e) {
     // A file that can't be read or a mapping that doesn't fit won't get better by trying again.

@@ -66,7 +66,9 @@ export async function appHook(db: SupabaseClient, kind: string, req: HookRequest
   let n = 0;
   for (const [account, list] of byAccount) {
     if (!account) continue;
-    const { data: ids } = await db.rpc("source_by_account", { p_kind: kind, p_account: account });
+    // A failed lookup answers 500, so the tool sends the webhook again instead of it being lost.
+    const { data: ids, error } = await db.rpc("source_by_account", { p_kind: kind, p_account: account });
+    if (error) return Response.json({ error: "Try again." }, { status: 500 });
     for (const sid of (ids as string[] | null) ?? []) n += await stage(db, sid, list);
   }
   return Response.json({ ok: true, staged: n });

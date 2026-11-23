@@ -38,5 +38,6 @@ export async function putFile(path: string, body: string, contentType: string): 
 export async function removeFiles(paths: string[]): Promise<void> {
   if (!paths.length) return;
   const { url, key } = base();
-  await fetch(`${url}/storage/v1/object/imports`, { method: "DELETE", headers: { Authorization: `Bearer ${key}`, apikey: key, "content-type": "application/json" }, body: JSON.stringify({ prefixes: paths }) });
+  const res = await fetch(`${url}/storage/v1/object/imports`, { method: "DELETE", headers: { Authorization: `Bearer ${key}`, apikey: key, "content-type": "application/json" }, body: JSON.stringify({ prefixes: paths }) });
+  if (!res.ok) throw new Error(`Couldn't remove the files (${res.status})`);
 }

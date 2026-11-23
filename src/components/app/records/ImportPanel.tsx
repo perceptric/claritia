@@ -200,7 +200,7 @@ export function ImportPanel({
         }
       >
         <div className="flex flex-col gap-4 p-5">
-          <ErrorNote message={error || (imp?.status === "failed" ? (imp.error ?? "The import stopped") : "")} />
+          <ErrorNote message={error || (imp?.status === "failed" ? (imp.error ?? "The import stopped") : (imp?.error ?? ""))} />
           {going ? (
             <Panel>
               <div className="flex flex-col gap-3 p-5">

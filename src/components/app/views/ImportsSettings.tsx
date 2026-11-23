@@ -119,7 +119,7 @@ export function ImportsSettings({ sb, ws }: Pick<ViewProps, "sb" | "ws">) {
                               {total ? ` / ${n(total)}` : ""}
                             </span>
                           ) : null}
-                          {i.status === "failed" && i.error ? <span className="max-w-[220px] truncate text-[12px] text-red-600">{i.error}</span> : null}
+                          {i.error ? <span className="max-w-[220px] truncate text-[12px] text-red-600">{i.error}</span> : null}
                         </span>
                       </Td>
                       <Td className="text-right font-mono">{n(c.rows)}</Td>

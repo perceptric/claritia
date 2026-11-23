@@ -368,3 +368,19 @@ test("a warehouse host on a private network is refused", async () => {
   const ctx = makeCtx({ source: row("clickhouse"), creds: key({ url: "https://127.0.0.1:8443", user: "u", password: "p" }), fetcher: async () => Response.json({}) });
   await assert.rejects(runQuery(ctx, { ...q0, sql: "select email, updated_at from t" }, "x"), /private network/);
 });
+
+test("an app-wide webhook whose account can't be looked up answers 500, so the tool sends it again", async () => {
+  const { appHook } = await import("../src/lib/sources/hooks.ts");
+  process.env.HUBSPOT_CLIENT_SECRET = "cs";
+  const body = JSON.stringify([{ eventId: 1, subscriptionType: "contact.propertyChange", objectId: 11, portalId: 7, occurredAt: 1 }]);
+  const ts = String(Date.now());
+  const url = "https://app.tryclaritia.com/api/hooks/hubspot";
+  const sig = createHmac("sha256", "cs").update(`POST${url}${body}${ts}`).digest("base64");
+  const req = { headers: new Headers({ "x-hubspot-signature-v3": sig, "x-hubspot-request-timestamp": ts }), body, url, method: "POST" };
+  const db = { rpc: async () => ({ data: null, error: { message: "connection reset" } }) };
+  try {
+    assert.equal((await appHook(db as never, "hubspot", req)).status, 500);
+  } finally {
+    delete process.env.HUBSPOT_CLIENT_SECRET;
+  }
+});
