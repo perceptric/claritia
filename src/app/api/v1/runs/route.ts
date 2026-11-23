@@ -1,4 +1,5 @@
-import { isUuid, requireKey } from "@/lib/apiAuth";
+import { requireKey } from "@/lib/apiAuth";
+import { isUuid } from "@/lib/uuid";
 import { startRuns, type StartInput } from "@/lib/apiRuns";
 import { loadOutcomes } from "@/lib/runOutcomes";
 

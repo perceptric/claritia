@@ -4,11 +4,12 @@ import { erasePerson, exportPerson } from "../../src/lib/identity/erase.ts";
 import { rebuildWorkspace } from "../../src/lib/identity/rebuild.ts";
 import { stitchDevice, stitchOne, withTx, workspaceLock, type Evidence } from "../../src/lib/identity/stitch.ts";
 import { settingsFor } from "../settings.ts";
+import { isUuid } from "../../src/lib/uuid.ts";
 
 /** stitch: every waiting evidence row for one device (the job key). */
 export const stitch = (pool: pg.Pool): Handler => async (job) => {
   const device = String(job.payload.device_id ?? job.key ?? "");
-  if (!job.workspace_id || !/^[0-9a-f-]{36}$/.test(device)) throw new JobError("stitch needs a workspace and a device", { retry: false });
+  if (!job.workspace_id || !isUuid(device)) throw new JobError("stitch needs a workspace and a device", { retry: false });
   await stitchDevice(pool, job.workspace_id, device, await settingsFor(pool, job.workspace_id));
 };
 
@@ -16,7 +17,7 @@ export const stitch = (pool: pg.Pool): Handler => async (job) => {
 export const deviceReset = (pool: pg.Pool): Handler => async (job) => {
   const device = String(job.payload.device_id ?? job.key ?? "");
   const at = typeof job.payload.at === "string" ? new Date(job.payload.at) : new Date();
-  if (!job.workspace_id || !/^[0-9a-f-]{36}$/.test(device) || isNaN(+at)) throw new JobError("device_reset needs a workspace and a device", { retry: false });
+  if (!job.workspace_id || !isUuid(device) || isNaN(+at)) throw new JobError("device_reset needs a workspace and a device", { retry: false });
   await pool.query(`update device_links set to_at = $3 where workspace_id = $1 and device_id = $2 and to_at is null and from_at <= $3`, [job.workspace_id, device, at]);
 };
 
@@ -29,7 +30,7 @@ export const rebuild = (pool: pg.Pool): Handler => async (job) => {
 /** stitch_evidence: one row with no device, such as an approved merge. */
 export const stitchEvidence = (pool: pg.Pool): Handler => async (job) => {
   const id = String(job.payload.evidence_id ?? "");
-  if (!job.workspace_id || !/^[0-9a-f-]{36}$/.test(id)) throw new JobError("stitch_evidence needs an evidence id", { retry: false });
+  if (!job.workspace_id || !isUuid(id)) throw new JobError("stitch_evidence needs an evidence id", { retry: false });
   const settings = await settingsFor(pool, job.workspace_id);
   await withTx(pool, async (c) => {
     await workspaceLock(c, job.workspace_id!);

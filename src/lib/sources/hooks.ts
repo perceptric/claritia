@@ -5,6 +5,7 @@ import { same } from "../sign.ts";
 import { appSecret } from "./oauth.ts";
 import { connectorFor } from "./registry.ts";
 import type { HookEvent, HookRequest } from "./types.ts";
+import { isUuid } from "../uuid.ts";
 
 // Webhooks in. Each delivery is checked (the URL's token, and the tool's signature when it signs), turned into
 // events, and staged; the source_hook job applies them. Staging is all a hook does, so it answers fast and a
@@ -40,7 +41,7 @@ const parseJson = (body: string): unknown => {
 /** A hook for one source: /api/hooks/<kind>/<source id>?t=<token>. */
 export async function sourceHook(db: SupabaseClient, kind: string, id: string, req: HookRequest): Promise<Response> {
   const c = connectorFor(kind);
-  if (!c?.parse || !/^[0-9a-f-]{36}$/.test(id)) return Response.json({ error: "Not found." }, { status: 404 });
+  if (!c?.parse || !isUuid(id)) return Response.json({ error: "Not found." }, { status: 404 });
   const { data: src } = await db.from("sources").select("kind, status").eq("id", id).maybeSingle();
   if (!src || src.kind !== kind || src.status === "disconnected") return Response.json({ error: "Not found." }, { status: 404 });
   const { data: sec } = await db.from("source_secrets").select("hook_sealed").eq("source_id", id).maybeSingle();

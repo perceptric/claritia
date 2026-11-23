@@ -22,7 +22,6 @@ export async function requireKey(request: Request): Promise<ApiCaller | { denied
   return { sb, keyId: row.key_id, workspaceId: row.workspace_id };
 }
 
-export const isUuid = (v: unknown): v is string => typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 
 export type ApiProject = { id: string; name: string };
 export type Problem = { error: string; status: number };

@@ -6,6 +6,7 @@ import { executeImport, type ImportRow } from "../../src/lib/contacts/importJob.
 import { removeFiles } from "../../src/lib/contacts/storage.ts";
 import type { CustomField } from "../../src/lib/records/fields.ts";
 import { call, JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
+import { isUuid } from "../../src/lib/uuid.ts";
 
 /** What cleaning needs from the workspace: its custom contact and company fields and its own and partner domains. */
 export async function ctxFor(pool: pg.Pool, ws: string): Promise<Ctx> {
@@ -22,7 +23,7 @@ export const importFile =
   (pool: pg.Pool, rpc: Rpc, open?: (path: string) => Promise<ReadableStream<Uint8Array>>): Handler =>
   async (job, signal) => {
     const id = String(job.payload.import_id ?? "");
-    if (!/^[0-9a-f-]{36}$/.test(id)) throw new JobError("import_file needs an import", { retry: false });
+    if (!isUuid(id)) throw new JobError("import_file needs an import", { retry: false });
     const imp = await call<ImportRow | null>(rpc, "import_claim", { p_import: id });
     if (!imp) return;
     await executeImport(rpc, imp, await ctxFor(pool, imp.workspace_id), { signal, open });
@@ -31,7 +32,7 @@ export const importFile =
 /** import_undo: take back what an import did. */
 export const importUndo = (rpc: Rpc): Handler => async (job) => {
   const id = String(job.payload.import_id ?? "");
-  if (!/^[0-9a-f-]{36}$/.test(id)) throw new JobError("import_undo needs an import", { retry: false });
+  if (!isUuid(id)) throw new JobError("import_undo needs an import", { retry: false });
   await call(rpc, "import_undo_run", { p_import: id });
 };
 

@@ -9,6 +9,7 @@ import { unseal } from "../../src/lib/seal.ts";
 import { parseRule, ruleFires, slackAccountMessage } from "../../src/lib/web/accountAlerts.ts";
 import { fitV0, intentOf, priorityOf, rawIntent, SCORE_VERSION, stageOf, temperatureOf, whyNow, type Icp, type ScoredSignal, type Stage } from "../../src/lib/web/scores.ts";
 import { accountSignals, DEFAULT_SIGNALS, visitSignals, type PageGroup, type Signal } from "../../src/lib/web/signals.ts";
+import { isUuid } from "../../src/lib/uuid.ts";
 
 const QUIET_MS = 2 * 60_000;
 
@@ -96,7 +97,7 @@ export async function sweepSignals(pool: pg.Pool, limit = 200): Promise<number> 
 /** score_account: fit, intent, stage, temperature, priority and why-now, saved on the account and in history. */
 export const scoreAccount = (pool: pg.Pool, now: () => number = Date.now): Handler => async (job) => {
   const id = String(job.payload.account_id ?? job.key ?? "");
-  if (!/^[0-9a-f-]{36}$/.test(id)) throw new JobError("score_account needs an account", { retry: false });
+  if (!isUuid(id)) throw new JobError("score_account needs an account", { retry: false });
   const a = (await pool.query(`select id, workspace_id, firmo, stage, owner_user_id, temperature, intent, fit from accounts where id = $1`, [id])).rows[0];
   if (!a) return;
   const t = await types(pool, a.workspace_id);

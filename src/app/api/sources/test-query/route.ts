@@ -6,6 +6,7 @@ import type { Creds, SourceRow } from "@/lib/sources/types";
 import { runQuery } from "@/lib/sources/warehouse";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
+import { isUuid } from "@/lib/uuid";
 
 // Run a warehouse source's query once and show 20 rows: POST { id, query }. Owners only.
 export const maxDuration = 150;
@@ -15,7 +16,7 @@ export async function POST(request: Request) {
   if ("denied" in auth) return auth.denied;
   const body = (await request.json().catch(() => ({}))) as { id?: unknown; query?: Partial<WhQuery> };
   const id = typeof body.id === "string" ? body.id : "";
-  if (!/^[0-9a-f-]{36}$/.test(id)) return Response.json({ error: "Source not found." }, { status: 404 });
+  if (!isUuid(id)) return Response.json({ error: "Source not found." }, { status: 404 });
   const { data: src } = await auth.sb.from("sources").select("workspace_id").eq("id", id).maybeSingle();
   if (!src || !(await isOwner(auth.sb, auth.user.id, src.workspace_id))) return Response.json({ error: "Source not found." }, { status: 404 });
   const q = { ...body.query, target: body.query?.target ?? "contacts" } as WhQuery;

@@ -7,11 +7,12 @@ import { entryOf } from "./catalog.ts";
 import { makeCtx } from "./ctx.ts";
 import { connectorFor } from "./registry.ts";
 import type { Creds, Settings, SourceRow } from "./types.ts";
+import { isUuid } from "../uuid.ts";
 
 // What the sources routes share: the owner check, and connecting a tool once its credentials are in hand.
 
 export async function isOwner(sb: SupabaseClient, userId: string, ws: unknown): Promise<boolean> {
-  if (typeof ws !== "string" || !/^[0-9a-f-]{36}$/.test(ws)) return false;
+  if (!isUuid(ws)) return false;
   const { data } = await sb.from("workspace_members").select("role").eq("workspace_id", ws).eq("user_id", userId).maybeSingle();
   return data?.role === "owner";
 }

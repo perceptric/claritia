@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { seal, unseal } from "@/lib/seal";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
+import { isUuid } from "@/lib/uuid";
 
 // The identify secret signs claritia("identify", ...) calls (docs/identity.md 5.2). It is sealed in
 // identity_settings.identify_secrets_sealed as {current, next}; the stitch job accepts both, so a rotation keeps
@@ -11,7 +12,7 @@ const bad = (error: string, status = 400) => Response.json({ error }, { status }
 type Secrets = { current?: string; next?: string };
 
 async function owner(auth: Exclude<Awaited<ReturnType<typeof requireUser>>, { denied: Response }>, workspaceId: unknown) {
-  if (typeof workspaceId !== "string" || !/^[0-9a-f-]{36}$/.test(workspaceId)) return false;
+  if (!isUuid(workspaceId)) return false;
   const { data } = await auth.sb.from("workspace_members").select("role").eq("workspace_id", workspaceId).eq("user_id", auth.user.id).maybeSingle();
   return data?.role === "owner";
 }

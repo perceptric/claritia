@@ -7,6 +7,7 @@ import { enrichDomain } from "../../src/lib/company/coresignal.ts";
 import { cleanDomain, redirectAlias } from "../../src/lib/company/domains.ts";
 import { lookupNetwork, type NetworkMatch } from "../../src/lib/company/ipinfo.ts";
 import { JobError, type Handler } from "../../src/lib/jobs.ts";
+import { isUuid } from "../../src/lib/uuid.ts";
 
 export type CompanyDeps = {
   ipinfoToken?: string;
@@ -87,7 +88,7 @@ export const enrichCompany = (pool: pg.Pool, deps: CompanyDeps): Handler => asyn
 /** identity_changed: a person's visits get their account again (90 days), and changed accounts are rescored. */
 export const identityChanged = (pool: pg.Pool): Handler => async (job) => {
   const person = String(job.payload.person_id ?? job.key ?? "");
-  if (!job.workspace_id || !/^[0-9a-f-]{36}$/.test(person)) throw new JobError("identity_changed needs a person", { retry: false });
+  if (!job.workspace_id || !isUuid(person)) throw new JobError("identity_changed needs a person", { retry: false });
   const sessions = (
     await pool.query(`select id from sessions where workspace_id = $1 and person_id = $2 and started_at > now() - interval '90 days'`, [job.workspace_id, person])
   ).rows.map((r) => r.id as string);

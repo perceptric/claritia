@@ -6,10 +6,11 @@ import { enqueueJob, JobError, type Handler, type Job, type Rpc } from "../../sr
 import { runHooks, runPull, runPush, type RunOpts } from "../../src/lib/sources/run.ts";
 import { AuthError, RateLimited } from "../../src/lib/sources/types.ts";
 import { ctxFor } from "./imports.ts";
+import { isUuid } from "../../src/lib/uuid.ts";
 
 const idOf = (job: Job) => {
   const id = String(job.payload.source_id ?? "");
-  if (!/^[0-9a-f-]{36}$/.test(id)) throw new JobError(`${job.kind} needs a source`, { retry: false });
+  if (!isUuid(id)) throw new JobError(`${job.kind} needs a source`, { retry: false });
   return id;
 };
 

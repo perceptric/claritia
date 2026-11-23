@@ -2,6 +2,7 @@ import { formValues, newContact, writeContacts, type ContactForm } from "@/lib/c
 import { cleaningCtx, isMember } from "@/lib/contacts/server";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
+import { isUuid } from "@/lib/uuid";
 
 // Add or edit one contact: POST { workspaceId, form } adds; POST { workspaceId, id, form } changes the keys in form.
 // Emails are cleaned here, so the database functions stay server only.
@@ -32,7 +33,7 @@ export async function POST(request: Request) {
     }
   }
 
-  if (typeof body.id !== "string" || !/^[0-9a-f-]{36}$/.test(body.id)) return bad("Contact not found.", 404);
+  if (!isUuid(body.id)) return bad("Contact not found.", 404);
   const owned = await sb.from("contacts").select("id").eq("id", body.id).eq("workspace_id", ws).is("deleted_at", null).maybeSingle();
   if (!owned.data) return bad("Contact not found.", 404);
   const r = formValues(body.form, ctx.custom, ctx);

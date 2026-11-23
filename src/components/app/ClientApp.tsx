@@ -25,6 +25,7 @@ import { SegmentsView } from "./views/SegmentsView";
 import { VisitorsView } from "./views/VisitorsView";
 import { SettingsView } from "./views/SettingsView";
 import { TestsView } from "./views/TestsView";
+import { isUuid } from "@/lib/uuid";
 
 // One icon per screen. Which screens a workspace sees comes from its features (src/lib/nav.ts): the testing product's
 // four modules (AI works inside each: the Writer in Authoring, the Healer in Execution, smart retries in Management
@@ -58,11 +59,11 @@ const readLoc = (): Loc => {
   const [, first = "", id = "", rest = ""] = window.location.pathname.split("/");
   const route = first in ICONS ? (first as Route) : "tests";
   // Custom objects: /objects/<key> and /objects/<key>/<record id>.
-  if (route === "objects") return { route, id: /^[a-z][a-z0-9_]{0,39}$/.test(id) ? (/^[0-9a-f-]{36}$/.test(rest) ? `${id}/${rest}` : id) : "" };
+  if (route === "objects") return { route, id: /^[a-z][a-z0-9_]{0,39}$/.test(id) ? (isUuid(rest) ? `${id}/${rest}` : id) : "" };
   // Settings pages: /settings/<page>.
   if (route === "settings") return { route, id: /^[a-z_]{2,30}$/.test(id) ? id : "" };
   if (route === "segments" && id === "new") return { route, id };
-  return { route, id: WITH_ID.has(route) && /^[0-9a-f-]{36}$/.test(id) ? id : "" };
+  return { route, id: WITH_ID.has(route) && isUuid(id) ? id : "" };
 };
 
 function remember(id: string) {

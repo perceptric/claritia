@@ -6,7 +6,7 @@ WORKDIR /app
 COPY worker-intel/package.json worker-intel/package-lock.json ./
 RUN npm ci --omit=dev --no-audit --no-fund && rm -rf /root/.npm
 COPY worker-intel/ ./worker-intel/
-COPY src/lib/jobs.ts src/lib/seal.ts src/lib/sign.ts src/lib/site.ts ./src/lib/
+COPY src/lib/jobs.ts src/lib/seal.ts src/lib/sign.ts src/lib/site.ts src/lib/uuid.ts ./src/lib/
 COPY src/lib/identity/ ./src/lib/identity/
 COPY src/lib/company/ ./src/lib/company/
 COPY src/lib/privateNet.ts ./src/lib/

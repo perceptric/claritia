@@ -3,13 +3,14 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { requireUser } from "../serverAuth.ts";
 import type { CustomField } from "../records/fields.ts";
 import type { Ctx } from "./import.ts";
+import { isUuid } from "../uuid.ts";
 
 // What the contacts routes share: the member check, and what cleaning needs from the workspace.
 
 type Auth = Exclude<Awaited<ReturnType<typeof requireUser>>, { denied: Response }>;
 
 export async function isMember(auth: Auth, workspaceId: unknown): Promise<boolean> {
-  if (typeof workspaceId !== "string" || !/^[0-9a-f-]{36}$/.test(workspaceId)) return false;
+  if (!isUuid(workspaceId)) return false;
   const { data } = await auth.sb.from("workspace_members").select("role").eq("workspace_id", workspaceId).eq("user_id", auth.user.id).maybeSingle();
   return !!data;
 }
