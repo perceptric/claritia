@@ -1,8 +1,8 @@
 // The Claritia GitHub App: webhook signatures, the app's sign-in token, the install link's state, and what each
 // GitHub event asks for. No network calls here; those are in githubApp.ts.
 
-import { createPrivateKey, createSign } from "node:crypto";
-import { hmac, readToken, same, signToken } from "./sign.ts";
+import { createPrivateKey } from "node:crypto";
+import { hmac, jwtRs256, readToken, same, signToken } from "./sign.ts";
 import type { Outcome } from "./outcome.ts";
 
 /** GitHub signs each webhook body with the app's webhook secret (X-Hub-Signature-256). */
@@ -10,8 +10,6 @@ export function verifySignature(body: string, header: string | null, secret: str
   if (!header?.startsWith("sha256=") || !secret) return false;
   return same(header.slice(7), hmac(secret, body, "hex"));
 }
-
-const b64url = (s: string | Buffer) => Buffer.from(s).toString("base64url");
 
 /**
  * The app's private key as a clean PEM, however it was pasted: with its line breaks lost or turned into spaces,
@@ -39,10 +37,7 @@ export function readPrivateKey(raw: string): string {
 /** The token the app signs in to GitHub with: a JWT signed with its private key, good for 9 minutes. */
 export function appJwt(appId: string, privateKey: string, now = Date.now()): string {
   const iat = Math.floor(now / 1000) - 60;
-  const head = b64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
-  const body = b64url(JSON.stringify({ iat, exp: iat + 600, iss: appId }));
-  const sig = createSign("RSA-SHA256").update(`${head}.${body}`).sign(readPrivateKey(privateKey));
-  return `${head}.${body}.${b64url(sig)}`;
+  return jwtRs256({ iat, exp: iat + 600, iss: appId }, readPrivateKey(privateKey));
 }
 
 export type InstallState = { workspaceId: string; userId: string; exp: number };
