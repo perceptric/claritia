@@ -2,8 +2,9 @@
 // One evidence row per transaction, with advisory locks on the device and every identifier in sorted order, so
 // jobs for different devices can run side by side without deadlocks or double people.
 
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac } from "node:crypto";
 import { uuid7 } from "../../../collect/ids.ts";
+import { same } from "../sign.ts";
 import { cleanIdentifier, isRejected, type Cleaned } from "./clean.ts";
 
 export type Db = { query: (sql: string, params?: unknown[]) => Promise<{ rows: Record<string, any>[]; rowCount: number | null }> }; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -64,11 +65,7 @@ export function identifyToken(secret: string, siteId: string, userId: string, em
 export function verifyIdentify(secrets: string[], siteId: string, userId: string, email: string, iat: unknown, token: unknown, at: number): boolean {
   if (typeof token !== "string" || typeof iat !== "number" || !Number.isInteger(iat)) return false;
   if (Math.abs(at - iat * 1000) > DAY) return false;
-  const got = Buffer.from(token);
-  return secrets.some((s) => {
-    const want = Buffer.from(identifyToken(s, siteId, userId, email, iat));
-    return got.length === want.length && timingSafeEqual(got, want);
-  });
+  return secrets.some((s) => same(token, identifyToken(s, siteId, userId, email, iat)));
 }
 
 // Locks ------------------------------------------------------------------------------------------------------

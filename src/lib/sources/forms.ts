@@ -3,11 +3,10 @@
 // form has its own questions, so columns are guessed from the question ("Work email", "Company") and can be
 // mapped by hand on the source page.
 
-import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { createHash } from "node:crypto";
+import { hmac, same } from "../sign.ts";
 import type { Connector, HookEvent, HookRequest, RawRecord } from "./types.ts";
 
-const same = (a: string, b: string) => a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
-const hmac = (secret: string, body: string, enc: "hex" | "base64") => createHmac("sha256", secret).update(body).digest(enc);
 const text = (v: unknown): string | null => (v == null ? null : Array.isArray(v) ? v.map(text).filter(Boolean).join(";") : typeof v === "object" ? null : String(v));
 
 /** One person from a submission, keyed by email so repeat sign-ups land on the same link. */

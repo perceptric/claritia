@@ -1,9 +1,9 @@
 // claritia-collect routes (docs/m1-website-intelligence.md 5.2–5.4). Order for every request: size, shape, site,
 // origin, client IP, rate limits, geo, policy, device, bots, session, scrub, buffer, reply.
 
-import { timingSafeEqual } from "node:crypto";
 import { Hono, type Context } from "hono";
 import { getCookie } from "hono/cookie";
+import { same } from "../src/lib/sign.ts";
 import { decide, regionOf, type ConsentState, type Decision } from "../src/lib/web/policy.ts";
 import { attribute } from "./attribution.ts";
 import { botVerdict, looksAutomated } from "./bots.ts";
@@ -104,7 +104,7 @@ export function createApp(deps: Deps) {
   /** The visitor's IP. The proxy's forwarded IP counts only with the site's proxy secret. */
   const clientIp = (c: Context, site: Site, mode: Mode): { ip: string; trusted: boolean; viaProxy: boolean } => {
     const given = c.req.header("x-clr-proxy");
-    if (given && safeEqual(given, site.proxy_secret)) {
+    if (given && same(given, site.proxy_secret)) {
       const ip = cleanIp(c.req.header("x-clr-client-ip"));
       if (ip) return { ip, trusted: true, viaProxy: true };
     }
@@ -534,10 +534,4 @@ function eventData(kind: string, e: { n?: unknown; d?: unknown }): Record<string
   }
   if (kind === "custom") return { name: str(e.n, 64), props: scrubProps(d) ?? {} };
   return null;
-}
-
-function safeEqual(a: string, b: string): boolean {
-  const x = Buffer.from(a);
-  const y = Buffer.from(b);
-  return x.length === y.length && timingSafeEqual(x, y);
 }

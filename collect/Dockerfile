@@ -15,6 +15,7 @@ RUN npm ci --omit=dev --no-audit --no-fund && rm -rf /root/.npm
 COPY --from=build /app/collect/dist ./dist
 COPY collect/*.ts ./
 COPY src/lib/web/ /app/src/lib/web/
+COPY src/lib/sign.ts /app/src/lib/
 RUN echo '{"type":"module"}' > /app/package.json
 USER node
 EXPOSE 8080

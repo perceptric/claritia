@@ -1,7 +1,8 @@
 // Device ids, hop tokens and cookieless keys (docs/identity.md 4.1, 4.7, 4.8). All signed with keys derived from
 // CLR_ID_SECRET, so a crafted id or token is ignored.
 
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes } from "node:crypto";
+import { same } from "../src/lib/sign.ts";
 
 const b64 = (b: Buffer) => b.toString("base64url");
 const hmac = (key: Buffer | string, data: Buffer | string) => createHmac("sha256", key).update(data).digest();
@@ -32,9 +33,7 @@ export function verifyDevice(key: Buffer, id: unknown): string | null {
   if (typeof id !== "string" || id.length > 80) return null;
   const [v, uuid, sig] = id.split(".");
   if (v !== "v1" || !UUID.test(uuid ?? "") || !sig) return null;
-  const want = hmac(key, uuid).subarray(0, 8);
-  const got = Buffer.from(sig, "base64url");
-  return got.length === want.length && timingSafeEqual(got, want) ? uuid : null;
+  return same(Buffer.from(sig, "base64url"), hmac(key, uuid).subarray(0, 8)) ? uuid : null;
 }
 
 /** When the device was made, from the uuid v7 time prefix. */
@@ -60,7 +59,7 @@ export function readHop(key: Buffer, t: unknown, now = Date.now()): { uuid: stri
   if (!a || !b) return null;
   const p = Buffer.from(a, "base64url");
   const sig = Buffer.from(b, "base64url");
-  if (p.length !== 28 || sig.length !== 16 || !timingSafeEqual(sig, hmac(key, p).subarray(0, 16))) return null;
+  if (p.length !== 28 || !same(sig, hmac(key, p).subarray(0, 16))) return null;
   if (p.readUInt32BE(16) < Math.floor(now / 1000)) return null;
   const h = p.subarray(0, 16).toString("hex");
   return { uuid: `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`, nonce: p.subarray(20) };
