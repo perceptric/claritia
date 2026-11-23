@@ -1,7 +1,7 @@
 // Running a stored import from start (or from where it stopped) to finish. The web app calls this for small files;
 // the import_file job on claritia-intel for big ones. Both pass the database through `rpc`.
 
-import type { Rpc } from "../jobs.ts";
+import { call, type Rpc } from "../jobs.ts";
 import { writeContacts, type Source } from "./contacts.ts";
 import { chunksOf, fileRows, kindOf } from "./files.ts";
 import type { Ctx, Mapping } from "./import.ts";
@@ -18,12 +18,6 @@ export type ImportRow = {
   mapping: Mapping;
   rows_done: number;
   progress: { totals?: Totals };
-};
-
-const call = async (rpc: Rpc, fn: string, args: Record<string, unknown>) => {
-  const { data, error } = await rpc(fn, args);
-  if (error) throw new Error(error.message);
-  return data;
 };
 
 /** Which source a file import writes as, so the field order can rank it. */

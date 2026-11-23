@@ -5,13 +5,7 @@ import type { Ctx } from "../../src/lib/contacts/import.ts";
 import { executeImport, type ImportRow } from "../../src/lib/contacts/importJob.ts";
 import { removeFiles } from "../../src/lib/contacts/storage.ts";
 import type { CustomField } from "../../src/lib/records/fields.ts";
-import { JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
-
-async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Promise<T> {
-  const { data, error } = await rpc(fn, args);
-  if (error) throw new Error(`${fn}: ${error.message}`);
-  return data as T;
-}
+import { call, JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
 
 /** What cleaning needs from the workspace: its custom contact and company fields and its own and partner domains. */
 export async function ctxFor(pool: pg.Pool, ws: string): Promise<Ctx> {

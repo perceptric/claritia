@@ -2,12 +2,12 @@
 // the claritia-intel jobs and the tests. Errors land on the source; five in a row turn its card to Error.
 
 import type { Ctx as CleanCtx } from "../contacts/import.ts";
-import type { Rpc } from "../jobs.ts";
+import { call, type Rpc } from "../jobs.ts";
 import { seal, unseal } from "../seal.ts";
 import { makeCtx } from "./ctx.ts";
 import type { SavedMapping } from "./map.ts";
 import { connectorFor } from "./registry.ts";
-import { applyHooks, call, pull, push, type Counts, type Deps } from "./sync.ts";
+import { applyHooks, pull, push, type Counts, type Deps } from "./sync.ts";
 import { AuthError, type Creds, type HookEvent, type SourceRow } from "./types.ts";
 
 export type RunOpts = {
