@@ -59,7 +59,7 @@ const sb = {
   rpc: async (fn: string, args: Record<string, unknown>) => (rpcs.push({ fn, args }), { data: fn === "workspace_usage" ? [usage] : true, error: null }),
   storage: {
     from: () => ({
-      upload: async (path: string, body: Buffer) => (uploads.set(path, body.length), { error: null }),
+      upload: async (path: string, body: Buffer) => (path.startsWith("ws1/run8/") ? { error: { message: "storage is down" } } : (uploads.set(path, body.length), { error: null })),
       remove: async (paths: string[]) => (removed.push(...paths), { data: [], error: null }),
     }),
   },
@@ -167,6 +167,15 @@ db.run_steps.push({ run_id: "run5", position: 1, kind: "do", label: "Open", stat
 await handleRun(sb as never, { id: "run5", workspace_id: "ws1", environment_id: "env1", base_url: base, lock: "", attempts: 1 }, { workerId: "w1", chromiumPath: process.env.CHROMIUM_PATH, allowPrivate: true });
 const run5 = db.runs.find((r) => r.id === "run5")!;
 check(run5.status === "error" && /ANTHROPIC_API_KEY/.test(String(run5.error)), `without a writer, a test with no code says what's missing (${run5.error})`);
+
+// Storage down: the run still passes, its files are left out, and each failed upload is logged.
+db.runs.push({ id: "run8", workspace_id: "ws1", locked_by: "w1", status: "running" });
+db.run_steps.push({ run_id: "run8", position: 1, kind: "do", label: "Open the login page", intent: "Open the login page", status: "pending" });
+const logged: string[] = [];
+await handleRun(sb as never, { id: "run8", workspace_id: "ws1", environment_id: "env1", base_url: base, lock: lock.replace(/\/\/ step 2[\s\S]*?(?=\n\}\);)/, ""), attempts: 1 }, { workerId: "w1", chromiumPath: process.env.CHROMIUM_PATH, allowPrivate: true, log: (m) => logged.push(String(m)) });
+const run8 = db.runs.find((r) => r.id === "run8")!;
+check(run8.status === "passed" && run8.video_path === null && run8.console_path === null, `with storage down the run still passes, without its files (${run8.status}: ${run8.error})`);
+check(logged.some((m) => /upload of video\.webm failed: storage is down/.test(m)) && logged.some((m) => /upload of step-1\.jpg failed/.test(m)), "each failed upload is logged");
 
 server.close();
 console.log(failures ? `${failures} failed` : "All worker checks passed");

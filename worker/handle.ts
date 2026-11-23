@@ -123,17 +123,31 @@ export async function handleRun(sb: SupabaseClient, run: Run, opts: Options) {
   const WORKER_ID = opts.workerId;
   log(`Run ${run.id}: started (try ${run.attempts}).`);
   // Keep the claim fresh, so the run isn't taken by another runner while it's still going.
-  const heartbeat = setInterval(() => void sb.from("runs").update({ locked_at: new Date().toISOString() }).eq("id", run.id).eq("locked_by", WORKER_ID).then(() => undefined), opts.heartbeatMs ?? 30_000);
+  const heartbeat = setInterval(
+    () =>
+      void sb
+        .from("runs")
+        .update({ locked_at: new Date().toISOString() })
+        .eq("id", run.id)
+        .eq("locked_by", WORKER_ID)
+        .then(({ error }) => error && log(`Run ${run.id}: heartbeat failed: ${error.message}`)),
+    opts.heartbeatMs ?? 30_000,
+  );
   const dir = mkdtempSync(join(tmpdir(), `run-${run.id.slice(0, 8)}-`));
   const prefix = `${run.workspace_id}/${run.id}`;
   let secrets: Record<string, string> = {};
 
-  const upload = async (file: string, name: string, contentType: string) => {
-    const body = await readFile(file);
+  /** A run's files are kept when they can be. A failed upload is logged and leaves that file out; it never fails the run. */
+  const upload = async (file: string, name: string, contentType: string): Promise<string | null> => {
     const path = `${prefix}/${name}`;
-    const { error } = await sb.storage.from("runs").upload(path, body, { contentType, upsert: true });
-    if (error) throw new Error(`Upload of ${name} failed: ${error.message}`);
-    return path;
+    try {
+      const { error } = await sb.storage.from("runs").upload(path, await readFile(file), { contentType, upsert: true });
+      if (error) throw new Error(error.message);
+      return path;
+    } catch (e) {
+      log(`Run ${run.id}: upload of ${name} failed: ${e instanceof Error ? e.message : e}`);
+      return null;
+    }
   };
 
   const finish = (fields: Record<string, unknown>) =>
@@ -160,7 +174,8 @@ export async function handleRun(sb: SupabaseClient, run: Run, opts: Options) {
     // The writer may use any of the environment's secrets, so it gets all their names. Code that's already written only gets what it uses.
     let names = parsed.ok ? parsed.secrets : [];
     if (opts.writer && run.environment_id) {
-      const { data: all } = await sb.from("env_secrets").select("name").eq("environment_id", run.environment_id);
+      const { data: all, error: namesErr } = await sb.from("env_secrets").select("name").eq("environment_id", run.environment_id);
+      if (namesErr) throw new Error(namesErr.message);
       names = [...new Set([...names, ...((all ?? []) as { name: string }[]).map((r) => r.name)])];
     }
     secrets = await secretsFor(sb, run.environment_id, names);
@@ -176,8 +191,9 @@ export async function handleRun(sb: SupabaseClient, run: Run, opts: Options) {
       if (u.written !== undefined) fields.written = u.written;
       if (u.healed !== undefined) fields.healed = u.healed;
       if (u.code !== undefined) fields.code = u.code;
-      if (u.screenshot) fields.screenshot_path = await upload(u.screenshot, `step-${u.position}.jpg`, "image/jpeg").catch(() => null);
-      await sb.from("run_steps").update(fields).eq("run_id", run.id).eq("position", u.position);
+      if (u.screenshot) fields.screenshot_path = await upload(u.screenshot, `step-${u.position}.jpg`, "image/jpeg");
+      const { error: stepErr } = await sb.from("run_steps").update(fields).eq("run_id", run.id).eq("position", u.position);
+      if (stepErr) log(`Run ${run.id}: couldn't save step ${u.position}: ${stepErr.message}`);
     };
 
     // Live frames go up as live-1.jpg, live-2.jpg, ... and the run points at the newest. They're removed when the run ends.
@@ -228,12 +244,15 @@ export async function handleRun(sb: SupabaseClient, run: Run, opts: Options) {
     }
 
     // A run that stopped before any step ran marks every step as skipped.
-    if (result.status === "error") await sb.from("run_steps").update({ status: "skipped" }).eq("run_id", run.id).in("status", ["pending", "running"]);
+    if (result.status === "error") {
+      const { error: skipErr } = await sb.from("run_steps").update({ status: "skipped" }).eq("run_id", run.id).in("status", ["pending", "running"]);
+      if (skipErr) log(`Run ${run.id}: couldn't mark steps skipped: ${skipErr.message}`);
+    }
 
-    const video_path = result.video ? await upload(result.video, "video.webm", "video/webm").catch(() => null) : null;
+    const video_path = result.video ? await upload(result.video, "video.webm", "video/webm") : null;
     const trace_paths: string[] = [];
     for (const [i, t] of result.traces.entries()) {
-      const p = await upload(t, result.traces.length > 1 ? `trace-${i + 1}.zip` : "trace.zip", "application/zip").catch(() => null);
+      const p = await upload(t, result.traces.length > 1 ? `trace-${i + 1}.zip` : "trace.zip", "application/zip");
       if (p) trace_paths.push(p);
     }
     // The Judge: sort a failure into app bug, flaky test or setup problem. Clear setup problems need no AI call.
@@ -277,8 +296,8 @@ export async function handleRun(sb: SupabaseClient, run: Run, opts: Options) {
       }
     }
 
-    const console_path = result.consoleFile ? await upload(result.consoleFile, "console.json", "application/json").catch(() => null) : null;
-    const network_path = result.networkFile ? await upload(result.networkFile, "network.json", "application/json").catch(() => null) : null;
+    const console_path = result.consoleFile ? await upload(result.consoleFile, "console.json", "application/json") : null;
+    const network_path = result.networkFile ? await upload(result.networkFile, "network.json", "application/json") : null;
     await finish({
       status: result.status,
       error: result.error && maskSecrets(result.error, secrets),
