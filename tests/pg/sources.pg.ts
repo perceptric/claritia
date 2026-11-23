@@ -10,6 +10,7 @@ import { lifecycleOf } from "../../src/lib/contacts/fields.ts";
 import { seal } from "../../src/lib/seal.ts";
 import { hubspot } from "../../src/lib/sources/hubspot.ts";
 import { runHooks, runPull, type RunOpts } from "../../src/lib/sources/run.ts";
+import { applyCompanies } from "../../src/lib/sources/sync.ts";
 import { pgRpc } from "../../worker-intel/rpc.ts";
 import { ctxFor } from "../../worker-intel/jobs/imports.ts";
 import { FakeHubspot, rng } from "../sources/fakeHubspot.ts";
@@ -260,4 +261,28 @@ test("a warehouse query feeds contacts, activity and a custom object, reads on f
   await assert.rejects(runQuery(ctx, { sql: "select email, updated_at, wh.wipe() as w from wh.users", key: "email", cursor: "updated_at", target: "contacts" }, "x"), /read-only transaction/);
   assert.equal((await q(`select count(*)::int n from wh.users`))[0].n, 13, "nothing was deleted");
   await q(`drop schema wh cascade`);
+});
+
+test("a synced company keeps its mapped custom fields", async () => {
+  const { ws, user } = await workspace("company-fields");
+  await q(`insert into fields (workspace_id, object, key, label, type) values ($1, 'company', 'tier', 'Tier', 'text')`, [ws]);
+  const id = (await q(`select source_connect($1, $2, 'hubspot', 'HubSpot', '778', $3, $4) as id`, [
+    ws,
+    user,
+    seal(JSON.stringify({ type: "oauth", access: "t", refresh: "r", expiresAt: Date.now() + 3_600_000 })),
+    JSON.stringify({ objects: { contacts: "off", companies: "in", lists: "off" } }),
+  ]))[0].id as string;
+  const source = (await q(`select * from sources where id = $1`, [id]))[0];
+  const saved = [
+    { object: "company" as const, col: "domain", target: "domain", value_map: {} },
+    { object: "company" as const, col: "name", target: "name", value_map: {} },
+    { object: "company" as const, col: "tier_col", target: "f.tier", value_map: {} },
+  ];
+  const c = await applyCompanies({ rpc, connector: hubspot, ctx: { source } as never, clean: await ctxFor(pool, ws), saved }, [
+    { id: "co1", data: { domain: "acme.com", name: "Acme", tier_col: "Gold" } },
+  ]);
+  assert.equal(c.written, 1);
+  const [row] = await q(`select name, fields from companies where workspace_id = $1 and domain = 'acme.com'`, [ws]);
+  assert.equal(row.name, "Acme");
+  assert.equal(row.fields.tier, "Gold");
 });

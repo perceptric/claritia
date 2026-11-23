@@ -13,13 +13,14 @@ async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Pro
   return data as T;
 }
 
-/** What cleaning needs from the workspace: its custom contact fields and its own and partner domains. */
+/** What cleaning needs from the workspace: its custom contact and company fields and its own and partner domains. */
 export async function ctxFor(pool: pg.Pool, ws: string): Promise<Ctx> {
   const [fields, settings] = await Promise.all([
-    pool.query(`select key, label, type, options from fields where workspace_id = $1 and object = 'contact'`, [ws]),
+    pool.query(`select key, label, type, options, object = 'company' as company from fields where workspace_id = $1 and object in ('contact', 'company')`, [ws]),
     pool.query(`select own_domains, partner_domains from identity_settings where workspace_id = $1`, [ws]),
   ]);
-  return { custom: fields.rows as CustomField[], own_domains: settings.rows[0]?.own_domains ?? [], partner_domains: settings.rows[0]?.partner_domains ?? [] };
+  const of = (company: boolean) => fields.rows.filter((f) => f.company === company).map((f) => ({ key: f.key, label: f.label, type: f.type, options: f.options })) as CustomField[];
+  return { custom: of(false), company_custom: of(true), own_domains: settings.rows[0]?.own_domains ?? [], partner_domains: settings.rows[0]?.partner_domains ?? [] };
 }
 
 /** import_file: read the stored file from where the last attempt stopped, to the end. */

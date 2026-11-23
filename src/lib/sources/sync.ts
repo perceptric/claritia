@@ -137,7 +137,7 @@ export async function applyCompanies(d: Deps, records: RawRecord[]): Promise<Cou
   const live = records.filter((r) => !r.deleted);
   if (!live.length) return c;
   const cols = effectiveMapping(d.connector, "company", d.saved, await seen(d, "company", live), d.clean.custom);
-  const rows = recordsToCompanies(live, cols, [], countryCode);
+  const rows = recordsToCompanies(live, cols, d.clean.company_custom ?? [], countryCode);
   const links = await call<Record<string, Link>>(d.rpc, "source_links_get", { p_source: src.id, p_object: "company", p_external: rows.map((r) => r.source_id) });
   const changed = rows.filter((r) => {
     const v = { ...r, source_id: undefined };

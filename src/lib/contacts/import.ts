@@ -42,7 +42,8 @@ export type Prepared = {
   errors: RowError[];
   counts: { rows: number; merged: number; no_basis: number; suppressed: number; skipped: Skipped };
 };
-export type Ctx = { custom: CustomField[]; own_domains?: string[]; partner_domains?: string[] };
+/** `custom` is the contact fields; `company_custom` the company fields, for syncs that write companies. */
+export type Ctx = { custom: CustomField[]; company_custom?: CustomField[]; own_domains?: string[]; partner_domains?: string[] };
 
 export { MAX_BYTES, MAX_ROWS } from "./csv.ts";
 
