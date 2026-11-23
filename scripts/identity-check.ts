@@ -1,5 +1,5 @@
 // The identity cases of docs/identity.md 17.1, in Chromium, against the real script, collect, the stitch job and
-// Postgres. Email-link cases (7–15) come with M6; the WebKit storage cases (22, 23) run where WebKit is installed.
+// Postgres. Email-link cases (7–15) come with M6; the WebKit storage cases (22, 23) aren't written yet (they need WebKit).
 // scripts/test-db.sh runs it when CHROMIUM_PATH is set.
 //   PG_URL=… CHROMIUM_PATH=… node scripts/identity-check.ts
 

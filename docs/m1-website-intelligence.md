@@ -1,6 +1,6 @@
-# M1 Website Intelligence: build plan
+# M1 Website Intelligence: plan and status
 
-The day-by-day plan to build M1 from `docs/marketing-platform.md`. It covers what gets built, in which files, with which tables, endpoints, jobs, screens and tests, and in what order.
+The plan and status record for M1 from `docs/marketing-platform.md`. It covers M1's scope, how the parts fit together, the wire formats, the parts of each spec M1 uses, the screens, the files, jobs and tests as they are, and what is built (Part 12).
 
 Rules come from three specs, and this plan doesn't repeat them:
 
@@ -44,10 +44,10 @@ Rules come from three specs, and this plan doesn't repeat them:
 
 | Need | From | When |
 |---|---|---|
-| Jobs queue (`claim_job`), nav, audit and privacy tables | M0, week 1 | Before day 1 of M1 |
-| IPinfo Business token | Founder | Day 9 |
-| Coresignal plan with enough credits (Mini to start) | Founder | Day 14 |
-| Omniscient API (`POST /api/v1/activities`, accounts upsert) | Omniscient repo | Day 24 |
+| Jobs queue (`claim_job`), nav, audit and privacy tables | M0, week 1 | Before M1 starts (week 2) |
+| IPinfo Business token | Founder | Week 3 |
+| Coresignal plan with enough credits (Mini to start) | Founder | Week 4 |
+| Omniscient API (`POST /api/v1/activities`, accounts upsert) | Omniscient repo | Week 6 |
 | Slack alerts app (exists, migration 014) | Built | — |
 
 ---
@@ -60,7 +60,7 @@ Rules come from three specs, and this plan doesn't repeat them:
  Browser                      Fly: claritia-collect            Supabase Postgres            Fly: claritia-intel
  ───────                      ─────────────────────            ─────────────────            ───────────────────
  claritia.js ──/_clr/*──►     /s.js  (script)                  sites, devices, sessions     claim_job loop:
-  (or direct)                 /e     (events)  ──COPY──►       events (daily partitions)     stitch, ip_lookup,
+  (or direct)                 /e     (events)  ─insert─►       events (daily partitions)     stitch, ip_lookup,
                               /i     (identity) ─insert─►      identity_evidence ─┐          enrich, signal, score,
                               /x     (hop token)                jobs ◄─────────────┘          alert, push, rollup,
                               /reset /opt /health               ip_cache, accounts…          retention, checks
@@ -73,8 +73,8 @@ Rules come from three specs, and this plan doesn't repeat them:
 
 | App | Size | Why separate |
 |---|---|---|
-| `claritia-collect` | 2 × shared-cpu-1x, 256 MB, always on, in nrt | Public, high volume, must stay up and fast |
-| `claritia-intel` | 1 × shared-cpu-1x, 512 MB, always on | Fast jobs with no browser (stitch, lookups, scores). The runner stays a separate app that sleeps when idle and keeps Chromium for Funnel QA. |
+| `claritia-collect` | 1 × shared-cpu-1x, 512 MB, always on, in nrt (`fly.collect.toml`). Scale to two before customer traffic. | Public, high volume, must stay up and fast |
+| `claritia-intel` | 1 × shared-cpu-1x, 1 GB, always on, in nrt (`fly.intel.toml`) | Fast jobs with no browser (stitch, lookups, scores). It also runs imports, source syncs and segment refreshes, and big imports need the 1 GB. The runner stays a separate app that sleeps when idle and keeps Chromium for Funnel QA. |
 
 ### 2.2 Life of one visit
 
@@ -83,21 +83,21 @@ Rules come from three specs, and this plan doesn't repeat them:
 | 1. The page loads `/_clr/s.js` (proxy) or `collect.tryclaritia.com/s.js` | Browser | Script ≤ 6 KB gzipped, loaded with `defer` |
 | 2. The script queues `view`, and sends a batch after 5 s, at 20 events, or on page hide | Browser | — |
 | 3. Collect checks site key, origin, size and rate. Works out policy from geo, GPC and consent. Reads or sets `_clr_id`. Finds or starts the session. Drops bots. | collect | p99 ≤ 50 ms |
-| 4. Collect buffers rows and flushes with `COPY` every 1 s or 500 rows | collect → Postgres | ≤ 1 s |
-| 5. New network: queue `ip_lookup`. New evidence: queue `stitch`. High-value page: queue `signal`. | collect → jobs | — |
-| 6. Intel runs the jobs: stitch (≤ 5 s), IP lookup (≤ 10 s), signal and score (≤ 30 s) | intel | — |
-| 7. Score crosses an alert rule: queue `alert` and `push` | intel | Signal to Slack ≤ 2 min p95 |
-| 8. Hourly rollups feed Visitors and Accounts | pg_cron | — |
+| 4. Collect writes new sessions and devices at once, and buffers event rows. It writes them every 1 s or at 500 rows, in one `insert … select from unnest(…)` statement (5.5). | collect → Postgres | ≤ 1 s |
+| 5. New network: queue `ip_lookup`. New evidence: queue `stitch`. | collect → jobs | — |
+| 6. Intel runs the jobs: stitch (≤ 5 s), IP lookup (≤ 10 s). Every 30 s the signals sweep saves signals for visits quiet for 2 minutes and queues `score_account` (≤ 30 s). | intel | — |
+| 7. Score crosses an alert rule: queue `account_alert` (`omniscient_push` is not built yet) | intel | Signal to Slack ≤ 2 min p95 |
+| 8. Hourly rollups feed Visitors and Accounts. Not built yet: the screens read sessions directly. | pg_cron | — |
 
 ### 2.3 Environment
 
 | Var | App | Purpose |
 |---|---|---|
-| `DATABASE_URL` (Supavisor pooler, transaction mode) | collect, intel | Direct Postgres for COPY and fast writes |
+| `DATABASE_URL` (Supabase pooler, session mode) | collect, intel | Direct Postgres for fast writes |
 | `SUPABASE_URL`, `SUPABASE_SECRET_KEY` | intel | Storage and RPC calls |
 | `CLR_ID_SECRET` | collect | Signs device ids (one per site is derived as HMAC(CLR_ID_SECRET, site_id)) |
-| `CLR_SALT_SECRET` | collect | Seeds the daily cookieless salt (the salt itself rotates daily) |
-| `IPINFO_TOKEN` | intel | Company, geo and privacy lookups |
+| `CLR_SALT_SECRET` | — | Not used: the daily cookieless salt is a random row in `salts` (4.1) |
+| `IPINFO_TOKEN` | collect, intel | Company, geo and privacy lookups (intel). Downloads IPinfo's free geo file (collect). |
 | `GEO_DB_PATH` | collect | Local geo file for country and region at intake (IPinfo's free country-ASN download, or MaxMind GeoLite2; check license) |
 | `CORESIGNAL_API_KEY` | intel | Enrichment. In this cloud session the proxy injects it. |
 | `SECRETS_KEY` | intel | Unseal Slack and Omniscient tokens |
@@ -107,218 +107,100 @@ Rules come from three specs, and this plan doesn't repeat them:
 
 ## Part 3. Files
 
+The files as built. Tests are in Part 11.
+
 ```
 collect/
-  server.ts            Hono app: routes, middleware order
-  routes/script.ts     GET /s.js  (serves the built script, cache 1 h, versioned path /s.<hash>.js)
-  routes/events.ts     POST /e
-  routes/identity.ts   POST /i
-  routes/hop.ts        GET /x  (hop token)
-  routes/control.ts    POST /reset, POST /opt, GET /health
-  policy.ts            region policy from geo + GPC + consent + site overrides
-  ids.ts               sign and verify device ids, hop tokens
-  sessions.ts          find or start a session (in-memory LRU + Postgres)
-  bots.ts              isbot list, data center ranges, hint scoring
-  geo.ts               local geo file lookup
-  scrub.ts             URL and field scrubbing (shared with the script)
-  buffer.ts            COPY buffer with flush, backpressure, retry
-  limits.ts            per-IP and per-site token buckets
-  ranges/              cloud provider range files, refreshed daily
-  Dockerfile, fly.collect.toml
+  server.ts            starts the routes on PORT, flushes the write buffer every second, stops cleanly on SIGTERM
+  app.ts               routes (/s.js, /e, /i, /x, /reset, /opt, /health) and the middleware order (5.4)
+  store.ts             every Postgres read and write, and the event insert (5.5)
+  buffer.ts            the event write buffer: flush, retry, backpressure (5.5)
+  sessions.ts          find or start a visit: memory first, then Postgres
+  geo.ts               country, region, city and network from a local MaxMind-format file
+  bots.ts              crawler user agents, cloud networks, automation, visits with no input
+  attribution.ts       UTM tags, click ids and the referrer's kind
+  ua.ts                device type, browser and OS
+  limits.ts            per-instance token buckets
+  Dockerfile           (fly.collect.toml is at the repo root)
 collect/script/
-  index.ts             entry: config from data attributes, queue, batching
+  index.ts             claritia.js: config, queue, batching, views, engage, clicks, identify, reset, opt-out (5.1)
   consent.ts           Google Consent Mode v2, OneTrust, Cookiebot, claritia.consent
-  spa.ts               pushState/replaceState/popstate, bfcache, prerender
-  engage.ts            active time, scroll depth
-  clicks.ts            CTA and outbound clicks
   forms.ts             submit capture, email field finder, never-read rules
+  hop.ts               cross-domain link decoration
   adapters/hubspot.ts  hsFormCallback
   adapters/marketo.ts  MktoForms2
-  identify.ts          claritia.identify / reset / track / optOut
-  hop.ts               cross-domain link decoration
-  build.mts            esbuild, size check (fails the build over 6 KB gzipped)
+  util.ts              guarded storage and small helpers
+  build.mts            esbuild into collect/dist (s.js and s.<hash>.js), fails over 6 KB gzipped
 src/lib/web/
-  policy.ts            shared policy table (used by collect and the app)
+  policy.ts            the region policy (used by collect and the app)
+  ids.ts               device ids, hop tokens, cookieless keys, uuid v7
+  scrub.ts             URL, text and prop scrubbing (browser and server)
+  proxy.ts             the Next.js proxy recipe (mode A)
   signals.ts           website signal rules
-  scores.ts            fit v0, intent, stage, temperature, priority
-  rollups.ts           query helpers for screens
+  scores.ts            fit v0, intent, stage, temperature, priority, why-now
+  accountAlerts.ts     account alert rules and the Slack message
+  names.ts             a stable name for each visitor, from the device id
 src/lib/identity/
   clean.ts             email and identifier cleaning (docs/identity.md Part 6)
-  stitch.ts            the stitch algorithm (docs/identity.md 7.7)
-  rebuild.ts           group rebuild and the nightly check
+  stitch.ts            the stitch algorithm (docs/identity.md Part 7)
+  devices.ts           device states, backfill, session split
+  rebuild.ts           workspace rebuild (docs/identity.md 7.9)
   erase.ts             erasure and export
-  lists/               free, disposable, role inbox lists
+  mx.ts                the MX check, cached 7 days
+  db.ts                shared types and the one-transaction helper
+  domainList.ts        the domain lists in Settings › Identity
+  lists/disposable.txt the disposable list (the free list is the free-email-domains package)
 src/lib/company/
   domains.ts           cleaning, PSL, hosting list, redirects
-  ipinfo.ts            client with cache and rate limits
-  coresignal.ts        company enrichment client
-  resolve.ts           account priority rules, learned networks
-src/lib/suite/omniscient.ts   activity push (basic)
+  ipinfo.ts            network lookups, kinds and confidence
+  coresignal.ts        company data by domain
+  accounts.ts          the account order (docs/identity.md 8.1)
 worker-intel/
-  index.ts             claim_job loop for intel kinds, health port
-  jobs/*.ts            one file per job kind (Part 6)
-  Dockerfile, fly.intel.toml
-src/app/(app)/visitors, accounts, accounts/[id], people/[id], settings/sites, settings/identity,
-  settings/icp, privacy        screens (Part 8)
-src/app/api/v1/visitors, accounts, people, privacy/requests      REST (Part 9)
-supabase/migrations/021_web.sql, 022_intel.sql
-tests/ and scripts/            (Part 11)
+  index.ts             claim loops, the signals sweep, health port
+  jobs/stitch.ts       stitch, device_reset, stitch_evidence, rebuild, privacy
+  jobs/company.ts      ip_lookup, enrich_company, identity_changed
+  jobs/signals.ts      the signals sweep, score_account, account_alert
+  jobs/imports.ts, sources.ts, segments.ts   jobs for other modules
+  rpc.ts               the jobs queue over a direct Postgres connection
+  settings.ts          a workspace's own and partner domains and identify secrets
+  Dockerfile           (fly.intel.toml is at the repo root)
+src/app/%5Fclr/[...path]/route.ts      /_clr/* on tryclaritia.com, forwarded to collect (mode A)
+src/app/api/identity-secret/route.ts   seals and rotates the identify secret
+src/app/api/account-alerts/route.ts    account alert rules, with the Slack address sealed
+src/components/app/views/
+  VisitorsView.tsx     Visitors (8.4)
+  AccountsView.tsx     Accounts and the Account page (8.5, 8.6)
+  SitesPanel.tsx       Settings › Sites and ICP (8.1, 8.3)
+  IdentityPanel.tsx    Settings › Identity (8.2)
+  AccountAlertsPanel.tsx   Settings › Account alerts (8.3)
+supabase/migrations/021_web.sql … 032_visitor_path.sql   (Part 4)
 ```
 
 ---
 
 ## Part 4. Database
 
-Two migrations. Both follow the existing pattern from `001_base.sql`:
+The tables are in migrations 021 to 032. They follow the existing pattern from `001_base.sql`:
 - RLS on every table, with `is_member(workspace_id)` for reads.
 - No client writes. Writes go through security definer RPCs or the service role.
 - A leak test for every table in `tests/db/leaks.sql`.
 
 ### 4.1 `021_web.sql`: sites, devices, sessions, events
 
-```sql
-create table public.sites (
-  id uuid primary key default gen_random_uuid(),
-  workspace_id uuid not null references public.workspaces (id) on delete cascade,
-  domain text not null,                                  -- registrable domain, cleaned
-  extra_domains text[] not null default '{}',
-  site_key text not null unique default encode(gen_random_bytes(12), 'base64'),
-  proxy_secret text not null default encode(gen_random_bytes(24), 'hex'),
-  install_mode text,                                     -- proxy, a_record, cname, direct (seen, not chosen)
-  policy_overrides jsonb not null default '{}',          -- {"strict": ["CA-QC"], "off": ["RU"]}
-  private_paths text[] not null default '{}',
-  url_param_allow text[] not null default '{utm_source,utm_medium,utm_campaign,utm_term,utm_content,gclid,fbclid,ref,page,q}',
-  city_level bool not null default true,
-  honor_dnt bool not null default false,
-  last_event_at timestamptz,
-  created_at timestamptz not null default now(),
-  unique (workspace_id, domain)
-);
+`supabase/migrations/021_web.sql` is the schema for:
+- `sites` (keys, install mode, policy overrides, private paths, URL params kept, city, DNT, event retention, paused), with `add_site`, `update_site` and `remove_site`;
+- `devices` and `sessions`. Later migrations add `sessions.split_to` (023) and `sessions.signaled_at` (026);
+- `events`, one table per day, made 7 days ahead by `make_event_partitions()` and dropped after 180 days by `drop_old_event_partitions()`;
+- `page_groups`, with `set_page_groups`;
+- the server-only `salts`, `opt_outs` and `hop_nonces`;
+- the rollups `site_daily` (no person data) and `account_daily`. Nothing fills them yet (4.4);
+- `web_daily()`, the daily upkeep (4.4).
 
-create table public.devices (
-  id uuid primary key,
-  workspace_id uuid not null, site_id uuid not null references public.sites (id) on delete cascade,
-  state text not null default 'fresh' check (state in ('fresh','probable','linked','shared','tainted','internal','opted_out')),
-  state_since timestamptz not null default now(), tainted_until timestamptz,
-  no_backfill bool not null default false, consent text,
-  first_seen timestamptz not null default now(), last_seen timestamptz not null default now(), sessions int not null default 0
-);
-create index on public.devices (workspace_id, state);
-create index on public.devices (workspace_id, last_seen);
+### 4.2 Identity, accounts, signals and scores (`022_evidence.sql` to `030_person.sql`)
 
-create table public.sessions (
-  id uuid primary key,
-  workspace_id uuid not null, site_id uuid not null, device_id uuid,              -- null when cookieless
-  cookieless_key bytea,                                                          -- daily hash, cookieless only
-  started_at timestamptz not null, ended_at timestamptz not null,
-  policy text not null, consent text, gpc bool not null default false,
-  country text, region text, city text,
-  device_type text, browser text, os text,
-  landing_path text, referrer_host text, source text, medium text, campaign text, term text, content text,
-  ref_class text,                                     -- search, ai_assistant, review_site, social, partner, email, direct
-  ip_net cidr, ip_kind text,
-  person_id uuid, person_level text, person_source text,
-  account_id uuid, account_source text, network_account_id uuid,
-  pageviews int not null default 0, engaged_s int not null default 0,
-  internal bool not null default false, is_bot bool not null default false, split_from uuid
-);
-create index on public.sessions (workspace_id, started_at desc);
-create index on public.sessions (workspace_id, device_id, started_at);
-create index on public.sessions (workspace_id, account_id, started_at desc);
-create index on public.sessions (workspace_id, person_id, started_at desc);
-
-create table public.events (
-  id uuid not null, workspace_id uuid not null, session_id uuid not null,
-  day date not null, kind text not null,              -- view, engage, click, form, identify, custom
-  path text, title text, data jsonb, client_at timestamptz, server_at timestamptz not null,
-  primary key (day, id)
-) partition by range (day);
--- Partitions: one per day, made 7 days ahead by pg_cron (make_event_partitions()),
--- dropped after the site's retention (default 90 days) by drop_old_event_partitions().
-create index on public.events (workspace_id, session_id);
-
-create table public.page_groups (
-  workspace_id uuid not null, site_id uuid not null, pattern text not null,     -- glob: /pricing*, /vs/*
-  grp text not null,                                  -- pricing, demo, compare, security, integrations, docs,
-                                                      -- case_study, product, blog, careers, legal, login, private
-  competitor text,                                    -- for compare pages
-  source text not null default 'user',                -- user, suggested
-  primary key (site_id, pattern)
-);
-
-create table public.salts (day date primary key, salt bytea not null);           -- deleted after 24 h; service role only
-create table public.opt_outs (site_id uuid, device_hash bytea, created_at timestamptz default now(), primary key (site_id, device_hash));
-create table public.hop_nonces (nonce bytea primary key, used_at timestamptz not null default now());
-
--- Rollups (no person data in site_daily)
-create table public.site_daily (
-  site_id uuid, day date, path text, source text, medium text, campaign text, ref_class text,
-  country text, device_type text,
-  visitors int, sessions int, views int, engaged_s bigint, bounces int,
-  primary key (site_id, day, path, source, medium, campaign, ref_class, country, device_type)
-);
-create table public.account_daily (
-  workspace_id uuid, account_id uuid, day date,
-  sessions int, people int, devices int, views int, engaged_s int, high_views int,
-  primary key (workspace_id, account_id, day)
-);
-```
-
-### 4.2 `023_intel.sql`: identity, accounts, signals, scores (evidence is in `022_evidence.sql`)
-
-The identity tables are exactly as in `docs/identity.md` Part 11: `persons`, `person_aliases`, `identifiers`, `identity_evidence`, `device_links`, `merge_proposals`, `email_tokens`, `learned_networks`, `ip_cache`, `deletions`.
-
-Plus:
-
-```sql
-create table public.accounts (
-  id uuid primary key default gen_random_uuid(),
-  workspace_id uuid not null,
-  domain text not null, name text, logo_url text,
-  firmo jsonb,                                        -- size, industry, country, founded, growth (Coresignal)
-  firmo_at timestamptz,
-  owner_user_id uuid, omniscient_account_id text, hubspot_company_id text,
-  fit int, intent int, priority numeric, stage text, stage_since timestamptz, temperature text,
-  why_now text, last_signal_at timestamptz, first_seen timestamptz not null default now(),
-  flags text[] not null default '{}',                 -- shared_network, partner, customer
-  unique (workspace_id, domain)
-);
-create index on public.accounts (workspace_id, priority desc);
-
-create table public.account_domains (workspace_id uuid, domain text, account_id uuid, source text, confidence int,
-  primary key (workspace_id, domain));
-create table public.domain_aliases (domain text primary key, canonical text not null, source text, checked_at timestamptz);
-create table public.company_cache (domain text primary key, data jsonb, vendor text, fetched_at timestamptz);
-create table public.network_flags (workspace_id uuid, net cidr, flag text, by_user uuid, created_at timestamptz default now(),
-  primary key (workspace_id, net, by_user));
-
-create table public.signal_types (
-  workspace_id uuid, kind text, weight numeric not null, half_life_days numeric not null,
-  dedupe text not null, enabled bool not null default true, primary key (workspace_id, kind)
-);
-create table public.signals (
-  id uuid primary key default gen_random_uuid(),
-  workspace_id uuid not null, account_id uuid not null, person_id uuid,
-  kind text not null, weight numeric not null, at timestamptz not null,
-  dedupe_key text not null, evidence jsonb not null,
-  unique (workspace_id, dedupe_key)
-);
-create index on public.signals (workspace_id, account_id, at desc);
-
-create table public.icp (workspace_id uuid primary key, rules jsonb not null, updated_at timestamptz);
-create table public.account_scores (
-  account_id uuid, at timestamptz, fit int, intent int, priority numeric, stage text, temperature text,
-  why_now jsonb, reasons jsonb, score_version int, inputs_hash text, primary key (account_id, at)
-);
-create table public.intent_params (workspace_id uuid primary key, k numeric not null, fitted_at timestamptz);
-create table public.feedback (workspace_id uuid, account_id uuid, user_id uuid, kind text, note text,
-  created_at timestamptz default now());
-create table public.alert_rules (
-  id uuid primary key default gen_random_uuid(), workspace_id uuid not null, user_id uuid,
-  rule jsonb not null, channel text not null, quiet_hours jsonb, daily_cap int not null default 10, enabled bool not null default true
-);
-create table public.alert_log (rule_id uuid, account_id uuid, sent_at timestamptz, primary key (rule_id, account_id, sent_at));
-```
+- **Identity:** `022_evidence.sql`, `023_identity.sql`, `024_identity_ops.sql`, `029_identity_settings.sql` and `030_person.sql`. Where each table lives is in `docs/identity.md` Part 11. The erasure record is `erasures`.
+- **Accounts, signals and scores:** `025_accounts.sql`: `accounts`, `account_domains`, `domain_aliases`, `company_cache`, `network_flags`, `signal_types`, `signals`, `icp`, `account_scores`, `intent_params`, `account_feedback`, `account_alert_rules` and `account_alert_log`. `026_signals.sql` adds `sessions.signaled_at` for the signals sweep. `028_account_alerts.sql` adds the sealed Slack address.
+- **Screens:** `027_screens.sql` and `032_visitor_path.sql` (4.3).
 
 ### 4.3 RPCs the app uses
 
@@ -339,13 +221,15 @@ All are security definer, check `is_member`, and return only what the screen nee
 
 ### 4.4 pg_cron jobs
 
+**Built:** `web_daily()` at 00:05 UTC (`021_web.sql`, when pg_cron is on). It makes the next week's event tables, drops tables older than 180 days, adds today's salt, deletes older salts, and deletes hop nonces older than 10 minutes.
+
+**Not built yet:**
+
 | Schedule | Function |
 |---|---|
 | Hourly at :05 | `rollup_hour(now() - 3h, now())`: site_daily and account_daily |
-| 01:00 UTC | `make_event_partitions()`, `drop_old_event_partitions()` |
 | 01:10 UTC | Queue `retention`, `learned_networks`, `identity_rebuild_check`, `untaint`, `intent_refit` (weekly) |
 | Every minute | Queue `script_health` per site with no events in 24 h (sends one alert per day) |
-| 00:00 UTC | Rotate the salt: insert today's, delete older than 24 h |
 
 ---
 
@@ -371,7 +255,7 @@ Data attributes: `data-site`, `data-consent="auto|wait|on"`, `data-domains="acme
 
 Calls made before the script loads are queued by a one-line stub and replayed: `window.claritia=window.claritia||function(){(claritia.q=claritia.q||[]).push(arguments)}`.
 
-**Built (day 2–5):** `src/lib/web/scrub.ts` (shared), `collect/script/*`, `npm run build:script` (gate: 6 KB gzipped, now 5.7 KB), `tests/scrub.test.ts`, `tests/script.test.ts`, and `scripts/script-check.ts` (35 checks in Chromium against a fake collect).
+**Built (week 2):** `src/lib/web/scrub.ts` (shared), `collect/script/*`, `npm run build:script` (gate: 6 KB gzipped, now 5.7 KB), `tests/scrub.test.ts`, `tests/script.test.ts`, and `scripts/script-check.ts` (34 checks in Chromium against a fake collect).
 
 ### 5.2 Event batch (POST /e)
 
@@ -401,7 +285,7 @@ A batch that fails (network, `429`, `5xx`) is sent once more with the next batch
   "email": "jane@acme.com", "userId": null, "iat": null, "token": null, "page": "/demo", "form": "demo-form" }
 ```
 
-The kind and source map to evidence levels per `docs/identity.md` 5.10.
+The kind and source map to evidence levels per `docs/identity.md` 5.10. Signed `identify` tokens are checked by the stitch job, which holds the secrets. Collect stores the token with the evidence.
 
 ### 5.4 Middleware order in collect
 
@@ -411,9 +295,10 @@ The kind and source map to evidence levels per `docs/identity.md` 5.10.
 4. Rate limits: 50 requests a second per IP, 2,000 a second per site (in-memory buckets per instance). A per-site count in Postgres catches abuse across instances.
 5. Geo lookup (local file), then the `/24` or `/48` network. The full IP is kept in memory only.
 6. **Policy** (`docs/account-intelligence.md` 3.2): region, then site overrides, then GPC, then consent, then opt-out cookie.
-7. **Device:** verify `_clr_id`, or issue one if policy allows. Modes A and B set an HttpOnly cookie. Modes C and D return the id.
+7. **Device:** verify `_clr_id`, or issue one if policy allows. The script says how it's installed (`m`: `a` proxy, `s` subdomain, `d` direct). Collect sets the HttpOnly cookie for `a` and `s`, or returns `did` for `d`. A request in mode `a` without the proxy secret has the proxy's IP, so its network isn't kept and it gets no company lookup.
 8. **Bot score:**
-   - `isbot` user agent, or a data center range: drop.
+   - `isbot` user agent: drop. Only crawler user agents are dropped.
+   - Cloud networks, matched by ASN from the geo file: mark bot, and unmark when the visit shows real input (people on cloud desktops are buyers).
    - `webdriver` true, or no input after 30 s with more than 10 views: mark bot.
 9. **Session:** in-memory LRU of device to session (30 min), with Postgres as the source of truth. Split rules from `docs/identity.md` 4.6.
 10. Scrub URLs and props (`scrub.ts`). Drop events on `private_paths`.
@@ -422,27 +307,16 @@ The kind and source map to evidence levels per `docs/identity.md` 5.10.
 
 ### 5.5 Write path
 
-- Each collect instance has a buffer of `events`, `sessions` upserts and `devices` upserts.
-- Flush every 1 s or at 500 rows: `COPY events FROM STDIN` into a temp table, then `insert … on conflict do nothing` into the partition.
-- Sessions use `insert … on conflict (id) do update` to set `ended_at`, `pageviews` and `engaged_s` with `greatest()`.
+- New sessions and devices are written at once, in one transaction, so a second instance finds them. Only events wait in the buffer (`collect/buffer.ts`).
+- Flush every 1 s or at 500 rows, with one `insert … select from unnest(…) on conflict do nothing` statement (`collect/store.ts`). The same statement adds the rows it really inserted to the sessions' `pageviews`, `engaged_s` and `ended_at`, so a retry can't double a count. There is no COPY and no temp table: at our sizes it's just as fast.
+- An event's day comes from its uuid v7 time, so a batch retried after midnight lands in the same day table. If that day's table doesn't exist yet, collect makes the tables and tries once more.
+- A failed write keeps its rows and waits 1, 2, 4 … up to 30 s before the next try. A bad row (a data error) is found by halving the batch and is dropped alone.
 - **Backpressure:** if the buffer passes 20,000 rows (the database is slow), collect answers `503` with `Retry-After: 5`, and the script keeps the batch in `sessionStorage` and retries once.
 - **On shutdown** (SIGTERM from Fly), flush and then exit. Fly's kill timeout is set to 30 s.
 
-### 5.5a Built (week 3)
-
-- **Files:** `collect/app.ts` (routes), `server.ts`, `store.ts` (Postgres), `buffer.ts`, `sessions.ts`, `ids.ts`, `geo.ts`, `bots.ts`, `attribution.ts`, `ua.ts`, `limits.ts`, `src/lib/web/policy.ts`, `src/lib/web/proxy.ts` (the Next.js proxy recipe, used by tryclaritia.com at `/_clr/*`), `supabase/migrations/022_evidence.sql`.
-- **Tests:** `tests/collect.test.ts` (routes, the 144-case policy matrix, ids, hop, bots, sessions, buffer), `tests/proxy.test.ts`, `tests/pg/collect.pg.ts` (real Postgres: retries don't double, a killed write rolls back whole, shutdown loses nothing) and `scripts/collect-check.ts` (Chromium → script → proxy → collect → Postgres). `npm run test:db` runs the last two.
-- **Changes from the plan:**
-  - Writes use one `insert … select from unnest(…) on conflict do nothing` statement that also adds the rows it really inserted to the sessions' counts. No COPY and no temp table. Same speed at our sizes, and a retry can't double a count.
-  - An event's day comes from its uuid v7 time, so a batch retried after midnight lands in the same day table.
-  - The script says how it's installed (`m`: `a` proxy, `s` subdomain, `d` direct) and collect sets the HttpOnly cookie for `a` and `s`, or returns `did` for `d`. A request in mode `a` without the proxy secret has the proxy's IP, so its network isn't kept and it gets no company lookup.
-  - Cloud networks are matched by ASN from the geo file. They're marked as bots and unmarked when the visit shows real input (people on cloud desktops are buyers). Only crawler user agents (`isbot`) are dropped.
-  - New sessions and devices are written at once (one transaction), so the second instance finds them. Only events wait in the buffer.
-  - Signed `identify` tokens are checked by the stitch job, which holds the secrets. Collect stores the token with the evidence.
-  - Identity tables beyond evidence move to `023_intel.sql`.
-- **Live:** `claritia-collect` deploys with the others and stays idle (health says what's missing, everything else is 503) until `DATABASE_URL` and `CLR_ID_SECRET` are set. One machine for now; scale to two before customer traffic.
-
 ### 5.6 `fly.collect.toml`
+
+The parts that matter (the file is at the repo root):
 
 ```toml
 app = "claritia-collect"
@@ -452,7 +326,8 @@ kill_timeout = 30
   internal_port = 8080
   force_https = true
   auto_stop_machines = "off"
-  min_machines_running = 2
+  auto_start_machines = true
+  min_machines_running = 1
   [http_service.concurrency]
     type = "requests"
     soft_limit = 800
@@ -463,8 +338,10 @@ kill_timeout = 30
   timeout = "2s"
 [[vm]]
   size = "shared-cpu-1x"
-  memory = "256mb"
+  memory = "512mb"
 ```
+
+`claritia-collect` deploys with the others and stays idle (health says what's missing, everything else is 503) until `DATABASE_URL` and `CLR_ID_SECRET` are set. One machine for now; scale to two before customer traffic.
 
 Custom domains: `collect.tryclaritia.com`, and per-customer mode B and C subdomains through Fly certificates.
 
@@ -472,25 +349,59 @@ Custom domains: `collect.tryclaritia.com`, and per-customer mode B and C subdoma
 
 ## Part 6. Intel jobs
 
-All jobs run in `claritia-intel` through `claim_job(kinds)`. Each one can be run twice with the same result.
+All jobs run in `claritia-intel` (`worker-intel/index.ts`) through `claim_job(kinds)`, with 4 claim loops by default (`CONCURRENCY`). Each one can be run twice with the same result. Every job here gets 5 tries, the `enqueue_job` default. A job that shares a key with a waiting one is merged into it.
 
-| Job | Key | Input | What it does | Retries |
+### Built
+
+| Job | Key | Queued by | What it does | Target time |
 |---|---|---|---|---|
-| `stitch` | device | evidence id | `docs/identity.md` 7.7. Queues `identity_changed`. | 5, backoff |
-| `identity_changed` | person | person id | Re-resolve accounts for affected sessions, queue `score_account` | 5 |
-| `ip_lookup` | network | network, sample IP (in the payload, encrypted with a key held only in memory by collect and intel, deleted after use) | IPinfo lookup, save `ip_cache`, set account on sessions from that network in the last hour, queue `enrich_company` | 3 |
-| `enrich_company` | domain | domain | Domain cleaning and redirects, `company_cache` (30-day TTL), Coresignal company data, write `accounts.firmo` | 3 |
-| `signal` | session | session id | Apply the website signal rules (`src/lib/web/signals.ts`), write `signals` with dedupe keys, queue `score_account` | 5 |
-| `score_account` | account (debounced 60 s) | account id | Fit v0, intent, stage, temperature, priority, why-now. Save `account_scores`. Haiku reason only when the band changes. Check alert rules. | 3 |
-| `alert` | rule + account | ids | Send to Slack or email through alerts (014), honoring quiet hours and the daily cap | 5 |
-| `omniscient_push` | account | account id | Upsert the account and log a "Hot on website" activity in Omniscient | 5 |
-| `learned_networks` | workspace | — | Nightly, `docs/identity.md` 8.3 | 3 |
-| `identity_rebuild_check` | workspace | — | Rebuild 200 random groups in a scratch schema and compare | 1 |
-| `retention` | — | — | Delete past retention. Write counts to `audit_log`. | 3 |
-| `untaint` | — | — | End 30-day taints | 3 |
-| `intent_refit` | workspace | — | Weekly fit of `k` so the 95th percentile account is about 90 | 3 |
-| `script_health` | site | — | Alert once a day when no events arrive for 24 h | 1 |
-| `suggest_page_groups` | site | — | Explorer crawl (runner job) of up to 200 pages, rules first, then Haiku for leftovers. Suggestions go to Settings for approval. | 2 |
+| `stitch` | device | collect, on new evidence | Every waiting evidence row for the device, per `docs/identity.md` 7.7, with the MX check inline (`src/lib/identity/mx.ts`, cached 7 days). Queues `identity_changed`. | ≤ 5 s p95 |
+| `device_reset` | old device | collect, on `claritia.reset()` | Closes the old device's open link at that moment (`docs/identity.md` 4.5) | — |
+| `stitch_evidence` | evidence id | `decide_merge`, when a merge proposal is approved | Stitches one evidence row that has no device | — |
+| `rebuild` | workspace | `unmerge_person`, `unlink_device`, `mark_kiosk` | Replays the workspace's evidence (`docs/identity.md` 7.9) | — |
+| `privacy` | request id | `privacy_request` | Erasure or export (`docs/identity.md` 15.1, 15.2) | — |
+| `identity_changed` | person | `stitch` | Sets the account again on the person's sessions in the last 90 days (`docs/identity.md` 8.1). Queues `score_account` for accounts that changed. | ≤ 60 s |
+| `ip_lookup` | network | collect, for a network it hasn't queued in the last hour | IPinfo lookup, saved in `ip_cache` (`docs/identity.md` 8.2). Sets the account on that network's sessions in the last hour. Queues `score_account`. | ≤ 10 s |
+| `enrich_company` | domain | a new account | Redirect alias, `company_cache` (30 days), Coresignal company data, written to `accounts.firmo` and the name | — |
+| `score_account` | account, run 60 s later | the signals sweep, `identity_changed`, `ip_lookup`, `set_icp` | Fit v0, intent, stage, temperature, priority, why-now. Saves `account_scores`. Checks alert rules and queues `account_alert`. | ≤ 30 s |
+| `account_alert` | rule + account | `score_account` | Posts the account to the rule's Slack, at most once a day per rule and account, within the daily cap | — |
+
+**The signals sweep** takes the place of a `signal` job. Every 30 seconds one intel instance (it holds an advisory lock) finds visits with an account that have been quiet for 2 minutes and weren't checked since they last grew. It applies the website signal rules (`src/lib/web/signals.ts`), writes `signals` with dedupe keys, and queues `score_account`.
+
+The same app also runs `import_file`, `import_undo`, `source_pull`, `crm_push`, `source_hook` and `segment_refresh` for other modules, and clears old import files once an hour.
+
+### Not built yet
+
+| Job | Key | What it's for | Target time |
+|---|---|---|---|
+| `omniscient_push` | account | Upsert the account and log a "Hot on website" activity in Omniscient | — |
+| `learned_networks` | workspace | Nightly, `docs/identity.md` 8.3 | Minutes |
+| `identity_rebuild_check` | workspace | Nightly: rebuild 200 random groups in a scratch schema and compare | Minutes |
+| `retention` | — | Nightly: delete past retention (`docs/account-intelligence.md` 3.4, `docs/identity.md` 15.4: unknown devices, old nonces and caches). Write counts to `audit_log`. | Minutes |
+| `untaint` | — | Nightly: end 30-day taints. The stitch job already treats a taint past `tainted_until` as over; only the stored state stays `tainted`. | Minutes |
+| `intent_refit` | workspace | Weekly fit of `k` so the 95th percentile account is about 90. Until then `k` is 60 unless `intent_params` has a row. | Minutes |
+| `script_health` | site | Alert once a day when no events arrive for 24 h | — |
+| `suggest_page_groups` | site | Explorer crawl (runner job) of up to 200 pages, rules first, then Haiku for leftovers. Suggestions go to Settings for approval. | — |
+| `hutk_lookup` | `hutk` | The first `hutk` in a session (`docs/identity.md` 5.5) | ≤ 30 s |
+| `token_confirm` | token | An email or page token, 30 s after landing (`docs/identity.md` 5.6) | 30–40 s |
+| `calendly_invitee` | invitee URI | A booking event | ≤ 30 s |
+
+**Later modules** (planned in `docs/account-intelligence.md` for after M1):
+
+| Job | Trigger | Runs |
+|---|---|---|
+| `hubspot_inbox` | Webhook batch | Seconds |
+| `hubspot_catchup` | Every 15 min per portal | Minutes |
+| `hubspot_writeback` | Every 15 min | Minutes |
+| `hubspot_timeline` | Hourly | Minutes |
+| `tech_scan` | Monthly per active account | Minutes |
+| `jobs_scan` | Weekly per active account | Minutes |
+| `news_watch` | Weekly per active account (top 200) | Minutes |
+| `brief` | Weekly top 50, plus on Evaluating, demo request or Refresh | Batch API weekly, direct on trigger |
+| `digest` | 8:00 rep local time | Minutes |
+| `fit_refit` | Monthly | Minutes |
+| `backtest` | On demand, and monthly | Minutes |
+| `quality_report` | Nightly | Minutes |
 
 **Throughput targets (one intel machine):**
 - 500 stitch rows a second.
@@ -505,7 +416,7 @@ The intel app scales by machine count, since jobs are claimed with `skip locked`
 
 ### 7.1 IPinfo use
 
-- **Call:** one IPinfo API call per uncached IP (check the current endpoint and field names on the Business plan: company name, domain and type, ASN type, and privacy flags for VPN, proxy, hosting and relay).
+- **Call:** one IPinfo API call per uncached network (check the current endpoint and field names on the Business plan: company name, domain and type, ASN type, and privacy flags for VPN, proxy, hosting and relay).
 - **Network kind:**
 
 | IPinfo says | Kind |
@@ -523,13 +434,11 @@ The intel app scales by machine count, since jobs are claimed with `skip locked`
   - 75 when the company type is business but the ASN is an ISP (business on a broadband line);
   - 60 otherwise.
   - Only 70+ sets an account (`docs/identity.md` 8.1).
-- **Cache:** by /24 when IPinfo returns the same company for 3 IPs in that /24. Otherwise by `HMAC(cache_secret, ip)` for 30 days. Raw IPs are never stored.
+- **Cache:** see `docs/identity.md` 8.2.
 
 ### 7.2 Domain and account
 
-- Cleaning, the Public Suffix List, hosting domains and redirect aliases come from `docs/account-intelligence.md` 5.1. Code: `src/lib/company/domains.ts`, using the `psl` package or a bundled list (check license).
-- **Priority order:** CRM link (Omniscient account, later), then work email, then learned network, then vendor network (`docs/identity.md` 8.1).
-- A new domain creates an `accounts` row and queues `enrich_company`.
+Domain cleaning is in `docs/account-intelligence.md` 5.1 (code: `src/lib/company/domains.ts`, with the `psl` package). The account order, and what a new domain does, are in `docs/identity.md` 8.1.
 
 ### 7.3 Coresignal
 
@@ -546,7 +455,7 @@ The website set from `docs/account-intelligence.md` 7.1:
 - `page_pricing`, `page_demo`, `page_compare`, `page_security`, `page_integrations`
 - `docs_depth`, `case_study`, `return_visit`, `multi_person`
 - `review_site_ref`, `ai_assistant_ref`
-- `engaged_session`, `spike`
+- `engaged_session` (`spike` is not built yet)
 - `form_submit` and `demo_request` (from evidence)
 - `new_person`
 
@@ -562,7 +471,7 @@ Defaults are seeded into `signal_types` for each new workspace.
 | Temperature | 7-day vs 28-day |
 | Priority | intent × (0.4 + 0.6 × fit/100) × stage factor × owner factor |
 | Why-now | The top 2 signal contributions in the last 7 days, as plain text built from templates (no AI) |
-| Reason | Haiku 5.5, only when the stage or the intent band (0–39, 40–69, 70+) changes. Plain-math fallback if the call fails. |
+| Reason | Haiku 5.5, only when the stage or the intent band (0–39, 40–69, 70+) changes. Plain-math fallback if the call fails. Not built yet. |
 
 ---
 
@@ -670,17 +579,17 @@ MCP tools on `/api/mcp`: `list_accounts`, `get_account`, `get_account_timeline`,
 
 | Item | Where in code | Test |
 |---|---|---|
-| Region policy decides cookie, identity and lookups | `collect/policy.ts` | Consent matrix (48 cases) |
-| GPC honored everywhere | `policy.ts` | Matrix |
-| No cookie before consent in `strict` | `ids.ts` + `policy.ts` | Matrix |
-| Cookieless salt rotates and old salts are deleted | pg_cron + `salts` | Unit, plus a check that no salt older than 24 h exists |
-| Full IP never stored | `geo.ts`, `ip_lookup` payload handling | A scan of all tables for IP patterns after the full suite |
-| URL scrubbing | `scrub.ts` (shared) | 200 URL cases |
-| Form fields: email only, never passwords or cards | `script/forms.ts` | Network capture in a real browser |
-| Private paths send nothing | `collect` step 10 | Browser check |
-| Opt-out works per site | `/opt`, `opt_outs` | Browser check |
+| Region policy decides cookie, identity and lookups | `src/lib/web/policy.ts` | Consent matrix (48 cases) |
+| GPC honored everywhere | `src/lib/web/policy.ts` | Matrix |
+| No cookie before consent in `strict` | `collect/app.ts`, `src/lib/web/ids.ts` + `src/lib/web/policy.ts` | Matrix |
+| Cookieless salt rotates and old salts are deleted | `web_daily()` in `021_web.sql` + `salts` | Unit, plus a check that no salt older than 24 h exists |
+| Full IP never stored | `collect/geo.ts`, `collect/app.ts` (only the network is kept and queued) | A scan of all tables for IP patterns after the full suite |
+| URL scrubbing | `src/lib/web/scrub.ts` (shared) | 200 URL cases |
+| Form fields: email only, never passwords or cards | `collect/script/forms.ts` | Network capture in a real browser |
+| Private paths send nothing | `collect/app.ts` (5.4 step 10) | Browser check |
+| Opt-out works per site | `/opt` in `collect/app.ts`, `opt_outs` | Browser check |
 | Erasure removes everything | `src/lib/identity/erase.ts` | Search every table after erase |
-| Retention deletes on time | `retention` job | Clock-moved test |
+| Retention deletes on time | `retention` job (not built yet) | Clock-moved test |
 | No person data across workspaces | RLS | `tests/db/leaks.sql` |
 | Shared caches hold company data only | `company_cache`, `ip_cache` schemas | Schema test: no email, name or person columns |
 | Audit log on exports, erasures and setting changes | RPCs | Unit |
@@ -689,25 +598,35 @@ MCP tools on `/api/mcp`: `list_accounts`, `get_account`, `get_account_timeline`,
 
 ## Part 11. Tests
 
+`npm test` runs `tests/*.test.ts`. `npm run test:db` builds a database from every migration and runs `tests/db/*.sql`, `tests/pg/*.ts`, and, when `CHROMIUM_PATH` is set, the three browser checks that need Postgres. CI runs both (`.github/workflows/ci.yml`), in Chromium only. `npm run test:browser` runs `scripts/script-check.ts` with the other browser checks that need no database.
+
 | File | Covers |
 |---|---|
-| `tests/scrub.test.ts` | URL and prop scrubbing (200 cases) |
-| `tests/policy.test.ts` | Policy table: region × GPC × consent × overrides × opt-out |
-| `tests/ids.test.ts` | Signing, verifying, hop tokens, expiry, replay |
-| `tests/bots.test.ts` | User agents, ranges, hint rules |
-| `tests/clean.test.ts` | Email cleaning, classes, identify blocklist (`"null"`, `"anonymous"`, empty) |
-| `tests/stitch.test.ts` | Every device-state transition, merge guards, backfill, session split |
-| `tests/stitch.prop.test.ts` | Rebuild equals incremental (10,000 rows), and order independence with 8 workers |
-| `tests/domains.test.ts` | PSL, hosting domains, aliases (100 labeled domains) |
-| `tests/resolve.test.ts` | Account priority, learned networks, IPinfo kind mapping |
-| `tests/signals.test.ts` | Each signal rule and dedupe key |
-| `tests/scores.test.ts` | Fit v0, intent with cap and breadth, stage, temperature, priority, why-now text |
-| `scripts/collect-check.ts` | Real Chromium: views, SPA, bfcache, prerender, engage, clicks, forms, adapters, backpressure, flush on shutdown |
-| `scripts/consent-check.ts` | The 48-case matrix in real browsers |
-| `scripts/identity-check.ts` | The 38 cases in `docs/identity.md` 17.1, in Chromium (and WebKit and Firefox in CI) |
-| `scripts/load-collect.ts` | 10,000 events a second for 60 s: no loss, p99 ≤ 50 ms |
-| `scripts/load-intel.ts` | 500 stitch rows a second, p95 ≤ 5 s |
-| `tests/db/leaks.sql` | Every new table |
+| `tests/scrub.test.ts` | URL, text and prop scrubbing, and private path patterns |
+| `tests/script.test.ts` | Consent readers, the HubSpot form message, hop links |
+| `tests/collect.test.ts` | Regions and the 144-case policy matrix, device ids, uuid v7, hop tokens, cookieless keys, networks, geo, bots, attribution, token buckets, session split rules, the buffer, and every collect route |
+| `tests/proxy.test.ts` | The Next.js proxy recipe |
+| `tests/clean.test.ts` | Email cleaning and classes, user and HubSpot ids, hashes, merge guards, signed identify tokens |
+| `tests/domainList.test.ts` | The domain lists in Settings › Identity |
+| `tests/domains.test.ts` | Domain cleaning on 100 labeled inputs |
+| `tests/company.test.ts` | IPinfo kinds and confidence, a network's sample address, a Coresignal response |
+| `tests/scores.test.ts` | Decay, intent by hand, fit v0, stage, temperature, priority, why-now, page groups, visit and account signals, alert rules |
+| `tests/pg/collect.pg.ts` | collect's Postgres writes: retries don't double, a killed write rolls back whole, shutdown loses nothing |
+| `tests/pg/stitch.pg.ts` | States, backfill, split, taint, signed merge, guards, internal, role, disposable, policy, erasure, an 8-way race, a job killed midway |
+| `tests/pg/intel.pg.ts` | The claim loop: queued stitch jobs run once and finish |
+| `tests/pg/rebuild.pg.ts` | Rebuild equals incremental (1,500 random rows, 80 devices, 50 identifiers), each undo, erasure and export |
+| `tests/pg/accounts.pg.ts` | Accounts from work emails and networks, IP lookups and company data |
+| `tests/pg/signals.pg.ts` | The signals sweep and `score_account` |
+| `tests/pg/alerts.pg.ts` | A hot account fires one Slack message per rule per day |
+| `tests/pg/screens.pg.ts` | The screens' read functions return the fields the screens use |
+| `tests/pg/person.pg.ts` | `person_detail` and `privacy_find` |
+| `tests/db/leaks.sql` | RLS on every table |
+| `scripts/script-check.ts` | 34 checks of claritia.js in Chromium against a fake collect |
+| `scripts/collect-check.ts` | Chromium → script → proxy → collect → Postgres |
+| `scripts/identity-check.ts` | 27 of the 38 cases in `docs/identity.md` 17.1, in Chromium |
+| `scripts/consent-check.ts` | All 48 consent cases, in Chromium |
+
+Not built yet: `scripts/load-collect.ts` (10,000 events a second for 60 s: no loss, p99 ≤ 50 ms), `scripts/load-intel.ts` (500 stitch rows a second, p95 ≤ 5 s), and the WebKit and Firefox runs.
 
 **Reliability rule:** collect, stitch and scores don't ship without their flaky-case tests passing:
 - the database slow or down during flush;
@@ -717,61 +636,47 @@ MCP tools on `/api/mcp`: `list_accounts`, `get_account`, `get_account_timeline`,
 
 ---
 
-## Part 12. Day-by-day schedule (weeks 2–6, 25 working days)
+## Part 12. Status
 
-M0 (week 1) is done before day 1.
+What is built and what is left, checked against the code. The day-by-day schedule that was here is in git.
 
-### Week 2: the script
+### 12.1 Built
 
-| Day | Build | Done when |
-|---|---|---|
-| 1 | `021_web.sql` (sites, devices, sessions, events and partitions, page groups, salts, opt-outs, nonces, rollups), RLS, leak tests | Migration applies in a rolled-back transaction. Leak tests pass. |
-| 2 | Script core: config, queue, uuid v7, batching, `sendBeacon`, `sessionStorage` retry, SPA, bfcache, prerender. Esbuild with the size gate. | Test page shows batches in the network log. Size ≤ 6 KB gzipped. |
-| 3 | Engage (active time, scroll), clicks, URL scrubbing (shared module), private paths | Scrub tests pass. Engage numbers match a scripted session. |
-| 4 | Consent readers (GCM v2, OneTrust, Cookiebot, API), GPC, opt-out, `identify`, `track`, `form`, `reset` | Unit tests for each consent source |
-| 5 | Forms: email finder, never-read rules, HubSpot and Marketo adapters. Cross-domain hop links. | Network capture shows only the email leaves. Hop link carries `_clr_x` only at click time. |
+- **Database:** migrations `021_web.sql` to `032_visitor_path.sql` (Part 4).
+- **Script:** `collect/script` (5.1): views, SPA, bfcache, prerender, engage, clicks, consent readers, GPC, opt-out, forms with the HubSpot and Marketo adapters, hop links, `identify`, `track`, `form` and `reset`. 5.7 KB gzipped.
+- **Collect:** `collect/` (5.2 to 5.6), on one machine.
+- **Identity** (`src/lib/identity`): cleaning with the free and disposable lists, the MX check, stitching, device states, backfill, session split, taint, merge guards, internal devices from own-domain emails, rebuild, undo (`unmerge_person`, `unlink_device`, `mark_kiosk`, `decide_merge`), erasure and export.
+- **Companies** (`src/lib/company`): domain cleaning and redirect aliases, IPinfo lookups with `ip_cache`, Coresignal company data with `company_cache`, and the account order (`docs/identity.md` 8.1).
+- **Signals and scores** (`src/lib/web`): every website signal in 7.4 except `spike`, fit v0, intent, stage, temperature, priority and why-now, run by the signals sweep and `score_account`.
+- **Alerts:** account alert rules to Slack (`028_account_alerts.sql`, `account_alert`).
+- **Intel:** `claritia-intel` with the jobs built in Part 6.
+- **Screens:**
+  - Visitors (8.4).
+  - Accounts and the Account page, with the feedback buttons (8.5, 8.6).
+  - Settings › Sites: add a site, the install recipes (script tag, Next.js, Nginx), and ICP (8.1, 8.3).
+  - Settings › Identity: own and partner domains, and the identify secret with a Node snippet (8.2).
+  - Settings › Account alerts (8.3).
+- **Read functions ready for screens not built yet:** `person_detail` and `privacy_find` (`030_person.sql`).
+- **Tests:** Part 11.
 
-### Week 3: collect
+### 12.2 Not built yet
 
-| Day | Build | Done when |
-|---|---|---|
-| 6 | Hono app, routes, size and origin checks, site cache, proxy secret and client IP, rate limits | Route tests with fake sites |
-| 7 | Geo file, region policy, device ids (sign, verify, cookies per mode), cookieless keys and the salt job | Policy and ids tests pass |
-| 8 | Bots (ranges loader, `isbot`, hints), sessions (LRU and Postgres, split rules) | Bot and session tests pass |
-| 9 | Buffer with COPY, backpressure, flush on shutdown. Job queueing (`ip_lookup`, `signal`, `stitch`). `/i`, `/x`, `/reset`, `/opt`, `/health`. | Kill during flush loses nothing. Retried batches don't double. |
-| 10 | `fly.collect.toml`, deploy, `collect.tryclaritia.com`, install on tryclaritia.com (proxy mode through Next.js rewrites). `collect-check.ts` and `load-collect.ts`. | Live events from tryclaritia.com. Load test passes. |
+- The `spike` signal (7.4).
+- Jobs: `suggest_page_groups`, `omniscient_push`, `learned_networks`, `intent_refit`, `script_health`, `retention`, `untaint` and `identity_rebuild_check` (Part 6). Without `learned_networks`, accounts by learned network never match.
+- Internal traffic from office IPs and "this is me" links (`docs/identity.md` Part 9). Today only an own-domain email marks a device internal.
+- Screens: the Person page (8.7) and Privacy (8.8). Per-site settings and page groups on Settings › Sites (8.1). Signals on Settings › ICP and Signals (8.3). Office IPs, "this is me" links, the other server snippets and the health tiles on Settings › Identity (8.2).
+- Haiku reasons (7.5).
+- The hourly rollups (4.4).
+- REST and MCP (Part 9).
+- The load tests, and WebKit and Firefox runs (Part 11).
 
-### Week 4: identity
+### 12.3 Browser cases deferred
 
-| Day | Build | Done when |
-|---|---|---|
-| 11 | `022_intel.sql` identity tables. Identifier cleaning and lists. Evidence intake from `/i`. | Clean tests pass |
-| 12 | `claritia-intel` app with the claim loop. The `stitch` job: identifiers, hard edges, merge guards, persons, aliases. | Unit tests for merges and guards |
-| 13 | Device state machine, backfill, session split, advisory locks, internal traffic triggers | State transition tests pass |
-| 14 | Rebuild, undo RPCs (unmerge, unlink, kiosk), merge proposals, erasure and export | Property test (rebuild equals incremental) passes |
-| 15 | `identity-check.ts` (38 cases) and `consent-check.ts` (48 cases). Fix everything they find. | Both suites green in Chromium |
+`scripts/identity-check.ts` runs 27 of the 38 cases in `docs/identity.md` 17.1:
+- Cases 7–15 (email links) come with M6.
+- Cases 22–23 (Safari storage, in WebKit) need WebKit and aren't written yet.
 
-**Built so far (days 11–13):** `023_identity.sql` (settings, persons, aliases, identifiers, device links, merge proposals, `sessions.split_to`, ip cache, learned networks, erasures, email tokens), `src/lib/identity/clean.ts` with the free list (`free-email-domains`, MIT) and the disposable list (`lists/disposable.txt`, CC0), `src/lib/identity/stitch.ts`, and `claritia-intel` (`worker-intel/`, `fly.intel.toml`) running `stitch` and `device_reset`. Tests: `tests/clean.test.ts`, `tests/pg/stitch.pg.ts` (states, backfill, split, taint, signed merge, guards, internal, role, disposable, policy, erasure, an 8-way race, a job killed midway) and `tests/pg/intel.pg.ts`. Day 14 is built too: `src/lib/identity/rebuild.ts`, `erase.ts` (erasure and export), `024_identity_ops.sql` (`unmerge_person`, `unlink_device`, `mark_kiosk`, `decide_merge`, `privacy_request`, `privacy_exports`) and the intel jobs `rebuild`, `stitch_evidence` and `privacy`. `tests/pg/rebuild.pg.ts` proves rebuild equals incremental on 1,500 seeded random rows (shared, tainted and internal devices included) and covers each undo, erasure and export. Day 15 is built: `scripts/identity-check.ts` runs 27 of the 38 cases of `docs/identity.md` 17.1 in Chromium (the email-link cases 7–15 come with M6; the WebKit cases 22–23 need WebKit), and `scripts/consent-check.ts` runs all 48 consent cases. Both found real bugs that are fixed: consent calls made before the script loaded didn't count for the first batch, consent given after a cookieless answer never upgraded the visit, withdrawing consent didn't delete the device cookie, GPC visits in notice regions never queued their company lookup, and form emails had no MX check. Still to do: office-network and "this is me" internal triggers. `hutk` waits for the HubSpot connection (M3) and email links for M6; both are kept and marked.
-
-### Week 5: companies, signals, scores
-
-| Day | Build | Done when |
-|---|---|---|
-| 16 | Domain cleaning, PSL, hosting list, redirect aliases, `accounts` and `account_domains` | 100-domain label set ≥ 98% right |
-| 17 | IPinfo client, `ip_lookup` job, network kinds and confidence, IP cache rules, learned networks job | Sample of 200 known IPs (from our own team and partners' office networks) ≥ 90% precise |
-| 18 | Coresignal client, `enrich_company` job, company cache, firmographics on accounts | Firmographics appear for tryclaritia.com visitors |
-| 19 | Page groups (manual, plus the `suggest_page_groups` crawl), the website signal rules, `signal` job with dedupe | Signal tests pass |
-| 20 | Fit v0, intent with `k` fit, stage, temperature, priority, why-now, Haiku reasons with fallback, `score_account` debounced | Score tests pass by hand math |
-
-### Week 6: screens and alerts
-
-| Day | Build | Done when |
-|---|---|---|
-| 21 | Settings › Sites (add, install tabs, verify, settings, page groups), Settings › Identity | A new site goes from add to "Receiving events" in under 5 minutes |
-| 22 | Visitors and Accounts (RPCs, tables, filters, saved views, feedback buttons) | Lists load in ≤ 300 ms on 1 M fixture events |
-| 23 | Account page and Person page (timeline, people, company, score details, undo buttons) | Every number links to its evidence |
-| 24 | Settings › ICP, Signals and Alerts. `alert` job to Slack. `omniscient_push` (or a stub if the Omniscient API isn't ready). | A hot account fires one Slack alert and one Omniscient activity |
-| 25 | Privacy screen and API, REST and MCP endpoints, quality page, docs for customers (privacy snippet, cookie table), install on 2 design partner sites | Partners see named accounts. All Part 11 tests green. |
+The `hutk` lookup waits for the HubSpot sync (1.2). The evidence row for `hutk` is already stored.
 
 ---
 
@@ -779,13 +684,13 @@ M0 (week 1) is done before day 1.
 
 | Step | When | Gate |
 |---|---|---|
-| Our own site (tryclaritia.com), proxy mode | Day 10 | Load test passed |
-| Perceptric's site | Day 15 | Identity and consent suites green |
-| 2 design partners | Day 25 | All tests green, privacy docs ready |
+| Our own site (tryclaritia.com), proxy mode | After week 3 (collect) | Load test passed |
+| Perceptric's site | After week 4 (identity) | Identity and consent suites green |
+| 2 design partners | After week 6 (screens) | All tests green, privacy docs ready |
 | 5 design partners | Week 7 | 1 week of clean metrics (no policy breaches, drift 0, unmerges < 2 per 1,000) |
 
-- **Feature flag:** `workspaces.features` includes `web_intel`, so the screens only show for flagged workspaces until Beta.
-- **Kill switch:** `sites.paused`, plus a global `app_config.collect_paused`. Collect answers 204 and drops events while paused.
+- **Feature flag:** the screens show for workspaces whose `workspaces.features` includes `marketing` (`src/lib/nav.ts`).
+- **Kill switch:** `sites.paused`. While it's set, collect answers `{"p": "off"}`, which stops the script for the page. A global switch (`app_config.collect_paused`) is not built yet.
 
 ---
 
@@ -814,7 +719,7 @@ M0 (week 1) is done before day 1.
 
 ### 14.3 Backups and replay
 
-- **Raw events:** kept 90 days. `scripts/replay-signals.ts` rebuilds signals and scores for a workspace from events, for use after a rule change.
+- **Raw events:** kept 90 days. `scripts/replay-signals.ts` (not built yet) rebuilds signals and scores for a workspace from events, for use after a rule change.
 - **Identity:** rebuilt from evidence at any time with `rebuild(workspace)`.
 
 ---
@@ -857,8 +762,8 @@ This is part of the platform total in `docs/marketing-platform.md` Part 11. Ther
 | Coresignal: company enrich endpoint, credit cost per call, license for a shared company cache | Founder |
 | Geo file license for commercial use in a product (IPinfo free download vs MaxMind GeoLite2) | Founder |
 | PSL package license and update method | Build |
-| Supabase pooler limits for COPY from 2–3 collect machines | Build, in week 3 |
-| Omniscient API ready by day 24 (or ship the stub) | Omniscient repo |
+| Supabase pooler limits for writes from 2–3 collect machines | Build, in week 3 |
+| Omniscient API ready by week 6 (or ship the stub) | Omniscient repo |
 | WebKit and Firefox Playwright browsers in CI (download size and time) | Build |
 
 ---

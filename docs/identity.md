@@ -521,7 +521,9 @@ stitch(evidence e):
 3. Replay non-revoked evidence for the group in `(server_at, id)` order through `stitch`.
 4. Old person ids that no longer exist get aliases to the new survivor with the most overlap, so links and URLs keep working.
 
-**Rebuild equals incremental:** a property test makes 10,000 random evidence rows across 500 devices and 300 identifiers. It builds them step by step in random batch sizes, then fully rebuilds, and checks the tables match. It runs in CI.
+**Built so far:** `src/lib/identity/rebuild.ts` rebuilds a whole workspace. Rebuilding one connected group is not built yet.
+
+**Rebuild equals incremental:** `tests/pg/rebuild.pg.ts` makes 1,500 seeded random evidence rows across 80 devices and 50 identifiers. Some devices end up shared, tainted or internal. It stitches them step by step in random batch sizes, then rebuilds the whole workspace, and checks the tables match. It runs in CI with `npm run test:db`.
 
 ### 7.10 Concurrency
 
@@ -548,28 +550,32 @@ After any undo, every agent action that used the old link is listed on the Perso
 
 ### 8.1 A session's account, in priority order
 
-| Priority | Source | `account_source` | Shown as |
-|---|---|---|---|
-| 1 | The person's HubSpot company link | `crm` | Plain |
-| 2 | The person's email domain through `account_domains` (work email only) | `email` | Plain |
-| 3 | A network the workspace learned from its own people (8.3) | `learned_network` | "by network" |
-| 4 | The IP vendor's match: kind `business`, confidence 70+ | `vendor_network` | "by network" |
-| 5 | None | — | "Unknown" with country |
+| Priority | Source | `account_source` | Shown as | Built |
+|---|---|---|---|---|
+| 1 | The person's CRM company link | `crm` | Plain | Not built yet |
+| 2 | The person's oldest work email (class `work`), its domain cleaned and followed through `domain_aliases` | `email` | Plain | Yes |
+| 3 | A network the workspace learned from its own people (8.3) | `learned_network` | "by network" | Read, but nothing fills `learned_networks` yet |
+| 4 | The IP vendor's match in `ip_cache`: kind `business`, `education` or `government`, confidence 70+, fetched in the last 30 days, and the network not flagged `shared` or `ignore` in `network_flags` for this workspace | `vendor_network` | "by network" | Yes |
+| 5 | None | — | "Unknown" with country | Yes |
 
-- For Probable people, priorities 1 and 2 still set the account. A wrong guess about the person rarely means a wrong company, since forwards mostly stay inside a company.
+- For Probable people, priority 2 still sets the account. A wrong guess about the person rarely means a wrong company, since forwards mostly stay inside a company.
 - When the person's account and the network's account differ, the person's wins. The session keeps `network_account_id` too, for "seen from Globex network".
+- Internal sessions get no account.
+- A domain with no account yet gets one (`accounts` and `account_domains`), and the new account is queued for `enrich_company`.
+
+**Where it runs:**
+- Collect sets the account when a session starts (`collect/store.ts`). It only uses accounts that already exist, and it doesn't read `network_flags`.
+- `src/lib/company/accounts.ts` (`resolveSessions`) sets it again after an `ip_lookup` (that network's sessions in the last hour) and after `identity_changed` (the person's sessions in the last 90 days). It queues `score_account` for every account that changed.
 
 ### 8.2 IP lookups
 
-- The full IP is used in memory for the geo lookup and the vendor lookup, then dropped.
-- **Cache key:**
-  - When the vendor says a whole /24 has one owner (most corporate blocks), the cache key is the /24.
-  - Otherwise the key is `HMAC(cache_secret, ip)`, kept 30 days and never linked to a session row.
-  - This keeps cost down without storing raw IPs.
-- **Network kinds:** `business`, `isp`, `mobile`, `hosting`, `vpn`, `education`, `government`, `coworking`.
-  - Only `business`, `education` and `government` can set an account.
-  - `coworking` never does. One coworking network holds many companies.
-- **Refresh:** cached matches expire after 30 days. A network flagged "wrong company" by reps (`docs/account-intelligence.md` 8.5) is re-checked right away and can be blocked for that workspace.
+- The full IP is used in memory for the geo lookup, then dropped. Collect keeps only the network (/24 or /48) and queues `ip_lookup` with the network, never the IP.
+- **The lookup** (`worker-intel/jobs/company.ts`, `src/lib/company/ipinfo.ts`): IPinfo is asked about the network's first address (`.1` for IPv4). The visitor's own IP never leaves collect.
+- **Cache (`ip_cache`):** one row per network. The key is the SHA-256 of the network's text (for example `203.0.113.0/24`). Rows hold company data only and are shared across workspaces. A row is used for 30 days after `fetched_at`. After that, the next `ip_lookup` for that network asks IPinfo again and updates the row. Raw IPs are never stored.
+- **Network kinds:** `business`, `isp`, `mobile`, `hosting`, `vpn`, `education`, `government`, and `unknown` when IPinfo can't tell.
+  - Only `business`, `education` and `government`, at confidence 70+, can set an account.
+  - The code has no `coworking` kind yet. One coworking network holds many companies, so it must never set an account.
+- **Flags:** a network flagged `shared` or `ignore` in `network_flags` never gets the vendor's account in that workspace. Nothing writes these flags yet. "Wrong company" feedback from reps (`docs/account-intelligence.md` 8.5) is saved in `account_feedback`, but the re-check and the block it should cause are not built yet.
 
 ### 8.3 Learned networks (first-party, the best signal)
 
@@ -623,92 +629,15 @@ Internal devices and sessions are removed before signals, scores and agents. The
 
 ## Part 11. Data model
 
-```sql
--- devices and sessions (021_web.sql, identity columns)
-create table devices (
-  id uuid primary key,                         -- uuid from the signed id
-  workspace_id uuid not null, site_id uuid not null,
-  state text not null default 'fresh',         -- fresh, probable, linked, shared, tainted, internal, opted_out
-  state_since timestamptz not null default now(),
-  tainted_until timestamptz, no_backfill bool not null default false,
-  consent text, first_seen timestamptz, last_seen timestamptz, sessions int default 0
-);
-create index on devices (workspace_id, state);
+The migrations are the schema. This part only says where each identity table lives.
 
-create table sessions (
-  id uuid primary key, workspace_id uuid not null, site_id uuid not null, device_id uuid,
-  started_at timestamptz not null, ended_at timestamptz,
-  policy text not null, consent text, gpc bool not null default false, region text,
-  person_id uuid, person_level text, person_source text,          -- live, backfill, split
-  account_id uuid, account_source text, network_account_id uuid,
-  ip_net cidr, ip_kind text, internal bool not null default false, is_bot bool not null default false,
-  split_from uuid
-);
-create index on sessions (workspace_id, device_id, started_at);
-create index on sessions (workspace_id, person_id, started_at desc);
-create index on sessions (workspace_id, account_id, started_at desc);
-
--- identity (022_identity.sql)
-create table persons (
-  id uuid primary key, workspace_id uuid not null, created_at timestamptz not null default now(),
-  display_name text, primary_email text, account_id uuid,
-  opted_out bool not null default false, merged_into uuid
-);
-create table person_aliases (old_id uuid primary key, new_id uuid not null, at timestamptz not null default now());
-
-create table identifiers (
-  id uuid primary key, workspace_id uuid not null, person_id uuid,
-  kind text not null,                          -- email, user, hubspot
-  value_raw text, value_clean text not null, value_hash bytea not null,
-  class text,                                  -- work, free, role, own, partner
-  unique (workspace_id, kind, value_clean)
-);
-create index on identifiers (workspace_id, value_hash);
-
-create table identity_evidence (
-  id uuid not null, workspace_id uuid not null,
-  device_id uuid, session_id uuid,
-  source text not null,                        -- identify_signed, identify, form, booking, gate, hutk, email_link,
-                                               -- page_link, crm, crm_merge, manual_merge
-  level text not null,                         -- verified, asserted, inferred
-  identifiers jsonb not null,                  -- [{kind, value_clean}]
-  hard_edge bool not null default false,
-  extra jsonb, server_at timestamptz not null default now(),
-  ignored text,                                -- policy, internal, opted_out, taint, guard
-  revoked_at timestamptz, revoked_by uuid, revoke_reason text,
-  primary key (workspace_id, id)
-);
-create index on identity_evidence (workspace_id, device_id, server_at);
-
-create table device_links (
-  id uuid primary key, workspace_id uuid not null,
-  device_id uuid not null, person_id uuid not null,
-  level text not null,                          -- verified, asserted, probable
-  from_at timestamptz not null, to_at timestamptz,
-  evidence_id uuid not null
-);
-create index on device_links (workspace_id, device_id, from_at desc);
-create index on device_links (workspace_id, person_id);
-
-create table merge_proposals (
-  id uuid primary key, workspace_id uuid not null, person_a uuid, person_b uuid,
-  reason text, evidence_id uuid, status text default 'open', decided_by uuid, decided_at timestamptz,
-  unique (workspace_id, person_a, person_b)
-);
-
-create table email_tokens (                     -- one row per token sent (M6)
-  workspace_id uuid, token_id uuid primary key, contact_id text, email_id uuid, sent_at timestamptz,
-  claimed_device uuid, claimed_at timestamptz, forwarded bool default false
-);
-create table hop_nonces (nonce bytea primary key, used_at timestamptz);           -- kept 10 minutes
-create table learned_networks (
-  workspace_id uuid, net cidr, account_id uuid, people int, share numeric, updated_at timestamptz,
-  primary key (workspace_id, net)
-);
-create table ip_cache (key bytea primary key, net cidr, domain text, kind text, confidence int,
-  vendor text, fetched_at timestamptz);       -- shared, company data only, 30 days
-create table deletions (workspace_id uuid, value_hash bytea, at timestamptz);       -- erasure record
-```
+| Migration | Identity tables |
+|---|---|
+| `021_web.sql` | `devices` (state, taint, `no_backfill`), `sessions` (the person and account columns, `split_from`), `salts`, `opt_outs`, `hop_nonces` |
+| `022_evidence.sql` | `identity_evidence` |
+| `023_identity.sql` | `identity_settings`, `persons`, `person_aliases`, `identifiers`, `device_links`, `merge_proposals`, `sessions.split_to`, `ip_cache`, `learned_networks`, `erasures` (the erasure record), `email_tokens` |
+| `024_identity_ops.sql` | `privacy_exports`, and the undo and privacy functions (7.11, Part 15) |
+| `029_identity_settings.sql`, `030_person.sql` | The functions behind Settings › Identity and the Person page (Part 13) |
 
 - Every workspace table has RLS on `workspace_id` and a leak test. `ip_cache` and `hop_nonces` are server-only (no RLS policy for clients, read through security definer functions).
 - Event rows (partitioned by day) only reference `session_id`. Identity changes touch sessions, never events.
@@ -722,22 +651,13 @@ create table deletions (workspace_id uuid, value_hash bytea, at timestamptz);   
 | `can_act(person_id)` | true only if the person has a Verified or Asserted identifier, isn't opted out, isn't only Probable, and isn't on a tainted device in the last 30 days | M6, M7 |
 | `identity_changed` job | person ids whose links or merges changed | M2 re-attribution, M3 rescoring |
 
+The `identity_changed` job is built. The two views and `can_act` are not built yet.
+
 ---
 
 ## Part 12. Jobs
 
-| Job | Key | Trigger | Target time |
-|---|---|---|---|
-| `stitch` | `device` | New evidence | ≤ 5 s p95 |
-| `hutk_lookup` | `hutk` | First `hutk` in a session | ≤ 30 s |
-| `token_confirm` | `token` | Email or page token, 30 s after landing | 30–40 s |
-| `calendly_invitee` | `invitee_uri` | Booking event | ≤ 30 s |
-| `mx_check` | `domain` | New email domain | ≤ 5 s, cached 7 days |
-| `identity_changed` | `person` | After stitch, merge or undo | ≤ 60 s |
-| `learned_networks` | `workspace` | Nightly | Minutes |
-| `untaint` | — | Nightly, ends 30-day taints | Minutes |
-| `identity_rebuild_check` | `workspace` | Nightly: rebuilds a sample of 200 groups in a scratch schema and compares | Minutes |
-| `identity_retention` | — | Nightly: deletes unknown devices past retention, old nonces and caches | Minutes |
+The job list, with keys, triggers and target times, is in `docs/m1-website-intelligence.md` Part 6.
 
 ---
 
@@ -795,7 +715,7 @@ Triggered from the Person page, the privacy API or a HubSpot privacy deletion:
    - evidence, identifiers, device links, merge proposals and email tokens;
    - briefs, signals and scores rows that name the person (scores at the account level are recomputed);
    - the person and its aliases.
-4. Write `deletions(workspace, value_hash, at)`.
+4. Write `erasures(workspace, value_hash, at)`.
 5. A later evidence row with that hash starts fresh. The deletion record only proves the erasure happened, and is kept 3 years (check).
 6. **Backups:** Supabase backups roll off on their own schedule (check the current retention for the plan). The erasure log says when the last backup holding the data expires.
 
@@ -809,16 +729,16 @@ Part 3. Opt-outs are honored within one request. The audit query `events stored 
 
 ### 15.4 Retention
 
-| Data | Default |
-|---|---|
-| Unknown devices with no activity | Deleted 13 months after last seen |
-| Evidence | Kept while the person exists |
-| Revoked evidence | Kept 12 months, then deleted |
-| Ignored evidence | Kept 30 days (for debugging), then deleted |
-| Email tokens | 90 days after send |
-| Hop nonces | 10 minutes |
-| IP cache | 30 days |
-| Daily salts | 24 hours |
+The retention rules, including unknown devices and identity evidence, are in `docs/account-intelligence.md` 3.4. These rows are only for identity:
+
+| Data | Default | Built |
+|---|---|---|
+| Revoked evidence | Kept 12 months, then deleted | Not built yet |
+| Ignored evidence | Kept 30 days (for debugging), then deleted | Not built yet |
+| Email tokens | 90 days after send | Not built yet |
+| Hop nonces | 10 minutes | Yes: once a day, `web_daily()` (021_web.sql) deletes those older than 10 minutes |
+| IP cache | 30 days | Rows older than 30 days are no longer used (8.2), but nothing deletes them |
+| Daily salts | 24 hours | Yes: `web_daily()` deletes salts older than yesterday |
 
 ---
 
@@ -845,7 +765,7 @@ Part 3. Opt-outs are honored within one request. The audit query `events stored 
 
 ### 17.1 Real-browser checks (`scripts/identity-check.ts`)
 
-These run in Playwright on a local test site, in Chromium (pre-installed). They also run in WebKit and Firefox in CI (CI downloads those browsers; check runner time and cache).
+These run in Playwright on a local test site, in Chromium, and in CI through `npm run test:db`. WebKit and Firefox are not set up yet, locally or in CI. The script has 27 of the 38 cases: the email-link cases 7–15 come with M6, and the WebKit cases 22–23 aren't written yet.
 
 | # | Case | Expected |
 |---|---|---|
@@ -892,7 +812,7 @@ These run in Playwright on a local test site, in Chromium (pre-installed). They 
 
 | Test | Kind |
 |---|---|
-| Rebuild equals incremental on 10,000 random evidence rows | Property |
+| Rebuild equals incremental on 1,500 random evidence rows (`tests/pg/rebuild.pg.ts`, in CI) | Property |
 | Same result for any order of concurrent batches | Property, with 8 parallel workers |
 | Merge guards: 2 user ids, 2 HubSpot ids, 6 emails, 3 company domains | Unit |
 | HubSpot `contact.merge` merges. Deletion revokes. Privacy deletion erases. | Integration, test portal |
@@ -902,26 +822,19 @@ These run in Playwright on a local test site, in Chromium (pre-installed). They 
 | IP cache never stores a raw IP | Unit (a scan of rows for IP patterns) |
 | Policy breach audit query returns 0 after the full browser suite | Integration |
 | Leak tests for every identity table | `tests/db/leaks.sql` |
-| Load: 500 evidence rows per second, p95 under 5 s | `scripts/load-identity.ts` |
+| Load: 500 evidence rows per second, p95 under 5 s | `scripts/load-identity.ts` (not built yet) |
 
 ---
 
 ## Part 18. Build order
 
-This fits the weeks in `docs/account-intelligence.md` Part 17 with no change to the total.
-
-| Week | Identity work |
-|---|---|
-| 2 | Script: device id handling per mode, `_clr_s`, consent and GPC reading, opt-out, reset, hop links, token stripping, form listener and adapters, never-read rules, human-proof counts |
-| 3 | Collect: signed ids, cookies per mode, proxy secret and client IP, region policy gates, cookieless mode, salts, hop and token endpoints, evidence intake, MX and disposable checks |
-| 4 | Stitching: identifiers and cleaning, hard edges, guards, device state machine, backfill, session split, advisory locks, aliases, rebuild, undo, merge proposals, internal traffic, erasure. Browser cases 1–38. |
-| 5 | Accounts: priority rules, IP cache, network kinds, learned networks, partner and job-change handling. HubSpot identity: CRM ties, merges, `hutk` lookup (or drop it). Settings › Identity and the Person page. |
+History; see git.
 
 ---
 
 ## Part 19. Cost
 
-Identity makes no AI calls. Its work runs on `claritia-collect` and `claritia-agent`, which are already costed.
+Identity makes no AI calls. Its work runs on `claritia-collect` and `claritia-intel`, which are already costed.
 
 | Item | Beta (50 teams) | Growth (500 teams) |
 |---|---|---|

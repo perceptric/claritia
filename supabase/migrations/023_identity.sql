@@ -1,6 +1,6 @@
 -- Identity (docs/identity.md Part 11): people, identifiers, device links, merge proposals and the settings the
 -- stitch job reads. The stitch job (claritia-intel) writes all of it with the service role. Members read their own
--- workspace's rows. Accounts, signals and scores come in 024.
+-- workspace's rows. Accounts, signals and scores come in 025 and 026.
 
 -- Settings -------------------------------------------------------------------------------------------------
 

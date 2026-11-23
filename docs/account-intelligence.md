@@ -78,9 +78,7 @@ The collect service decides a policy per session from the visitor's country, and
 | Do Not Track header | Ignored by default (it has no legal force). Customers can choose to honor it. |
 
 **Cookieless mode in detail:**
-- No storage in the browser.
-- The session key is `hash(daily_salt, site_id, ip_net, user_agent)`. The salt changes at midnight UTC and the old one is destroyed, so yesterday's sessions can't be linked to today's.
-- Events count toward page stats only.
+- Storage, the session key and the daily salt: `docs/identity.md` 4.8.
 - In `strict` regions without consent, the IP is not sent to the company-match vendor, and the session gets no account.
 - In `notice` regions under GPC, company match is allowed for internal stats, since it identifies a business and not a person (check per state).
 
@@ -107,14 +105,18 @@ The collect service decides a policy per session from the visitor's country, and
 | Raw events | 90 days | 30–180 days |
 | Sessions | 13 months | 3–25 months |
 | Rollups (no person data) | Forever | — |
-| Identity evidence | While the person exists, plus 30 days after deletion for audit (hash only) | — |
+| Identity evidence | While the person exists. After erasure, only the hash stays, in `erasures` (open question below). | — |
 | Unknown devices with no person and no activity | 13 months after last seen | 3–13 months |
 | Briefs | 12 months | 3–24 months |
 | Vendor people data (buying group suggestions not in the CRM) | 30 days, unless a human adds the person to the CRM | 7–90 days |
 | AI call logs (no prompt text, just counts and cost) | 24 months | — |
 | AI prompt and response text | 30 days, for debugging | 0–30 days |
 
-A nightly job deletes data past retention and writes a count to the audit log.
+Rows only for identity (revoked and ignored evidence, email tokens, hop nonces, IP cache, salts) are in `docs/identity.md` 15.4.
+
+**Not built yet:** the nightly `retention` job that deletes data past retention and writes a count to the audit log. None of the rows above is deleted on time today. What does run is `web_daily()` (`021_web.sql`, daily at 00:05 UTC). It drops event day tables older than 180 days, and clears old salts and hop nonces. Each site's `event_retention_days` (default 90, 30–180) is saved, but nothing cuts events at it yet.
+
+**Open question for the owner:** how long the hash of erased evidence is kept. This doc said 30 days after deletion, for audit. `docs/identity.md` 15.1 says the erasure record is kept 3 years (check). Today `erasures` rows are never deleted.
 
 ### 3.5 Data subject requests
 
@@ -411,7 +413,7 @@ Every signal has a kind, an account, an optional person, a weight, a half-life, 
 | `review_site_ref` | Session referred from G2, Capterra or TrustRadius | 10 | 10 d | 1 per account per day |
 | `ai_assistant_ref` | Session referred from an AI assistant | 6 | 10 d | 1 per account per day |
 | `engaged_session` | 3+ minutes active time | 4 | 7 d | 1 per person per day |
-| `spike` | Account sessions this week > 3× its 8-week average, and at least 5 | 12 | 7 d | 1 per account per week |
+| `spike` | Account sessions this week > 3× its 8-week average, and at least 5. Not built yet (it's not in `src/lib/web/signals.ts`). | 12 | 7 d | 1 per account per week |
 | `careers_only` | Session with only careers pages | 0, and marks the session a likely job seeker | — | — |
 
 ### 7.2 Identity and CRM
@@ -701,7 +703,7 @@ Every call:
 | Ask | Section 9.5 |
 | Score details | Fit features, intent signals with weight × decay, and the score version |
 
-**Person page:** identifiers with levels, devices with date ranges, evidence list, sessions, Unmerge, Unlink and Erase.
+**Person page:** as in `docs/identity.md` Part 13.
 
 **Alerts builder:**
 - Rules like "When an account in my list has `page_compare` or `demo_request`, Slack me now", or "When fit ≥ 70 and intent crosses 60".
@@ -743,85 +745,26 @@ Every call:
 
 ## Part 11. Data model
 
-Extends migrations 020–025 in `docs/pivot-plan.md`. New and changed tables:
+The migrations are the schema. This part only says where each table lives.
 
-```sql
--- 021_web.sql additions
-sites (… , policy_overrides jsonb, private_paths text[], url_param_allow text[], city_level bool default true,
-       honor_dnt bool default false)
-sessions (… , policy text, gpc bool, consent text, region text)
-opt_outs (site_id, device_hash, created_at)
+| Migration | Tables |
+|---|---|
+| `020_foundation.sql` | `jobs`, `audit_log`, `privacy_requests` |
+| `021_web.sql` | `sites` (policy overrides, private paths, URL params kept, city, DNT, event retention), `devices`, `sessions` (policy, consent, GPC, region), `events`, `page_groups`, `salts`, `opt_outs`, `hop_nonces`, `site_daily`, `account_daily` |
+| `022_evidence.sql`, `023_identity.sql`, `024_identity_ops.sql` | Identity, as listed in `docs/identity.md` Part 11 |
+| `025_accounts.sql` | `accounts`, `account_domains`, `domain_aliases`, `company_cache`, `network_flags`, `signal_types`, `signals`, `icp`, `account_scores`, `intent_params`, `account_feedback`, `account_alert_rules`, `account_alert_log` |
+| `026_signals.sql` | `sessions.signaled_at`, for the signals sweep |
+| `028_account_alerts.sql` | The sealed Slack address on `account_alert_rules` |
 
--- 022_identity.sql per docs/identity.md
+Not built yet: `account_links`, `account_tech`, `account_jobs`, `account_news`, the HubSpot tables (`hubspot_inbox`, `hubspot_map`, `hubspot_dupes`), `fit_models`, `account_briefs`, `people_roles`, `suggested_people`, `asks` and a `retention` settings table.
 
--- 023_company.sql
-account_domains (workspace_id, domain, account_id, source, confidence, created_at)
-domain_aliases  (domain pk, canonical, source, checked_at)                -- shared, no person data
-company_cache   (domain pk, data jsonb, vendor, fetched_at)               -- shared, no person data
-account_links   (workspace_id, parent_id, child_id, source, confidence)
-account_tech    (account_id, tech, category, first_seen, last_seen, evidence)
-account_jobs    (account_id, board, posting_id, title, dept, location, url, opened_at, closed_at)
-account_news    (account_id, kind, title, url, published_at, found_at, verified bool)
-network_flags   (workspace_id, net cidr, flag text, by_user, created_at)  -- wrong company reports
-
--- 024_hubspot.sql additions
-hubspot_inbox   (id, workspace_id, received_at, body jsonb, processed_at, error)
-hubspot_map     (workspace_id, hs_field, claritia_field, transform jsonb)
-hubspot_dupes   (workspace_id, domain, company_ids text[], found_at)
-
--- 025_scores.sql
-signal_types    (workspace_id, kind, weight, half_life_days, dedupe text, enabled)
-signals (… , evidence jsonb, person_capped bool)
-account_scores  (account_id, at, fit, intent, priority, stage, temperature, why_now jsonb, reasons jsonb,
-                 score_version int, inputs_hash)
-fit_models      (workspace_id, version, kind text, params jsonb, backtest jsonb, live bool, created_at)
-intent_params   (workspace_id, k numeric, fitted_at)
-feedback        (workspace_id, account_id, user_id, kind text, note, created_at)
-
--- 026_ai.sql
-account_briefs (… , headline, why_now jsonb, company jsonb, gaps jsonb, competitors jsonb, angle,
-                prompt_version, verifier jsonb)
-people_roles    (person_id, role, seniority, department, source, confidence)
-suggested_people(id, workspace_id, account_id, name, title, role, vendor, vendor_ref, expires_at)
-asks            (id, workspace_id, account_id, user_id, question, answer, citations jsonb, tokens jsonb, created_at)
-
--- 027_privacy.sql
-privacy_requests(id, workspace_id, kind, subject_hash, requested_by, source, status, counts jsonb,
-                 requested_at, finished_at)
-audit_log       (id, workspace_id, actor, action, target, data jsonb, at)
-retention       (workspace_id, data_kind, days)
-alert_rules     (id, workspace_id, user_id, rule jsonb, channel, quiet_hours jsonb, daily_cap, enabled)
-```
-
-All workspace tables have RLS and leak tests. The shared caches (`domain_aliases`, `company_cache`) hold company data only, are read through security definer functions, and are never exposed to clients directly.
+All workspace tables have RLS and leak tests. The shared caches (`domain_aliases`, `company_cache`, `ip_cache`) hold company data only, are read only by the server, and are never exposed to clients directly.
 
 ---
 
 ## Part 12. Jobs and schedules
 
-| Job | Trigger | Runs |
-|---|---|---|
-| `ip_lookup` | New IP network | Seconds |
-| `stitch` | New identity evidence | Seconds |
-| `signal` | New event batch with page groups | Seconds |
-| `score_account` | New signal (debounced 60 s per account) | Seconds |
-| `alert` | Score crosses a rule | Seconds |
-| `hubspot_inbox` | Webhook batch | Seconds |
-| `hubspot_catchup` | Every 15 min per portal | Minutes |
-| `hubspot_writeback` | Every 15 min | Minutes |
-| `hubspot_timeline` | Hourly | Minutes |
-| `company_enrich` | New account, 30-day refresh | Minutes |
-| `tech_scan` | Monthly per active account | Minutes |
-| `jobs_scan` | Weekly per active account | Minutes |
-| `news_watch` | Weekly per active account (top 200) | Minutes |
-| `brief` | Weekly top 50, plus on Evaluating, demo request or Refresh | Batch API weekly, direct on trigger |
-| `digest` | 8:00 rep local time | Minutes |
-| `intent_refit` | Weekly | Minutes |
-| `fit_refit` | Monthly | Minutes |
-| `backtest` | On demand, and monthly | Minutes |
-| `retention` | Nightly | Minutes |
-| `identity_rebuild_check` | Nightly | Minutes |
-| `quality_report` | Nightly | Minutes |
+The job list, built and planned, is in `docs/m1-website-intelligence.md` Part 6.
 
 ---
 
@@ -850,7 +793,7 @@ All workspace tables have RLS and leak tests. The shared caches (`domain_aliases
 | Score recomputes per day | 100 K | 1 M | Batched, under 50 ms each |
 | Briefs per month | 10 K | 100 K | Batch API |
 
-- Hot paths (signal, score, alert) run in the agent worker with a job concurrency of 20 and indexes on `(workspace_id, account_id, at desc)`.
+- Hot paths (signal, score, alert) run in `claritia-intel` with a job concurrency of 20 and indexes on `(workspace_id, account_id, at desc)`.
 - Account scores are recomputed for one account at a time. There are no full-table recomputes except the nightly refit.
 
 ---
@@ -878,11 +821,11 @@ The internal quality page (staff only), per workspace and overall:
 | Kind | What | Where |
 |---|---|---|
 | Unit | Domain cleaning, PSL edge cases, URL scrubbing, signal rules, intent math, fit math, priority, title rules | `tests/*.test.ts` |
-| Property | Intent is the same in any event order. Rebuild equals step-by-step build. Scores are bounded 0–100. | `tests/*.prop.test.ts` |
+| Property | Intent is the same in any event order. Rebuild equals step-by-step build. Scores are bounded 0–100. | Rebuild: `tests/pg/rebuild.pg.ts`. The other two aren't written yet. |
 | Consent matrix | A real browser for each region × consent state × GPC × opt-out, checking cookies set, events stored, identity made and vendor calls made. 4 regions × 3 consent states × 2 GPC × 2 opt-out = 48 cases. | `scripts/consent-check.ts` |
 | URL scrubbing | 200 URLs with emails, tokens and IDs. None survive. | Unit + `collect-check.ts` |
 | Never-collect | The script on a page with password and card fields, typing and submitting. Nothing but the email leaves the browser. | `scripts/collect-check.ts` |
-| Identity | 17 cases from `docs/identity.md` | `scripts/identity-check.ts` |
+| Identity | 38 cases from `docs/identity.md` 17.1 | `scripts/identity-check.ts` |
 | HubSpot | Test portal: full sync, a webhook storm, out-of-order events, 429 handling, token refresh, privacy deletion | `scripts/hubspot-check.ts` |
 | Company resolution | 100 hand-labeled domains (aliases, redirects, hosting domains, subsidiaries) | Unit |
 | Scoring backtest | Fixture history with a known answer. A real design partner history before each change. | `scripts/score-backtest.ts` |
@@ -896,24 +839,7 @@ The internal quality page (staff only), per workspace and overall:
 
 ## Part 17. Week by week (14 weeks)
 
-Phase 1 grows from 9 to 14 weeks to fit this scope. Later phases in `docs/pivot-plan.md` shift by 5 weeks.
-
-| Week | Build | Done when |
-|---|---|---|
-| 1 | M0 foundation (jobs queue, accounts, signals tables), compliance groundwork: region policy table, retention table, audit log, privacy request table, DPA and sub-processor list drafts | Old jobs run on the new queue. Leak tests pass. |
-| 2 | `claritia.js`: events, consent reading, GPC, opt-out, URL scrubbing, never-collect rules, cross-domain, proxy path guides | Consent matrix and never-collect checks pass in a real browser |
-| 3 | Collect service: intake, region policy, bots, sessions, geo, COPY writes, dedupe, cookieless mode | Load test passes. Policy audit query returns 0. |
-| 4 | Identity stitching (`docs/identity.md`): evidence, five rules, internal traffic, rebuild, erasure | 17 identity cases pass |
-| 5 | Company resolution: domain cleaning, redirects, aliases, IP vendor and cache, network flags, enrichment and company cache | 100-domain label set ≥ 98% right. IP sample check ≥ 90% precise. |
-| 6 | HubSpot app: OAuth, full sync with cursors, rate limit buckets, webhooks with inbox, catch-up, field mapping | Test portal syncs twice with no doubles. Webhook storm loses nothing. |
-| 7 | HubSpot: engagements, forms, associations, owners, pipelines, write back, timeline events, CRM card, privacy deletion | Card shows on a test portal. Erasure from HubSpot clears Claritia. |
-| 8 | Signals: page groups (with Explorer suggestions), the full catalog, tech scan, job boards, per-person cap, breadth bonus | Each signal rule has a unit test |
-| 9 | Scoring: fit v0 and v1, intent with `k` fitting, stage, temperature, priority, why-now, backtest harness | Backtest on fixture history passes. Design partner history shows ≥ 3× lift. |
-| 10 | AI: reasons, briefs with research, verifier, buying group roles, news watch, evals in CI | Eval pass bars met |
-| 11 | Surfaces: Today, Accounts, Account page, Person page, alerts builder, morning digest, feedback buttons | A design partner rep uses Today for a week |
-| 12 | Ask about this account, Slack app, Chrome side panel, API, MCP tools, webhooks out. SOC 2 tool setup starts. | Each surface tested end to end |
-| 13 | M2 Buyer Analytics (dashboards, goals, funnels, attribution) | Per `docs/pivot-plan.md` M2 |
-| 14 | Hardening: privacy center screen, DSR API, retention jobs, quality page, chaos runbook, docs for customers (privacy snippet, cookie table, LIA, DPIA) | All tests in Part 16 pass. Lawyer review of Part 3 (check). |
+History; see git.
 
 ---
 

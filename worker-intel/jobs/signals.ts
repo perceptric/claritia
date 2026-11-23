@@ -33,7 +33,7 @@ async function signalVisit(pool: pg.Pool, sessionId: string): Promise<{ workspac
   ).rows[0];
   if (!s) return null;
   await pool.query(`update sessions set signaled_at = now() where id = $1`, [sessionId]);
-  // Internal, bot, partner and tainted devices make no signals (7.6).
+  // Internal, bot, partner and tainted devices make no signals (docs/account-intelligence.md 7.6).
   if (!s.account_id || s.internal || s.is_bot || s.partner || s.device_state === "tainted" || s.device_state === "internal") return null;
   const ws = s.workspace_id as string;
   const events = (await pool.query(`select kind, path, data, server_at from events where session_id = $1 order by server_at`, [sessionId])).rows;
