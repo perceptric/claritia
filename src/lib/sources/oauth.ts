@@ -2,7 +2,8 @@
 // (its client id and secret as <PREFIX>_CLIENT_ID and <PREFIX>_CLIENT_SECRET). Without them, the tool takes a
 // pasted key instead. State is signed with SECRETS_KEY and carries the PKCE verifier, so nothing is stored.
 
-import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
+import { readToken, signToken } from "../sign.ts";
 
 export type OauthCfg = {
   env: string;
@@ -223,23 +224,11 @@ function stateKey() {
   return createHash("sha256").update(`oauth-state:${k}`).digest();
 }
 
-export function signState(s: Omit<State, "exp">, now = Date.now()) {
-  const body = Buffer.from(JSON.stringify({ ...s, exp: now + 15 * 60_000 })).toString("base64url");
-  return `${body}.${createHmac("sha256", stateKey()).update(body).digest("base64url")}`;
-}
+export const signState = (s: Omit<State, "exp">, now = Date.now()) => signToken({ ...s, exp: now + 15 * 60_000 }, stateKey());
 
 export function readState(raw: string | null, now = Date.now()): State | null {
-  const [body, sig] = (raw ?? "").split(".");
-  if (!body || !sig) return null;
-  const want = Buffer.from(createHmac("sha256", stateKey()).update(body).digest("base64url"));
-  const got = Buffer.from(sig);
-  if (want.length !== got.length || !timingSafeEqual(want, got)) return null;
-  try {
-    const s = JSON.parse(Buffer.from(body, "base64url").toString()) as State;
-    return typeof s.ws === "string" && typeof s.user === "string" && typeof s.kind === "string" && s.exp > now ? s : null;
-  } catch {
-    return null;
-  }
+  const s = readToken(raw, stateKey());
+  return s && typeof s.ws === "string" && typeof s.user === "string" && typeof s.kind === "string" && typeof s.exp === "number" && s.exp > now ? (s as State) : null;
 }
 
 /** The tool's sign-in link. */

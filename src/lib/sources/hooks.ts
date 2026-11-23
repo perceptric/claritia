@@ -1,8 +1,8 @@
 import "server-only";
-import { timingSafeEqual } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { rpcOr } from "../rpcCompat.ts";
 import { unseal } from "../seal.ts";
+import { same } from "../sign.ts";
 import { entryOf } from "./catalog.ts";
 import { connectorFor } from "./registry.ts";
 import type { HookEvent, HookRequest } from "./types.ts";
@@ -18,7 +18,6 @@ const HOOK_GROUPS = new Set(["form", "event", "api"]);
 export const takesHooks = (kind: string) => HOOK_GROUPS.has(entryOf(kind)?.group ?? "");
 
 const MAX_BODY = 1_000_000;
-const sameText = (a: string, b: string) => a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 
 /** Stage a delivery's events in one call (hook_stage_many, 088); one call per event where that isn't there yet. */
 export async function stage(db: Pick<SupabaseClient, "rpc">, source: string, events: HookEvent[]) {
@@ -70,7 +69,7 @@ export async function sourceHook(db: SupabaseClient, kind: string, id: string, r
   const { token, secret } = JSON.parse(unseal(sec.hook_sealed)) as { token: string; secret: string | null };
   const given = new URL(req.url).searchParams.get("t") ?? "";
   // The token in the URL, and the tool's signature too when it signs and a secret was given.
-  if (!sameText(given, token) || (secret && c.verify && !c.verify(req, secret))) return Response.json({ error: "Not allowed." }, { status: 401 });
+  if (!same(given, token) || (secret && c.verify && !c.verify(req, secret))) return Response.json({ error: "Not allowed." }, { status: 401 });
   const events = c.parse(parseJson(req.body), req.headers);
   const n = await stage(db, id, events);
   return Response.json({ ok: true, staged: n });

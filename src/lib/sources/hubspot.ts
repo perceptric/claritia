@@ -2,7 +2,7 @@
 // lastmodifieddate (oldest first, 5 minutes of overlap, the window moved on before HubSpot's 10,000-result cap),
 // changes within seconds through the app's webhooks, writes through batch create and update. Scopes are in oauth.ts.
 
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { hmac, same } from "../sign.ts";
 import { activityHtml, activityText } from "./activity.ts";
 import { readCursor } from "./ctx.ts";
 import { dealRecord, day, num, type StageKind } from "./opportunities.ts";
@@ -179,9 +179,7 @@ export const hubspot: Connector = {
     const sig = req.headers.get("x-hubspot-signature-v3");
     const ts = Number(req.headers.get("x-hubspot-request-timestamp"));
     if (!sig || !secret || !Number.isFinite(ts) || Math.abs(Date.now() - ts) > 300_000) return false;
-    const want = Buffer.from(createHmac("sha256", secret).update(`${req.method}${req.url}${req.body}${ts}`).digest("base64"));
-    const got = Buffer.from(sig);
-    return want.length === got.length && timingSafeEqual(want, got);
+    return same(sig, hmac(secret, `${req.method}${req.url}${req.body}${ts}`, "base64"));
   },
   hookAccount: (body) => (Array.isArray(body) && body[0] && typeof body[0] === "object" ? String((body[0] as { portalId?: number }).portalId ?? "") || null : null),
   parse(body) {

@@ -2,7 +2,7 @@
 // come in through its API v1 and its webhooks; contacts go out by email, so a lead handed off here lands on the
 // same Omniscient contact.
 
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { hmac, same } from "../sign.ts";
 import { readCursor } from "./ctx.ts";
 import { dealRecord, day, num } from "./opportunities.ts";
 import type { Connector, Ctx, Page, PushResult, RawRecord } from "./types.ts";
@@ -96,9 +96,7 @@ export const omniscient: Connector = {
     const parts = Object.fromEntries((req.headers.get("omniscient-signature") ?? "").split(",").map((p) => p.split("=") as [string, string]));
     const t = Number(parts.t);
     if (!Number.isFinite(t) || Math.abs(Date.now() / 1000 - t) > 300 || !parts.v1) return false;
-    const want = Buffer.from(createHmac("sha256", secret).update(`${t}.${req.body}`).digest("hex"));
-    const got = Buffer.from(parts.v1);
-    return want.length === got.length && timingSafeEqual(want, got);
+    return same(parts.v1, hmac(secret, `${t}.${req.body}`, "hex"));
   },
   parse(body) {
     const b = body as { id?: string; event?: string; data?: Contact };

@@ -1,15 +1,14 @@
 // The Claritia GitHub App: webhook signatures, the app's sign-in token, the install link's state, and what each
 // GitHub event asks for. No network calls here; those are in githubApp.ts.
 
-import { createHmac, createPrivateKey, createSign, timingSafeEqual } from "node:crypto";
+import { createPrivateKey, createSign } from "node:crypto";
+import { hmac, readToken, same, signToken } from "./sign.ts";
 import type { Outcome } from "./outcome.ts";
 
 /** GitHub signs each webhook body with the app's webhook secret (X-Hub-Signature-256). */
 export function verifySignature(body: string, header: string | null, secret: string): boolean {
   if (!header?.startsWith("sha256=") || !secret) return false;
-  const want = Buffer.from(createHmac("sha256", secret).update(body).digest("hex"));
-  const got = Buffer.from(header.slice(7));
-  return want.length === got.length && timingSafeEqual(want, got);
+  return same(header.slice(7), hmac(secret, body, "hex"));
 }
 
 const b64url = (s: string | Buffer) => Buffer.from(s).toString("base64url");
@@ -49,23 +48,11 @@ export function appJwt(appId: string, privateKey: string, now = Date.now()): str
 export type InstallState = { workspaceId: string; userId: string; exp: number };
 
 /** The state sent to GitHub with the install link, signed so it comes back unchanged. Good for 30 minutes. */
-export function signState(s: Omit<InstallState, "exp">, key: string, now = Date.now()): string {
-  const body = b64url(JSON.stringify({ ...s, exp: now + 30 * 60_000 }));
-  return `${body}.${createHmac("sha256", key).update(body).digest("base64url")}`;
-}
+export const signState = (s: Omit<InstallState, "exp">, key: string, now = Date.now()): string => signToken({ ...s, exp: now + 30 * 60_000 }, key);
 
 export function readState(state: string | null, key: string, now = Date.now()): InstallState | null {
-  const [body, sig] = (state ?? "").split(".");
-  if (!body || !sig || !key) return null;
-  const want = Buffer.from(createHmac("sha256", key).update(body).digest("base64url"));
-  const got = Buffer.from(sig);
-  if (want.length !== got.length || !timingSafeEqual(want, got)) return null;
-  try {
-    const s = JSON.parse(Buffer.from(body, "base64url").toString()) as InstallState;
-    return typeof s.workspaceId === "string" && typeof s.userId === "string" && s.exp > now ? s : null;
-  } catch {
-    return null;
-  }
+  const s = readToken(state, key);
+  return s && typeof s.workspaceId === "string" && typeof s.userId === "string" && typeof s.exp === "number" && s.exp > now ? (s as InstallState) : null;
 }
 
 export type EventPlan =
