@@ -371,7 +371,7 @@ Data attributes: `data-site`, `data-consent="auto|wait|on"`, `data-domains="acme
 
 Calls made before the script loads are queued by a one-line stub and replayed: `window.claritia=window.claritia||function(){(claritia.q=claritia.q||[]).push(arguments)}`.
 
-**Built (day 2–5):** `collect/scrub.ts` (shared), `collect/script/*`, `npm run build:script` (gate: 6 KB gzipped, now 5.7 KB), `tests/scrub.test.ts`, `tests/script.test.ts`, and `scripts/script-check.ts` (35 checks in Chromium against a fake collect).
+**Built (day 2–5):** `src/lib/web/scrub.ts` (shared), `collect/script/*`, `npm run build:script` (gate: 6 KB gzipped, now 5.7 KB), `tests/scrub.test.ts`, `tests/script.test.ts`, and `scripts/script-check.ts` (35 checks in Chromium against a fake collect).
 
 ### 5.2 Event batch (POST /e)
 

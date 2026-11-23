@@ -1,7 +1,7 @@
 // Website signals (docs/account-intelligence.md 7.1, 7.2, 7.6). Pure rules over one visit and a little account
 // history; the signal job loads the data and saves what these return. Dedupe keys make re-running a visit safe.
 
-import { pathMatches } from "../../../collect/scrub.ts";
+import { pathMatches } from "./scrub.ts";
 
 export type Group = "pricing" | "demo" | "compare" | "security" | "integrations" | "docs" | "case_study" | "product" | "blog" | "careers" | "legal" | "login" | "private" | "other";
 export type PageGroup = { pattern: string; grp: Group; competitor?: string | null };

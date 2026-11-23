@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { pathMatches, REMOVED, scrubProps, scrubText, scrubUrl } from "../collect/scrub.ts";
+import { pathMatches, REMOVED, scrubProps, scrubText, scrubUrl } from "../src/lib/web/scrub.ts";
 
 const SECRETS = [
   "jane@acme.com",

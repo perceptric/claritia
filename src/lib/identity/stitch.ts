@@ -3,7 +3,7 @@
 // jobs for different devices can run side by side without deadlocks or double people.
 
 import { createHmac } from "node:crypto";
-import { uuid7 } from "../../../collect/ids.ts";
+import { uuid7 } from "../web/ids.ts";
 import { same } from "../sign.ts";
 import { cleanIdentifier, isRejected, type Cleaned } from "./clean.ts";
 

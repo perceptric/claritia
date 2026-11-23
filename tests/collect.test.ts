@@ -6,7 +6,7 @@ import { attribute } from "../collect/attribution.ts";
 import { botVerdict, looksAutomated } from "../collect/bots.ts";
 import { WriteBuffer } from "../collect/buffer.ts";
 import { cleanIp, ipNet, readRecord, type Geo } from "../collect/geo.ts";
-import { cookielessKey, deviceBornAt, hopKey, makeHop, readHop, signDevice, siteKey, uuid7, verifyDevice } from "../collect/ids.ts";
+import { cookielessKey, deviceBornAt, hopKey, makeHop, readHop, signDevice, siteKey, uuid7, verifyDevice } from "../src/lib/web/ids.ts";
 import { Buckets } from "../collect/limits.ts";
 import { continues, Sessions, type Live } from "../collect/sessions.ts";
 import type { EventRow, EvidenceRow, SessionRow, Site, Store } from "../collect/store.ts";

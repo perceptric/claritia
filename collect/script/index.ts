@@ -3,7 +3,7 @@
 // names a person leaves the browser and nothing is stored.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { pathMatches, scrubProps, scrubText, scrubUrl } from "../scrub";
+import { pathMatches, scrubProps, scrubText, scrubUrl } from "../../src/lib/web/scrub";
 import { readConsent, watchConsent, type Consent } from "./consent";
 import { watchForms } from "./forms";
 import { watchHubspot } from "./adapters/hubspot";

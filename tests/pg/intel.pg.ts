@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import pg from "pg";
-import { uuid7 } from "../../collect/ids.ts";
+import { uuid7 } from "../../src/lib/web/ids.ts";
 import { jobLoop } from "../../src/lib/jobs.ts";
 import { deviceReset, stitch } from "../../worker-intel/jobs/stitch.ts";
 import { pgRpc } from "../../worker-intel/rpc.ts";

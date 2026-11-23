@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import pg from "pg";
-import { uuid7 } from "../../collect/ids.ts";
+import { uuid7 } from "../../src/lib/web/ids.ts";
 import { erasePerson, exportPerson } from "../../src/lib/identity/erase.ts";
 import { rebuildWorkspace } from "../../src/lib/identity/rebuild.ts";
 import { identifyToken, stitchDevice, stitchOne, workspaceLock, type Settings } from "../../src/lib/identity/stitch.ts";

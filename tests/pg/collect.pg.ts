@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { after, before, test } from "node:test";
 import { WriteBuffer } from "../../collect/buffer.ts";
-import { uuid7 } from "../../collect/ids.ts";
+import { uuid7 } from "../../src/lib/web/ids.ts";
 import { PgStore, type EventRow, type SessionRow } from "../../collect/store.ts";
 
 const url = process.env.PG_URL;

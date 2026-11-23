@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import pg from "pg";
-import { uuid7 } from "../../collect/ids.ts";
+import { uuid7 } from "../../src/lib/web/ids.ts";
 import { identifyToken, stitchDevice, type Settings } from "../../src/lib/identity/stitch.ts";
 
 const url = process.env.PG_URL;

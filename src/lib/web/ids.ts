@@ -2,7 +2,7 @@
 // CLR_ID_SECRET, so a crafted id or token is ignored.
 
 import { createHmac, randomBytes } from "node:crypto";
-import { same } from "../src/lib/sign.ts";
+import { same } from "../sign.ts";
 
 const b64 = (b: Buffer) => b.toString("base64url");
 const hmac = (key: Buffer | string, data: Buffer | string) => createHmac("sha256", key).update(data).digest();
