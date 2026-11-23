@@ -5,7 +5,8 @@
 // which source may overwrite which; and custom objects.
 
 import { useState } from "react";
-import { FIELD_KINDS, LEAD_STAGES, optionsOf, PACKS, type CustomField, type FieldKind, type Option } from "@/lib/records/fields";
+import { FIELD_KINDS, LEAD_STAGES, optionsOf, type CustomField, type FieldKind, type Option } from "@/lib/records/fields";
+import { PACKS } from "@/lib/records/packs";
 import { askConfirm, askLines, askText } from "../Dialogs";
 import { Select } from "../Select";
 import { announceChange, attempt, Badge, Button, CardHead, ErrorNote, Field, Input, Loading, must, Panel, Segmented, useLoad, type ViewProps } from "../ui";
