@@ -22,6 +22,7 @@ const pool = new pg.Pool({ connectionString: url, max: 4 });
 const q = async (sql: string, p: unknown[] = []) => (await pool.query(sql, p)).rows;
 after(() => pool.end());
 const rpc = pgRpc(pool);
+const count = async (sql: string, p: unknown[]) => (await q(`select count(*)::int as n from ${sql}`, p))[0].n as number;
 const CHANGES = Number(process.env.SYNC_TEST_CHANGES || 1000);
 
 async function workspace(name: string) {
@@ -285,4 +286,15 @@ test("a synced company keeps its mapped custom fields", async () => {
   const [row] = await q(`select name, fields from companies where workspace_id = $1 and domain = 'acme.com'`, [ws]);
   assert.equal(row.name, "Acme");
   assert.equal(row.fields.tier, "Gold");
+});
+
+test("a hook secret saved after setup replaces the old one and leaves the settings alone", async () => {
+  const { ws, user } = await workspace("hook-secret");
+  const settings = { objects: { contacts: "in" }, every_min: 30 };
+  const id = (await q(`select source_connect($1, $2, 'omniscient', 'Omniscient', 'acct', $3, $4, $5) as id`, [ws, user, "v1:creds", JSON.stringify(settings), "v1:first"]))[0].id as string;
+  const { error } = await rpc("source_hook_secret_save", { p_id: id, p_hook_sealed: "v1:second" });
+  assert.equal(error, null);
+  assert.equal((await q(`select hook_sealed from source_secrets where source_id = $1`, [id]))[0].hook_sealed, "v1:second");
+  assert.equal((await q(`select settings->>'every_min' as m from sources where id = $1`, [id]))[0].m, "30");
+  assert.equal(await count(`jobs where kind = 'source_pull' and key = $1`, [id]), 1, "setup doesn't queue a second pull");
 });

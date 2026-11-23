@@ -873,6 +873,7 @@ select pg_temp.fails($$select mapping_save('5c000000-0000-0000-0000-0000000000c1
 select pg_temp.check((select sync_retry(array(select id from sync_log))) = 0, 'Ben retries Cat''s sync log');
 select pg_temp.fails($$select source_load('5c000000-0000-0000-0000-0000000000c1')$$, 'Ben loads a source with its credentials');
 select pg_temp.fails($$select source_connect('11111111-0000-0000-0000-000000000000', 'b0000000-0000-0000-0000-000000000000', 'hubspot', 'x', 'y', 'v1:z')$$, 'Ben connects a source');
+select pg_temp.fails($$select source_hook_secret_save('5c000000-0000-0000-0000-0000000000c1', 'v1:z')$$, 'Ben replaces a source''s hook secret');
 select pg_temp.fails($$select hook_stage('5c000000-0000-0000-0000-0000000000c1', 'd2', '{}')$$, 'Ben stages a webhook');
 select pg_temp.fails($$select push_candidates('5c000000-0000-0000-0000-0000000000c1', null)$$, 'Ben reads push candidates');
 select pg_temp.fails($$select companies_upsert('22222222-0000-0000-0000-000000000000', 'hubspot', '[]')$$, 'Ben writes Cat''s companies');
