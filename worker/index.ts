@@ -19,6 +19,7 @@ import { claudeNamer, type Namer } from "./namer.ts";
 import { handlePlan, type Plan } from "./planHandle.ts";
 import { claudePlanner, type Planner } from "../src/lib/planner.ts";
 import { claudeWriter, type Writer } from "./writer.ts";
+import { setTimeout as sleep } from "node:timers/promises";
 
 const env = (k: string) => process.env[k]?.trim() ?? "";
 const SLOTS = Math.max(1, Math.min(8, Number(env("WORKER_SLOTS") || 2)));
@@ -28,7 +29,6 @@ const supabaseKey = env("SUPABASE_SECRET_KEY") || env("SUPABASE_SERVICE_ROLE_KEY
 const missing = [...["SUPABASE_URL", "SECRETS_KEY"].filter((k) => !env(k)), ...(supabaseKey ? [] : ["SUPABASE_SECRET_KEY"])];
 
 const log = (...a: unknown[]) => console.log(new Date().toISOString(), ...a);
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 let stopping = false;
 const busy = new Set<string>();

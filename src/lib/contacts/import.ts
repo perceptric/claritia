@@ -62,7 +62,7 @@ export function mappingError(m: Mapping, columns: number, custom: CustomField[])
   return null;
 }
 
-const cut = (s: string | undefined, n: number) => {
+const trimmed = (s: string | undefined, n: number) => {
   const t = s?.trim();
   return t ? t.slice(0, n) : undefined;
 };
@@ -149,20 +149,20 @@ export function prepareImport(rows: string[][], m: Mapping, ctx: Ctx, firstRow =
       email: raw.slice(0, 320),
       email_clean: e.clean,
       email_class: e.class,
-      first_name: cut(first, 100),
-      last_name: cut(last, 100),
-      title: cut(cell("title"), 200),
+      first_name: trimmed(first, 100),
+      last_name: trimmed(last, 100),
+      title: trimmed(cell("title"), 200),
       phone: cleanPhone(cell("phone"), country),
       country,
-      region: cut(cell("region"), 100),
-      timezone: cut(cell("timezone"), 60),
+      region: trimmed(cell("region"), 100),
+      timezone: trimmed(cell("timezone"), 60),
       lifecycle,
-      lead_status: cut(cell("lead_status"), 60),
+      lead_status: trimmed(cell("lead_status"), 60),
       company_domain: domain || undefined,
-      company_name: cut(cell("company"), 200),
+      company_name: trimmed(cell("company"), 200),
       fields,
       basis: stated,
-      source_id: cut(cell("source_id"), 200),
+      source_id: trimmed(cell("source_id"), 200),
     };
     const prev = byEmail.get(e.clean);
     if (prev) counts.merged++;

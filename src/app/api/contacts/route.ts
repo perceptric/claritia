@@ -3,11 +3,11 @@ import { cleaningCtx } from "@/lib/contacts/server";
 import { isMember, requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { isUuid } from "@/lib/uuid";
+import { bad } from "@/lib/http";
 
 // Add or edit one contact: POST { workspaceId, form } adds; POST { workspaceId, id, form } changes the keys in form.
 // Emails are cleaned here, so the database functions stay server only.
 
-const bad = (error: string, status = 400) => Response.json({ error }, { status });
 
 export async function POST(request: Request) {
   const auth = await requireUser(request);

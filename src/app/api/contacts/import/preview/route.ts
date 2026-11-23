@@ -4,11 +4,11 @@ import { cleaningCtx } from "@/lib/contacts/server";
 import { openFile, validPath } from "@/lib/contacts/storage";
 import { isMember, requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
+import { bad } from "@/lib/http";
 
 // What an import would do to its first rows: POST { workspaceId, path, fileName, sheet, mapping } returns up to 20
 // rows, each New, Update, Suppressed, Skip (with the reason) or Erased.
 
-const bad = (error: string, status = 400) => Response.json({ error }, { status });
 
 export async function POST(request: Request) {
   const auth = await requireUser(request);

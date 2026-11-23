@@ -11,6 +11,7 @@ import { buildLock, lockSections, parseLock, type Action, type Arg, type Call } 
 import { cachedHostCheck } from "../src/lib/privateNet.ts";
 import { guardContext, type TunnelClient } from "./tunnel.ts";
 import type { Writer } from "./writer.ts";
+import { setTimeout as sleep } from "node:timers/promises";
 
 export type StepStatus = "running" | "passed" | "failed" | "skipped";
 export type StepUpdate = { position: number; status: StepStatus; retried?: boolean; startedMs?: number; durationMs?: number; error?: string | null; screenshot?: string; written?: boolean; healed?: boolean; code?: string };
@@ -161,7 +162,6 @@ function shortError(e: unknown) {
   return lines.slice(0, 3).join(" ").replace(/\s+/g, " ").slice(0, 600);
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export async function executeRun(input: RunInput, hooks: Hooks): Promise<RunResult> {
   const started = Date.now();

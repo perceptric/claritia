@@ -2,12 +2,12 @@ import { randomBytes } from "node:crypto";
 import { seal, unseal } from "@/lib/seal";
 import { isOwner, requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
+import { bad } from "@/lib/http";
 
 // The identify secret signs claritia("identify", ...) calls (docs/identity.md 5.2). It is sealed in
 // identity_settings.identify_secrets_sealed as {current, next}; the stitch job accepts both, so a rotation keeps
 // yesterday's tokens working until the owner drops the old one.
 
-const bad = (error: string, status = 400) => Response.json({ error }, { status });
 type Secrets = { current?: string; next?: string };
 
 async function read(sb: NonNullable<ReturnType<typeof serviceClient>>, ws: string): Promise<Secrets> {

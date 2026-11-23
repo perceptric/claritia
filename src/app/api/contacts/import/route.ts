@@ -6,13 +6,13 @@ import { cleaningCtx } from "@/lib/contacts/server";
 import { fileSize, validPath } from "@/lib/contacts/storage";
 import { isMember, requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
+import { bad } from "@/lib/http";
 
 // Start an import of an uploaded file: POST { workspaceId, path, fileName, sheet, mapping, kind }. Files up to 3 MB
 // run now and return their counts; bigger ones go to the import_file job, and the app follows its progress.
 
 export const maxDuration = 300;
 
-const bad = (error: string, status = 400) => Response.json({ error }, { status });
 
 export async function POST(request: Request) {
   const auth = await requireUser(request);

@@ -5,11 +5,12 @@ import { connectSource } from "@/lib/sources/server";
 import type { Creds, Settings } from "@/lib/sources/types";
 import { isOwner, requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
+import { bad } from "@/lib/http";
+import { omniscientBase } from "@/lib/sources/omniscient";
 
 // Connect a tool: POST { workspaceId, kind, keys?, hookSecret?, settings? }. A tool with one-click sign-in returns
 // its sign-in link; one connected by key is checked and saved now; a webhook tool gets its URL.
 
-const bad = (error: string, status = 400) => Response.json({ error }, { status });
 
 export async function POST(request: Request) {
   const auth = await requireUser(request);
@@ -26,7 +27,7 @@ export async function POST(request: Request) {
 
   try {
     if (kind === "omniscient") {
-      const base = process.env.OMNISCIENT_URL?.trim().replace(/\/+$/, "") || "https://app.tryomniscient.com";
+      const base = omniscientBase();
       const state = signState({ ws, user: auth.user.id, kind });
       return Response.json({ url: `${base}/connect?${new URLSearchParams({ app: "claritia", redirect_uri: redirect, state })}` });
     }

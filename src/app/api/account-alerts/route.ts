@@ -3,8 +3,8 @@ import { seal, unseal } from "@/lib/seal";
 import { isMember, requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { parseRule, slackAccountMessage } from "@/lib/web/accountAlerts";
+import { bad } from "@/lib/http";
 
-const bad = (error: string, status = 400) => Response.json({ error }, { status });
 
 /**
  * Account alert rules. { workspaceId, rule, slackUrl, dailyCap? } adds one (the Slack address is sealed first).

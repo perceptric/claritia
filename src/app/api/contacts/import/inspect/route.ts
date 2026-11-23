@@ -4,11 +4,11 @@ import { fileSize, openFile, validPath } from "@/lib/contacts/storage";
 import { guessTarget } from "@/lib/contacts/fields";
 import { isMember, requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
+import { bad } from "@/lib/http";
 
 // Look at an uploaded file: POST { workspaceId, path, fileName, sheet? } returns its sheets (Excel), header, first
 // rows, a row count, and a guessed field for each column.
 
-const bad = (error: string, status = 400) => Response.json({ error }, { status });
 
 export async function POST(request: Request) {
   const auth = await requireUser(request);

@@ -1,6 +1,7 @@
 // How run results read to a coding agent: what passed, what failed and why, and what to do next.
 
 import type { Outcome } from "./outcome.ts";
+import { cut } from "./text.ts";
 
 const VERDICT: Record<string, string> = {
   app_bug: "App bug (the app did something wrong: fix the code)",
@@ -9,7 +10,6 @@ const VERDICT: Record<string, string> = {
 };
 
 const secs = (ms: number | null) => (ms == null ? "" : ` ${(ms / 1000).toFixed(1)}s`);
-const cut = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
 export function resultsText(runs: Outcome[], where: string): string {
   const done = runs.filter((r) => r.done);

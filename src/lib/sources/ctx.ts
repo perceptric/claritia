@@ -4,6 +4,7 @@
 
 import { oauthRefresh } from "./oauth.ts";
 import { AuthError, RateLimited, type Creds, type Ctx, type SourceRow } from "./types.ts";
+import { setTimeout as wait } from "node:timers/promises";
 
 export type CtxOpts = {
   source: SourceRow;
@@ -21,11 +22,10 @@ export type CtxOpts = {
 };
 
 const BACKOFF_S = [1, 5, 30];
-const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 export function makeCtx(o: CtxOpts): Ctx {
   const fetcher = o.fetcher ?? fetch;
-  const sleep = o.sleep ?? wait;
+  const sleep = o.sleep ?? ((ms: number) => wait(ms));
   let creds = o.creds;
   let last = 0;
 
