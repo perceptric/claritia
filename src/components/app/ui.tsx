@@ -33,6 +33,19 @@ export const mayLeave = () => (leaveGuard ? leaveGuard() : Promise.resolve(true)
 /** Tell every loaded page that data changed, so lists reload. */
 export const announceChange = () => window.dispatchEvent(new Event("claritia:changed"));
 
+/** Call `tick` every `ms` while `live` is true, such as reloading while a job runs. */
+export function usePoll(live: boolean, ms: number, tick: () => void) {
+  const latest = useRef(tick);
+  useEffect(() => {
+    latest.current = tick;
+  });
+  useEffect(() => {
+    if (!live) return;
+    const t = setInterval(() => latest.current(), ms);
+    return () => clearInterval(t);
+  }, [live, ms]);
+}
+
 /** Load data once, and again when `reload` is called or `key` changes. */
 export function useLoad<T>(fn: () => Promise<T>, key: string) {
   const [data, setData] = useState<T | null>(null);

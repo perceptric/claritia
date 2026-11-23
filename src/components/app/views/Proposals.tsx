@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Check, X } from "../../Icons";
-import { attempt, Badge, Button, CardHead, ErrorNote, errorText, must, Panel, PriorityBars, useLoad, type ViewProps } from "../ui";
+import { attempt, Badge, Button, CardHead, ErrorNote, errorText, must, Panel, PriorityBars, useLoad, usePoll, type ViewProps } from "../ui";
 
 type Plan = { id: string; status: "queued" | "running" | "done" | "error"; proposals: number; error: string | null; created_at: string };
 type Step = { kind: "do" | "check"; text: string } | { kind: "use"; block: string };
@@ -28,11 +28,7 @@ export function Proposals({ sb, project, navigate, asking, onAsked, onAccepted }
   }, project.id);
 
   const planning = !!data.data?.plan && ACTIVE.has(data.data.plan.status);
-  useEffect(() => {
-    if (!planning) return;
-    const t = setInterval(data.reload, 3000);
-    return () => clearInterval(t);
-  }, [planning, data.reload]);
+  usePoll(planning, 3000, data.reload);
 
   const act = (fn: () => Promise<unknown>) => attempt(fn, { setError });
 

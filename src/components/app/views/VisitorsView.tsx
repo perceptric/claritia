@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { Eye } from "../../Icons";
 import { applyFilters, cleanFilters, type Filter, type FilterField } from "@/lib/filters";
 import { persona } from "@/lib/web/names";
-import { Badge, Button, Empty, ErrorNote, Loading, must, Page, Panel, Td, Th, timeAgo, useLoad, type Tone, type ViewProps } from "../ui";
+import { Badge, Button, Empty, ErrorNote, Loading, must, Page, Panel, Td, Th, timeAgo, useLoad, usePoll, type Tone, type ViewProps } from "../ui";
 import { FilterBar, useFilters } from "../FilterBar";
 import { VisitorsIntro } from "./MarketingIntros";
 
@@ -132,10 +132,7 @@ export function VisitorsView({ sb, ws, navigate }: ViewProps) {
   const filters = cleanFilters(stored, VISIT_FIELDS as FilterField<never>[]);
   const [openId, setOpenId] = useState<string | null>(null);
 
-  useEffect(() => {
-    const t = setInterval(reload, 10_000);
-    return () => clearInterval(t);
-  }, [reload]);
+  usePoll(true, 10_000, reload);
 
   if (sites.error || visits.error) {
     return (

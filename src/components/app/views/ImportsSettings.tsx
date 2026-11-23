@@ -3,10 +3,10 @@
 // Settings › Imports: every import in the workspace with its state and counts, the rows that didn't come in, and
 // undo for 30 days (docs/conversion-weeks.md week 2).
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Download } from "../../Icons";
 import { askConfirm } from "../Dialogs";
-import { attempt, Badge, Button, CardHead, ErrorNote, Loading, must, Panel, Td, Th, timeAgo, useLoad, type Tone, type ViewProps } from "../ui";
+import { attempt, Badge, Button, CardHead, ErrorNote, Loading, must, Panel, Td, Th, timeAgo, useLoad, usePoll, type Tone, type ViewProps } from "../ui";
 
 type Imp = {
   id: string;
@@ -45,11 +45,7 @@ export function ImportsSettings({ sb, ws }: Pick<ViewProps, "sb" | "ws">) {
   const busy = list.data?.some((i) => BUSY.has(i.status)) ?? false;
   const reload = list.reload;
 
-  useEffect(() => {
-    if (!busy) return;
-    const t = setInterval(reload, 3000);
-    return () => clearInterval(t);
-  }, [busy, reload]);
+  usePoll(busy, 3000, reload);
 
   const run = (fn: () => Promise<unknown>) => attempt(fn, { setError, after: reload });
 

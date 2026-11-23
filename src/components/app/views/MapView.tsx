@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { MapIcon } from "../../Icons";
 import { askConfirm } from "../Dialogs";
 import { Select } from "../Select";
-import { Badge, Button, CardHead, Empty, ErrorNote, errorText, Field, Loading, must, Page, Panel, Segmented, timeAgo, useLoad, type ViewProps } from "../ui";
+import { Badge, Button, CardHead, Empty, ErrorNote, errorText, Field, Loading, must, Page, Panel, Segmented, timeAgo, useLoad, usePoll, type ViewProps } from "../ui";
 
 type Exploration = { id: string; status: "queued" | "running" | "done" | "error" | "canceled"; pages_found: number; max_pages: number; environment_name: string; base_url: string; error: string | null; created_at: string; finished_at: string | null };
 type MapPage = { id: string; pattern: string; sample_url: string; title: string | null; name: string | null; purpose: string | null; status_code: number | null; screenshot_path: string | null; elements: { forms?: unknown[] }; last_seen: string };
@@ -43,11 +43,7 @@ export function MapView({ sb, project }: ViewProps) {
 
   // While an exploration runs, the map fills in live.
   const running = !!data.data?.last && ACTIVE.has(data.data.last.status);
-  useEffect(() => {
-    if (!running) return;
-    const t = setInterval(data.reload, 3000);
-    return () => clearInterval(t);
-  }, [running, data.reload]);
+  usePoll(running, 3000, data.reload);
 
   const d = data.data;
   const last = d?.last;

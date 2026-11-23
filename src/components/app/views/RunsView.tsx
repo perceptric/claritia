@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Play } from "../../Icons";
-import { Badge, Button, duration, Empty, ErrorNote, errorText, hostOf, Loading, must, Page, Panel, postJson, StatusTag, Tabs, Th, timeAgo, type RunStatus, type StepStatus, type ViewProps, type Verdict, VerdictTag } from "../ui";
+import { Badge, Button, duration, Empty, ErrorNote, errorText, hostOf, Loading, must, Page, Panel, postJson, StatusTag, Tabs, Th, timeAgo, usePoll, VerdictTag, type RunStatus, type StepStatus, type Verdict, type ViewProps } from "../ui";
 
 type RunRow = {
   id: string;
@@ -45,18 +45,6 @@ const LIVE = new Set<RunStatus>(["queued", "running"]);
 const RUN_COLUMNS = "id, test_id, test_name, test_version, environment_id, environment_name, base_url, trigger, status, error, created_at, started_at, finished_at, duration_ms, video_path, trace_paths, console_path, network_path, project_id, attempts, live_path, ai_calls, lock_saved, verdict, verdict_reason, retry_of, retried_as";
 
 /** Load again every few seconds while `live` is true. */
-function usePoll(live: boolean, ms: number, tick: () => void) {
-  const latest = useRef(tick);
-  useEffect(() => {
-    latest.current = tick;
-  });
-  useEffect(() => {
-    if (!live) return;
-    const t = setInterval(() => latest.current(), ms);
-    return () => clearInterval(t);
-  }, [live, ms]);
-}
-
 function RunList({ sb, project, navigate }: ViewProps) {
   const [rows, setRows] = useState<RunRow[] | null>(null);
   const [error, setError] = useState("");
