@@ -28,6 +28,8 @@ export function selectionText(s: Selection | null): string {
 }
 /** A check that hasn't finished in 3 hours is closed as timed out. */
 const CHECK_TIMEOUT_MS = 3 * 3_600_000;
+/** Tests proposed for a pull request count as this many AI credits (saved in plans.ai_calls, which credits add up). */
+const PR_PROPOSAL_CREDITS = 5;
 
 const checkName = (link: Link) => `Claritia (${link.run_on === "preview" ? "preview" : (link.environments?.name ?? "tests")})`;
 const where = (check: Check) => check.base_url.replace(/^https?:\/\//, "").replace(/\/$/, "");
@@ -113,7 +115,7 @@ async function proposeForPr(sb: SupabaseClient, link: Link, pr: number, title: s
   });
   const proposals = cleanProposals(r.proposals, { site: "", pages: [], tests: existing, blocks: blockRows.map((b) => b.name), notes: "" }).slice(0, 5);
   const ids = new Map(blockRows.map((b) => [b.name, b.id]));
-  const { data: plan } = await sb.from("plans").insert({ workspace_id: link.workspace_id, project_id: link.project_id, notes: `PR #${pr} in ${link.repo_full_name}`, status: "done", proposals: proposals.length, ai_calls: 5, ai_input_tokens: r.usage.input, ai_output_tokens: r.usage.output, finished_at: new Date().toISOString() }).select("id").single<{ id: string }>();
+  const { data: plan } = await sb.from("plans").insert({ workspace_id: link.workspace_id, project_id: link.project_id, notes: `PR #${pr} in ${link.repo_full_name}`, status: "done", proposals: proposals.length, ai_calls: PR_PROPOSAL_CREDITS, ai_input_tokens: r.usage.input, ai_output_tokens: r.usage.output, finished_at: new Date().toISOString() }).select("id").single<{ id: string }>();
   if (!proposals.length) return;
   await sb.from("test_proposals").insert(
     proposals.map((p) => ({
