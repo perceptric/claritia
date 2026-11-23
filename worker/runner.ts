@@ -9,7 +9,7 @@ import pw from "playwright-core";
 import type { Browser, BrowserContext, Locator, Page } from "playwright-core";
 import { buildLock, lockSections, parseLock, type Action, type Arg, type Call } from "../src/lib/lock.ts";
 import { cachedHostCheck } from "../src/lib/privateNet.ts";
-import { isLocalHost, tunnelFetch, type TunnelClient } from "./tunnel.ts";
+import { guardContext, type TunnelClient } from "./tunnel.ts";
 import type { Writer } from "./writer.ts";
 
 export type StepStatus = "running" | "passed" | "failed" | "skipped";
@@ -518,28 +518,13 @@ export async function executeRun(input: RunInput, hooks: Hooks): Promise<RunResu
     context = await browser.newContext({ viewport: VIEWPORT, recordVideo: { dir: videoDir, size: VIEWPORT }, acceptDownloads: false, serviceWorkers: "block" });
     context.setDefaultTimeout(actionTimeout);
     context.setDefaultNavigationTimeout(30_000);
-    if (!input.allowPrivate || input.tunnel) {
-      await context.route("**/*", async (route) => {
-        const url = new URL(route.request().url());
-        const web = url.protocol === "http:" || url.protocol === "https:";
-        // localhost through the developer's tunnel: answered from their machine, never the runner's.
-        if (web && input.tunnel && isLocalHost(url.hostname.replace(/^\[|\]$/g, ""))) {
-          const req = route.request();
-          try {
-            const res = await tunnelFetch(input.tunnel, { url: req.url(), method: req.method(), headers: await req.allHeaders(), body: req.postDataBuffer() });
-            return route.fulfill({ status: res.status, headers: res.headers, body: res.body });
-          } catch (e) {
-            consoleLines.push({ ms: Date.now() - pageStart, type: "error", text: mask(`Tunnel: ${shortError(e)}`).slice(0, 2000) });
-            return route.abort("connectionfailed");
-          }
-        }
-        if (!input.allowPrivate && web && (await hostIsPrivate(url.hostname))) {
-          blocked.add(url.hostname);
-          return route.abort("blockedbyclient");
-        }
-        return route.continue();
-      });
-    }
+    await guardContext(context, {
+      tunnel: input.tunnel,
+      allowPrivate: input.allowPrivate,
+      isPrivate: hostIsPrivate,
+      onTunnelError: (e) => consoleLines.push({ ms: Date.now() - pageStart, type: "error", text: mask(`Tunnel: ${shortError(e)}`).slice(0, 2000) }),
+      onBlocked: (host) => blocked.add(host),
+    });
     await context.tracing.start({ screenshots: true, snapshots: true });
     page = await context.newPage();
     pageStart = Date.now();
