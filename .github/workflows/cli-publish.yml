@@ -19,8 +19,8 @@ jobs:
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
-      - run: npm ci
-      - run: node --conditions=react-server --test tests/cli.test.ts
+      # The CLI has no dependencies, and its test imports only node: modules and cli/.
+      - run: node --test tests/cli.test.ts
       - name: Publish if this version is new
         if: env.NPM_TOKEN != ''
         working-directory: cli
