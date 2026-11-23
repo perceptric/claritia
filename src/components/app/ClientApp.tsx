@@ -27,9 +27,27 @@ import { SettingsView } from "./views/SettingsView";
 import { TestsView } from "./views/TestsView";
 import { isUuid } from "@/lib/uuid";
 
-// One icon per screen. Which screens a workspace sees comes from its features (src/lib/nav.ts): the testing product's
-// four modules (AI works inside each: the Writer in Authoring, the Healer in Execution, smart retries in Management
-// and the Judge in Analytics), the marketing platform's screens, or both.
+// The screen for each route.
+const VIEWS: Record<NavRoute, React.ComponentType<ViewProps>> = {
+  contacts: ContactsView,
+  leads: LeadsView,
+  companies: CompaniesView,
+  segments: SegmentsView,
+  objects: ObjectsView,
+  visitors: VisitorsView,
+  accounts: AccountsView,
+  tests: TestsView,
+  blocks: BlocksView,
+  map: MapView,
+  runs: RunsView,
+  approvals: ApprovalsView,
+  environments: EnvironmentsView,
+  schedules: SchedulesView,
+  insights: InsightsView,
+  settings: SettingsView,
+};
+
+// One icon per screen. Which screens a workspace sees comes from its features (src/lib/nav.ts).
 const ICONS: Record<NavRoute, React.ReactNode> = {
   contacts: <Contact size={15} />,
   leads: <Target size={15} />,
@@ -315,7 +333,11 @@ export function ClientApp({ config }: { config: SupaConfig }) {
             <ErrorNote message={error} />
           </div>
         ) : null}
-        {route === "contacts" ? <ContactsView {...props} /> : route === "leads" ? <LeadsView {...props} /> : route === "companies" ? <CompaniesView {...props} /> : route === "segments" ? <SegmentsView {...props} /> : route === "objects" ? <ObjectsView key={loc.id.split("/")[0]} {...props} /> : route === "visitors" ? <VisitorsView {...props} /> : route === "accounts" ? <AccountsView {...props} /> : route === "tests" ? <TestsView {...props} /> : route === "blocks" ? <BlocksView {...props} /> : route === "map" ? <MapView {...props} /> : route === "runs" ? <RunsView {...props} /> : route === "approvals" ? <ApprovalsView {...props} /> : route === "environments" ? <EnvironmentsView {...props} /> : route === "schedules" ? <SchedulesView {...props} /> : route === "insights" ? <InsightsView {...props} /> : <SettingsView {...props} />}
+        {(() => {
+          const View = VIEWS[route];
+          // A custom object's records start fresh when the object changes.
+          return <View key={route === "objects" ? loc.id.split("/")[0] : undefined} {...props} />;
+        })()}
       </main>
     </div>
   );
