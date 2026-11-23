@@ -170,6 +170,18 @@ test("Klaviyo, ActiveCampaign, Brevo, Kit, MailerLite: pages and consent", async
   assert.deepEqual(ml.records.map(ml.consent), ["unsubscribed", "opt_in"]);
 });
 
+test("Kit: the next pass reads from the day this pass started", async () => {
+  const today = new Date().toISOString().slice(0, 10);
+  const page = (id: number) => ({ subscribers: [{ id, email_address: `${id}@x.com`, state: "active" }], total_pages: 2 });
+  const first = await pullAll("kit", key({ api_key: "k" }), [[/subscribers/, [page(1), page(2)]]]);
+  assert.equal(first.pages.length, 2);
+  assert.ok(!first.calls[0].includes("updated_from"), "the first pass reads everyone");
+  assert.equal(JSON.parse(first.cursor!).since, today);
+  const { fetcher, calls } = recorded([[/subscribers/, [{ subscribers: [], total_pages: 1 }]]]);
+  await connectorFor("kit")!.pull!(makeCtx({ source: row("kit"), creds: key({ api_key: "k" }), fetcher, sleep: async () => {} }), "contacts", first.cursor);
+  assert.ok(calls[0].includes(`updated_from=${today}`));
+});
+
 test("Stripe and Intercom: pages; Stripe customers are customers", async () => {
   const st = await pullAll("stripe", key({ api_key: "rk" }), [[/customers/, [{ data: [{ id: "cus_1", email: "a@x.com", created: 1 }], has_more: true }, { data: [{ id: "cus_2", email: "b@x.com", created: 1, deleted: true }], has_more: false }]]]);
   assert.deepEqual(st.records.map((x) => [x.id, !!x.deleted, x.data.lifecycle]), [["cus_1", false, "customer"], ["cus_2", true, "customer"]]);
