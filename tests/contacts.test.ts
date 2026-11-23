@@ -4,7 +4,8 @@ import { test } from "node:test";
 import { formValues, newContact, writeContacts } from "../src/lib/contacts/contacts.ts";
 import { basisFor, parseBasis } from "../src/lib/contacts/consent.ts";
 import { parseCsv, toCsv } from "../src/lib/contacts/csv.ts";
-import { countryCode, customValue, guessTarget, type CustomField } from "../src/lib/contacts/fields.ts";
+import { countryCode, guessTarget } from "../src/lib/contacts/fields.ts";
+import { customValue, type CustomField } from "../src/lib/records/fields.ts";
 import { mappingError, prepareImport, type Mapping } from "../src/lib/contacts/import.ts";
 import { applyFilters, cleanFilters, describe, matches, type Filter, type FilterField } from "../src/lib/filters.ts";
 

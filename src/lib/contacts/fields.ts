@@ -2,9 +2,7 @@
 // and how a custom value is checked. Runs in the browser and on the server.
 
 import type { FilterField } from "../filters.ts";
-import { customValue, EMAIL_CLASSES, filterKind, LEAD_STAGES, LIFECYCLES, optionsOf, SOURCES, type CustomField } from "../records/fields.ts";
-
-export { customValue, EMAIL_CLASSES, LIFECYCLES, SOURCES, type CustomField };
+import { EMAIL_CLASSES, filterKind, LEAD_STAGES, LIFECYCLES, optionsOf, SOURCES, type CustomField } from "../records/fields.ts";
 
 /** A row of the Contacts table (contacts_list). */
 export type ContactRow = {

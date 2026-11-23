@@ -3,7 +3,8 @@
 // import uses, so a phone, a name or a consent answer means the same thing from any source.
 
 import type { ContactInput } from "../contacts/import.ts";
-import { guessTarget, type CustomField, type Target } from "../contacts/fields.ts";
+import { guessTarget, type Target } from "../contacts/fields.ts";
+import type { CustomField } from "../records/fields.ts";
 import type { CompanyTarget, Connector, RawRecord } from "./types.ts";
 
 export type Wins = "claritia" | "crm" | "newest";

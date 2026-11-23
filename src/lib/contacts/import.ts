@@ -7,7 +7,8 @@ import { cleanDomain } from "../company/domains.ts";
 import { cleanEmail, isRejected } from "../email/address.ts";
 import { basisFor, parseBasis, sourceRefused, type Basis, type ImportSource } from "./consent.ts";
 import { cleanPhone, nameCase, splitName, titleRole } from "./clean.ts";
-import { countryCode, customValue, lifecycleOf, type CustomField, type Target } from "./fields.ts";
+import { customValue, type CustomField } from "../records/fields.ts";
+import { countryCode, lifecycleOf, type Target } from "./fields.ts";
 
 /** One contact as contacts_upsert takes it (supabase/migrations/033_contacts.sql). */
 export type ContactInput = {
