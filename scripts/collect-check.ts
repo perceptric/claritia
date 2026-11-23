@@ -77,9 +77,11 @@ const hide = (p: pw.Page) =>
     Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
   });
 
-const browser = await pw.chromium.launch({ headless: true, executablePath: process.env.CHROMIUM_PATH });
-// Headless Chrome says so in its user agent, and collect drops it as a bot. Look like a normal browser.
-const ctx = await browser.newContext({ userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36" });
+// Headless Chrome says so in its user agent, and collect drops it as a bot. Look like a normal browser. It's set on the
+// browser, not only the context: a beacon sent while a page unloads carries the browser's own user agent.
+const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
+const browser = await pw.chromium.launch({ headless: true, executablePath: process.env.CHROMIUM_PATH, args: [`--user-agent=${UA}`] });
+const ctx = await browser.newContext({ userAgent: UA });
 const tab = await ctx.newPage();
 await tab.goto(`${base}/pricing?utm_source=check&email=jane@acme.com`);
 
@@ -137,7 +139,8 @@ await tab.goto(`${base}/demo`);
 await sleep(300);
 const left = await buffer.close(10_000);
 check(left === 0, "shutdown writes everything waiting");
-check((await q(`select count(*)::int n from events where session_id = $1 and kind = 'custom'`, [s.id]))[0].n === 1, "the last event made it");
+const customs = (await q(`select data, path from events where session_id = $1 and kind = 'custom'`, [s.id]));
+check(customs.length === 1, `the last event made it (${JSON.stringify(customs)})`);
 
 await browser.close();
 server.close();
