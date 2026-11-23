@@ -13,6 +13,7 @@ import { askConfirm, askText } from "../Dialogs";
 import { Select } from "../Select";
 import { attempt, Badge, Button, ErrorNote, errorText, Field, Loading, must, Panel, postJson, Segmented, Td, Th, type Tone, type ViewProps } from "../ui";
 import { SidePanel } from "./SidePanel";
+import { UserError } from "@/lib/errors";
 
 type Inspect = { kind: string; size: number; sheets: string[]; sheet: string | null; header: string[]; samples: string[][]; rows: number; exact: boolean; guessed: Target[] };
 type PreviewRow = { row: number; email: string; name: string; company: string; outcome: "new" | "update" | "suppressed" | "skip" | "erased"; reason?: string };
@@ -74,7 +75,7 @@ export function ImportPanel({
       const clean = safeName(name);
       const path = `${wsId}/${crypto.randomUUID()}/${clean}`;
       const { error: e } = await sb.storage.from("imports").upload(path, blob, { contentType: blob.type || "text/csv", upsert: false });
-      if (e) throw new Error(e.message);
+      if (e) throw new UserError("The file couldn't be uploaded. Try again.");
       const f = { name: clean, path, kind };
       setFile(f);
       const r = await postJson<Inspect>(session, "/api/contacts/import/inspect", { workspaceId: wsId, path, fileName: clean });
@@ -142,7 +143,7 @@ export function ImportPanel({
   const errorsFile = () =>
     run("errors", async () => {
       const { data, error: e } = await sb.storage.from("imports").createSignedUrl(imp!.errors_path!, 120, { download: "import-errors.csv" });
-      if (e || !data) throw new Error(e?.message ?? "The file is gone");
+      if (e || !data) throw new UserError("The file is gone. Upload it again.");
       window.location.href = data.signedUrl;
     });
 

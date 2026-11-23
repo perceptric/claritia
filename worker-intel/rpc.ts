@@ -29,7 +29,7 @@ export function pgRpc(pool: pg.Pool): Rpc {
       const values = r.rows.map((row) => row[fn]);
       return { data: (await returnsSet(fn)) ? values : (values[0] ?? null), error: null };
     } catch (e) {
-      return { data: null, error: { message: (e as Error).message } };
+      return { data: null, error: { message: (e as Error).message, code: (e as { code?: string }).code } };
     }
   };
 }

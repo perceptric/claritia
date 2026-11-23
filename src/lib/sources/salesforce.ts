@@ -6,12 +6,13 @@
 
 import { readCursor } from "./ctx.ts";
 import type { Connector, Ctx, Page, PushChange, PushResult, RawRecord } from "./types.ts";
+import { UserError } from "../errors.ts";
 
 const V = "v61.0";
 const OVERLAP_MS = 5 * 60_000;
 const base = (ctx: Ctx) => {
   const u = ctx.secret("instance_url");
-  if (!/^https:\/\/[a-z0-9.-]+\.(salesforce|force)\.com$/i.test(u)) throw new Error("Sign in to Salesforce again.");
+  if (!/^https:\/\/[a-z0-9.-]+\.(salesforce|force)\.com$/i.test(u)) throw new UserError("Sign in to Salesforce again.");
   return `${u}/services/data/${V}`;
 };
 

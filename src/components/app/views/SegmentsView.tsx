@@ -14,6 +14,7 @@ import { SampleStats, ToolIntro } from "../ToolIntro";
 import { Badge, Button, CardHead, ErrorNote, errorText, Input, Loading, must, Page, Panel, Td, Th, timeAgo, useLoad, type ViewProps } from "../ui";
 import { useMeta } from "../records/meta";
 import { type Group, type Ctx, GroupEditor } from "./SegmentRules";
+import { UserError } from "@/lib/errors";
 type Segment = { id: string; name: string; kind: "dynamic" | "static"; rules: Group | Record<string, never>; count: number; refreshed_at: string | null; error: string | null; source_id: string | null };
 
 export function SegmentsView({ sb, ws, id, navigate }: ViewProps) {
@@ -84,7 +85,7 @@ function SegmentPage({ sb, ws, id, navigate }: Pick<ViewProps, "sb" | "ws" | "na
   const seg = useLoad(async () => {
     if (isNew) return null;
     const found = must(await sb.from("segments").select("id, name, kind, rules, count, refreshed_at, error, source_id").eq("id", id).maybeSingle()) as Segment | null;
-    if (!found) throw new Error("Segment not found");
+    if (!found) throw new UserError("Segment not found");
     return found;
   }, id);
   const extra = useLoad(async () => {
@@ -120,7 +121,7 @@ function Builder({ sb, wsId, seg, ctx, navigate, reload }: { sb: ViewProps["sb"]
       const { data, error: e } = await sb.rpc("segment_preview", { p_ws: wsId, p_rules: rules });
       if (mine !== ticket.current) return;
       if (e) {
-        setLiveError(e.message);
+        setLiveError(errorText(e));
         return;
       }
       setLiveError("");
@@ -164,7 +165,7 @@ function Builder({ sb, wsId, seg, ctx, navigate, reload }: { sb: ViewProps["sb"]
               onClick={async () => {
                 if (!(await askConfirm(`Delete ${seg.name}?`, { ok: "Delete", danger: true }))) return;
                 const { error: e } = await sb.rpc("segment_delete", { p_id: seg.id });
-                if (e) setError(e.message);
+                if (e) setError(errorText(e));
                 else navigate("segments");
               }}
             >

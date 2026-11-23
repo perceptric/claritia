@@ -7,6 +7,7 @@ import { entryOf } from "./catalog.ts";
 import { makeCtx } from "./ctx.ts";
 import { connectorFor } from "./registry.ts";
 import type { Creds, Settings, SourceRow } from "./types.ts";
+import { dbError, UserError } from "../errors.ts";
 
 // What the sources routes share: connecting a tool once its credentials are in hand.
 
@@ -29,7 +30,7 @@ const fakeRow = (ws: string, kind: string): SourceRow => ({ id: "", workspace_id
 export async function connectSource(db: SupabaseClient, o: { ws: string; user: string; kind: string; creds: Creds; settings?: Settings; hookSecret?: string | null }) {
   const c = connectorFor(o.kind);
   const e = entryOf(o.kind);
-  if (!c || !e) throw new Error("Unknown tool.");
+  if (!c || !e) throw new UserError("Unknown tool.");
   let account = { id: "", label: e.label };
   const token = randomBytes(18).toString("base64url");
   if (o.creds.type !== "hook") account = await c.account(makeCtx({ source: fakeRow(o.ws, o.kind), creds: o.creds }));
@@ -44,13 +45,13 @@ export async function connectSource(db: SupabaseClient, o: { ws: string; user: s
     p_settings: settings,
     p_hook_sealed: seal(JSON.stringify({ token, secret: o.hookSecret ?? null })),
   });
-  if (error) throw new Error(error.message);
+  if (error) throw dbError(error);
   if (c.setup && o.creds.type !== "hook") {
     const extra = await c.setup(makeCtx({ source: { ...fakeRow(o.ws, o.kind), id: id as string }, creds: o.creds }), hookUrl(o.kind, id as string, token));
     // A tool that hands back a signing secret for the hooks it sends (Omniscient).
     if (extra?.hook_secret) {
       const { error: hookError } = await db.rpc("source_hook_secret_save", { p_id: id, p_hook_sealed: seal(JSON.stringify({ token, secret: extra.hook_secret })) });
-      if (hookError) throw new Error(hookError.message);
+      if (hookError) throw dbError(hookError);
     }
   }
   return { id: id as string, token, label: account.label };

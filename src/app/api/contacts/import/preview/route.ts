@@ -4,7 +4,7 @@ import { cleaningCtx } from "@/lib/contacts/server";
 import { openFile, validPath } from "@/lib/contacts/storage";
 import { isMember, requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
-import { bad } from "@/lib/http";
+import { bad, fail } from "@/lib/http";
 
 // What an import would do to its first rows: POST { workspaceId, path, fileName, sheet, mapping } returns up to 20
 // rows, each New, Update, Suppressed, Skip (with the reason) or Erased.
@@ -56,6 +56,6 @@ export async function POST(request: Request) {
     }
     return Response.json({ rows: out });
   } catch (e) {
-    return bad(e instanceof Error ? e.message : String(e), 500);
+    return fail(e, 500);
   }
 }

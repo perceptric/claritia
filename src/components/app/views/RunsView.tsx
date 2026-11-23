@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Play } from "../../Icons";
-import { Badge, duration, Empty, ErrorNote, Loading, must, Page, StatusTag, Th, timeAgo, usePoll, VerdictTag, type RunStatus, type ViewProps } from "../ui";
+import { Badge, duration, Empty, ErrorNote, errorText, Loading, must, Page, StatusTag, Th, timeAgo, usePoll, VerdictTag, type RunStatus, type ViewProps } from "../ui";
 import { type RunRow, LIVE, RUN_COLUMNS, RunDetail } from "./RunDetail";
 
 /** Load again every few seconds while `live` is true. */
@@ -16,7 +16,7 @@ function RunList({ sb, project, navigate }: ViewProps) {
       .eq("project_id", project.id)
       .order("created_at", { ascending: false })
       .limit(200)
-      .then((res) => (res.error ? setError(res.error.message) : setRows(res.data as RunRow[])));
+      .then((res) => (res.error ? setError(errorText(res.error)) : setRows(res.data as RunRow[])));
   };
   useEffect(load, [sb, project]);
   usePoll(!!rows?.some((r) => LIVE.has(r.status)), 3000, load);

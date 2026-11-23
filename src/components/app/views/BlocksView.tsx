@@ -31,7 +31,7 @@ function BlockEditor({ sb, project, id, navigate }: ViewProps) {
     Promise.all([sb.from("blocks").select("id, name, steps, updated_at").eq("id", id).maybeSingle(), usage(sb, project.id)])
       .then(([b, count]) => {
         if (!live) return;
-        if (b.error) return setError(b.error.message);
+        if (b.error) return setError(errorText(b.error));
         if (!b.data) return setError("This block was deleted or isn't in this project.");
         const row = b.data as BlockRow;
         setSaved(row);
@@ -74,7 +74,7 @@ function BlockEditor({ sb, project, id, navigate }: ViewProps) {
     if (!(await askConfirm(`Delete ${saved.name}?`, { ok: "Delete block", danger: true }))) return;
     setLeaveGuard(null);
     const res = await sb.from("blocks").delete().eq("id", saved.id);
-    if (res.error) return setError(res.error.message);
+    if (res.error) return setError(errorText(res.error));
     navigate("blocks");
   };
 

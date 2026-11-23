@@ -4,6 +4,7 @@
 
 import { createHash, randomBytes } from "node:crypto";
 import { readToken, signToken } from "../sign.ts";
+import { UserError } from "../errors.ts";
 
 export type OauthCfg = { env: string; authorize: string; token: string; scope?: string; basic?: boolean; pkce?: boolean; extra?: Record<string, string> };
 
@@ -66,7 +67,7 @@ async function tokenCall(kind: string, params: Record<string, string>, fetcher: 
   if (c.basic) headers.Authorization = `Basic ${Buffer.from(`${clientId(kind)}:${clientSecret(kind)}`).toString("base64")}`;
   const res = await fetcher(c.token, { method: "POST", headers, body });
   const t = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-  if (!res.ok || typeof t.access_token !== "string") throw new Error(String(t.error_description ?? t.message ?? t.error ?? `Sign-in failed (${res.status})`));
+  if (!res.ok || typeof t.access_token !== "string") throw new UserError(String(t.error_description ?? t.message ?? t.error ?? `Sign-in failed (${res.status})`));
   const extra: Record<string, string> = {};
   // Salesforce's org address, Pipedrive's company address.
   for (const k of ["instance_url", "api_domain", "id"]) if (typeof t[k] === "string") extra[k] = t[k] as string;

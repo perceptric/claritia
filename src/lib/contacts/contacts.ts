@@ -10,6 +10,7 @@ import { customValue, LIFECYCLES, type CustomField } from "../records/fields.ts"
 import { countryCode } from "./fields.ts";
 import type { ContactInput } from "./import.ts";
 import { setTimeout as wait } from "node:timers/promises";
+import { dbError } from "../errors.ts";
 
 /** A source kind from source_kinds (supabase/migrations/034_records.sql), like "csv", "hubspot" or "manual". */
 export type Source = string;
@@ -38,7 +39,7 @@ export async function writeContacts(
         out.ids.push(...r.ids);
         break;
       }
-      if (attempt >= tries) throw new Error(error.message);
+      if (attempt >= tries) throw dbError(error);
       await wait((opts.backoffMs ?? 500) * 2 ** (attempt - 1));
     }
     opts.onBatch?.(Math.min(i + size, contacts.length));

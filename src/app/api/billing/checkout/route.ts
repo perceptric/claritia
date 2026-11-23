@@ -1,6 +1,7 @@
 import { appBase, ensureWebhook, isPaidPlan, lineFor, stripeClient } from "@/lib/billing";
 import { isOwner, requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
+import { fail } from "@/lib/http";
 
 /** Start a Stripe checkout for a paid plan. Only the workspace's owner can. Returns the checkout page's address. */
 export async function POST(request: Request) {
@@ -25,7 +26,7 @@ export async function POST(request: Request) {
     const made = await stripe.customers.create({ email: user.email, metadata: { workspace_id: body.workspaceId } });
     customer = made.id;
     const { error } = await admin.from("workspace_billing").upsert({ workspace_id: body.workspaceId, stripe_customer_id: customer }, { onConflict: "workspace_id" });
-    if (error) return Response.json({ error: error.message }, { status: 500 });
+    if (error) return fail(error, 500);
   }
 
   await ensureWebhook(stripe);

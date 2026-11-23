@@ -1,5 +1,6 @@
 import { requireUser } from "@/lib/serverAuth";
 import { SECRET_NAME, seal } from "@/lib/seal";
+import { fail } from "@/lib/http";
 
 const MAX_VALUE = 4096;
 
@@ -18,10 +19,10 @@ export async function POST(request: Request) {
   try {
     sealed = seal(value);
   } catch (e) {
-    return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
+    return fail(e, 500);
   }
   // Runs as the caller: the database checks they belong to the environment's workspace.
   const { data, error } = await auth.sb.rpc("set_secret", { p_env: environmentId, p_name: name, p_sealed: sealed });
-  if (error) return Response.json({ error: error.message }, { status: /not found/i.test(error.message) ? 404 : 400 });
+  if (error) return fail(error, /not found/i.test(error.message) ? 404 : 400);
   return Response.json({ id: data });
 }

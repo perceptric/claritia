@@ -31,7 +31,7 @@ jobs:
             paths: '^(src/|public/|next\.config\.ts|postcss\.config\.mjs|tsconfig\.json|package(-lock)?\.json|Dockerfile$|fly\.toml)'
           - app: claritia-runner
             config: fly.runner.toml
-            paths: '^(worker/|src/lib/(claude|lock|planner|privateNet|seal)\.ts|package(-lock)?\.json|fly\.runner\.toml)'
+            paths: '^(worker/|src/lib/(claude|errors|lock|planner|privateNet|seal)\.ts|package(-lock)?\.json|fly\.runner\.toml)'
           - app: claritia-relay
             config: fly.relay.toml
             paths: '^(relay/|fly\.relay\.toml)'

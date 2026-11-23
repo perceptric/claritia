@@ -1,5 +1,6 @@
 import { fetchReceived, firstInbox } from "@/lib/inbound";
 import { serviceClient } from "@/lib/serviceClient";
+import { fail } from "@/lib/http";
 
 const MAX_TEXT = 100_000;
 const MAX_HTML = 300_000;
@@ -28,7 +29,7 @@ export async function POST(request: Request) {
   const to = firstInbox(email.to, process.env.INBOX_DOMAIN?.trim() || "inbox.tryclaritia.com");
   if (!to) return Response.json({ ignored: true });
   const { data: project, error } = await admin.from("projects").select("id, workspace_id").eq("inbox_id", to.inboxId).maybeSingle();
-  if (error) return Response.json({ error: error.message }, { status: 500 });
+  if (error) return fail(error, 500);
   if (!project) return Response.json({ ignored: true });
 
   // The same email posted twice is saved once.
@@ -45,7 +46,7 @@ export async function POST(request: Request) {
     },
     { onConflict: "external_id", ignoreDuplicates: true },
   );
-  if (saveErr) return Response.json({ error: saveErr.message }, { status: 500 });
+  if (saveErr) return fail(saveErr, 500);
 
   // Test mail is only needed while a run waits for it. Keep a week, for the run pages.
   await admin

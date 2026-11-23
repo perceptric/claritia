@@ -5,6 +5,7 @@
 import { oauthRefresh } from "./oauth.ts";
 import { AuthError, RateLimited, type Creds, type Ctx, type SourceRow } from "./types.ts";
 import { setTimeout as wait } from "node:timers/promises";
+import { UserError } from "../errors.ts";
 
 export type CtxOpts = {
   source: SourceRow;
@@ -75,7 +76,7 @@ export function makeCtx(o: CtxOpts): Ctx {
         const after = Number(res.headers.get("retry-after"));
         if (attempt >= BACKOFF_S.length) {
           if (res.status === 429) throw new RateLimited("The tool's rate limit was hit; trying again later.", Number.isFinite(after) && after > 0 ? after : 60);
-          throw new Error(`The tool answered ${res.status}; trying again later.`);
+          throw new UserError(`The tool answered ${res.status}; trying again later.`);
         }
         await sleep((Number.isFinite(after) && after > 0 ? Math.min(after, 60) : BACKOFF_S[attempt]) * 1000);
         continue;
@@ -88,7 +89,7 @@ export function makeCtx(o: CtxOpts): Ctx {
         data = text;
       }
       if (res.status === 401 || res.status === 403) throw new AuthError(messageOf(data) ?? "Sign in again: the tool turned the connection down.");
-      if (!res.ok) throw new Error(messageOf(data) ?? `The tool answered ${res.status}.`);
+      if (!res.ok) throw new UserError(messageOf(data) ?? `The tool answered ${res.status}.`);
       return data as T;
     }
   }

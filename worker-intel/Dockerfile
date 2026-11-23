@@ -12,7 +12,7 @@ RUN npm ci -w worker-intel --omit=dev --no-audit --no-fund && rm -rf /root/.npm
 # The shared files under src/ are ES modules too.
 RUN echo '{"type":"module"}' > /app/package.json
 COPY worker-intel/ ./worker-intel/
-COPY src/lib/jobs.ts src/lib/seal.ts src/lib/sign.ts src/lib/site.ts src/lib/uuid.ts ./src/lib/
+COPY src/lib/errors.ts src/lib/jobs.ts src/lib/seal.ts src/lib/sign.ts src/lib/site.ts src/lib/uuid.ts ./src/lib/
 COPY src/lib/identity/ ./src/lib/identity/
 COPY src/lib/company/ ./src/lib/company/
 COPY src/lib/privateNet.ts ./src/lib/

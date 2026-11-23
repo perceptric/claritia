@@ -7,7 +7,8 @@ import { askConfirm, askText, useLeaveGuard } from "../Dialogs";
 import { Select } from "../Select";
 import { StepsEditor } from "../StepsEditor";
 import { TestPreview, TestRunLog } from "./TestRuns";
-import { Badge, Button, ErrorNote, errorText, Field, Loading, Page, Panel, postJson, PriorityBars, Segmented, setLeaveGuard, Tabs, timeAgo, useCopy, type Environment, type ViewProps } from "../ui";
+import { Badge, Button, dbError, ErrorNote, errorText, Field, Loading, Page, Panel, postJson, PriorityBars, Segmented, setLeaveGuard, Tabs, timeAgo, useCopy, type Environment, type ViewProps } from "../ui";
+import { UserError } from "@/lib/errors";
 
 export type TestRow = TestDoc & { id: string; project_id: string; lock: string | null; version: number; created_at: string; updated_at: string };
 type Version = TestDoc & { id: string; version: number; lock: string | null; author_email: string | null; created_at: string };
@@ -71,7 +72,7 @@ export function TestView({ sb, session, project, id, navigate }: ViewProps) {
     ]).then(([t, b, u, e]) => {
       if (!live) return;
       const err = t.error ?? b.error ?? u.error ?? e.error;
-      if (err) return setError(err.message);
+      if (err) return setError(errorText(err));
       if (!t.data) return setError("This test was deleted or isn't in this project.");
       const row = t.data as TestRow;
       setSaved(row);
@@ -94,7 +95,7 @@ export function TestView({ sb, session, project, id, navigate }: ViewProps) {
       .eq("test_id", id)
       .order("version", { ascending: false })
       .limit(100)
-      .then((res) => (res.error ? setError(res.error.message) : setVersions(res.data as Version[])));
+      .then((res) => (res.error ? setError(errorText(res.error)) : setVersions(res.data as Version[])));
   }, [sb, id]);
 
   const cleaned = useMemo(() => (doc ? { ...doc, name: doc.name.trim(), steps: cleanSteps(doc.steps) } : null), [doc]);
@@ -143,15 +144,15 @@ export function TestView({ sb, session, project, id, navigate }: ViewProps) {
         if (!check.ok) {
           setLockErrors(check.errors);
           setTab("code");
-          throw new Error(`The code has ${check.errors.length === 1 ? "a problem" : `${check.errors.length} problems`}. Fix ${check.errors.length === 1 ? "it" : "them"} in the Code tab, then save.`);
+          throw new UserError(`The code has ${check.errors.length === 1 ? "a problem" : `${check.errors.length} problems`}. Fix ${check.errors.length === 1 ? "it" : "them"} in the Code tab, then save.`);
         }
         setLockErrors([]);
         body.lock = lockText.trim() ? lockText : null;
       }
       // Only saves over the version this page loaded, so two people can't overwrite each other without knowing.
       const res = await sb.from("tests").update(body).eq("id", saved.id).eq("version", saved.version).select(TEST_COLUMNS).maybeSingle();
-      if (res.error) throw new Error(res.error.message);
-      if (!res.data) throw new Error("Someone else saved this test after you opened it. Copy your changes, then reload the page.");
+      if (res.error) throw dbError(res.error);
+      if (!res.data) throw new UserError("Someone else saved this test after you opened it. Copy your changes, then reload the page.");
       const row = res.data as TestRow;
       setSaved(row);
       setDoc({ name: row.name, use_case: row.use_case, priority: row.priority, steps: row.steps });
@@ -196,7 +197,7 @@ export function TestView({ sb, session, project, id, navigate }: ViewProps) {
     if (!(await askConfirm(`Delete ${saved.name}?`, { body: "Its history is deleted too.", ok: "Delete test", danger: true }))) return;
     setLeaveGuard(null);
     const res = await sb.from("tests").delete().eq("id", saved.id);
-    if (res.error) return setError(res.error.message);
+    if (res.error) return setError(errorText(res.error));
     navigate("tests");
   };
 

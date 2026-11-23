@@ -4,6 +4,7 @@
 
 import { toCsv } from "./csv.ts";
 import { mappingError, prepareImport, type ContactInput, type Ctx, type Mapping, type RowError, type Suppression } from "./import.ts";
+import { UserError } from "../errors.ts";
 
 export type Totals = { rows: number; merged: number; no_basis: number; suppressed: number; skipped: { missing_email: number; invalid_email: number; disposable: number } };
 
@@ -60,17 +61,17 @@ export async function runImport(d: RunDeps): Promise<{ totals: Totals; errors: R
     if (!header) {
       header = row;
       const wrong = mappingError(d.mapping, header.length, d.ctx.custom);
-      if (wrong) throw new Error(wrong);
+      if (wrong) throw new UserError(wrong);
       continue;
     }
     seen++;
-    if (d.maxRows && seen > d.maxRows) throw new Error(`Up to ${d.maxRows.toLocaleString("en-US")} rows at a time.`);
+    if (d.maxRows && seen > d.maxRows) throw new UserError(`Up to ${d.maxRows.toLocaleString("en-US")} rows at a time.`);
     if (seen <= skip) continue;
     chunk.push(row);
     if (chunk.length >= page) await flush();
   }
   await flush();
-  if (!header) throw new Error("The file is empty.");
+  if (!header) throw new UserError("The file is empty.");
   return { totals, errors, header };
 }
 

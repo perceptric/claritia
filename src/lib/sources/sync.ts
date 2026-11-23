@@ -15,6 +15,7 @@ import { agreed, changedKeys, effectiveMapping, recordsToCompanies, recordsToRow
 import type { HookEvent, ObjectKind, RawRecord } from "./types.ts";
 import { type Deps, type Counts, zero, log } from "./syncDeps.ts";
 import { push } from "./push.ts";
+import { UserError } from "../errors.ts";
 type Link = { local_id: string; values: Record<string, unknown> | null; deleted: boolean; email_clean: string | null };
 const enabled = (d: Deps, o: ObjectKind) => (d.ctx.source.settings.objects?.[o] ?? (o === "companies" ? "off" : "in")) !== "off";
 
@@ -52,7 +53,7 @@ async function applyContacts(d: Deps, records: RawRecord[]): Promise<Counts> {
   if (!live.length) return c;
 
   const cols = effectiveMapping(d.connector, "contact", d.saved, await seen(d, "contact", live), d.clean.custom);
-  if (!cols.some((m) => m.target === "email")) throw new Error("Map a column to Email for this source.");
+  if (!cols.some((m) => m.target === "email")) throw new UserError("Map a column to Email for this source.");
   const { targets, rows } = recordsToRows(live, cols, d.connector.consent);
   const p = prepareImport(rows, { columns: targets, source: "crm_export", basis: src.settings.basis ?? null, list: "contacts" }, d.clean);
   c.skipped += rows.length - p.contacts.length;

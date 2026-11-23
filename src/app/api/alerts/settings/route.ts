@@ -3,7 +3,7 @@ import { SLACK_WEBHOOK } from "@/lib/alerts";
 import { seal } from "@/lib/seal";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
-import { bad } from "@/lib/http";
+import { bad, fail } from "@/lib/http";
 
 /**
  * Save a project's alerts: { projectId, emails, onFailure, onHeal, slackUrl? }. slackUrl null removes Slack; leaving
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     try {
       sealed = seal(url);
     } catch (e) {
-      return bad(e instanceof Error ? e.message : String(e), 500);
+      return fail(e, 500);
     }
     hint = url.slice(-4);
   }
@@ -53,6 +53,6 @@ export async function POST(request: Request) {
     p_slack_hint: hint,
     p_clear_slack: body.slackUrl === null,
   });
-  if (error) return bad(error.message);
+  if (error) return fail(error);
   return Response.json({ ok: true });
 }

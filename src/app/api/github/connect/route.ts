@@ -1,6 +1,7 @@
 import { signState } from "@/lib/github";
 import { appSlug, githubConfig } from "@/lib/githubApp";
 import { isMember, requireUser } from "@/lib/serverAuth";
+import { fail } from "@/lib/http";
 
 /** The link that installs the Claritia GitHub App, carrying who's connecting which workspace. */
 export async function POST(request: Request) {
@@ -15,6 +16,6 @@ export async function POST(request: Request) {
     const state = signState({ workspaceId: body.workspaceId, userId: auth.user.id }, key);
     return Response.json({ url: `https://github.com/apps/${await appSlug()}/installations/new?state=${encodeURIComponent(state)}` });
   } catch (e) {
-    return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: 502 });
+    return fail(e, 502);
   }
 }

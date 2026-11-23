@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { planById, type PlanId } from "./plans.ts";
 import { APP_URL } from "./site.ts";
+import { dbError } from "./errors.ts";
 
 // Billing needs one setting: STRIPE_SECRET_KEY. Prices come from src/lib/plans.ts, and the app makes its own
 // webhook and billing page in Stripe the first time they're needed.
@@ -103,7 +104,7 @@ export async function applySubscription(admin: SupabaseClient, sub: Stripe.Subsc
     },
     { onConflict: "workspace_id" },
   );
-  if (error) throw new Error(error.message);
+  if (error) throw dbError(error);
   return { ok: true as const, workspaceId, plan };
 }
 

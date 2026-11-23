@@ -16,7 +16,8 @@ import { ObjectsSettings } from "./ObjectsSettings";
 import { ImportsSettings } from "./ImportsSettings";
 import { SourcesSettings } from "./SourcesSettings";
 import { SyncLog } from "./SyncLog";
-import { announceChange, attempt, Avatar, Badge, Button, CardHead, ErrorNote, errorText, Loading, must, Page, Panel, postJson, timeAgo, useCopy, useLoad, type ViewProps } from "../ui";
+import { announceChange, attempt, Avatar, Badge, Button, CardHead, dbError, ErrorNote, errorText, Loading, must, Page, Panel, postJson, timeAgo, useCopy, useLoad, type ViewProps } from "../ui";
+import { UserError } from "@/lib/errors";
 
 type Usage = { plan: PlanId; period_start: string; period_end: string; minutes_used: number; minutes_limit: number | null; credits_used: number; credits_limit: number | null; projects_used: number; projects_limit: number | null };
 
@@ -42,7 +43,7 @@ function Meter({ label, used, limit, unit }: { label: string; used: number; limi
 function PlanPanel({ sb, session, ws, role }: Pick<ViewProps, "sb" | "session" | "ws" | "role">) {
   const usage = useLoad(async () => {
     const { data, error } = await sb.rpc("workspace_usage", { p_workspace: ws.id });
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     return (data as Usage[])[0]!;
   }, ws.id);
   const [busy, setBusy] = useState("");
@@ -245,7 +246,7 @@ export function SettingsView({ sb, session, ws, role, project, projectsChanged, 
                 onClick={() =>
                   act(async () => {
                     const res = await fetch(`/api/export?projectId=${project.id}`, { headers: { Authorization: `Bearer ${session.access_token}` } });
-                    if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? "Export failed.");
+                    if (!res.ok) throw new UserError(((await res.json().catch(() => ({}))) as { error?: string }).error ?? "Export failed.");
                     const url = URL.createObjectURL(await res.blob());
                     const a = Object.assign(document.createElement("a"), { href: url, download: `${project.name.replace(/[^\w-]+/g, "-")}-claritia-tests.zip` });
                     a.click();

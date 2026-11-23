@@ -4,7 +4,7 @@ import { fileSize, openFile, validPath } from "@/lib/contacts/storage";
 import { guessTarget } from "@/lib/contacts/fields";
 import { isMember, requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
-import { bad } from "@/lib/http";
+import { bad, fail } from "@/lib/http";
 
 // Look at an uploaded file: POST { workspaceId, path, fileName, sheet? } returns its sheets (Excel), header, first
 // rows, a row count, and a guessed field for each column.
@@ -42,6 +42,6 @@ export async function POST(request: Request) {
     }
     return Response.json({ kind, size, sheets, sheet: sheet ?? sheets[0] ?? null, header: r.header, samples: r.samples, rows: r.rows, exact: r.done, guessed });
   } catch (e) {
-    return bad(e instanceof Error ? e.message : String(e), 500);
+    return fail(e, 500);
   }
 }

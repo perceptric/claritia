@@ -1,5 +1,6 @@
 import { gh, githubConfig, installationToken } from "@/lib/githubApp";
 import { requireUser } from "@/lib/serverAuth";
+import { fail } from "@/lib/http";
 
 type Repo = { id: number; full_name: string; private: boolean };
 
@@ -12,7 +13,7 @@ export async function POST(request: Request) {
   if (typeof body.workspaceId !== "string") return Response.json({ error: "Missing workspace." }, { status: 400 });
   // Row level security: only the caller's own workspace's installations come back.
   const { data: installs, error } = await auth.sb.from("github_installations").select("id, account_login").eq("workspace_id", body.workspaceId);
-  if (error) return Response.json({ error: error.message }, { status: 500 });
+  if (error) return fail(error, 500);
   const repos: { id: number; full_name: string; installation_id: number }[] = [];
   try {
     for (const inst of (installs ?? []) as { id: number }[]) {
@@ -24,7 +25,7 @@ export async function POST(request: Request) {
       }
     }
   } catch (e) {
-    return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: 502 });
+    return fail(e, 502);
   }
   return Response.json({ configured: true, repos: repos.sort((a, b) => a.full_name.localeCompare(b.full_name)) });
 }

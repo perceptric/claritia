@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { Branch, Plus } from "../../Icons";
 import { askConfirm } from "../Dialogs";
 import { Select } from "../Select";
-import { attempt, Badge, Button, CardHead, ErrorNote, errorText, Field, Loading, must, Panel, postJson, Segmented, useLoad, type ViewProps } from "../ui";
+import { attempt, Badge, Button, CardHead, dbError, ErrorNote, errorText, Field, Loading, must, Panel, postJson, Segmented, useLoad, type ViewProps } from "../ui";
+import { UserError } from "@/lib/errors";
 
 type RunOn = "pull_request" | "preview";
 type Scope = "all" | "use_case";
@@ -92,7 +93,7 @@ export function GitHubPanel({ sb, session, ws, project }: Pick<ViewProps, "sb" |
               onCancel={() => setAdding(false)}
               onSave={async (f) => {
                 const repo = d.repos.find((r) => String(r.id) === f.repo);
-                if (!repo) throw new Error("Pick a repository.");
+                if (!repo) throw new UserError("Pick a repository.");
                 const { error: e } = await sb.from("github_links").insert({
                     project_id: project.id,
                     installation_id: repo.installation_id,
@@ -104,7 +105,7 @@ export function GitHubPanel({ sb, session, ws, project }: Pick<ViewProps, "sb" |
                   use_case: f.scope === "use_case" ? f.use_case : null,
                   pick_tests: f.pick_tests,
                 });
-                if (e) throw new Error(/duplicate/i.test(e.message) ? `${repo.full_name} is already linked to this project that way.` : e.message);
+                if (e) throw e.code === "23505" ? new UserError(`${repo.full_name} is already linked to this project that way.`) : dbError(e);
                 setAdding(false);
                 data.reload();
               }}

@@ -4,6 +4,8 @@ import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { Route } from "@/lib/nav";
+import { errorText } from "@/lib/attempt";
+import { dbError, GENERIC, UserError } from "@/lib/errors";
 export type { Route };
 export type Workspace = { id: string; name: string; features: string[] };
 export type Project = { id: string; name: string; workspace_id: string; created_at: string };
@@ -75,7 +77,7 @@ export function useLoad<T>(fn: () => Promise<T>, key: string) {
         setData(d);
         setError("");
       })
-      .catch((e) => live && setError(e instanceof Error ? e.message : String(e)));
+      .catch((e) => live && setError(errorText(e)));
     return () => {
       live = false;
     };
@@ -93,7 +95,8 @@ async function callApi<T>(session: Session, method: "GET" | "POST" | "DELETE", p
   const headers: Record<string, string> = { Authorization: `Bearer ${session.access_token}`, ...(body ? { "Content-Type": "application/json" } : {}) };
   const res = await fetch(path, { method, headers, body: body ? JSON.stringify(body) : undefined });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error ?? "Something went wrong.");
+  // Our API routes only answer with words a person may see (src/lib/http.ts fail).
+  if (!res.ok) throw new UserError(typeof data.error === "string" ? data.error : GENERIC);
   return data as T;
 }
 
@@ -102,12 +105,13 @@ export const postJson = <T = Record<string, unknown>,>(session: Session, path: s
 export const deleteJson = <T = Record<string, unknown>,>(session: Session, path: string, body: object) => callApi<T>(session, "DELETE", path, body);
 
 /** Throw a Supabase error so callers can show it. */
-export function must<T>(res: { data: T | null; error: { message: string } | null }): T {
-  if (res.error) throw new Error(res.error.message);
+export function must<T>(res: { data: T | null; error: { message: string; code?: string } | null }): T {
+  if (res.error) throw dbError(res.error);
   return res.data as T;
 }
 
 export { attempt, errorText } from "@/lib/attempt";
+export { dbError } from "@/lib/errors";
 
 export function timeAgo(iso: string | null) {
   if (!iso) return "—";

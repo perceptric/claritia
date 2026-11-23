@@ -6,7 +6,7 @@ import { cleaningCtx } from "@/lib/contacts/server";
 import { fileSize, validPath } from "@/lib/contacts/storage";
 import { isMember, requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
-import { bad } from "@/lib/http";
+import { bad, fail, publicMessage } from "@/lib/http";
 
 // Start an import of an uploaded file: POST { workspaceId, path, fileName, sheet, mapping, kind }. Files up to 3 MB
 // run now and return their counts; bigger ones go to the import_file job, and the app follows its progress.
@@ -47,7 +47,7 @@ export async function POST(request: Request) {
     p_sheet: sheet,
     p_queued: queued,
   });
-  if (started.error) return bad(started.error.message, 500);
+  if (started.error) return fail(started.error, 500);
   const importId = started.data as string;
   if (queued) return Response.json({ importId, queued: true });
 
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
   try {
     await executeImport(rpc, imp, ctx);
   } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
+    const message = publicMessage(e);
     await sb.rpc("imports_finish", { p_import: importId, p_status: "failed", p_counts: {}, p_error: message });
     return bad(`The import stopped: ${message}`, 500);
   }

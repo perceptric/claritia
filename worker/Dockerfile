@@ -18,7 +18,7 @@ RUN npm ci -w worker --omit=dev --ignore-scripts && rm -rf /root/.npm
 # The shared files under src/ are ES modules too.
 RUN echo '{"type":"module"}' > /app/package.json
 
-COPY src/lib/claude.ts src/lib/lock.ts src/lib/planner.ts src/lib/privateNet.ts src/lib/seal.ts ./src/lib/
+COPY src/lib/claude.ts src/lib/errors.ts src/lib/lock.ts src/lib/planner.ts src/lib/privateNet.ts src/lib/seal.ts ./src/lib/
 COPY worker ./worker
 
 # Run as a normal user, not root.

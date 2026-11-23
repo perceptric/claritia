@@ -3,7 +3,7 @@ import { cleaningCtx } from "@/lib/contacts/server";
 import { isMember, requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { isUuid } from "@/lib/uuid";
-import { bad } from "@/lib/http";
+import { bad, fail } from "@/lib/http";
 
 // Add or edit one contact: POST { workspaceId, form } adds; POST { workspaceId, id, form } changes the keys in form.
 // Emails are cleaned here, so the database functions stay server only.
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
       const r = await writeContacts((fn, args) => sb.rpc(fn, args), ws, "manual", [made.contact]);
       return Response.json({ id: r.ids[0] });
     } catch (e) {
-      return bad(e instanceof Error ? e.message : String(e), 500);
+      return fail(e, 500);
     }
   }
 
@@ -39,6 +39,6 @@ export async function POST(request: Request) {
   const r = formValues(body.form, ctx.custom, ctx);
   if ("error" in r) return bad(r.error);
   const { error } = await sb.rpc("contact_update", { p_id: body.id, p_source: "manual", p_values: r.values });
-  if (error) return bad(error.message);
+  if (error) return fail(error);
   return Response.json({ id: body.id });
 }

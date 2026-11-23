@@ -1,5 +1,6 @@
 import { makeKey } from "@/lib/apiKeys";
 import { requireUser } from "@/lib/serverAuth";
+import { fail } from "@/lib/http";
 
 /** Make an API key for a workspace. The key comes back once; only its hash is kept. */
 export async function POST(request: Request) {
@@ -12,6 +13,6 @@ export async function POST(request: Request) {
 
   const { key, hash, prefix } = makeKey();
   const { data: id, error } = await auth.sb.rpc("create_api_key", { p_workspace: body.workspaceId, p_name: name, p_prefix: prefix, p_hash: hash });
-  if (error) return Response.json({ error: error.message }, { status: 400 });
+  if (error) return fail(error, 400);
   return Response.json({ id, key });
 }

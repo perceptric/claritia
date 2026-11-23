@@ -160,7 +160,7 @@ export function ClientApp({ config }: { config: SupaConfig }) {
         .eq("workspace_id", ws.id)
         .order("created_at")
         .then((res) => {
-          if (res.error) return setError(res.error.message);
+          if (res.error) return setError(errorText(res.error));
           const list = res.data as Project[];
           const want = select ?? recall();
           const pick = list.find((p) => p.id === want) ?? list[0] ?? null;

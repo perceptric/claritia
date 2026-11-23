@@ -5,7 +5,7 @@ import { connectSource } from "@/lib/sources/server";
 import type { Creds, Settings } from "@/lib/sources/types";
 import { isOwner, requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
-import { bad } from "@/lib/http";
+import { bad, fail } from "@/lib/http";
 import { omniscientBase } from "@/lib/sources/omniscient";
 
 // Connect a tool: POST { workspaceId, kind, keys?, hookSecret?, settings? }. A tool with one-click sign-in returns
@@ -51,6 +51,6 @@ export async function POST(request: Request) {
     const s = await connectSource(db, { ws, user: auth.user.id, kind, creds, settings: body.settings, hookSecret });
     return Response.json({ id: s.id, label: s.label });
   } catch (err) {
-    return bad(err instanceof Error ? err.message.slice(0, 300) : "Could not connect.", 502);
+    return fail(err, 502);
   }
 }

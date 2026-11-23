@@ -6,6 +6,7 @@ import { appSecret } from "./oauth.ts";
 import { connectorFor } from "./registry.ts";
 import type { HookEvent, HookRequest } from "./types.ts";
 import { isUuid } from "../uuid.ts";
+import { dbError } from "../errors.ts";
 
 // Webhooks in. Each delivery is checked (the URL's token, and the tool's signature when it signs), turned into
 // events, and staged; the source_hook job applies them. Staging is all a hook does, so it answers fast and a
@@ -17,7 +18,7 @@ async function stage(db: SupabaseClient, source: string, events: HookEvent[]) {
   let n = 0;
   for (const e of events) {
     const { data, error } = await db.rpc("hook_stage", { p_source: source, p_dedupe: e.dedupe, p_body: e });
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     if (data) n++;
   }
   return n;

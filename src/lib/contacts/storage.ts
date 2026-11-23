@@ -1,6 +1,8 @@
 // Import files in Supabase Storage (the private "imports" bucket), read and written with the secret key. Used by the
 // web app's import routes and by claritia-intel, which have SUPABASE_URL and SUPABASE_SECRET_KEY.
 
+import { UserError } from "../errors.ts";
+
 const base = () => {
   const url = process.env.SUPABASE_URL?.trim().replace(/\/+$/, "");
   const key = (process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY)?.trim();
@@ -25,7 +27,7 @@ export async function fileSize(path: string): Promise<number | null> {
 export async function openFile(path: string, signal?: AbortSignal): Promise<ReadableStream<Uint8Array>> {
   const { url, key } = base();
   const res = await fetch(objectUrl(url, path), { headers: { Authorization: `Bearer ${key}`, apikey: key }, signal });
-  if (!res.ok || !res.body) throw new Error(res.status === 404 || res.status === 400 ? "The file is gone. Upload it again." : `Couldn't read the file (${res.status})`);
+  if (!res.ok || !res.body) throw res.status === 404 || res.status === 400 ? new UserError("The file is gone. Upload it again.") : new Error(`Couldn't read the file (${res.status})`);
   return res.body;
 }
 

@@ -1,6 +1,9 @@
 // A small MCP server over Streamable HTTP, answering with plain JSON (no streaming, no sessions).
 // Handles initialize, ping, tools/list and tools/call; notifications get no answer.
 
+import { UserError } from "./errors.ts";
+import { publicMessage } from "./http.ts";
+
 export const MCP_VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 
 export type ToolResult = { text: string; data?: unknown; isError?: boolean };
@@ -17,7 +20,8 @@ type Message = { jsonrpc?: string; id?: string | number | null; method?: string;
 type Reply = { jsonrpc: "2.0"; id: string | number | null; result?: unknown; error?: { code: number; message: string } };
 
 /** A tool's mistake the agent can fix (a bad argument, a missing test): shown as an error result, not a crash. */
-export class ToolError extends Error {}
+/** A tool's answer to the agent when a call can't be done, in words written for it. */
+export class ToolError extends UserError {}
 
 export function mcpServer<C>(opts: { name: string; title: string; version: string; instructions: string; tools: Tool<C>[] }) {
   const byName = new Map(opts.tools.map((t) => [t.name, t]));
@@ -60,9 +64,8 @@ export function mcpServer<C>(opts: { name: string; title: string; version: strin
           const r = await tool.run(ctx, (args ?? {}) as Record<string, unknown>);
           return ok(id, { content: [{ type: "text", text: r.text }], ...(r.data !== undefined ? { structuredContent: r.data } : {}), isError: !!r.isError });
         } catch (e) {
-          const message = e instanceof Error ? e.message : String(e);
-          // A tool error goes back as a result the agent can read and act on.
-          return ok(id, { content: [{ type: "text", text: message }], isError: true });
+          // A tool error goes back as a result the agent can read and act on: our own words, or a reference.
+          return ok(id, { content: [{ type: "text", text: publicMessage(e) }], isError: true });
         }
       }
       default:

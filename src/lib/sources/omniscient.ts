@@ -5,6 +5,7 @@
 import { hmac, same } from "../sign.ts";
 import { readCursor } from "./ctx.ts";
 import type { Connector, Ctx, Page, PushResult, RawRecord } from "./types.ts";
+import { UserError } from "../errors.ts";
 
 type Contact = { id: string; email: string | null; name: string | null; title: string | null; phone: string | null; lifecycle: string | null; account_id: string | null; created_at: string };
 type Account = { id: string; name: string | null; domain: string | null; fields: Record<string, unknown>; created_at: string };
@@ -14,7 +15,7 @@ export const omniscientBase = () => process.env.OMNISCIENT_URL?.trim().replace(/
 
 const url = (ctx: Ctx) => {
   const u = ctx.secret("url") || omniscientBase();
-  if (!/^https:\/\//.test(u) && !/^http:\/\/localhost/.test(u)) throw new Error("Connect Omniscient again.");
+  if (!/^https:\/\//.test(u) && !/^http:\/\/localhost/.test(u)) throw new UserError("Connect Omniscient again.");
   return u.replace(/\/+$/, "");
 };
 const auth = (ctx: Ctx) => ({ authorization: `Bearer ${ctx.secret("api_key")}` });

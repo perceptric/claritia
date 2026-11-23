@@ -67,7 +67,7 @@ export function RunDetail({ sb, session, id, navigate }: ViewProps) {
 
   const load = () => {
     Promise.all([sb.from("runs").select(RUN_COLUMNS).eq("id", id).maybeSingle(), sb.from("run_steps").select("id, position, kind, label, status, retried, started_ms, duration_ms, error, screenshot_path, written, healed, code").eq("run_id", id).order("position")]).then(([r, s]) => {
-      if (r.error || s.error) return setError((r.error ?? s.error)!.message);
+      if (r.error || s.error) return setError(errorText(r.error ?? s.error));
       if (!r.data) return setError("This run was deleted or isn't in this workspace.");
       setRun(r.data as RunRow);
       setSteps(s.data as StepRow[]);

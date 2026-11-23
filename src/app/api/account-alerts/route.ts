@@ -3,7 +3,7 @@ import { seal, unseal } from "@/lib/seal";
 import { isMember, requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { parseRule, slackAccountMessage } from "@/lib/web/accountAlerts";
-import { bad } from "@/lib/http";
+import { bad, fail } from "@/lib/http";
 
 
 /**
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
   try {
     sealed = seal(url);
   } catch (e) {
-    return bad(e instanceof Error ? e.message : String(e), 500);
+    return fail(e, 500);
   }
   const { count } = await sb.from("account_alert_rules").select("id", { count: "exact", head: true }).eq("workspace_id", body.workspaceId as string);
   if ((count ?? 0) >= 20) return bad("Up to 20 alerts.");
@@ -48,7 +48,7 @@ export async function POST(request: Request) {
     .insert({ workspace_id: body.workspaceId, user_id: auth.user.id, rule, channel: "slack", daily_cap: cap, slack_sealed: sealed, slack_hint: url.slice(-4) })
     .select("id")
     .single();
-  if (error) return bad(error.message);
+  if (error) return fail(error);
   await sb.from("audit_log").insert({ workspace_id: body.workspaceId, actor: auth.user.id, action: "account_alert.add", target: data.id });
   return Response.json({ ok: true, id: data.id });
 }
@@ -62,7 +62,7 @@ export async function DELETE(request: Request) {
   const sb = serviceClient();
   if (!sb) return bad("The server is not set up for alerts.", 500);
   const { error } = await sb.from("account_alert_rules").delete().eq("id", String(body.ruleId)).eq("workspace_id", body.workspaceId as string);
-  if (error) return bad(error.message);
+  if (error) return fail(error);
   await sb.from("audit_log").insert({ workspace_id: body.workspaceId, actor: auth.user.id, action: "account_alert.remove", target: String(body.ruleId) });
   return Response.json({ ok: true });
 }

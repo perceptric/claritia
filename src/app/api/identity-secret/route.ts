@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { seal, unseal } from "@/lib/seal";
 import { isOwner, requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
-import { bad } from "@/lib/http";
+import { bad, fail } from "@/lib/http";
 
 // The identify secret signs claritia("identify", ...) calls (docs/identity.md 5.2). It is sealed in
 // identity_settings.identify_secrets_sealed as {current, next}; the stitch job accepts both, so a rotation keeps
@@ -28,7 +28,7 @@ export async function GET(request: Request) {
     const s = await read(sb, ws!);
     return Response.json({ secret: s.current ?? null, old: !!s.next });
   } catch (e) {
-    return bad(e instanceof Error ? e.message : String(e), 500);
+    return fail(e, 500);
   }
 }
 
@@ -49,10 +49,10 @@ export async function POST(request: Request) {
     next = body.action === "rotate" ? { current: randomBytes(36).toString("base64url"), next: s.current } : { current: s.current };
     sealed = seal(JSON.stringify(next));
   } catch (e) {
-    return bad(e instanceof Error ? e.message : String(e), 500);
+    return fail(e, 500);
   }
   const { error } = await sb.from("identity_settings").upsert({ workspace_id: ws, identify_secrets_sealed: sealed, updated_at: new Date().toISOString() }, { onConflict: "workspace_id" });
-  if (error) return bad(error.message);
+  if (error) return fail(error);
   await sb.from("audit_log").insert({ workspace_id: ws, actor: auth.user.id, action: `identity.secret_${body.action}`, target: ws });
   return Response.json({ secret: next.current ?? null, old: !!next.next });
 }

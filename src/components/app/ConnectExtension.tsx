@@ -4,6 +4,7 @@ import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { useState } from "react";
 import { Logo } from "../Logo";
 import { Button, ErrorNote, errorText, postJson, type Workspace } from "./ui";
+import { UserError } from "@/lib/errors";
 
 const ACK_MS = 4000;
 
@@ -36,7 +37,7 @@ export function ConnectExtension({ sb, session, ws }: { sb: SupabaseClient; sess
       });
       if (!acked) {
         await sb.rpc("revoke_api_key", { p_key: id });
-        throw new Error("The Claritia Recorder didn't answer. Check it's installed and turned on in chrome://extensions, reload this page, and try again.");
+        throw new UserError("The Claritia Recorder didn't answer. Check it's installed and turned on in chrome://extensions, reload this page, and try again.");
       }
       setState("done");
       setTimeout(() => window.close(), 1500);

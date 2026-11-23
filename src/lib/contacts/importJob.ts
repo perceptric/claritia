@@ -7,6 +7,7 @@ import { chunksOf, fileRows, kindOf } from "./files.ts";
 import type { Ctx, Mapping } from "./import.ts";
 import { emptyTotals, errorsCsv, runImport, type Totals } from "./importRun.ts";
 import { openFile, putFile } from "./storage.ts";
+import { UserError } from "../errors.ts";
 
 export type ImportRow = {
   id: string;
@@ -29,7 +30,7 @@ function sourceOfFile(imp: Pick<ImportRow, "kind" | "file_name">): Source {
 
 export async function executeImport(rpc: Rpc, imp: ImportRow, ctx: Ctx, opts: { signal?: AbortSignal; open?: (path: string) => Promise<ReadableStream<Uint8Array>> } = {}) {
   const kind = kindOf(imp.file_name);
-  if (!kind) throw new Error("This kind of file can't be imported");
+  if (!kind) throw new UserError("This kind of file can't be imported");
   const source = sourceOfFile(imp);
   const stream = await (opts.open ?? openFile)(imp.file_path);
   try {

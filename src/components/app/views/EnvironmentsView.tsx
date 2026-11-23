@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Globe, Key, Plus, Trash } from "../../Icons";
 import { askConfirm, askText } from "../Dialogs";
 import { attempt, Badge, Button, CardHead, cleanUrl, Empty, ErrorNote, Input, Loading, must, Page, Panel, postJson, timeAgo, useLoad, type Environment, type Secret, type ViewProps } from "../ui";
+import { UserError } from "@/lib/errors";
 
 type EnvWithSecrets = Environment & { secrets: Secret[] };
 
@@ -65,7 +66,7 @@ function EnvironmentCard({ env, onChanged, sb, session }: { env: EnvWithSecrets;
               const next = await askText("Site address", { initial: env.base_url, ok: "Save" });
               if (!next) return;
               const base = cleanUrl(next);
-              if (!base) throw new Error("Enter a site address, like staging.acme.com.");
+              if (!base) throw new UserError("Enter a site address, like staging.acme.com.");
               must(await sb.from("environments").update({ base_url: base }).eq("id", env.id));
             })
           }
@@ -148,7 +149,7 @@ export function EnvironmentsView({ sb, session, project }: ViewProps) {
       const address = await askText("Site address", { placeholder: "acme.com", ok: "Add" });
       if (!address) return;
       const base = cleanUrl(address);
-      if (!base) throw new Error("Enter a site address, like acme.com.");
+      if (!base) throw new UserError("Enter a site address, like acme.com.");
       must(await sb.from("environments").insert({ project_id: project.id, name: name.toLowerCase(), base_url: base }));
       envs.reload();
     });

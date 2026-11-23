@@ -6,6 +6,8 @@ import { runQuery } from "@/lib/sources/warehouse";
 import { isOwner, requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { isUuid } from "@/lib/uuid";
+import { UserError } from "@/lib/errors";
+import { bad } from "@/lib/http";
 
 // Run a warehouse source's query once and show 20 rows: POST { id, query }. Owners only.
 export const maxDuration = 150;
@@ -26,11 +28,13 @@ export async function POST(request: Request) {
   const { data: l } = await db.rpc("source_load", { p_id: id });
   const loaded = l as { source: SourceRow; sealed: string | null } | null;
   if (!loaded?.sealed) return Response.json({ error: "Connect it again first." }, { status: 409 });
+  const ctx = makeCtx({ source: loaded.source, creds: JSON.parse(unseal(loaded.sealed)) as Creds });
   try {
-    const ctx = makeCtx({ source: loaded.source, creds: JSON.parse(unseal(loaded.sealed)) as Creds });
     const r = await runQuery(ctx, q, START_CURSOR, 20);
     return Response.json({ columns: r.columns, rows: r.rows });
   } catch (e) {
-    return Response.json({ error: e instanceof Error ? e.message.slice(0, 500) : "The query failed." }, { status: 400 });
+    // The customer's own database answering their own query is what this button is for, so its words are shown.
+    const words = e instanceof UserError ? e.message : `Your database answered: ${e instanceof Error ? e.message : String(e)}`;
+    return bad(words.slice(0, 500), 400);
   }
 }
