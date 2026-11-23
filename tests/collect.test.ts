@@ -66,6 +66,13 @@ test("device ids are signed per site", () => {
   assert.equal(verifyDevice(a, id), u);
   assert.equal(verifyDevice(b, id), null, "another site's id");
   assert.equal(verifyDevice(a, id.slice(0, -1) + (id.endsWith("A") ? "B" : "A")), null, "tampered");
+  // The last of 11 base64url characters holds 2 unused bits: every other spelling of the same bytes is refused too.
+  for (let i = 0; i < 200; i++) {
+    const w = uuid7();
+    const sig = signDevice(a, w).split(".")[2]!;
+    const twin = sig.slice(0, -1) + "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"["ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_".indexOf(sig.at(-1)!) ^ 1];
+    assert.equal(verifyDevice(a, `v1.${w}.${twin}`), null);
+  }
   assert.equal(verifyDevice(a, `v1.${uuid7()}.${id.split(".")[2]}`), null, "other uuid with this signature");
   assert.equal(verifyDevice(a, "v2." + id.slice(3)), null);
   assert.equal(verifyDevice(a, 42), null);

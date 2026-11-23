@@ -33,7 +33,8 @@ export function verifyDevice(key: Buffer, id: unknown): string | null {
   if (typeof id !== "string" || id.length > 80) return null;
   const [v, uuid, sig] = id.split(".");
   if (v !== "v1" || !UUID.test(uuid ?? "") || !sig) return null;
-  return same(Buffer.from(sig, "base64url"), hmac(key, uuid).subarray(0, 8)) ? uuid : null;
+  // Compared as text: base64url lets a few spellings decode to the same bytes, and only the one we wrote counts.
+  return same(sig, b64(hmac(key, uuid).subarray(0, 8))) ? uuid : null;
 }
 
 /** When the device was made, from the uuid v7 time prefix. */
