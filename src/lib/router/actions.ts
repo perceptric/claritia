@@ -3,7 +3,7 @@
 // Reps, Held) stay in the screens with row security; everything here needs the service role or the engine.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Rpc } from "../jobs.ts";
+import { call, type Rpc } from "../jobs.ts";
 import { enqueueJob } from "../jobs.ts";
 import { ttlCache } from "../roleCache.ts";
 import { rpcOr } from "../rpcCompat.ts";
@@ -29,12 +29,6 @@ export class Refused extends Error {
     super(message);
     this.status = status;
   }
-}
-
-async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Promise<T> {
-  const { data, error } = await rpc(fn, args);
-  if (error) throw new Error(`${fn}: ${error.message}`);
-  return data as T;
 }
 
 type Q = SupabaseClient;

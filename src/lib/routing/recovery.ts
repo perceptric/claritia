@@ -8,7 +8,7 @@
 // recovered on its own: a CRM sync is pushed again, an unknown calendar outcome is reconciled with the same provider
 // key, a booking is resumed with the run's committed owner. Nothing here routes a lead again blindly. Server only.
 
-import type { Rpc } from "../jobs.ts";
+import { call, type Rpc } from "../jobs.ts";
 import { cleanBody } from "../router/check.ts";
 import { numberOrRange } from "../router/conditions.ts";
 import { eligibleWhy, inScope } from "../router/engine.ts";
@@ -22,12 +22,6 @@ import { validatePolicy } from "./validate.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const OP = /^[A-Za-z0-9_-]{8,80}$/;
-
-async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Promise<T> {
-  const { data, error } = await rpc(fn, args);
-  if (error) throw new Error(`${fn}: ${error.message}`);
-  return data as T;
-}
 
 const uuid = (v: unknown, what: string): string => {
   if (typeof v !== "string" || !UUID.test(v)) throw new Refusal(400, "invalid_configuration", `Bad ${what}.`);

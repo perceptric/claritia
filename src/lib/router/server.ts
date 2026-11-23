@@ -5,19 +5,13 @@
 
 import { callNewer } from "../forms/newer.ts";
 import { forgetSources } from "../routing/sources.ts";
-import type { Rpc } from "../jobs.ts";
+import { call, type Rpc } from "../jobs.ts";
 import type { Availability } from "../meetings/types.ts";
 import { addDays, at, dateIn, dayOf, validZone } from "../meetings/time.ts";
 import { testsPast } from "./conditions.ts";
 import { planCached, planLets, type PlanRead } from "../planGate.ts";
 import { decide } from "./engine.ts";
 import type { Decision, Facts, InputIssue, Provenance, Reason, RepFacts, RouterBody, StepResult, TeamFacts } from "./types.ts";
-
-async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Promise<T> {
-  const { data, error } = await rpc(fn, args);
-  if (error) throw new Error(`${fn}: ${error.message}`);
-  return data as T;
-}
 
 type RawRep = {
   name: string;

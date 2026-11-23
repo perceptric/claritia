@@ -4,7 +4,7 @@
 // through the one evaluator (evaluate.ts); a test calls no committer. The caller is a workspace member (the API route
 // checked); changes need a workspace owner. Server only.
 
-import type { Rpc } from "../jobs.ts";
+import { call, type Rpc } from "../jobs.ts";
 import { cleanBody } from "../router/check.ts";
 import { numberOrRange, type FieldDef } from "../router/conditions.ts";
 import { namesOf, readFacts, withTryOwners } from "../router/server.ts";
@@ -42,12 +42,6 @@ const id = (v: unknown, what = "id"): string => {
   if (typeof v !== "string" || !UUID.test(v)) throw new Refusal(400, "invalid_configuration", `Bad ${what}.`);
   return v;
 };
-
-async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Promise<T> {
-  const { data, error } = await rpc(fn, args);
-  if (error) throw new Error(`${fn}: ${error.message}`);
-  return data as T;
-}
 
 /** A service failure as the API's typed error (Section 21). */
 export function refusalOf(e: unknown): Refusal | null {

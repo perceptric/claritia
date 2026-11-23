@@ -4,10 +4,9 @@
 // change is written to that connection's sync log and stops. Meta and Google drop a repeat by its event id and
 // order id, so a retry after a timeout never counts twice.
 
-import { JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
+import { call, JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
 import { adsDeveloperToken } from "../../src/lib/sources/ads.ts";
 import { deps, type RunOpts } from "../../src/lib/sources/run.ts";
-import { call } from "../../src/lib/sources/sync.ts";
 import { RateLimited } from "../../src/lib/sources/types.ts";
 import { adsConversion, metaEvent, sendAds, sendMeta, type SendOut, type TrackTake } from "../../src/lib/track/server.ts";
 

@@ -14,7 +14,7 @@
 import { slackNote } from "../../src/lib/delivery/send.ts";
 import { fromHeader, outcomeOf, SendError } from "../../src/lib/email/provider.ts";
 import type { Resend } from "../../src/lib/email/resend.ts";
-import { enqueueJob, JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
+import { call, enqueueJob, JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
 import { leadRoutedEmail, mime, slaEmail, validAddress } from "../../src/lib/meetings/emails.ts";
 import { buttons, esc, fields, section, slackDm, tokenOf } from "../../src/lib/slack/app.ts";
 import { explain, minutesWords, partText, pathWords } from "../../src/lib/router/explain.ts";
@@ -26,12 +26,6 @@ import type { Mailer } from "./meetings.ts";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 // A booking's run is written by meeting_team_run, never routed here.
 const REASON_SET = new Set(Object.keys(REASONS).filter((r) => r !== "booking"));
-
-async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Promise<T> {
-  const { data, error } = await rpc(fn, args);
-  if (error) throw new Error(`${fn}: ${error.message}`);
-  return data as T;
-}
 
 export const meetingTeamRun =
   (rpc: Rpc): Handler =>

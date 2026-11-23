@@ -7,7 +7,7 @@
 //                 key; a webhook or a Slack message is marked unknown instead and the run goes on.
 
 import { signature } from "../../src/lib/delivery/send.ts";
-import { JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
+import { call, JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
 import { hostIsPrivate } from "../../src/lib/privateNet.ts";
 import { route } from "../../src/lib/router/server.ts";
 import { slackDm, tokenOf } from "../../src/lib/slack/app.ts";
@@ -22,12 +22,6 @@ import { fillText, withStop } from "../../src/lib/texts/words.ts";
 import { deps as sourceDeps } from "../../src/lib/sources/run.ts";
 import { isRefusal } from "../../src/lib/sources/chat.ts";
 import { AuthError, RateLimited } from "../../src/lib/sources/types.ts";
-
-async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Promise<T> {
-  const { data, error } = await rpc(fn, args);
-  if (error) throw new Error(`${fn}: ${error.message}`);
-  return data as T;
-}
 
 type Claimed = { id: string; workflow_id: string; workflow_name: string; version: number; contact_id: string; at_step: string | null; wait: { step: string; event?: string; since?: string; until?: string; meeting?: string; start?: string } | null; started_at: string; next_at: string; body: unknown };
 

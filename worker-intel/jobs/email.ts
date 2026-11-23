@@ -15,17 +15,11 @@ import { outcomeOf, SendError, type Outcome, type Outgoing, type Sender } from "
 import { renderMessage, type Claimed } from "../../src/lib/email/render.ts";
 import type { Resend, ResendDomain } from "../../src/lib/email/resend.ts";
 import type { Ses } from "../../src/lib/email/ses.ts";
-import { JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
+import { call, JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
 import { reconnectNote, viaMailbox, type Broken } from "../../src/lib/mailbox/server.ts";
 import { mime } from "../../src/lib/meetings/emails.ts";
 
 const NOT_SET = "Resend isn't set up on the worker (RESEND_API_KEY).";
-
-async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Promise<T> {
-  const { data, error } = await rpc(fn, args);
-  if (error) throw new Error(`${fn}: ${error.message}`);
-  return data as T;
-}
 
 export type { Sender };
 export type SendOpts = { sender: Sender | null; base: string; secret?: string; roundMs?: number; sleep?: (ms: number) => Promise<void>; fetcher?: typeof fetch; system?: string };

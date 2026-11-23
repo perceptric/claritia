@@ -5,7 +5,7 @@
 
 import { createHmac } from "node:crypto";
 import { same } from "../../sign.ts";
-import type { Rpc } from "../../jobs.ts";
+import { call, type Rpc } from "../../jobs.ts";
 import { seal, unseal } from "../../seal.ts";
 import { fakeProvider, ReconnectError, type BusySpan } from "../provider.ts";
 import { googleProvider } from "./google.ts";
@@ -85,12 +85,6 @@ export function providerFor(account: Pick<AccountRow, "id" | "provider">, token:
 export const zoomFor = (token: Tok | null, o: HttpOpts = {}): ZoomClient => zoomClient(token, o);
 
 // Reading and saving through the database -------------------------------------------------------------------------
-
-async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Promise<T> {
-  const { data, error } = await rpc(fn, args);
-  if (error) throw new Error(`${fn}: ${error.message}`);
-  return data as T;
-}
 
 export const loadAccount = (rpc: Rpc, id: string) => call<AccountRow | null>(rpc, "calendar_account", { p_account: id });
 

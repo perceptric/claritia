@@ -4,9 +4,8 @@
 // The same job sends the hooks Zapier, Make and Activepieces made (127_api_hooks.sql): a fill's body is built on its
 // first try, and a hook whose address answers 410 Gone is removed, as REST hooks ask.
 
-import { JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
+import { call, JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
 import { firstBody, openEndpoint, sendWebhook, type SendDeps, type Taken } from "../../src/lib/meetings/webhooks.ts";
-import { call } from "../../src/lib/sources/sync.ts";
 import { fillHeld, fillHookBody, type HookFill } from "../../src/lib/hooks/api.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;

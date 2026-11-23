@@ -6,7 +6,7 @@
 //                     Zoom link, then meeting_notify for the emails.
 // A provider that refuses the sign-in turns the account to "reconnect" (supabase/migrations/054_calendars.sql).
 
-import { enqueueJob, JobError, type Handler, type Job, type Rpc } from "../../src/lib/jobs.ts";
+import { call, enqueueJob, JobError, type Handler, type Job, type Rpc } from "../../src/lib/jobs.ts";
 import { ReconnectError } from "../../src/lib/meetings/provider.ts";
 import type { HttpOpts } from "../../src/lib/meetings/providers/http.ts";
 import {
@@ -56,12 +56,6 @@ const accountById = (rpc: Rpc, o: CalendarOpts, id: string) => (o.load ? o.load(
 /** While another change to the meeting runs: 15, 30, 60... seconds (up to 5 minutes, with jitter), then real tries. */
 export const BUSY_TRIES = 10;
 export const busyWait = (n: number, rand: () => number = Math.random) => Math.round(Math.min(300, 15 * 2 ** n) * (0.8 + 0.4 * rand()));
-
-async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Promise<T> {
-  const { data, error } = await rpc(fn, args);
-  if (error) throw new Error(`${fn}: ${error.message}`);
-  return data as T;
-}
 
 const providerOf = (rpc: Rpc, o: CalendarOpts, a: AccountRow, signal?: AbortSignal) => o.provider?.(a) ?? openProvider(rpc, a, { ...o.http, signal });
 const zoomOf = (rpc: Rpc, o: CalendarOpts, a: AccountRow, signal?: AbortSignal) => o.zoom?.(a) ?? openZoom(rpc, a, { ...o.http, signal });

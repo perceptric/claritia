@@ -6,15 +6,9 @@
 import type { DnsRecord } from "../../src/lib/email/domains.ts";
 import { moveEmail } from "../../src/lib/email/moveEmail.ts";
 import { outcomeOf, type Sender } from "../../src/lib/email/provider.ts";
-import type { Rpc } from "../../src/lib/jobs.ts";
+import { call, type Rpc } from "../../src/lib/jobs.ts";
 
 type Due = { id: string; domain: string; workspace_id: string; records: DnsRecord[]; step: 0 | 1 | 2; owners: string[] };
-
-async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Promise<T> {
-  const { data, error } = await rpc(fn, args);
-  if (error) throw new Error(`${fn}: ${error.message}`);
-  return data as T;
-}
 
 export const moveFrom = (env: NodeJS.ProcessEnv = process.env) => env.ALERTS_FROM?.trim() || "Claritia <alerts@mail.tryclaritia.com>";
 

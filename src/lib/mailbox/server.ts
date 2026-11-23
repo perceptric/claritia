@@ -2,19 +2,13 @@
 // Outlook, and sending one email through it when they have one that works and has room today. Everything else
 // (no mailbox, a sign-in that's gone, a full day) answers so the caller sends the way it always has, or waits.
 
-import type { Rpc } from "../jobs.ts";
+import { call, type Rpc } from "../jobs.ts";
 import { openToken, sealToken } from "../meetings/providers/index.ts";
 import { oauthExchange, oauthReady, oauthUrl, type State } from "../sources/oauth.ts";
 import { MAILBOX_OAUTH, PROVIDER_LABEL, sendAs, type MailOut } from "./send.ts";
 
 export type Provider = keyof typeof MAILBOX_OAUTH;
 export const isProvider = (v: unknown): v is Provider => v === "gmail" || v === "outlook";
-
-async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Promise<T> {
-  const { data, error } = await rpc(fn, args);
-  if (error) throw new Error(`${fn}: ${error.message}`);
-  return data as T;
-}
 
 /** The provider's sign-in link, or why it can't start. */
 export function mailboxUrl(provider: Provider, redirect: string, s: { ws: string; user: string }): string | null {

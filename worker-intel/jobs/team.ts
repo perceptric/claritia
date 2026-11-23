@@ -3,9 +3,8 @@
 // queue; a send with no clear answer is never tried again, so nobody gets the email twice.
 
 import { outcomeOf } from "../../src/lib/email/provider.ts";
-import { JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
+import { call, JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
 import { mime, validAddress } from "../../src/lib/meetings/emails.ts";
-import { call } from "../../src/lib/sources/sync.ts";
 import { inviteEmail } from "../../src/lib/team/invite.ts";
 import { welcomeEmail } from "../../src/lib/team/welcome.ts";
 import type { Mailer } from "./meetings.ts";

@@ -4,9 +4,8 @@
 // deliver_held: a destination turned back on sends what it held, oldest first.
 
 import type pg from "pg";
-import { enqueueJob, enqueueJobs, JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
+import { call, enqueueJob, enqueueJobs, JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
 import { sendDelivery, type SendDeps, type Taken } from "../../src/lib/delivery/send.ts";
-import { call } from "../../src/lib/sources/sync.ts";
 import type { RunOpts } from "../../src/lib/sources/run.ts";
 import { ctxFor } from "./ctx.ts";
 

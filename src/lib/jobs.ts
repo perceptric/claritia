@@ -27,7 +27,8 @@ export class JobError extends Error {
   }
 }
 
-async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Promise<T> {
+/** Call a database function and return its data, or throw its error named after the function. */
+export async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Promise<T> {
   const { data, error } = await rpc(fn, args);
   if (error) throw new Error(`${fn}: ${error.message}`);
   return data as T;

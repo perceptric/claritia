@@ -10,7 +10,7 @@ import { countryCode } from "../contacts/fields.ts";
 import { prepareImport, type Ctx as CleanCtx, type ContactInput } from "../contacts/import.ts";
 import { cleanEmail, isRejected } from "../email/address.ts";
 import { writeContacts } from "../contacts/contacts.ts";
-import type { Rpc } from "../jobs.ts";
+import { call, type Rpc } from "../jobs.ts";
 import { agreed, cellOf, changedKeys, compared, decide, effectiveMapping, outOnly, OWNER, propOf, pushable, recordsToCompanies, recordsToRows, toRemote, type Col, type SavedMapping } from "./map.ts";
 import { toOpportunityRows } from "./opportunities.ts";
 import type { ActivityItem, ActivityResult, Connector, Ctx, HookEvent, ObjectKind, PushChange, PushOptions, RawRecord } from "./types.ts";
@@ -19,12 +19,6 @@ export type Deps = { rpc: Rpc; connector: Connector; ctx: Ctx; clean: CleanCtx; 
 export type Counts = { pulled: number; written: number; skipped: number; errors: number };
 type Link = { local_id: string; values: Record<string, unknown> | null; deleted: boolean; email_clean: string | null };
 type LogRow = { direction: "in" | "out"; object: string; local_id?: string | null; external_id?: string | null; action: string; fields?: string[]; error?: string };
-
-export async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Promise<T> {
-  const { data, error } = await rpc(fn, args);
-  if (error) throw new Error(`${fn}: ${error.message}`);
-  return data as T;
-}
 
 const zero = (): Counts => ({ pulled: 0, written: 0, skipped: 0, errors: 0 });
 const enabled = (d: Deps, o: ObjectKind) => (d.ctx.source.settings.objects?.[o] ?? (o === "companies" ? "off" : "in")) !== "off";

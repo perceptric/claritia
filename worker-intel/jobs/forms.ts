@@ -18,7 +18,7 @@ import { calcText } from "../../src/lib/forms/formula.ts";
 import { allFields, type Form } from "../../src/lib/forms/schema.ts";
 import { answerText } from "../../src/lib/forms/results.ts";
 import { alertEmail, replyEmail, replyGoes, resultsEmail, resumeEmail, type MergeValues } from "../../src/lib/forms/notify.ts";
-import { enqueueJob, JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
+import { call, enqueueJob, JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
 import { mime, validAddress } from "../../src/lib/meetings/emails.ts";
 import type { Mailer } from "./meetings.ts";
 
@@ -45,12 +45,6 @@ export const ROUTE_WAIT_S = 120;
 export const ROUTE_LOOK_S = 30;
 
 export type FormJobOpts = { mailer: Mailer | null; base: string; from: string; fetcher?: typeof fetch; batcher?: Pick<Resend, "batch"> | null };
-
-async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Promise<T> {
-  const { data, error } = await rpc(fn, args);
-  if (error) throw new Error(`${fn}: ${error.message}`);
-  return data as T;
-}
 
 const show = (v: unknown): string => (Array.isArray(v) ? v.map(String).join(", ") : v === true ? "Yes" : v === false ? "No" : v === null || v === undefined ? "" : String(v)).slice(0, 2000);
 

@@ -5,9 +5,8 @@
 // sent again (Twilio takes no idempotency key), and nothing else goes in its place.
 
 import { mime } from "../../src/lib/meetings/emails.ts";
-import { JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
+import { call, JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
 import { unseal } from "../../src/lib/seal.ts";
-import { call } from "../../src/lib/sources/sync.ts";
 import type { Creds } from "../../src/lib/sources/types.ts";
 import { sendText, STOPPED, twilioFromEnv, twilioFromKeys, type TwilioAccount } from "../../src/lib/texts/twilio.ts";
 import type { Mailer } from "./meetings.ts";

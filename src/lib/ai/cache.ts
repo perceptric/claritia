@@ -3,7 +3,7 @@
 // or not, is logged in ai_calls with its tokens and cost, so the bill can be checked against the plan.
 
 import { createHash } from "node:crypto";
-import type { Rpc } from "../jobs.ts";
+import { call, type Rpc } from "../jobs.ts";
 import { creditCost } from "../plans.ts";
 import { isMissingFunction, rpcOr } from "../rpcCompat.ts";
 
@@ -63,12 +63,6 @@ export function hashKey(...parts: unknown[]): string {
   const stable = (v: unknown): unknown =>
     Array.isArray(v) ? v.map(stable) : v && typeof v === "object" ? Object.fromEntries(Object.keys(v as object).sort().map((k) => [k, stable((v as Record<string, unknown>)[k])])) : v;
   return createHash("sha256").update(JSON.stringify(parts.map(stable))).digest("hex");
-}
-
-async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Promise<T> {
-  const { data, error } = await rpc(fn, args);
-  if (error) throw new Error(`${fn}: ${error.message}`);
-  return data as T;
 }
 
 /**

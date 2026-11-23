@@ -15,7 +15,7 @@
 import { slackNote } from "../../src/lib/delivery/send.ts";
 import { outcomeOf, SendError } from "../../src/lib/email/provider.ts";
 import { smtpFromEnv, smtpSend, smtpSession, type SmtpOpts } from "../../src/lib/email/smtp.ts";
-import { enqueueJob, enqueueJobs, JobError, type Handler, type Job, type Rpc } from "../../src/lib/jobs.ts";
+import { call, enqueueJob, enqueueJobs, JobError, type Handler, type Job, type Rpc } from "../../src/lib/jobs.ts";
 import {
   afterEmail,
   bookLaterEmail,
@@ -115,12 +115,6 @@ async function inJob(rpc: Rpc, o: MeetingOpts, signal: AbortSignal | undefined, 
     session?.close();
     if (x.pending!.length) await call(rpc, "meeting_mail_done_many", { p_rows: x.pending });
   }
-}
-
-async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Promise<T> {
-  const { data, error } = await rpc(fn, args);
-  if (error) throw new Error(`${fn}: ${error.message}`);
-  return data as T;
 }
 
 type Sending = { from_name: string | null; from_email: string | null; reply_to: string | null; paused: boolean };

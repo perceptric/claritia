@@ -5,7 +5,7 @@
 // asks the person to look again when anything did; otherwise one commit through the A-E committer, then the booking
 // through the scheduler's own path. A failed booking keeps the assignment. Server only.
 
-import type { Rpc } from "../jobs.ts";
+import { call, type Rpc } from "../jobs.ts";
 import { book, hostStates, offer } from "../meetings/server.ts";
 import type { MeetingType } from "../meetings/types.ts";
 import { eligibleWhy, inScope } from "../router/engine.ts";
@@ -16,12 +16,6 @@ import { DENIED, may, mayHandOff } from "./access.ts";
 import { Refusal, type Caller } from "./screens.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-
-async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Promise<T> {
-  const { data, error } = await rpc(fn, args);
-  if (error) throw new Error(`${fn}: ${error.message}`);
-  return data as T;
-}
 
 type HandoffSource = { id: string | null; policy: string; live: LiveRouter; meetingTypeId: string | null; revision: number | null };
 
