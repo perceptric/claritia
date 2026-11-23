@@ -1,5 +1,5 @@
 // Private and local addresses our servers must never reach on a customer's say-so: the runner's browser, the
-// Explorer, and server-side calls to addresses people type in (like a suite connection's base URL).
+// Explorer, and server-side calls to addresses people type in (like a warehouse's host or a company's domain).
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 
