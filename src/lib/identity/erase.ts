@@ -2,7 +2,7 @@
 // only the hashes, so the same email starts fresh if it ever comes back.
 
 import { cleanIdentifier, isRejected } from "./clean.ts";
-import { workspaceLock, type Db, type Pool } from "./stitch.ts";
+import { withTx, workspaceLock, type Db, type Pool } from "./stitch.ts";
 
 async function current(db: Db, id: string): Promise<string | null> {
   let cur: string | null = id;
@@ -38,9 +38,7 @@ async function evidenceNaming(db: Db, ws: string, ids: { kind: string; value_cle
 export type EraseCounts = { identifiers: number; evidence: number; devices: number; sessions: number; events: number; persons: number; contacts: number };
 
 export async function erasePerson(pool: Pool, ws: string, personId: string): Promise<EraseCounts> {
-  const c = await pool.connect();
-  try {
-    await c.query("begin");
+  return withTx(pool, async (c) => {
     await workspaceLock(c, ws, true);
     const p = await current(c, personId);
     if (!p) throw new Error("Person not found");
@@ -84,14 +82,8 @@ export async function erasePerson(pool: Pool, ws: string, personId: string): Pro
     await c.query(`delete from person_aliases where workspace_id = $1 and (new_id = $2 or old_id = $2)`, [ws, p]);
     counts.persons = (await c.query(`delete from persons where workspace_id = $1 and (id = $2 or id = any($3))`, [ws, p, aliased])).rowCount ?? 0;
     for (const i of ids) await c.query(`insert into erasures (workspace_id, value_hash) values ($1, $2) on conflict do nothing`, [ws, i.value_hash]);
-    await c.query("commit");
     return counts;
-  } catch (e) {
-    await c.query("rollback").catch(() => {});
-    throw e;
-  } finally {
-    c.release();
-  }
+  });
 }
 
 export type PersonExport = {

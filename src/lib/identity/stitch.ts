@@ -11,6 +11,22 @@ export type Db = { query: (sql: string, params?: unknown[]) => Promise<{ rows: R
 export type Client = Db & { release: () => void };
 export type Pool = { connect: () => Promise<Client> };
 
+/** Runs fn in one transaction on its own connection: committed when it returns, rolled back when it throws. */
+export async function withTx<T>(pool: Pool, fn: (c: Client) => Promise<T>): Promise<T> {
+  const c = await pool.connect();
+  try {
+    await c.query("begin");
+    const result = await fn(c);
+    await c.query("commit");
+    return result;
+  } catch (e) {
+    await c.query("rollback").catch(() => {});
+    throw e;
+  } finally {
+    c.release();
+  }
+}
+
 export type Settings = {
   own_domains: string[];
   partner_domains: string[];
@@ -27,7 +43,7 @@ const BACKFILL_DAYS = 90;
 const TAINT_DAYS = 30;
 const IDENTITY_POLICIES = ["strict", "notice"];
 
-type Evidence = {
+export type Evidence = {
   id: string;
   workspace_id: string;
   site_id: string | null;
@@ -97,9 +113,7 @@ async function resolve(db: Db, id: string | null): Promise<string | null> {
 export async function stitchDevice(pool: Pool, workspaceId: string, deviceId: string, settings: Settings, limit = 200): Promise<Outcome[]> {
   const out: Outcome[] = [];
   for (let i = 0; i < limit; i++) {
-    const c = await pool.connect();
-    try {
-      await c.query("begin");
+    const e = await withTx(pool, async (c) => {
       await workspaceLock(c, workspaceId);
       await lock(c, workspaceId, [`dev:${deviceId}`]);
       const r = await c.query(
@@ -109,18 +123,10 @@ export async function stitchDevice(pool: Pool, workspaceId: string, deviceId: st
         [workspaceId, deviceId],
       );
       const e = r.rows[0] as Evidence | undefined;
-      if (!e) {
-        await c.query("commit");
-        break;
-      }
-      out.push(await stitchOne(c, e, settings));
-      await c.query("commit");
-    } catch (err) {
-      await c.query("rollback").catch(() => {});
-      throw err;
-    } finally {
-      c.release();
-    }
+      if (e) out.push(await stitchOne(c, e, settings));
+      return e;
+    });
+    if (!e) break;
   }
   return out;
 }

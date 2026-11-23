@@ -2,14 +2,12 @@
 // revoked, in arrival order. Undo works by revoking evidence and rebuilding. Old person ids get aliases to the new
 // person holding most of their identifiers, so links and URLs keep working.
 
-import { stitchOne, workspaceLock, type Pool, type Settings } from "./stitch.ts";
+import { stitchOne, withTx, workspaceLock, type Pool, type Settings } from "./stitch.ts";
 
 const KIOSK_UNTIL = "9999-12-31T00:00:00Z";
 
 export async function rebuildWorkspace(pool: Pool, ws: string, settings: Settings): Promise<{ replayed: number; aliased: number }> {
-  const c = await pool.connect();
-  try {
-    await c.query("begin");
+  return withTx(pool, async (c) => {
     await workspaceLock(c, ws, true);
     // Who held which identifiers before, for the aliases afterwards.
     const before = (await c.query(`select id, person_id from identifiers where workspace_id = $1 and person_id is not null`, [ws])).rows;
@@ -65,12 +63,6 @@ export async function rebuildWorkspace(pool: Pool, ws: string, settings: Setting
          and not exists (select 1 from person_aliases a where a.new_id = p.id)`,
       [ws],
     );
-    await c.query("commit");
     return { replayed: rows.length, aliased };
-  } catch (e) {
-    await c.query("rollback").catch(() => {});
-    throw e;
-  } finally {
-    c.release();
-  }
+  });
 }

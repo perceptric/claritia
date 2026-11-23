@@ -2,7 +2,7 @@ import type pg from "pg";
 import { JobError, type Handler } from "../../src/lib/jobs.ts";
 import { erasePerson, exportPerson } from "../../src/lib/identity/erase.ts";
 import { rebuildWorkspace } from "../../src/lib/identity/rebuild.ts";
-import { stitchDevice, stitchOne, workspaceLock } from "../../src/lib/identity/stitch.ts";
+import { stitchDevice, stitchOne, withTx, workspaceLock, type Evidence } from "../../src/lib/identity/stitch.ts";
 import { settingsFor } from "../settings.ts";
 
 /** stitch: every waiting evidence row for one device (the job key). */
@@ -31,25 +31,17 @@ export const stitchEvidence = (pool: pg.Pool): Handler => async (job) => {
   const id = String(job.payload.evidence_id ?? "");
   if (!job.workspace_id || !/^[0-9a-f-]{36}$/.test(id)) throw new JobError("stitch_evidence needs an evidence id", { retry: false });
   const settings = await settingsFor(pool, job.workspace_id);
-  const c = await pool.connect();
-  try {
-    await c.query("begin");
-    await workspaceLock(c, job.workspace_id);
+  await withTx(pool, async (c) => {
+    await workspaceLock(c, job.workspace_id!);
     const e = (
       await c.query(
         `select id, workspace_id, site_id, device_id, session_id, source, level, identifiers, hard_edge, extra, server_at
          from identity_evidence where workspace_id = $1 and id = $2 and stitched_at is null and revoked_at is null`,
         [job.workspace_id, id],
       )
-    ).rows[0];
+    ).rows[0] as Evidence | undefined;
     if (e) await stitchOne(c, e, settings);
-    await c.query("commit");
-  } catch (err) {
-    await c.query("rollback").catch(() => {});
-    throw err;
-  } finally {
-    c.release();
-  }
+  });
 };
 
 /** privacy: an erasure or an export asked for by an owner. */
