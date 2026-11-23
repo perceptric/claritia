@@ -3,6 +3,7 @@
 // the failed step, its code and error, a screenshot, console errors and failed requests.
 
 import Anthropic from "@anthropic-ai/sdk";
+import { jsonRequest, textOf, usageOf } from "../src/lib/claude.ts";
 
 export type Verdict = "app_bug" | "flaky" | "setup";
 export type JudgeRequest = {
@@ -79,20 +80,10 @@ export function claudeJudge(opts: { apiKey: string; model?: string; effort?: "lo
     const content: Anthropic.Beta.BetaContentBlockParam[] = [];
     if (r.screenshot) content.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: r.screenshot } });
     content.push({ type: "text", text: prompt(r) });
-    const res = await client.beta.messages.create({
-      model,
-      max_tokens: 8000,
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
-      thinking: { type: "adaptive" },
-      output_config: { effort: opts.effort ?? "medium", format: { type: "json_schema", schema: SCHEMA } },
-      system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
-      messages: [{ role: "user", content }],
-    });
-    const u = res.usage;
-    const usage = { input: (u.input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0), output: u.output_tokens ?? 0 };
+    const res = await client.beta.messages.create(jsonRequest({ model, maxTokens: 8000, effort: opts.effort ?? "medium", schema: SCHEMA, system: SYSTEM, content, fallback: true }));
+    const usage = usageOf(res);
     if (res.stop_reason === "refusal" || res.stop_reason === "max_tokens") throw new Error("The Judge gave no answer.");
-    const out = JSON.parse(res.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("")) as { verdict?: unknown; reason?: unknown };
+    const out = JSON.parse(textOf(res)) as { verdict?: unknown; reason?: unknown };
     if (out.verdict !== "app_bug" && out.verdict !== "flaky" && out.verdict !== "setup") throw new Error("The Judge's answer couldn't be read.");
     return { verdict: out.verdict, reason: typeof out.reason === "string" ? out.reason.trim().slice(0, 300) : "", usage };
   };

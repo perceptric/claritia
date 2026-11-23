@@ -4,6 +4,7 @@
 // When in doubt, everything runs: a missed failure costs more than a few extra runs.
 
 import Anthropic from "@anthropic-ai/sdk";
+import { jsonRequest, textOf, usageOf } from "./claude.ts";
 
 export type ChangedFile = { filename: string; status: string; additions: number; deletions: number; patch?: string };
 export type PickTest = { id: string; name: string; use_case: string; steps: string[] };
@@ -74,18 +75,10 @@ export function claudePicker(opts: { apiKey: string; model?: string }): Picker {
   const client = new Anthropic({ apiKey: opts.apiKey, maxRetries: 2, timeout: 60_000 });
   const model = opts.model || "claude-haiku-5-5";
   return async (files, tests, pages) => {
-    const res = await client.beta.messages.create({
-      model,
-      max_tokens: 4000,
-      thinking: { type: "adaptive" },
-      output_config: { effort: "low", format: { type: "json_schema", schema: SCHEMA } },
-      system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
-      messages: [{ role: "user", content: pickPrompt(files, tests, pages) }],
-    });
-    const u = res.usage;
-    const usage = { input: (u.input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0), output: u.output_tokens ?? 0 };
+    const res = await client.beta.messages.create(jsonRequest({ model, maxTokens: 4000, effort: "low", schema: SCHEMA, system: SYSTEM, content: pickPrompt(files, tests, pages), fallback: false }));
+    const usage = usageOf(res);
     if (res.stop_reason === "refusal" || res.stop_reason === "max_tokens") throw new Error("Claude didn't pick tests.");
-    const out = JSON.parse(res.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("")) as { run_all?: boolean; reason?: string; tests?: { name: string; why: string }[]; new_flows?: string[] };
+    const out = JSON.parse(textOf(res)) as { run_all?: boolean; reason?: string; tests?: { name: string; why: string }[]; new_flows?: string[] };
     return { runAll: out.run_all !== false, reason: String(out.reason ?? ""), tests: out.tests ?? [], newFlows: (out.new_flows ?? []).map(String).filter(Boolean).slice(0, 5), usage };
   };
 }

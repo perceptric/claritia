@@ -2,6 +2,7 @@
 // has, its blocks, and notes or a PRD someone pasted, Claude proposes end-to-end tests grouped by use case.
 
 import Anthropic from "@anthropic-ai/sdk";
+import { jsonRequest, textOf, usageOf } from "./claude.ts";
 
 export type PlanPage = { pattern: string; name: string | null; purpose: string | null; title: string | null; forms: { fields: { label: string; type: string }[]; submit: string }[]; buttons: string[]; links: string[] };
 export type PlanRequest = {
@@ -130,22 +131,12 @@ export function claudePlanner(opts: { apiKey: string; model?: string; effort?: "
   const client = new Anthropic({ apiKey: opts.apiKey, maxRetries: 3, timeout: 300_000 });
   const model = opts.model || "claude-opus-5-5";
   return async (r) => {
-    const stream = client.beta.messages.stream({
-      model,
-      max_tokens: 32000,
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
-      thinking: { type: "adaptive" },
-      output_config: { effort: opts.effort ?? "medium", format: { type: "json_schema", schema: SCHEMA } },
-      system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
-      messages: [{ role: "user", content: planPrompt(r) }],
-    });
+    const stream = client.beta.messages.stream(jsonRequest({ model, maxTokens: 32000, effort: opts.effort ?? "medium", schema: SCHEMA, system: SYSTEM, content: planPrompt(r), fallback: true }));
     const res = await stream.finalMessage();
-    const u = res.usage;
-    const usage = { input: (u.input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0), output: u.output_tokens ?? 0 };
+    const usage = usageOf(res);
     if (res.stop_reason === "refusal") throw new Error("Claude declined to plan these tests.");
     if (res.stop_reason === "max_tokens") throw new Error("The plan was too long to finish. Try again with shorter notes.");
-    const out = JSON.parse(res.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("")) as { tests?: unknown[] };
+    const out = JSON.parse(textOf(res)) as { tests?: unknown[] };
     return { proposals: cleanProposals(out.tests ?? [], r), usage };
   };
 }
