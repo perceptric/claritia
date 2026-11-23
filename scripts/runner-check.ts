@@ -9,7 +9,8 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { isPrivateAddress } from "../src/lib/privateNet.ts";
-import { executeRun, maskSecrets, type StepUpdate } from "../worker/runner.ts";
+import { executeRun, type StepUpdate } from "../worker/runner.ts";
+import { maskSecrets } from "../worker/secrets.ts";
 
 const PASSWORD = "hunter2-very-secret";
 const pages: Record<string, string> = {
