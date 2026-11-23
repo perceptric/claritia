@@ -48,7 +48,7 @@ export type Handler = (job: Job, signal: AbortSignal) => Promise<void>;
  * Run one job: keep its lease while the handler works, then finish it. Returns what happened.
  * The signal aborts when the lease is lost, so the handler can stop early.
  */
-export async function runJob(rpc: Rpc, worker: string, job: Job, handler: Handler, leaseS = 300): Promise<"done" | "failed" | "lost"> {
+export async function runJob(rpc: Rpc, worker: string, job: Job, handler: Handler, leaseS = 300, log?: (msg: string) => void): Promise<"done" | "failed" | "lost"> {
   const ac = new AbortController();
   const keep = setInterval(
     () => {
@@ -56,7 +56,7 @@ export async function runJob(rpc: Rpc, worker: string, job: Job, handler: Handle
         .then((ok) => {
           if (!ok) ac.abort();
         })
-        .catch(() => undefined);
+        .catch((e) => log?.(`${job.kind} ${job.id}: keeping the lease failed: ${e instanceof Error ? e.message : String(e)}`));
     },
     Math.max(5, leaseS / 3) * 1000,
   );
@@ -103,7 +103,7 @@ export async function jobLoop(o: {
       continue;
     }
     for (const job of jobs) {
-      const result = await runJob(o.rpc, o.worker, job, o.handlers[job.kind]!, o.leaseS ?? 300);
+      const result = await runJob(o.rpc, o.worker, job, o.handlers[job.kind]!, o.leaseS ?? 300, o.log);
       if (result !== "done") o.log?.(`${job.kind} ${job.id}: ${result}`);
     }
   }

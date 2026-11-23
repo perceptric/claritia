@@ -20,11 +20,14 @@ export async function settingsFor(pool: pg.Pool, workspaceId: string, now = Date
   const r = await pool.query(`select own_domains, partner_domains, identify_secrets_sealed from identity_settings where workspace_id = $1`, [workspaceId]);
   const row = r.rows[0];
   let secrets: string[] = [];
-  if (row?.identify_secrets_sealed && process.env.SECRETS_KEY) {
+  // Without its secrets, identify tokens from this workspace can't be checked and are left out, so say why.
+  if (row?.identify_secrets_sealed) {
     try {
       const parsed = JSON.parse(unseal(row.identify_secrets_sealed));
       secrets = [parsed.current, parsed.next].filter((x): x is string => typeof x === "string" && x.length >= 32);
-    } catch {}
+    } catch (e) {
+      console.error(JSON.stringify({ at: new Date().toISOString(), msg: "identify secrets can't be read", workspace: workspaceId, e: e instanceof Error ? e.message : String(e) }));
+    }
   }
   const s: Settings = { own_domains: row?.own_domains ?? [], partner_domains: row?.partner_domains ?? [], secrets, checkDomain };
   cache.set(workspaceId, { s, at: now });

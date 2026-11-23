@@ -46,6 +46,14 @@ test("a lost lease is reported, and aborts the handler", async () => {
   assert.ok(aborted, "the handler wasn't told the lease was lost");
 });
 
+test("a failed lease renewal is logged, and the job goes on", async () => {
+  const rpc: Rpc = async (fn) => (fn === "extend_job" ? { data: null, error: { message: "connection reset" } } : { data: true, error: null });
+  const logged: string[] = [];
+  const result = await runJob(rpc, "w1", job(), () => new Promise((r) => setTimeout(r, 5_200)), 10, (m) => logged.push(m));
+  assert.equal(result, "done");
+  assert.deepEqual(logged, ["stitch j1: keeping the lease failed: extend_job: connection reset"]);
+});
+
 test("enqueueJob passes defaults", async () => {
   const { rpc, calls } = fakeRpc({ enqueue_job: "new-id" });
   assert.equal(await enqueueJob(rpc, { workspaceId: "w", kind: "score", key: "acct-1" }), "new-id");
