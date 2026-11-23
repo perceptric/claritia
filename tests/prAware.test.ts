@@ -176,3 +176,11 @@ test("a new pull request that adds a flow gets proposed tests named after it; a 
   await handlePlan(later.sb as never, pr(false), { picker, planner: async () => ((planned = true), { proposals: [], usage: { input: 0, output: 0 } }) });
   assert.equal(planned, false);
 });
+
+test("proposing tests that fails is reported, after the check is already posted", async () => {
+  const w = world([f("src/giftcards/Redeem.tsx", "+ export function Redeem()")]);
+  const picker: Picker = async () => ({ runAll: false, reason: "", tests: [], newFlows: ["Redeem a gift card"], usage: { input: 1, output: 1 } });
+  const errors = await handlePlan(w.sb as never, pr(true), { picker, planner: async () => Promise.reject(new Error("model overloaded")) });
+  assert.equal(w.rpcs.length, 1, "the check started");
+  assert.deepEqual(errors, ["acme/shop: model overloaded"]);
+});
