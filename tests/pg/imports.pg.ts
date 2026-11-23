@@ -139,3 +139,15 @@ test("undo after an overlapping import takes back only what the first one did", 
   assert.equal(imp.counts.undo_restored, 3, "old's title and company, and the company it filled in on the CRM contact");
   assert.equal((await q(`select count(*)::int n from contacts where workspace_id = $1 and email_clean in ('old@acme.com', 'crm@acme.com') and company_id is not null`, [ws]))[0].n, 0);
 });
+
+test("files past the undo window come back as a list, so pruning can delete them", async () => {
+  const { ws, user } = await workspace("prune");
+  const path = `${ws}/${uuid7()}/old.csv`;
+  const id = (await rpc("imports_start", { p_ws: ws, p_user: user, p_file_name: "old.csv", p_mapping: { columns: ["email"] }, p_kind: "file", p_path: path, p_size: 10 })).data;
+  assert.equal(typeof id, "string", "a function of one value still comes back as that value");
+  await q(`update imports set errors_path = $2, created_at = now() - interval '31 days' where id = $1`, [id, `${path}.errors.csv`]);
+  const { data, error } = await rpc("imports_files_to_prune", {});
+  assert.equal(error, null);
+  assert.ok(Array.isArray(data), "a set of values is a list");
+  assert.deepEqual((data as string[]).filter((p) => p.startsWith(ws)).sort(), [path, `${path}.errors.csv`]);
+});

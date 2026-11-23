@@ -42,8 +42,7 @@ export const importUndo = (rpc: Rpc): Handler => async (job) => {
 
 /** Files past the 30-day undo window go from storage. */
 export async function pruneImportFiles(rpc: Rpc): Promise<number> {
-  const paths = await call<string[]>(rpc, "imports_files_to_prune", {});
-  const list = (Array.isArray(paths) ? paths : []).map((p) => (typeof p === "string" ? p : (p as Record<string, string>).imports_files_to_prune)).filter(Boolean);
+  const list = (await call<string[]>(rpc, "imports_files_to_prune", {})).filter(Boolean);
   if (!list.length) return 0;
   await removeFiles(list);
   await call(rpc, "imports_files_pruned", { p_paths: list });
