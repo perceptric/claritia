@@ -332,7 +332,6 @@ class FakeStore implements Store {
   async enqueue(_w: string, kind: string, key: string) {
     this.jobs.push({ kind, key });
   }
-  async ping() {}
 }
 
 const US: Geo = { country: "US", subdivision: "NY", city: "New York", asn: 7922 };

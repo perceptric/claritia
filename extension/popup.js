@@ -21,7 +21,7 @@ async function call(m) {
   return r;
 }
 
-function renderSteps(rec) {
+function render(rec) {
   const list = $("steps");
   list.replaceChildren(
     ...rec.steps.map((s, i) => {
@@ -39,9 +39,6 @@ function renderSteps(rec) {
   $("check").disabled = !rec.recording;
   $("check").className = rec.mode === "check" ? "on" : "";
   $("save").disabled = rec.recording || rec.steps.length < 2 || !project;
-}
-function render(rec) {
-  renderSteps(rec);
 }
 
 async function loadProjects() {

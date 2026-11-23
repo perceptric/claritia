@@ -192,11 +192,7 @@ export async function main(argv, env = process.env, io = {}) {
         err("Name the ports to share, like: claritia tunnel 3000");
         return EXIT.usage;
       }
-      const key = env.CLARITIA_API_KEY?.trim();
-      if (!key) {
-        err("Set CLARITIA_API_KEY. Make a key in Claritia → Settings → API keys.");
-        return EXIT.usage;
-      }
+      const key = env.CLARITIA_API_KEY.trim();
       const ac = new AbortController();
       const stop = () => ac.abort();
       if (!io.signal) process.once("SIGINT", stop);

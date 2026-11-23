@@ -91,7 +91,6 @@ export interface Store {
   optOut(site: Site, deviceId: string | null): Promise<void>;
   addEvidence(e: EvidenceRow): Promise<void>;
   enqueue(workspaceId: string, kind: string, key: string, payload: Record<string, unknown>): Promise<void>;
-  ping(): Promise<void>;
 }
 
 const deviceHash = (deviceId: string) => createHash("sha256").update(deviceId).digest();
@@ -265,9 +264,5 @@ export class PgStore implements Store {
 
   async enqueue(workspaceId: string, kind: string, key: string, payload: Record<string, unknown>): Promise<void> {
     await this.pool.query(`select public.enqueue_job($1, $2, $3, $4)`, [workspaceId, kind, key, JSON.stringify(payload)]);
-  }
-
-  async ping(): Promise<void> {
-    await this.pool.query("select 1");
   }
 }

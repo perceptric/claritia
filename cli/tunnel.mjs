@@ -82,7 +82,7 @@ function connectOnce(o, first) {
           ws.send(JSON.stringify({ t: "fail", s: m.s, message: `This tunnel only shares localhost:${o.ports.join(", localhost:")}.` }));
           return;
         }
-        const sock = connect({ host: host === "localhost" ? "localhost" : host, port: Number(m.port) });
+        const sock = connect({ host, port: Number(m.port) });
         sockets.set(m.s, sock);
         sock.on("connect", () => ws.readyState === 1 && ws.send(JSON.stringify({ t: "opened", s: m.s })));
         sock.on("data", (d) => ws.readyState === 1 && ws.send(frame(m.s, d)));

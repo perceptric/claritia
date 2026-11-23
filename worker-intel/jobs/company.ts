@@ -2,7 +2,7 @@
 
 import { createHash } from "node:crypto";
 import type pg from "pg";
-import { accountForDomain, resolveSessions } from "../../src/lib/company/accounts.ts";
+import { resolveSessions } from "../../src/lib/company/accounts.ts";
 import { enrichDomain } from "../../src/lib/company/coresignal.ts";
 import { cleanDomain, redirectAlias } from "../../src/lib/company/domains.ts";
 import { lookupNetwork, type NetworkMatch } from "../../src/lib/company/ipinfo.ts";
@@ -98,5 +98,3 @@ export const identityChanged = (pool: pg.Pool): Handler => async (job) => {
     c.release();
   }
 };
-
-export { accountForDomain };
