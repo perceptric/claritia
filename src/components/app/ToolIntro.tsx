@@ -35,18 +35,6 @@ export function ToolIntro({ title, lead, action, features }: { title: string; le
 
 // Sample visuals -----------------------------------------------------------------------------------
 
-/** Vertical bars, like visits each day. */
-export function SampleBars({ values = [30, 45, 40, 52, 48, 60, 72, 66, 58, 70, 64, 80] }: { values?: number[] }) {
-  const max = Math.max(...values);
-  return (
-    <span className="flex h-16 w-full items-end gap-1" aria-hidden="true">
-      {values.map((v, i) => (
-        <span key={i} className="flex-1 bg-brand" style={{ height: `${(v / max) * 100}%`, opacity: 0.35 + (i / values.length) * 0.65 }} />
-      ))}
-    </span>
-  );
-}
-
 /** Horizontal bars with labels and values. */
 export function SampleRows({ rows }: { rows: [string, number, string?][] }) {
   const max = Math.max(...rows.map((r) => r[1]));

@@ -10,9 +10,6 @@ export type Route =
   | "objects"
   | "visitors"
   | "accounts"
-  | "journeys"
-  | "pages"
-  | "reports"
   | "tests"
   | "blocks"
   | "map"
@@ -32,9 +29,6 @@ const MARKETING: NavItem[] = [
   { route: "segments", label: "Segments" },
   { route: "accounts", label: "Accounts" },
   { route: "visitors", label: "Visitors" },
-  { route: "journeys", label: "Journeys", group: "Engage" },
-  { route: "pages", label: "Pages" },
-  { route: "reports", label: "Reports", group: "Prove" },
 ];
 
 // The testing product's own groups, as before.
