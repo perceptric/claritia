@@ -139,7 +139,7 @@ function secretForms(secrets: Record<string, string>) {
  * Playwright traces keep what was typed into fields, page snapshots and console messages.
  * Before a trace leaves the runner, every secret in every file inside it is overwritten with * of the same length.
  */
-export async function scrubTrace(path: string, secrets: Record<string, string>) {
+async function scrubTrace(path: string, secrets: Record<string, string>) {
   const forms = secretForms(secrets);
   if (!forms.length) return 0;
   const files = unzipSync(new Uint8Array(await readFile(path)));

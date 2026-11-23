@@ -18,8 +18,8 @@ const MAX_ITEMS = 10;
 const SOURCE: Record<string, string> = { schedule: "schedule", ci: "pull request", api: "API" };
 const KIND: Record<string, string> = { app_bug: "App bug", flaky: "Failed again on re-run" };
 
-export const runUrl = (id: string) => `${APP_URL}/runs/${id}`;
-export const healUrl = (id: string) => `${APP_URL}/approvals/${id}`;
+const runUrl = (id: string) => `${APP_URL}/runs/${id}`;
+const healUrl = (id: string) => `${APP_URL}/approvals/${id}`;
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 

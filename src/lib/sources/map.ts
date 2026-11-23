@@ -78,7 +78,7 @@ function norm(v: unknown): unknown {
   return v;
 }
 
-export function localValue(t: string, c: Local): unknown {
+function localValue(t: string, c: Local): unknown {
   if (t === "email") return norm(c.email_clean);
   if (t === "company") return norm(c.company_name);
   if (t === "website") return norm(c.company_domain);

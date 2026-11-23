@@ -87,7 +87,7 @@ const argText = (a: Arg | undefined): string => {
 };
 
 /** "the Sign in button", "the Email field", "Welcome" — the element a locator chain points at. */
-export function describeTarget(chain: Call[]): string {
+function describeTarget(chain: Call[]): string {
   const first = chain[0];
   if (!first) return "the page";
   const v = argText(first.args[0]);

@@ -4,7 +4,7 @@
 import { appendFile } from "node:fs/promises";
 import { runTunnel } from "./tunnel.mjs";
 
-export const VERSION = "0.2.0";
+const VERSION = "0.2.0";
 
 export const EXIT = { passed: 0, failed: 1, setup: 2, usage: 3, timeout: 4 };
 

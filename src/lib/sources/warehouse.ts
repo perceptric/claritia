@@ -225,8 +225,8 @@ export async function runQuery(ctx: Ctx, q: WhQuery, cursor: string, limit = PAG
 
 // The connector ----------------------------------------------------------------------------------------------
 
-export const queryOf = (s: SourceRow): WhQuery | null => ((s.settings as { query?: WhQuery }).query ?? null);
-export const targetObject = (q: WhQuery | null): ObjectKind | null =>
+const queryOf = (s: SourceRow): WhQuery | null => ((s.settings as { query?: WhQuery }).query ?? null);
+const targetObject = (q: WhQuery | null): ObjectKind | null =>
   !q ? null : q.target === "contacts" ? "contacts" : q.target === "companies" ? "companies" : q.target === "events" ? "events" : q.target.startsWith("object:") ? "records" : null;
 
 function warehouse(kind: string): Connector {
