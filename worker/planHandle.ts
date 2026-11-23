@@ -6,7 +6,7 @@ import type { PageElements } from "./explorer.ts";
 import type { PlanPage, Planner } from "../src/lib/planner.ts";
 
 export type Plan = { id: string; workspace_id: string; project_id: string; notes: string; attempts: number };
-/** A plan counts as this many AI credits: it's one large call. */
+/** A plan counts as this many AI credits (saved in plans.ai_calls, which credits add up): it's one large call. */
 export const PLAN_CREDITS = 10;
 
 export async function handlePlan(sb: SupabaseClient, plan: Plan, opts: { workerId: string; planner?: Planner; log?: (...a: unknown[]) => void }) {
