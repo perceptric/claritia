@@ -15,11 +15,11 @@ Run `supabase/migrations/033_contacts.sql` through `038_warehouses.sql` in order
 
 `minute_tick` already runs every minute from pg_cron. From 036 on, it also starts due pulls, pushes for two-way CRMs, and the hourly segment refresh. Nothing new to schedule.
 
-## 2. SECRETS_KEY (Render and claritia-intel, same value)
+## 2. SECRETS_KEY (claritia-web and claritia-intel, same value)
 
 Every tool's sign-in or key is sealed with `SECRETS_KEY` (AES-256-GCM) before it's saved. The web app seals; the worker unseals. Both need the exact same value, or every pull fails with "This secret is not in a format Claritia can read."
 
-1. Render → `claritia` → Environment. `SECRETS_KEY` already exists (the Blueprint made it). Copy its value.
+1. `SECRETS_KEY` is already set on `claritia-web` (`docs/fly.md`). Use the same value you set there; Fly doesn't show secrets back.
 2. Put it on the worker: `fly secrets set SECRETS_KEY='<same value>' --app claritia-intel`
 3. Never change it once sources are connected. A new value makes every saved sign-in unreadable, and every customer would have to connect again.
 
@@ -27,7 +27,7 @@ Every tool's sign-in or key is sealed with `SECRETS_KEY` (AES-256-GCM) before it
 
 ```
 fly secrets set --app claritia-intel \
-  SECRETS_KEY='<same as Render>' \
+  SECRETS_KEY='<same as claritia-web>' \
   SUPABASE_URL='https://<project>.supabase.co' \
   SUPABASE_SECRET_KEY='<service role / secret key>' \
   HUBSPOT_CLIENT_ID='…' HUBSPOT_CLIENT_SECRET='…' \
@@ -72,7 +72,7 @@ https://app.tryclaritia.com/api/sources/callback
 2. Auth tab:
    - Redirect URL: the return address above.
    - Scopes: `oauth`, `crm.objects.contacts.read`, `crm.objects.contacts.write`, `crm.objects.companies.read`, `crm.lists.read`, `crm.schemas.contacts.read`, `crm.schemas.contacts.write`. They must match `src/lib/sources/oauth.ts` exactly, or HubSpot refuses the sign-in.
-   - Copy the Client ID and Client secret into `HUBSPOT_CLIENT_ID` and `HUBSPOT_CLIENT_SECRET` (Render and Fly).
+   - Copy the Client ID and Client secret into `HUBSPOT_CLIENT_ID` and `HUBSPOT_CLIENT_SECRET` on both `claritia-web` and `claritia-intel`.
 3. Webhooks tab:
    - Target URL: `https://app.tryclaritia.com/api/hooks/hubspot`.
    - Subscriptions:

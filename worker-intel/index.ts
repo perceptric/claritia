@@ -1,4 +1,5 @@
-// claritia-intel: runs the fast jobs that need no browser (stitch now; lookups, signals and scores next).
+// claritia-intel: runs the jobs that need no browser: stitching, IP lookups and enrichment, signals and scores,
+// imports, source syncs and segment refreshes.
 // Several claim loops share one pool. SIGTERM lets running jobs finish (Fly gives 30 seconds).
 //   DATABASE_URL=… SECRETS_KEY=… node worker-intel/index.ts
 // Imports also need SUPABASE_URL and SUPABASE_SECRET_KEY, to read uploaded files from storage. Sources need

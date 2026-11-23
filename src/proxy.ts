@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-// One app on two domains: the marketing site on tryclaritia.com and the app on app.tryclaritia.com.
-// Any other host (localhost, the onrender.com address) serves every page, so nothing changes there.
+// The app answers on app.tryclaritia.com, where / goes to the app. If tryclaritia.com ever points here again, it
+// serves only the homepage. Any other host (localhost, claritia-web.fly.dev) serves every page.
 
 const SITE = process.env.SITE_HOST?.trim() || "tryclaritia.com";
 const APP = process.env.APP_HOST?.trim() || "app.tryclaritia.com";

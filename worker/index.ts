@@ -35,7 +35,7 @@ const busy = new Set<string>();
 const IDLE_EXIT_MS = Number(env("IDLE_EXIT_MS") || 0);
 let lastWorkAt = Date.now();
 
-// Health checks: Render needs a port to know the service is up.
+// Health and wake-up: Fly starts the machine on a request to this port, and the answer says what the runner has.
 createServer((req, res) => {
   res.writeHead(200, { "content-type": "application/json" });
   res.end(JSON.stringify({ ok: !missing.length, missing, writer: !!env("ANTHROPIC_API_KEY"), worker: WORKER_ID, slots: SLOTS, running: busy.size }));

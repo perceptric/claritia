@@ -6,7 +6,7 @@ import { Logo } from "@/components/Logo";
 export const metadata: Metadata = { title: "Claritia", robots: { index: false } };
 
 export default async function AppPage() {
-  // Read settings when the page is requested, so changes on Render apply without a rebuild.
+  // Read settings when the page is requested, so new secrets apply without a rebuild.
   await connection();
   const url = (process.env.SUPABASE_URL ?? "").trim().replace(/\/+$/, "");
   const key = (process.env.SUPABASE_PUBLISHABLE_KEY ?? "").trim();
@@ -18,7 +18,7 @@ export default async function AppPage() {
         <div className="w-full max-w-md space-y-5 border border-line bg-panel p-8">
           <Logo />
           <h1 className="text-lg font-medium">Connect Supabase</h1>
-          <p className="text-sm text-muted">Add these in Render under Environment, then redeploy:</p>
+          <p className="text-sm text-muted">Set these as secrets on the claritia-web Fly app, then redeploy:</p>
           <ul className="list-disc space-y-1 pl-5 text-sm">
             {missing.map((m) => (
               <li key={m}>

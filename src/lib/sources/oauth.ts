@@ -32,7 +32,7 @@ export type State = { ws: string; user: string; kind: string; verifier?: string;
 
 function stateKey() {
   const k = env("SECRETS_KEY");
-  if (k.length < 32) throw new Error("Add SECRETS_KEY (32 or more random characters) on Render.");
+  if (k.length < 32) throw new Error("Set SECRETS_KEY (32 or more random characters) in this server's secrets.");
   return createHash("sha256").update(`oauth-state:${k}`).digest();
 }
 

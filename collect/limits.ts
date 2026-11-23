@@ -1,4 +1,4 @@
-// Token buckets in memory, per instance. A per-site count in Postgres catches abuse across instances later.
+// Token buckets in memory, per instance. Each collect instance limits on its own; there is no shared count.
 
 export class Buckets {
   private m = new Map<string, { tokens: number; at: number }>();

@@ -5,7 +5,7 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:
 
 function keyFrom(secret: string | undefined) {
   const s = secret?.trim();
-  if (!s || s.length < 32) throw new Error("Add SECRETS_KEY (32 or more random characters) on Render.");
+  if (!s || s.length < 32) throw new Error("Set SECRETS_KEY (32 or more random characters) in this server's secrets.");
   return createHash("sha256").update(s).digest();
 }
 

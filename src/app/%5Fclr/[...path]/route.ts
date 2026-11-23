@@ -13,7 +13,7 @@ async function proxySecret(): Promise<string | null> {
   return secret.value;
 }
 
-/** The visitor's IP as our host's edge saw it: Fly, or Cloudflare in front of Render. Headers a browser can set are ignored. */
+/** The visitor's IP as our host's edge saw it (Fly, or Cloudflare or Akamai in front of it). Headers a browser can set are ignored. */
 function clientIp(request: Request): string | null {
   return request.headers.get("fly-client-ip") || request.headers.get("cf-connecting-ip") || request.headers.get("true-client-ip") || null;
 }

@@ -2,7 +2,7 @@
 
 Built the same way as the Omniscient homepage (`dev-omniscient/omniscient`, `src/app/page.tsx`): one long page, white and `canvas` sections taking turns, square framed cards, `// ` mono captions, a black primary button, blue for the one highlighted word, and two dark sections for weight. The product picture in the hero is built in HTML (like `HeroMock.tsx`) so it stays sharp and loads fast.
 
-Domain idea: `tryclaritia.com` for the site and `app.tryclaritia.com` for the app, served by one Render service with a proxy that splits them (copy `src/proxy.ts`).
+Where it lives now: `tryclaritia.com` is a plain HTML site on Hostinger, from the `claritia-site` repo. This repo's copy (`src/app/page.tsx`) only shows on `claritia-web.fly.dev`, since `app.tryclaritia.com/` goes to the app (`src/proxy.ts`).
 
 ## Page order
 
