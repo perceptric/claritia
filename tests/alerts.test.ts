@@ -163,3 +163,16 @@ test("a fix decided before the alert went out, or a project with nowhere to send
   assert.equal(calls.length, 0);
   assert.ok(db.alert_events[1]!.sent_at);
 });
+
+test("a saved Slack address that can't be read is an error that's tried again, never a quiet send to nowhere", async () => {
+  const { db, sb, event } = makeDb();
+  db.alert_settings[0] = { project_id: "p1", slack_sealed: "v1:not-a-real-seal", emails: [] };
+  event("e1", { kind: "failure", run_id: "r1" });
+  const { calls, fetchFn } = stand();
+  const r = await sendAlerts(sb as never, fetchFn);
+  assert.equal(calls.length, 0);
+  assert.equal(r.sent, 0);
+  assert.match(r.errors[0]!, /Slack: the saved address can't be read/);
+  assert.equal(db.alert_events[0]!.sent_at, null);
+  assert.equal(db.alert_events[0]!.attempts, 1);
+});
