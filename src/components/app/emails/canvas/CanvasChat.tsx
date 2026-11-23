@@ -15,6 +15,8 @@ import { X } from "../../../Icons";
 import { AiAvatar, AiMark, AiTag, Dots } from "../../Ai";
 import { Button } from "../../ui";
 import type { CanvasEditor } from "./useCanvasEditor";
+import { UserError } from "@/lib/errors";
+import { errorText } from "@/lib/attempt";
 
 type Out = { doc: EmailDoc; system: DesignSystem | null; subject: string; reply: string; lines: string[]; ask: { question: string; choices: string[] } | null };
 export type PlanItem = { name: string; subject: string; brief: string };
@@ -29,7 +31,7 @@ const EXAMPLES = ["Write a 3-email welcome series for new students", "Make every
 async function post<T>(session: Session, url: string, body: unknown, signal?: AbortSignal): Promise<T> {
   const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify(body), signal });
   const data = (await res.json().catch(() => ({}))) as T & { error?: string };
-  if (!res.ok) throw new Error(data.error ?? "Try again in a moment.");
+  if (!res.ok) throw new UserError(data.error ?? "Try again in a moment.");
   return data;
 }
 
@@ -127,7 +129,7 @@ export function CanvasChat({
           );
           done.push({ email: t.email, sent: sentDocs.get(t.email)!, out });
         } catch (e) {
-          if (!ac.signal.aborted) fails.push({ email: t.email, text: e instanceof Error ? e.message : "Try again in a moment." });
+          if (!ac.signal.aborted) fails.push({ email: t.email, text: errorText(e) });
         }
       }),
       3,
@@ -156,7 +158,7 @@ export function CanvasChat({
       const r = await post<{ plan: PlanItem[]; reply: string }>(session, "/api/email/series", { workspaceId: ws, step: "plan", message, group: groupName, history: history() });
       setLog((l) => [...l, ...(r.reply ? [{ kind: "tia" as const, text: r.reply, changes: [] }] : []), ...(r.plan.length ? [{ kind: "plan" as const, items: r.plan, message, done: false }] : [])]);
     } catch (e) {
-      setLog((l) => [...l, { kind: "error", email: null, name: "", text: e instanceof Error ? e.message : "Try again in a moment.", retry: () => void plan(message) }]);
+      setLog((l) => [...l, { kind: "error", email: null, name: "", text: errorText(e), retry: () => void plan(message) }]);
     } finally {
       setBusy(false);
     }

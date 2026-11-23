@@ -9,6 +9,7 @@ import pg from "pg";
 import { hostIsPrivate } from "../privateNet.ts";
 import { rowCells } from "./rows.ts";
 import { AuthError, type Ctx, type FillRow, type RowTarget } from "./types.ts";
+import { UserError } from "../errors.ts";
 
 const TIMEOUT_MS = 30_000;
 /** A table name: letters, digits and _, starting with a letter or _; Postgres may add a schema ("crm.leads"). */
@@ -88,7 +89,7 @@ const MY: Dialect = {
 async function guard(ctx: Ctx) {
   const host = ctx.secret("host");
   if (ctx.local) return host;
-  if (!host || (await hostIsPrivate(host))) throw new Error("That host is on a private network. Use the database's public address.");
+  if (!host || (await hostIsPrivate(host))) throw new UserError("That host is on a private network. Use the database's public address.");
   return host;
 }
 
@@ -129,7 +130,7 @@ const DIALECT: Record<string, Dialect> = { postgres: PG, mysql: MY };
 
 async function withDb<T>(ctx: Ctx, fn: (db: Db, d: Dialect) => Promise<T>): Promise<T> {
   const d = DIALECT[ctx.source.kind];
-  if (!d) throw new Error(`${ctx.source.kind} doesn't take rows.`);
+  if (!d) throw new UserError(`${ctx.source.kind} doesn't take rows.`);
   let db: Db;
   try {
     db = await OPEN[ctx.source.kind]!(ctx);
@@ -156,12 +157,12 @@ async function ensureTable(db: Db, d: Dialect, table: string) {
 /** Make the table if it isn't there, so a name that can't be used fails in the Sync tab and not on the first fill. */
 export async function prepareTable(ctx: Ctx, name: string): Promise<RowTarget> {
   const table = tableName(ctx.source.kind, name);
-  if (!table) throw new Error("Use letters, digits and _ for the table name.");
+  if (!table) throw new UserError("Use letters, digits and _ for the table name.");
   await withDb(ctx, async (db, d) => {
     await ensureTable(db, d, table);
     const [sql, values] = d.columns(table);
     const have = new Set((await db.query(sql, values)).map((r) => String(r.name ?? r.NAME ?? r.COLUMN_NAME)));
-    if (!have.has("fill_id")) throw new Error(`${table} has no fill_id column. Pick a new name and Claritia makes the table.`);
+    if (!have.has("fill_id")) throw new UserError(`${table} has no fill_id column. Pick a new name and Claritia makes the table.`);
   });
   return { id: table, name: table };
 }
@@ -169,13 +170,13 @@ export async function prepareTable(ctx: Ctx, name: string): Promise<RowTarget> {
 /** A row per fill: missing columns added as text, then the row, kept once by its fill_id. */
 export async function appendRow(ctx: Ctx, target: RowTarget, row: FillRow, o: { retry: boolean }): Promise<{ externalId: string }> {
   const table = tableName(ctx.source.kind, target.id);
-  if (!table) throw new Error("Pick the table again in the form's Sync tab.");
+  if (!table) throw new UserError("Pick the table again in the form's Sync tab.");
   const cols = rowColumns(row);
   return withDb(ctx, async (db, d) => {
     await ensureTable(db, d, table);
     const [sql, args] = d.columns(table);
     const have = new Set((await db.query(sql, args)).map((r) => String(r.name ?? r.NAME ?? r.COLUMN_NAME)));
-    if (!have.has("fill_id")) throw new Error(`${table} has no fill_id column. Pick another table in the form's Sync tab.`);
+    if (!have.has("fill_id")) throw new UserError(`${table} has no fill_id column. Pick another table in the form's Sync tab.`);
     for (const c of cols) {
       if (have.has(c.name)) continue;
       try {

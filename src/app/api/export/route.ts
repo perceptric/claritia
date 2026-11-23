@@ -1,6 +1,7 @@
 import { requireUser } from "@/lib/serverAuth";
 import { slug } from "@/lib/testfile";
 import { exportFiles, zipFiles, type ExportTest } from "@/lib/transfer";
+import { fail } from "@/lib/http";
 
 /** A project's tests as a zip of YAML files, Playwright specs, a config and a README: GET /api/export?projectId=... */
 export async function GET(request: Request) {
@@ -16,7 +17,7 @@ export async function GET(request: Request) {
     auth.sb.from("environments").select("base_url").eq("project_id", projectId).order("created_at").limit(1),
   ]);
   const error = project.error ?? tests.error ?? blocks.error ?? envs.error;
-  if (error) return Response.json({ error: error.message }, { status: 500 });
+  if (error) return fail(error, 500);
   if (!project.data) return Response.json({ error: "Project not found." }, { status: 404 });
   const files = exportFiles(project.data.name, (envs.data?.[0] as { base_url: string } | undefined)?.base_url ?? "http://localhost:3000", (tests.data ?? []) as ExportTest[], (blocks.data ?? []) as { id: string; name: string }[]);
   return new Response(Buffer.from(zipFiles(files)), {

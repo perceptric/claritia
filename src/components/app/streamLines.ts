@@ -1,7 +1,8 @@
+import { UserError } from "@/lib/errors";
 // Reads a stream of JSON lines (/api/studio's answers), one line at a time. A failed request throws its error.
 
 export async function readLines<L>(res: Response, onLine: (l: L) => void): Promise<void> {
-  if (!res.ok || !res.body) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? "Something went wrong.");
+  if (!res.ok || !res.body) throw new UserError(((await res.json().catch(() => ({}))) as { error?: string }).error ?? "Something went wrong.");
   const reader = res.body.getReader();
   const dec = new TextDecoder();
   let buf = "";

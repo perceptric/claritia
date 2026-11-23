@@ -3,6 +3,7 @@ import { deps } from "@/lib/sources/run";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { isUuid } from "@/lib/uuid";
+import { publicMessage } from "@/lib/http";
 
 // A connected email tool's lists (audiences, forms, groups), for the form's Sync tab (docs/integrations-plan.md step
 // 1): GET ?workspaceId=&sourceId= → { lists: [{ id, name }] } or { error }. Read live from the tool. The caller must
@@ -30,6 +31,6 @@ export async function GET(request: Request) {
     return Response.json({ lists }, { headers: { "cache-control": "no-store" } });
   } catch (e) {
     // A failed read is an answer the picker shows.
-    return Response.json({ error: `Couldn't read the lists: ${String((e as Error).message ?? e).slice(0, 200)}` }, { headers: { "cache-control": "no-store" } });
+    return Response.json({ error: publicMessage(e) }, { headers: { "cache-control": "no-store" } });
   }
 }

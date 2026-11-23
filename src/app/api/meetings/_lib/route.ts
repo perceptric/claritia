@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { invalidateBookTargets } from "@/lib/meetings/public";
 import { Refused, type Actor } from "./host";
+import { publicMessage } from "@/lib/http";
 
 // The routes under /api/meetings: the caller signs in, names the workspace, and the work runs with the service
 // client after the checks in ./host.ts. Refusals go back with their status and plain words.
@@ -25,6 +26,6 @@ export async function handle(request: Request, fn: (c: Ctx) => Promise<object>):
     return Response.json(out);
   } catch (e) {
     if (e instanceof Refused) return Response.json({ error: e.message, ...(e.errors ? { errors: e.errors } : {}) }, { status: e.status });
-    return Response.json({ error: e instanceof Error ? e.message : "Something went wrong." }, { status: 500 });
+    return Response.json({ error: publicMessage(e) }, { status: 500 });
   }
 }

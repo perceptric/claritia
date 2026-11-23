@@ -16,6 +16,7 @@ import { TimesError } from "../scheduling/ConnectCalendar";
 import { bookingBase } from "@/lib/meetings/handles";
 import { linkFeature } from "@/lib/plans";
 import { PlanLock, planHas, usePlan } from "../PlanLock";
+import { UserError } from "@/lib/errors";
 
 type Kind = "single_use" | "one_off" | "poll";
 const KINDS: { value: Kind; label: string }[] = [
@@ -30,7 +31,7 @@ async function makeLink(session: Session, body: Record<string, unknown>): Promis
   const r = await postJson<{ url?: string; token?: string }>(session, "/api/book/links", body);
   if (r.url) return r.url;
   if (r.token) return `${bookingBase(window.location.origin)}/book/${body.kind === "poll" ? "p" : "l"}/${r.token}`;
-  throw new Error("The link wasn't made.");
+  throw new UserError("The link wasn't made.");
 }
 
 export function LinkDialog({ sb, session, ws, types, initialType, initialKind = "single_use", onClose }: { sb: SupabaseClient; session: Session; ws: Workspace; types: TypeLite[]; initialType?: string; initialKind?: Kind; onClose: () => void }) {
@@ -52,9 +53,9 @@ export function LinkDialog({ sb, session, ws, types, initialType, initialKind = 
 
   const create = async () => {
     await attempt(async () => {
-      if (kind === "single_use" && !typeId) throw new Error("Pick a meeting type.");
-      if (kind === "one_off" && !picked.length) throw new Error("Pick at least one time.");
-      if (kind === "poll" && picked.length < 2) throw new Error("Pick two or more times.");
+      if (kind === "single_use" && !typeId) throw new UserError("Pick a meeting type.");
+      if (kind === "one_off" && !picked.length) throw new UserError("Pick at least one time.");
+      if (kind === "poll" && picked.length < 2) throw new UserError("Pick two or more times.");
       const offered = [...picked].sort((a, b) => a - b).map((s) => ({ start: new Date(s).toISOString(), end: new Date(s + length * 60_000).toISOString() }));
       setUrl(await makeLink(session, { workspaceId: ws.id, kind, typeId: typeId || null, ...(kind === "single_use" ? {} : { title: title.trim() || null, length, offered }) }));
     }, { setError, setBusy });

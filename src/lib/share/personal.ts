@@ -1,6 +1,7 @@
 import { createHmac } from "node:crypto";
 import { same } from "../sign.ts";
 import { isUuid } from "../uuid.ts";
+import { UserError } from "../errors.ts";
 
 // Personal links (docs/sharing-plan.md, Personal links): a form link that says who it was sent to, so the form fills in
 // what Claritia already knows about them. The link holds a signed token, never the person's details: the workspace,
@@ -23,7 +24,7 @@ export function personalToken(p: { ws: string; contact?: string | null; email?: 
   const person: Person = { w: p.ws, x: Math.floor(now / 1000) + days * 86_400 };
   if (p.contact && isUuid(p.contact)) person.c = p.contact;
   else if (p.email && EMAIL.test(p.email.trim())) person.e = p.email.trim().toLowerCase().slice(0, 254);
-  else throw new Error("A personal link needs a contact or an email.");
+  else throw new UserError("A personal link needs a contact or an email.");
   const body = b64(JSON.stringify(person));
   return `${body}.${sign(body, secret)}`;
 }

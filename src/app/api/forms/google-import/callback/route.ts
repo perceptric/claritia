@@ -2,6 +2,7 @@ import { appBase } from "@/lib/billing";
 import { oauthExchange, readState } from "@/lib/sources/oauth";
 import { connectSource } from "@/lib/sources/server";
 import { serviceClient } from "@/lib/serviceClient";
+import { publicMessage } from "@/lib/http";
 
 // Google sends the person back here after they allow reading their forms (Next step 13). The sign-in is kept, and
 // the Forms page picks the import up where it stopped (?gimport=1, the link kept in the browser).
@@ -21,6 +22,6 @@ export async function GET(request: Request) {
     await connectSource(db, { ws: state.ws, user: state.user, kind: "google_forms", creds: { type: "oauth", access: tok.access, refresh: tok.refresh, expiresAt: tok.expiresAt, extra: tok.extra } });
     return go({ gimport: "1" });
   } catch (e) {
-    return go({ gimport_error: e instanceof Error ? e.message.slice(0, 200) : "Could not connect." });
+    return go({ gimport_error: publicMessage(e).slice(0, 200) });
   }
 }

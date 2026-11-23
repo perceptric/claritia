@@ -10,6 +10,7 @@ import { campaignGuard, sendAtOf } from "./guard.ts";
 import { warmDays } from "./warm.ts";
 import { buildForSend, emailChatParts, emailChatTurn } from "./server.ts";
 import { isUuid } from "../uuid.ts";
+import { dbError } from "../errors.ts";
 
 // Emails on the MCP server (docs/email-studio-plan.md Part 9), so ChatGPT, Claude and other agents can write a
 // campaign with Tia, test it, schedule it and read what it led to. The same rules as the app: drafts change, sent
@@ -31,7 +32,7 @@ async function findEmail(ctx: ApiCaller, ref: unknown): Promise<Draft> {
   if (typeof ref !== "string" || !ref.trim()) throw new ToolError("Pass email: the email's name or id.");
   const q = ctx.sb.from("emails").select("id, name, subject, status, doc").eq("workspace_id", ctx.workspaceId).eq("kind", "broadcast").neq("status", "archived");
   const { data, error } = isUuid(ref.trim()) ? await q.eq("id", ref.trim()) : await q.ilike("name", ref.trim().replace(/[%_\\]/g, "\\$&"));
-  if (error) throw new Error(error.message);
+  if (error) throw dbError(error);
   const rows = (data ?? []) as Draft[];
   if (!rows.length) throw new ToolError(`Email ${ref} not found. Call list_emails to see them.`);
   if (rows.length > 1) throw new ToolError(`More than one email is called ${ref}. Pass its id.`);
@@ -52,7 +53,7 @@ async function writeWithTia(ctx: ApiCaller, d: Draft, words: string): Promise<{ 
   const subject = r.subject || d.subject;
   const name = d.name === "Untitled email" && subject ? subject.slice(0, 200) : d.name;
   const { error } = await ctx.sb.from("emails").update({ doc: r.doc, subject: subject.slice(0, 300), preheader: r.doc.settings.preheader ?? "", name, updated_at: new Date().toISOString() }).eq("id", d.id).eq("status", "draft");
-  if (error) throw new Error(error.message);
+  if (error) throw dbError(error);
   return { subject, reply: r.reply, lines: r.lines };
 }
 
@@ -65,7 +66,7 @@ export const emailTools: Tool<ApiCaller>[] = [
     readOnly: true,
     async run(ctx) {
       const { data, error } = await ctx.sb.rpc("email_campaigns", { p_ws: ctx.workspaceId });
-      if (error) throw new Error(error.message);
+      if (error) throw dbError(error);
       const rows = (data ?? []) as { id: string; name: string; status: string; sent: number; opened: number; clicked: number; meetings: number; forms: number }[];
       if (!rows.length) return { text: "No emails yet. Write one with create_email.", data: { emails: [] } };
       return { text: rows.map((e) => `${e.name} (${e.status}${e.sent ? `, sent ${e.sent}, opened ${e.opened}, clicked ${e.clicked}, ${e.meetings} meetings, ${e.forms} forms` : ""}) ${e.id}`).join("\n"), data: { emails: rows } };
@@ -83,7 +84,7 @@ export const emailTools: Tool<ApiCaller>[] = [
         ctx.sb.rpc("lists_overview", { p_ws: ctx.workspaceId }),
         ctx.sb.from("topics").select("id, name").eq("workspace_id", ctx.workspaceId).order("name"),
       ]);
-      if (total.error || lists.error) throw new Error((total.error ?? lists.error)!.message);
+      if (total.error || lists.error) throw dbError((total.error ?? lists.error)!);
       const ls = (lists.data ?? []) as { id: string; name: string; members: number }[];
       const ts = (topics.data ?? []) as { id: string; name: string }[];
       return {
@@ -103,7 +104,7 @@ export const emailTools: Tool<ApiCaller>[] = [
       const person = await keyPerson(ctx);
       const name = typeof args.name === "string" && args.name.trim() ? args.name.trim().slice(0, 200) : "Untitled email";
       const { data, error } = await ctx.sb.from("emails").insert({ workspace_id: ctx.workspaceId, name, kind: "broadcast", subject: "", preheader: "", html: "", text: "", doc: blank(), status: "draft", created_by: person.user }).select("id, name, subject, status, doc").single();
-      if (error) throw new Error(error.message);
+      if (error) throw dbError(error);
       const d = data as Draft;
       const r = await writeWithTia(ctx, d, about);
       return { text: `Wrote "${r.subject || name}". ${r.reply}\nOpen it: ${studio(d.id)}`, data: { id: d.id, subject: r.subject, changes: r.lines } };
@@ -137,7 +138,7 @@ export const emailTools: Tool<ApiCaller>[] = [
       if ("error" in built) throw new ToolError(built.error);
       const values = { kind: "test", name: "Test", subject: `[Test] ${(d.subject || d.name).slice(0, 190)}`, preheader: built.preheader, html: built.html, text: built.text, links: built.links, marketing: true };
       const { error } = await rpcOr<string>((fn, a) => ctx.sb.rpc(fn, a), "email_test_send", { p_ws: ctx.workspaceId, p_user: person.user, p_values: values }, async () => ({ data: null, error: { message: "Sending tests isn't set up yet." } }));
-      if (error) throw new Error(error.message);
+      if (error) throw dbError(error);
       return { text: `Sent a test of ${d.name} to the key's owner.`, data: { id: d.id } };
     },
   },
@@ -166,7 +167,7 @@ export const emailTools: Tool<ApiCaller>[] = [
       const when = sendAtOf(args.send_at, Date.now());
       if ("error" in when) throw new ToolError(when.error);
       const { data: counts, error: e1 } = await ctx.sb.rpc("email_audience_counts", { p_ws: ctx.workspaceId, p_lists: list ? [list] : [], p_everyone: !list, p_topic: topic });
-      if (e1) throw new Error(e1.message);
+      if (e1) throw dbError(e1);
       const ready = Number((counts as { ready?: number } | null)?.ready ?? 0);
       const stop = campaignGuard({ role: person.role, ready, subject: d.subject });
       if (stop) throw new ToolError(stop === "confirm" ? `This goes to ${ready.toLocaleString("en-US")} people, so a person confirms it in the app: ${studio(d.id)}` : stop);
@@ -197,7 +198,7 @@ export const emailTools: Tool<ApiCaller>[] = [
     async run(ctx, args) {
       const d = await findEmail(ctx, args.email);
       const { data, error } = await ctx.sb.rpc("email_campaigns", { p_ws: ctx.workspaceId });
-      if (error) throw new Error(error.message);
+      if (error) throw dbError(error);
       const c = ((data ?? []) as Record<string, number | string>[]).find((x) => x.id === d.id);
       if (!c) throw new ToolError(`No results for ${d.name}.`);
       return {

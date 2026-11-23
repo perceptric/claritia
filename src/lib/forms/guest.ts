@@ -7,6 +7,7 @@ import { checkForm, type Form } from "./schema.ts";
 import { pageForm, type PageQuestion } from "../studio/page.ts";
 import { styleCssById } from "../studio/styleCss.ts";
 import { templateDraft } from "../studio/templatePage.ts";
+import { publicMessage } from "../http.ts";
 
 // Forms made from chat before signing up (docs/mcp.md, 142_guest_forms.sql): the form from a template or from the
 // page ChatGPT or Claude wrote, in one of the website's styles, checked like any form, and refused when it asks for a
@@ -69,7 +70,7 @@ export function guestForm(p: { name: string; template?: string; html?: string; c
     try {
       form = templateDraft(t, styleCssById(style ?? templateTheme(t)));
     } catch (e) {
-      return { error: e instanceof Error ? e.message : "This template can't be used right now." };
+      return { error: publicMessage(e) };
     }
   } else if (p.html && p.html.trim()) {
     const made = pageForm({ html: p.html, css: p.css ?? "", brand: styleCssById(style ?? "paper"), after: { kind: "thanks" }, title: p.name });

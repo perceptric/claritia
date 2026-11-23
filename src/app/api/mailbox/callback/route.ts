@@ -3,6 +3,7 @@ import type { Rpc } from "@/lib/jobs";
 import { finishMailbox } from "@/lib/mailbox/server";
 import { readState } from "@/lib/sources/oauth";
 import { serviceClient } from "@/lib/serviceClient";
+import { publicMessage } from "@/lib/http";
 
 // Google and Microsoft send the person back here after they allow sending (docs/integrations-plan.md, Next step 6).
 // Keep the sealed sign-in and go back to My calendar.
@@ -24,6 +25,6 @@ export async function GET(request: Request) {
     const r = await finishMailbox(rpc, { state, code, redirect: `${base}/api/mailbox/callback` });
     return go({ mailbox: r.provider });
   } catch (e) {
-    return go({ error: e instanceof Error ? e.message.slice(0, 200) : "Could not connect." });
+    return go({ error: publicMessage(e).slice(0, 200) });
   }
 }

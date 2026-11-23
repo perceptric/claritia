@@ -30,6 +30,7 @@ import { Studio } from "./studio/Studio";
 import type { StudioControl, StudioState } from "./studio/studio";
 import { FormCheck, FormHeader, type FormTab, type HeaderAction, type HeaderState } from "./FormHeader";
 import { sameJson } from "@/lib/sameJson";
+import { UserError } from "@/lib/errors";
 
 // Forms › Templates holds the whole template catalog: it loads when opened, never with the Forms list.
 const TemplatesPage = lazy(() => import("./templates/TemplatesPage").then((m) => ({ default: m.TemplatesPage })));
@@ -381,7 +382,7 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
   const publish = async () => {
     setError("");
     try {
-      if (!(await save())) throw new Error("The draft didn't save. Try again.");
+      if (!(await save())) throw new UserError("The draft didn't save. Try again.");
       // The form's routing goes live with it, on the server: compiled with its meetings into the form's routing policy.
       const { routing } = await postJson<{ routing?: { problems: string[]; error?: string; locked?: string } }>(session, "/api/forms/publish", { workspaceId: ws.id, id: row.id });
       // Publishing a paused form resumes it.

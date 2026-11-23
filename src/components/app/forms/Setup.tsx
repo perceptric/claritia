@@ -17,6 +17,7 @@ import { Badge, ErrorNote, errorText, must, postJson, useLoad, type ViewProps } 
 import { Select } from "../Select";
 import { Ic } from "./ic";
 import { AREA, Box, CARD, CROW, CSTACK, GHOST_SM, GHOST_SM_RED, IN, IN_FIT, RowText, Seg, useNote, Tg } from "./parts";
+import { UserError } from "@/lib/errors";
 
 export type SetupSub = "access" | "alerts" | "reply" | "consent" | "spam" | "tracking" | "data";
 
@@ -458,7 +459,7 @@ function Data({ sb, session, form, apply, formId, subs, name }: Props) {
               setError("");
               try {
                 const res = await fetch(`/api/forms/${formId}/export?filters=${encodeURIComponent("{}")}`, { headers: { Authorization: `Bearer ${session.access_token}` } });
-                if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? "The export didn't finish.");
+                if (!res.ok) throw new UserError(((await res.json().catch(() => ({}))) as { error?: string }).error ?? "The export didn't finish.");
                 const a = document.createElement("a");
                 a.href = URL.createObjectURL(await res.blob());
                 a.download = /filename="([^"]+)"/.exec(res.headers.get("content-disposition") ?? "")?.[1] ?? "answers.csv";

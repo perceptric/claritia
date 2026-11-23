@@ -12,6 +12,7 @@ import { cut, pickHost, pickPair, slots as engine, type HostInput, type Turns } 
 import { pickTeamHost, recordTeamRun, teamOf, type Team } from "./team.ts";
 import { dateIn, weekOf } from "./time.ts";
 import type { Availability, MeetingSource, MeetingType, Slot } from "./types.ts";
+import { dbError } from "../errors.ts";
 
 const MIN = 60_000;
 
@@ -45,7 +46,7 @@ export function withDaysOff(a: Availability, out: { from: string; to: string }[]
 
 async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Promise<T> {
   const { data, error } = await rpc(fn, args);
-  if (error) throw new Error(error.message);
+  if (error) throw dbError(error);
   return data as T;
 }
 
@@ -282,9 +283,9 @@ export async function book(rpc: Rpc, bIn: BookInput): Promise<BookResult> {
     p_location: s.location,
     p_booked_by: b.bookedBy ?? null,
   };
-  const refused = async (message: string): Promise<BookResult> => {
-    const code = (["slot_taken", "full", "link_used", "link_closed"] as const).find((c) => message.includes(c));
-    if (!code) throw new Error(message);
+  const refused = async (e: { message: string; code?: string }): Promise<BookResult> => {
+    const code = (["slot_taken", "full", "link_used", "link_closed"] as const).find((c) => e.message.includes(c));
+    if (!code) throw dbError(e);
     return { ok: false, error: code, slots: code.startsWith("link") ? [] : (await fresh()).filter((x) => x.start !== b.start) };
   };
   // One transaction (090): the meeting, its sealed manage token, the team's run (the owner's pick isn't a new turn),
@@ -293,12 +294,12 @@ export async function book(rpc: Rpc, bIn: BookInput): Promise<BookResult> {
   const teamArg = teamPick && teamPick.by !== "owner" && queue ? { queue, owner: teamPick.user, version: team?.team?.version ?? null } : null;
   const all = await callNewer(rpc, "meeting_book_all", { ...args, p_sealed: sealedToken(token), p_team: teamArg, p_contact_row: contactId ? null : ((await b.guestRow) ?? null), p_sync: !b.pending });
   if (all) {
-    if (all.error) return refused(all.error.message);
+    if (all.error) return refused(all.error);
     return { ok: true, meetingId: (all.data as { id: string }).id, token, hosts, start: b.start, end, tail: true };
   }
   // Before 090: the same steps, one call each.
   const { data, error } = await rpc("meeting_book", args);
-  if (error) return refused(error.message);
+  if (error) return refused(error);
   const meetingId = data as string;
   if (teamPick) await recordTeamRun(rpc, { ws: b.ws, type: b.type, team: team!.team, meetingId, contactId, pick: teamPick }).catch(() => undefined);
   // A sealed copy of the guest's link, so the emails sent later can carry it (only its hash is the key). The meeting

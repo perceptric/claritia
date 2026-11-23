@@ -9,7 +9,7 @@ import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { lockFor, planRefusal } from "@/lib/planGate";
 import { toolFeature } from "@/lib/plans";
-import { bad } from "@/lib/http";
+import { bad, fail } from "@/lib/http";
 import { omniscientBase } from "@/lib/sources/omniscient";
 
 // Connect a tool: POST { workspaceId, kind, keys?, hookSecret?, settings? }. A tool that signs in on Composio
@@ -86,6 +86,6 @@ export async function POST(request: Request) {
   } catch (err) {
     const line = planRefusal(err instanceof Error ? err.message : null);
     if (line) return bad(line, 402);
-    return bad(err instanceof Error ? err.message.slice(0, 300) : "Could not connect.", 502);
+    return fail(err, 502);
   }
 }

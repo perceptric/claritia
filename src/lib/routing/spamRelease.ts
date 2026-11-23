@@ -11,6 +11,7 @@ import type { Rpc } from "../jobs.ts";
 import { fieldsFor, membersOf } from "../router/actions.ts";
 import { childPreview, childRun, type ChildResult } from "./recovery.ts";
 import type { Caller, Deps } from "./screens.ts";
+import { UserError } from "../errors.ts";
 
 /** Whether a Spam row came from the routing spam check, and so needs routing when it's let in. */
 export const routedSpam = (s: { spam_reason: string | null; contact_id: string | null }) => s.spam_reason === "routing" && !!s.contact_id;
@@ -21,14 +22,14 @@ export async function routeSpamLead(rpc: Rpc, db: SupabaseClient, o: { ws: strin
     run_id: string;
     state: string;
   } | null;
-  if (!item) throw new Error("This lead's routing is gone.");
+  if (!item) throw new UserError("This lead's routing is gone.");
   if (item.state === "resolved") return { owner: null };
   const c: Caller = { ws: o.ws, user: o.user, role: "owner" };
   const deps: Deps = { members: () => membersOf(rpc, db, o.ws, { fresh: true }), fields: async () => (await fieldsFor(db, o.ws)).fields };
   const act = (action: string, reason: string | null = null) => rpc("routing_review_act", { p_ws: o.ws, p_review: item.id, p_action: action, p_user: o.user, p_reason: reason, p_revision: null, p_op: null });
   if (item.state === "dismissed") {
     const r = await act("reopen");
-    if (r.error) throw new Error("Try again in a moment.");
+    if (r.error) throw new UserError("Try again in a moment.");
   }
   const op = randomUUID().replace(/-/g, "");
   try {
@@ -36,10 +37,10 @@ export async function routeSpamLead(rpc: Rpc, db: SupabaseClient, o: { ws: strin
     // A change between the preview and the commit (a rep went away) comes back as "changed": preview again, once.
     for (let i = 0; i < 2 && (!res || res.status === "changed"); i++) {
       const p = await childPreview(rpc, c, deps, { run: item.run_id, clearHold: true });
-      if (!p.ref) throw new Error("No published routing can route this lead.");
+      if (!p.ref) throw new UserError("No published routing can route this lead.");
       res = await childRun(rpc, c, deps, { run: item.run_id, clearHold: true, op, ref: p.ref });
     }
-    if (!res || res.status === "changed") throw new Error("The team changed while routing. Try again.");
+    if (!res || res.status === "changed") throw new UserError("The team changed while routing. Try again.");
     // No rep could take it (all away or at their cap): it's let in, unassigned, like any lead with nowhere to go.
     return { owner: res.status === "resolved" ? res.owner : null };
   } catch (e) {

@@ -3,6 +3,7 @@ import { CalendarRefused, type Caller } from "@/lib/meetings/providers/connect";
 import { requireUser, roleIn } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { isUuid } from "@/lib/uuid";
+import { publicMessage } from "@/lib/http";
 
 // The signed-in routes under /api/calendar: the caller signs in and names a workspace they're in; the work runs with
 // the service client after the checks in src/lib/meetings/providers/connect.ts. Refusals go back with their status.
@@ -21,6 +22,6 @@ export async function asCaller(request: Request, fn: (rpc: Rpc, c: Caller, body:
     return Response.json(await fn(rpc, { ws, user: auth.user.id, role, email: auth.user.email ?? undefined }, body));
   } catch (e) {
     if (e instanceof CalendarRefused) return Response.json({ error: e.message }, { status: e.status });
-    return Response.json({ error: e instanceof Error ? e.message.slice(0, 300) : "Something went wrong." }, { status: 502 });
+    return Response.json({ error: publicMessage(e).slice(0, 300) }, { status: 502 });
   }
 }

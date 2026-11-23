@@ -10,6 +10,7 @@ import { applyConditions } from "@/lib/design/email/compile";
 import { HTML_FIELDS, isSystemKey, sampleVars } from "@/lib/meetings/systemEmails";
 import { fillFields, type Vars } from "@/lib/meetings/systemSend";
 import { isUuid } from "@/lib/uuid";
+import { fail } from "@/lib/http";
 
 type Db = NonNullable<ReturnType<typeof serviceClient>>;
 
@@ -68,7 +69,7 @@ export async function POST(request: Request) {
     }
     const subject = words ? `[Test] ${words.slice(0, 190)}` : "[Test] Email";
     const { data: messageId, error } = await send(db, ws, auth.user.id, { kind: "test", name: "Test", subject, preheader, html: built.html, text: built.text, links: extractLinks(built.html), marketing: true });
-    if (error) return Response.json({ error: error.message }, { status: 500 });
+    if (error) return fail(error, 500);
     return Response.json({ ok: true, messageId });
   }
 
@@ -84,6 +85,6 @@ export async function POST(request: Request) {
 </div></body></html>`;
   const text = `Sending works\n\nThis test came from ${from} through Claritia.\n\nOpen Claritia: ${site}/settings\n`;
   const { data: messageId, error } = await send(db, ws, auth.user.id, { kind: "test", name: "Test", subject: "Test email from Claritia", preheader: "Sending works.", html, text, links: extractLinks(html), marketing: true });
-  if (error) return Response.json({ error: error.message }, { status: 500 });
+  if (error) return fail(error, 500);
   return Response.json({ ok: true, messageId });
 }

@@ -3,6 +3,7 @@ import { adsAccounts, adsActions, adsReady } from "@/lib/sources/ads";
 import { deps } from "@/lib/sources/run";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
+import { publicMessage } from "@/lib/http";
 
 // Settings › Tracking's Google Ads picker (docs/integrations-plan.md, Next step 2), read live from Google Ads.
 //   POST { workspaceId }                     → { accounts: [{ customer, login, name }] }
@@ -32,6 +33,6 @@ export async function POST(request: Request) {
     }
     return Response.json({ accounts: (await adsAccounts(d.ctx)).slice(0, 200) }, { headers: { "cache-control": "no-store" } });
   } catch (e) {
-    return bad(`Couldn't read Google Ads: ${String((e as Error).message ?? e).slice(0, 200)}`, 502);
+    return bad(publicMessage(e), 502);
   }
 }

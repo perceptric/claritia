@@ -10,6 +10,7 @@
 //     - check: The total drops 10%
 
 import { parse, stringify } from "yaml";
+import { UserError } from "./errors.ts";
 
 export type TextStep = { id: string; kind: "do" | "check"; text: string };
 export type UseStep = { id: string; kind: "use"; block: string };
@@ -62,7 +63,7 @@ export function toYaml(doc: TestDoc, blocks: BlockRef[]): string {
   return stringify({ name: doc.name, use_case: doc.use_case, priority: doc.priority, steps }, { lineWidth: 0 });
 }
 
-export class TestFileError extends Error {}
+export class TestFileError extends UserError {}
 
 /**
  * Read YAML back into a test. Throws TestFileError with a plain message when something is wrong.

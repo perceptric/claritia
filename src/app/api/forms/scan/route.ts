@@ -6,7 +6,7 @@ import { hostIsPrivate } from "@/lib/privateNet";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { isUuid } from "@/lib/uuid";
-import { bad } from "@/lib/http";
+import { bad, fail } from "@/lib/http";
 
 // Read a site's brand into a brand kit: POST { workspaceId, url, kitId?, formId? } (docs/brand-capture.md). The quick
 // read fills the kit within seconds; the deep read and the brand book follow in the background, then the runner's
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
   if (!db) return bad("The server is not set up for this.", 500);
   const uuid = (v: unknown) => (typeof v === "string" && isUuid(v) ? v : null);
   const { data, error } = await db.rpc("brand_scan_start", { p_user: auth.user.id, p_ws: b.workspaceId, p_url: u.href, p_kit: uuid(b.kitId), p_form: uuid(b.formId) });
-  if (error) return bad(error.message);
+  if (error) return fail(error);
   const kitId = data as string;
   // 1. The quick read (docs/brand-capture.md): the look from the home page and its stylesheets now, so the kit is
   // ready in seconds whatever the runner is doing.

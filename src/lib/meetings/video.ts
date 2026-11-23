@@ -5,6 +5,7 @@
 // Endpoints are from each tool's docs and are checked against a real account before launch (check).
 
 import type { Ctx } from "../sources/types.ts";
+import { UserError } from "../errors.ts";
 
 export type VideoKind = "webex" | "whereby";
 export type VideoMade = { id: string; joinUrl: string };
@@ -28,7 +29,7 @@ export function webexClient(ctx: Ctx): VideoClient {
         method: "POST",
         body: JSON.stringify({ title: m.topic.slice(0, 128), start: iso(m.start), end: iso(m.end), timezone: "UTC", enabledAutoRecordMeeting: false, allowAnyUserToBeCoHost: false }),
       });
-      if (!d?.id || !d.webLink) throw new Error("Webex didn't make the meeting.");
+      if (!d?.id || !d.webLink) throw new UserError("Webex didn't make the meeting.");
       return { id: d.id, joinUrl: d.webLink };
     },
     async move(id, start, end, topic) {
@@ -56,7 +57,7 @@ export function wherebyClient(ctx: Ctx): VideoClient {
       headers: auth,
       body: JSON.stringify({ startDate: iso(m.start), endDate: iso(m.end + GRACE), isLocked: false, roomMode: "normal" }),
     });
-    if (!d?.meetingId || !d.roomUrl) throw new Error("Whereby didn't make the room.");
+    if (!d?.meetingId || !d.roomUrl) throw new UserError("Whereby didn't make the room.");
     return { id: String(d.meetingId), joinUrl: d.roomUrl };
   };
   const cancel = async (id: string) => {

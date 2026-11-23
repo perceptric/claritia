@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { cleaningCtx } from "../contacts/server.ts";
 import { lookCss, needsStudio, studioForm, type KitLook } from "./liveForm.ts";
+import { publicMessage } from "../http.ts";
 
 // Keeping an older form as a Studio page for good (docs/forms-chat-plan.md Part 8). Its draft becomes a page, and its
 // live version is published again as the page visitors already get (src/lib/forms/server.ts converts it as it's
@@ -50,12 +51,12 @@ export async function persistStudio(db: SupabaseClient, formId: string): Promise
     if (error && /form_to_studio|PGRST202|does not exist/i.test(error.message)) {
       if (!draft) return out;
       const up = await db.from("forms").update({ draft, updated_at: new Date().toISOString() }).eq("id", row.id);
-      return up.error ? { ...out, error: up.error.message } : { ...out, draft: true };
+      return up.error ? { ...out, error: publicMessage(up.error) } : { ...out, draft: true };
     }
-    if (error) return { ...out, error: error.message };
+    if (error) return { ...out, error: publicMessage(error) };
     const r = (res ?? {}) as { draft?: boolean; live?: boolean };
     return { ...out, draft: !!r.draft, live: !!r.live };
   } catch (e) {
-    return { ...out, error: e instanceof Error ? e.message : "The form couldn't be moved into the Studio." };
+    return { ...out, error: publicMessage(e) };
   }
 }

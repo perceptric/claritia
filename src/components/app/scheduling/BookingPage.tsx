@@ -31,6 +31,7 @@ import { IconSeg, Labeled, PanelFooter, PanelSection } from "./panel";
 import { WelcomeEditor } from "./WelcomeEditor";
 import { welcomeText } from "@/lib/meetings/welcome";
 import { svgDataUri } from "@/lib/brand/svgData";
+import { UserError } from "@/lib/errors";
 
 type Info = {
   team: string | null;
@@ -203,7 +204,7 @@ export function BookingPage(props: ViewProps) {
       const res = await fetch("/api/studio", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ workspaceId: ws.id, mode: "look", kitId: kit.id }) });
       let got = "";
       await readLines<{ css?: string; error?: string }>(res, (l) => {
-        if (l.error) throw new Error(l.error);
+        if (l.error) throw new UserError(l.error);
         if (l.css) got = l.css;
       });
       if (got) setReadCss((m) => ({ ...m, [kit.id]: got }));
@@ -511,7 +512,7 @@ function Photo({ session, ws, name, value, onChange, onError }: { session: ViewP
       body.append("file", small, "photo.jpg");
       const res = await fetch("/api/assets", { method: "POST", headers: { Authorization: `Bearer ${session.access_token}` }, body });
       const out = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
-      if (!res.ok || !out.url) throw new Error(out.error ?? "Try again in a moment.");
+      if (!res.ok || !out.url) throw new UserError(out.error ?? "Try again in a moment.");
       onChange(out.url);
     } catch (e) {
       onError(errorText(e));
@@ -564,10 +565,10 @@ async function squareJpeg(file: File, size: number): Promise<Blob> {
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("This browser can't read the image.");
+  if (!ctx) throw new UserError("This browser can't read the image.");
   ctx.drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, size, size);
   bitmap.close();
-  return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("This browser can't read the image."))), "image/jpeg", 0.85));
+  return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new UserError("This browser can't read the image."))), "image/jpeg", 0.85));
 }
 
 /**

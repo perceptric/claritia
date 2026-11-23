@@ -26,6 +26,8 @@ import { WorkflowEditor } from "./Editor";
 import { ensureMeetingSetup } from "./meetingSetup";
 import { kitsBrandFirst } from "@/lib/brand/workspaceKit";
 import { isUuid } from "@/lib/uuid";
+import { errorText } from "@/lib/attempt";
+import { dbError } from "@/lib/errors";
 
 type Row = { id: string; name: string; status: "draft" | "live" | "paused"; folder_id: string | null; meeting_kind: string | null; draft: unknown; updated_at: string };
 type FolderRow = { id: string; name: string; position: number };
@@ -75,7 +77,7 @@ export function WorkflowsHome(props: ViewProps & { describe?: (done: () => void)
     async (fn: () => PromiseLike<{ error: { message: string } | null }>) => {
       setError("");
       const { error: e } = await fn();
-      if (e) setError(e.message);
+      if (e) setError(errorText(dbError(e)));
       reload();
     },
     [reload],

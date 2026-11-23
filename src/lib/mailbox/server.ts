@@ -6,6 +6,7 @@ import { call, type Rpc } from "../jobs.ts";
 import { openToken, sealToken } from "../meetings/providers/index.ts";
 import { oauthExchange, oauthReady, oauthUrl, type State } from "../sources/oauth.ts";
 import { MAILBOX_OAUTH, PROVIDER_LABEL, sendAs, type MailOut } from "./send.ts";
+import { UserError } from "../errors.ts";
 
 export type Provider = keyof typeof MAILBOX_OAUTH;
 export const isProvider = (v: unknown): v is Provider => v === "gmail" || v === "outlook";
@@ -19,16 +20,16 @@ export function mailboxUrl(provider: Provider, redirect: string, s: { ws: string
 /** The person came back with a code: trade it, read which mailbox it is, and keep it. */
 export async function finishMailbox(rpc: Rpc, o: { state: State; code: string; redirect: string; fetcher?: typeof fetch }): Promise<{ id: string; email: string; provider: Provider }> {
   const provider = (Object.entries(MAILBOX_OAUTH).find(([, k]) => k === o.state.kind)?.[0] ?? null) as Provider | null;
-  if (!provider) throw new Error("Unknown mailbox.");
+  if (!provider) throw new UserError("Unknown mailbox.");
   const t = await oauthExchange(o.state.kind, o.code, o.redirect, o.state.verifier, o.fetcher);
-  if (!t.refresh) throw new Error(`${PROVIDER_LABEL[provider]} didn't allow sending later. Try again and allow access.`);
+  if (!t.refresh) throw new UserError(`${PROVIDER_LABEL[provider]} didn't allow sending later. Try again and allow access.`);
   const who = await (o.fetcher ?? fetch)(provider === "gmail" ? "https://www.googleapis.com/oauth2/v2/userinfo" : "https://graph.microsoft.com/v1.0/me?$select=mail,userPrincipalName", {
     headers: { authorization: `Bearer ${t.access}` },
     signal: AbortSignal.timeout(10_000),
   });
   const j = (await who.json().catch(() => ({}))) as { email?: string; mail?: string; userPrincipalName?: string };
   const email = (j.email ?? j.mail ?? j.userPrincipalName ?? "").toLowerCase();
-  if (!/^[^\s@]+@[^\s@]+$/.test(email)) throw new Error(`${PROVIDER_LABEL[provider]} didn't say which mailbox this is.`);
+  if (!/^[^\s@]+@[^\s@]+$/.test(email)) throw new UserError(`${PROVIDER_LABEL[provider]} didn't say which mailbox this is.`);
   const id = await call<string>(rpc, "mailbox_connect", { p_ws: o.state.ws, p_user: o.state.user, p_provider: provider, p_email: email, p_sealed: sealToken({ access: t.access, refresh: t.refresh, expiresAt: t.expiresAt }) });
   return { id, email, provider };
 }

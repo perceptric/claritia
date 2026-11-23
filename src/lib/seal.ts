@@ -1,4 +1,5 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
+import { UserError } from "./errors.ts";
 
 // Secrets are sealed with AES-256-GCM before they reach the database, using a key only the servers hold.
 // Format: v1:<iv>:<tag>:<ciphertext>, each part base64.
@@ -18,7 +19,7 @@ export function seal(value: string, secret = process.env.SECRETS_KEY): string {
 
 export function unseal(sealed: string, secret = process.env.SECRETS_KEY): string {
   const [version, iv, tag, body] = sealed.split(":");
-  if (version !== "v1" || !iv || !tag || body === undefined) throw new Error("This secret is not in a format Claritia can read.");
+  if (version !== "v1" || !iv || !tag || body === undefined) throw new UserError("This secret is not in a format Claritia can read.");
   const decipher = createDecipheriv("aes-256-gcm", keyFrom(secret), Buffer.from(iv, "base64"));
   decipher.setAuthTag(Buffer.from(tag, "base64"));
   return Buffer.concat([decipher.update(Buffer.from(body, "base64")), decipher.final()]).toString("utf8");

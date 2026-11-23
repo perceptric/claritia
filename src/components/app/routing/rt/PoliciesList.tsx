@@ -17,8 +17,9 @@ import { AlertsDialog } from "../Publish";
 import { Button, ErrorNote, Input, invalidate, Page, type ViewProps } from "../../ui";
 import { RouteSketch } from "../screenParts";
 import { toast } from "../Toast";
-import { ApiError, newKey, rt, type Screen } from "./api";
+import { newKey, rt, type Screen } from "./api";
 import { namesOf, State, when } from "./parts";
+import { errorText } from "@/lib/attempt";
 
 type Start = "solo" | "conditions";
 
@@ -177,7 +178,7 @@ export function CreateDialog({ start, onClose, onCreate }: { start: Start; onClo
     try {
       await onCreate(name.trim(), pick, key.current);
     } catch (e) {
-      setError(e instanceof ApiError || e instanceof Error ? e.message : "Couldn't create the policy.");
+      setError(errorText(e));
       setBusy(false);
     }
   };

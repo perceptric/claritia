@@ -3,6 +3,7 @@
 // The pipeline (sync.ts) does the rest: mapping, cleaning, consent, links, echoes and the sync log.
 
 import type { Target } from "../contacts/fields.ts";
+import { UserError } from "../errors.ts";
 
 export type Group = "crm" | "email" | "sheets" | "form" | "event" | "product" | "warehouse" | "api" | "ads" | "chat" | "docs" | "files";
 export type ObjectKind = "contacts" | "companies" | "opportunities" | "lists" | "suppressions" | "events" | "records";
@@ -208,8 +209,8 @@ export type Connector = {
   guess?: boolean;
 };
 
-export class AuthError extends Error {}
-export class RateLimited extends Error {
+export class AuthError extends UserError {}
+export class RateLimited extends UserError {
   retryAfterS: number;
   constructor(message: string, retryAfterS: number) {
     super(message);

@@ -8,6 +8,7 @@ import { walk } from "@/lib/workflows/tree";
 import type { Step } from "@/lib/workflows/types";
 import { mergeCopies, withFooter, type EmailCopy } from "@/lib/workflows/stepEmails";
 import { isUuid } from "@/lib/uuid";
+import { fail } from "@/lib/http";
 
 // Make live (docs/enrich-workflows-reports.md 2.4): POST { workflowId, note } checks the saved draft, renders each
 // email, and publishes a new version. An email built with blocks is compiled here with its brand kit's published
@@ -65,6 +66,6 @@ export async function POST(request: Request) {
     emails.push({ step: s.id, subject: s.email.subject, preheader: s.email.preheader, html: r.html, text: r.text, links: r.links });
   });
   const { data, error } = await db.rpc("workflow_publish", { p_id: id, p_user: auth.user.id, p_body: body, p_emails: emails, p_note: typeof b.note === "string" ? b.note.slice(0, 300) : null });
-  if (error) return bad(error.message, 500);
+  if (error) return fail(error, 500);
   return Response.json({ version: data });
 }

@@ -1,5 +1,6 @@
 import { requireUser } from "@/lib/serverAuth";
 import { importFiles } from "@/lib/transfer";
+import { fail } from "@/lib/http";
 
 const MAX_FILES = 200;
 const MAX_BYTES = 2_000_000;
@@ -35,7 +36,7 @@ export async function POST(request: Request) {
   });
   if (rows.length) {
     const { error } = await auth.sb.from("tests").insert(rows);
-    if (error) return Response.json({ error: error.message }, { status: 400 });
+    if (error) return fail(error, 400);
   }
   return Response.json({ imported: rows.map((r) => r.name), skipped: result.skipped });
 }

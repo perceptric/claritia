@@ -11,6 +11,7 @@ import { cached, must } from "../ui";
 import { meetingTypes } from "../meetings/TypesList";
 import { workspacePeople } from "../shared";
 import { byId, type Names } from "./model";
+import { UserError } from "@/lib/errors";
 
 export type Workflow = { id: string; name: string; status: "draft" | "live" | "paused"; draft: unknown; draft_revision: number; live_version: number | null; updated_at: string; /** A meeting workflow (165). */ meeting_kind?: string | null };
 export type Version = { version: number; note: string | null; published_at: string; published_by: string | null; body: unknown };
@@ -55,7 +56,7 @@ export async function loadWorkflow(sb: SupabaseClient, ws: string, id: string): 
     sb.rpc("workflow_stats", { p_id: id }),
   ]);
   const wf = must(row) as Workflow | null;
-  if (!wf) throw new Error("Workflow not found.");
+  if (!wf) throw new UserError("Workflow not found.");
   const vs = (must(versions) ?? []) as Version[];
   const liveRow = wf.live_version ? vs.find((v) => v.version === wf.live_version) : null;
   return {

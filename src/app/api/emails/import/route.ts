@@ -2,7 +2,7 @@ import { cleanPeople, parsePeople, type Given, type Pasted } from "@/lib/emails/
 import { requireUser, roleIn } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { isUuid } from "@/lib/uuid";
-import { bad } from "@/lib/http";
+import { bad, fail, publicMessage } from "@/lib/http";
 
 // Add people to a list (docs/email-studio-plan.md Parts 4 and 10, and step 2 of the Brew comparison): POST
 // { workspaceId, listId, consent, text } with people pasted one a line, or { ..., rows, fileName } with people from a
@@ -24,11 +24,11 @@ async function addPeople(db: Db, ws: string, list: string | null, rows: Pasted[]
   for (let i = 0; i < rows.length; i += BATCH) {
     const part = rows.slice(i, i + BATCH);
     const { data, error } = await db.rpc("contacts_upsert", { p_ws: ws, p_source: "import", p_rows: part.map((r) => (consent ? { ...r, basis: "opt_in" } : r)) });
-    if (error) return { error: added ? `Added ${added.toLocaleString("en-US")}, then: ${error.message}` : error.message };
+    if (error) return { error: added ? `Added ${added.toLocaleString("en-US")}, then: ${publicMessage(error)}` : publicMessage(error) };
     const ids = ((data as { ids?: string[] } | null)?.ids ?? []).filter((x) => isUuid(x));
     if (ids.length && list) {
       const { error: e2 } = await db.from("list_members").upsert(ids.map((contact_id) => ({ list_id: list, contact_id, workspace_id: ws })), { onConflict: "list_id,contact_id", ignoreDuplicates: true });
-      if (e2) return { error: e2.message };
+      if (e2) return { error: publicMessage(e2) };
     }
     added += ids.length;
     created += (data as { created?: number } | null)?.created ?? 0;
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
     if (role !== "owner") return bad("Only an owner can add these people.", 403);
     if (!isUuid(b.importId) || (b.action !== "add" && b.action !== "discard")) return bad("Import not found.", 404);
     const held = await db.from("contact_imports").select("id, list_id, people, file_name").eq("id", b.importId).eq("workspace_id", ws).maybeSingle();
-    if (held.error) return bad(held.error.message, 500);
+    if (held.error) return fail(held.error, 500);
     if (!held.data) return bad("Import not found.", 404);
     const h = held.data as { id: string; list_id: string; people: Pasted[]; file_name: string };
     let added = 0;
@@ -69,7 +69,7 @@ export async function POST(request: Request) {
       await logImport(db, { workspace_id: ws, list_id: h.list_id, list_name: (ln.data as { name?: string } | null)?.name ?? "", file_name: h.file_name, rows_in: h.people.length, added: r.added, created: r.created, created_by: auth.user.id });
     }
     const { error } = await db.from("contact_imports").delete().eq("id", h.id).eq("workspace_id", ws);
-    if (error) return bad(error.message, 500);
+    if (error) return fail(error, 500);
     return Response.json({ added });
   }
 
@@ -91,7 +91,7 @@ export async function POST(request: Request) {
   const rowsIn = given?.length ?? rows.length + skipped + disposable;
   if (!consent && role !== "owner") {
     const { error } = await db.from("contact_imports").insert({ workspace_id: ws, list_id: list, people: rows, file_name: fileName, created_by: auth.user.id });
-    if (error) return bad(error.message, 500);
+    if (error) return fail(error, 500);
     await logImport(db, { workspace_id: ws, list_id: list, list_name: listName, file_name: fileName, rows_in: rowsIn, skipped, disposable, shared, held: rows.length, created_by: auth.user.id });
     return Response.json({ added: 0, held: rows.length, skipped, disposable, shared });
   }

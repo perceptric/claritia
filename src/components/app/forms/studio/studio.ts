@@ -1,6 +1,7 @@
 /* eslint-disable */
 // @ts-nocheck
 import { checkForm, DEFAULT_CONSENT, emptyForm } from "../../../../lib/forms/schema";
+import { userMessage } from "../../../../lib/errors";
 import { formToPage } from "../../../../lib/studio/fromForm";
 import { checkStudioPage } from "../../../../lib/studio/check";
 import { cleanPage, isRouting } from "../../../../lib/studio/page";
@@ -22,6 +23,7 @@ import { TIA_STYLE, tiaSvg } from "../../../../lib/studio/tia";
 import { cleanMessages, cleanTitle, earlierMessages, turnsOf, whenWords } from "../../../../lib/studio/threads";
 import { markSvg } from "../../../Logo";
 import type { StudioTemplate } from "../../../../lib/forms/gallery/studioList";
+import { UserError } from "@/lib/errors";
 
 // Form Studio (docs/forms-chat-plan.md, docs/studio-v2-plan.md): the form's pages on the left, the live form in the
 // middle with Tia's bar under it (one place to talk to Tia; each form keeps its chats, Part 13), and the panel on the
@@ -2700,7 +2702,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
     file.addEventListener("change", async () => {
       const f = file.files?.[0]; if (!f) return;
       up.disabled = true;
-      try { const pic = await api.uploadPicture(f); if (alive) choose(pic); } catch (e) { toast(e?.message || "Couldn't upload this photo. Try again."); up.disabled = false; }
+      try { const pic = await api.uploadPicture(f); if (alive) choose(pic); } catch (e) { toast(userMessage(e) || "Couldn't upload this photo. Try again."); up.disabled = false; }
     });
     grid.append(up, file);
     const small = (pic) => ((pic.sizes || []).includes(640) ? sizedUrl(pic.url, 640) : pic.url);
@@ -2904,7 +2906,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
         for (const x of brands) {
           if (galleryDel === x.id) {
             g.append(h("div", { class: "tcell" }, h("div", { class: "mdel" }, h("span", { class: "q", text: `Delete ${x.name}?` }), h("div", {}, h("button", { class: "pill primary", text: "Delete", onclick: async () => {
-              try { await api.deleteBrand(x.id); } catch (e) { galleryDel = ""; toast(e?.message || "Couldn't delete the brand."); return fill(); }
+              try { await api.deleteBrand(x.id); } catch (e) { galleryDel = ""; toast(userMessage(e) || "Couldn't delete the brand."); return fill(); }
               brands = brands.filter((y) => y.id !== x.id); galleryDel = "";
               brandUi(); draw(); renderLog(); fill();
             } }), h("button", { class: "pill", text: "Keep", onclick: () => { galleryDel = ""; fill(); } })))));
@@ -3046,7 +3048,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
     const b = brandOf(cur);
     TG.making = t.id; tplUi();
     let pg = null;
-    try { pg = await api.templatePage(t.id, b?.css || undefined); } catch (e) { toast(e?.message || "Couldn't open this template. Try again."); }
+    try { pg = await api.templatePage(t.id, b?.css || undefined); } catch (e) { toast(userMessage(e) || "Couldn't open this template. Try again."); }
     TG.making = ""; tplUi();
     if (!pg || !alive || built()) return;
     PK = { t, ...pg, logo: b?.css ? b.logo : null };
@@ -3077,7 +3079,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
       if (r.workflowError) toast(r.workflowError);
       api.openForm(r.id);
     } catch (e) {
-      toast(e?.message || "Couldn't use this template. Try again.");
+      toast(userMessage(e) || "Couldn't use this template. Try again.");
     } finally { TG.making = ""; if (alive) { peekUi(); tplUi(); } }
   }
   /** The empty canvas: the templates, or the skeleton while Tia builds. */
@@ -3477,7 +3479,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
         await api.saveTeam({ id: t.id, name: t.name, revision: t.revision ?? 0, method: p.method ?? method, members: p.members ?? t.members });
         toast("Team saved");
       } catch (e) {
-        toast(e?.message || "Couldn't save the team. Try again.");
+        toast(userMessage(e) || "Couldn't save the team. Try again.");
       }
       // Read the team again (its new revision, or what someone else saved meanwhile).
       try { FACTS = await api.routingFacts(); } catch {}
@@ -3522,7 +3524,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
         toast("Team created");
       } catch (e) {
         go.disabled = false;
-        toast(e?.message || "Couldn't create the team. Try again.");
+        toast(userMessage(e) || "Couldn't create the team. Try again.");
       }
     };
     setTimeout(() => name.focus(), 0);
@@ -3576,7 +3578,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
       save(true); pubUi();
       return r.formId;
     } catch (e) {
-      toast(e?.message || "Couldn't save the form. Try again.");
+      toast(userMessage(e) || "Couldn't save the form. Try again.");
       return "";
     }
   }
@@ -3607,14 +3609,14 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
       // Send to: CRMs and webhooks.
       const list = h("div", { class: "arow" });
       for (const d of sends) list.append(h("span", { class: "pill" }, h("span", { html: logoImg(d.domain) }), h("span", { text: d.name }), h("button", { class: "ib sm", "aria-label": `Stop sending to ${d.name}`, html: SVG(P.x, 12), onclick: async () => { if (await api.removeSend(d)) void loadExtra(true); } })));
-      const addSend = async (to) => { const id = await ensureForm(); if (!id) return; try { if (await api.addSend(id, to)) void loadExtra(true); } catch (e) { toast(e?.message || "Couldn't add it. Try again."); } };
+      const addSend = async (to) => { const id = await ensureForm(); if (!id) return; try { if (await api.addSend(id, to)) void loadExtra(true); } catch (e) { toast(userMessage(e) || "Couldn't add it. Try again."); } };
       const have = new Set(sends.map((d) => d.name));
       list.append(menuPill("Add", [...(extra.tools || []).filter((t) => !have.has(t.name)).map((t) => [t.name, () => addSend(t)]), ...((extra.tools || []).length ? ["sep"] : []), ["Webhook", () => addSend("webhook")]], "Send to"));
       body0.append(list);
     } else if (now === "list") {
       // Add to a list: each fill joins these lists in Emails › Audiences (list_forms, 157).
       const row = h("div", { class: "arow" });
-      const setList = async (l, on) => { const id = await ensureForm(); if (!id) return; try { await api.setFormList(l.id, id, on); void loadExtra(true); } catch (e) { toast(e?.message || "Couldn't change it. Try again."); } };
+      const setList = async (l, on) => { const id = await ensureForm(); if (!id) return; try { await api.setFormList(l.id, id, on); void loadExtra(true); } catch (e) { toast(userMessage(e) || "Couldn't change it. Try again."); } };
       for (const l of lists) row.append(h("span", { class: "pill" }, h("span", { text: l.name }), h("button", { class: "ib sm", "aria-label": `Stop adding fills to ${l.name}`, html: SVG(P.x, 12), onclick: () => setList(l, false) })));
       const have = new Set(lists.map((l) => l.id));
       const newList = async () => { const l = await api.newList(); if (l) await setList(l, true); };
@@ -3790,7 +3792,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
       walk(copy);
       const words = slots.map((t) => (t.node ? t.node.textContent : t.el.getAttribute(t.attr)));
       const done2 = await api.translate(words, `${languageName(code)} (${code})`);
-      if (done2.length !== slots.length) throw new Error(`Tia couldn't write the ${languageName(code)} version. Try again.`);
+      if (done2.length !== slots.length) throw new UserError(`Tia couldn't write the ${languageName(code)} version. Try again.`);
       slots.forEach((t, i) => { if (t.node) t.node.textContent = done2[i]; else t.el.setAttribute(t.attr, done2[i]); });
       c.body.langs[code] = copy.innerHTML.trim();
       c.body.langFrom[code] = sig(html);
@@ -3798,7 +3800,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
       changed();
       toast(`${languageName(code)} added`);
     } catch (e) {
-      toast(e?.message || "Couldn't translate the form.");
+      toast(userMessage(e) || "Couldn't translate the form.");
     } finally {
       S.translating = "";
       if (alive) { langUi(); draw(); }
@@ -3827,7 +3829,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
       if (r.problem) S.pubMsg = r.problem;
       toast(`${c.name} is live`);
     } catch (e) {
-      S.pubMsg = e?.message || "Couldn't publish. Try again.";
+      S.pubMsg = userMessage(e) || "Couldn't publish. Try again.";
     } finally {
       S.publishing = false;
       if (alive) { pubUi(); save(true); }
@@ -3910,7 +3912,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
       if (r.say && cur?.brandId === b.id && !TH.open?.messages.length) S.hello = r.say;
       if (cur?.brandId === b.id) { draw(); if (S.mode === "code") showCode(); }
     } catch (e) {
-      b.lookErr = e?.message || `Couldn't read ${b.name}'s look.`;
+      b.lookErr = userMessage(e) || `Couldn't read ${b.name}'s look.`;
     } finally {
       looking.delete(b.id);
       if (alive) { brandUi(); renderLog(); }
@@ -4116,7 +4118,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
     draft.busy = "site"; draft.err = ""; draft.browser = false; draft.el = null;
     runStages(0, 1, 1200);
     try { draft.look = await api.readSite(host); draft.step = 2; }
-    catch (e) { draft.err = e?.message || `Couldn't open ${host}.`; draft.browser = !!e?.browser; }
+    catch (e) { draft.err = userMessage(e) || `Couldn't open ${host}.`; draft.browser = !!e?.browser; }
     finally { draft.busy = ""; clearInterval(stageT); if (alive) dialog(); }
   }
   async function scanNow() {
@@ -4131,10 +4133,10 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
         kit = await api.kit(kitId).catch(() => null);
         if (kit && (kit.logo || kit.scanStatus === "done" || kit.scanStatus === "failed")) break;
       }
-      if (!kit || kit.scanStatus === "failed") throw new Error(`Couldn't read ${host} in a browser either.`);
+      if (!kit || kit.scanStatus === "failed") throw new UserError(`Couldn't read ${host} in a browser either.`);
       draft.look = { site: host, url: `https://${host}`, name: kit.name, logo: kit.logo, logoUrl: kit.logoUrl, logoSvg: kit.logoSvg };
       draft.step = 2;
-    } catch (e) { draft.err = e?.message || `Couldn't read ${host} in a browser.`; draft.browser = false; }
+    } catch (e) { draft.err = userMessage(e) || `Couldn't read ${host} in a browser.`; draft.browser = false; }
     finally { draft.busy = ""; clearInterval(stageT); if (alive) dialog(); }
   }
   async function confirmNow() {
@@ -4151,7 +4153,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
       const old = brandOf(cur);
       if (built() && old && old.id !== kitId) { closeDialog(); useBrand(kitId); return; }
       await learnLook(b, false);
-    } catch (e) { draft.busy = ""; draft.err = e?.message || "Couldn't save the brand."; dialog(); }
+    } catch (e) { draft.busy = ""; draft.err = userMessage(e) || "Couldn't save the brand."; dialog(); }
   }
   /** The look, read with the steps showing; ends painted in the brand, or with the error and Try again. */
   async function learnLook(b, fresh) {
@@ -4189,7 +4191,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
     t.messages = cleanMessages(t.messages);
     if (!TH.local && api.saveThread) {
       try { await save(true); await api.saveThread(c.id, { id: t.id, title: t.title, messages: t.messages }); return; }
-      catch (e) { if (!e?.missing) { toast(e?.message || "Couldn't save the chat."); return; } TH.local = true; }
+      catch (e) { if (!e?.missing) { toast(userMessage(e) || "Couldn't save the chat."); return; } TH.local = true; }
     }
     if (cur === c) { c.body.threads = TH.list.map(({ id, title, mine, byName, updatedAt, messages }) => ({ id, title, mine, byName, updatedAt, messages })); save(true); }
   }
@@ -4201,7 +4203,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
     if (TH.open === t) TH.open = null;
     renderLog();
     if (TH.local || !api.deleteThread) { const c = cur; if (c) { c.body.threads = TH.list.map(({ id, title, mine, byName, updatedAt, messages }) => ({ id, title, mine, byName, updatedAt, messages })); save(true); } }
-    else api.deleteThread(t.id).catch((e) => toast(e?.message || "Couldn't delete the chat."));
+    else api.deleteThread(t.id).catch((e) => toast(userMessage(e) || "Couldn't delete the chat."));
     toast("Chat deleted");
   }
   /** Chats on this form, in the chat column in place of the messages: newest first, who started each, when, and delete. */
@@ -4306,7 +4308,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
       if (r.cut) reply.err = "The answer was cut short. Ask for a smaller change.";
     } catch (e) {
       if (e?.text) finish(c, e.text, reply, wasBuilt);
-      reply.err = e?.name === "AbortError" ? "" : e?.message || "Tia didn't finish. Try again.";
+      reply.err = e?.name === "AbortError" ? "" : userMessage(e) || "Tia didn't finish. Try again.";
     } finally {
       ctl = null;
       reply.live = false; reply.status = "";

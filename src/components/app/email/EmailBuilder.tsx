@@ -37,6 +37,7 @@ import { EmailCanvas } from "./EmailCanvas";
 import { EmailStylePanel } from "./EmailStyle";
 import { kitsBrandFirst } from "@/lib/brand/workspaceKit";
 import { emailTokens } from "@/lib/design/email/look";
+import { dbError } from "@/lib/errors";
 
 type Snap = { doc: EmailDoc; system: DesignSystem };
 type Rail = "add" | "layers";
@@ -103,7 +104,7 @@ export function EmailBuilder({
     let live = true;
     void kitsBrandFirst<Kit>(sb, workspaceId, "id, name, tokens, logo_url, notes, source_url, scan_status, scan_error, scanned_at, design, design_live, design_rev, social").then(({ data, error: e }) => {
         if (!live) return;
-        if (e) setError(e.message);
+        if (e) setError(errorText(dbError(e)));
         else setKits((data ?? []) as Kit[]);
       });
     return () => {
@@ -274,7 +275,7 @@ export function EmailBuilder({
     try {
       if (!(await draft.flush())) return;
       const { error: e } = await sb.rpc("brand_kit_design_publish", { p_id: kit.id });
-      if (e) throw new Error(e.message);
+      if (e) throw dbError(e);
       loadKits();
     } catch (e) {
       setError(errorText(e));

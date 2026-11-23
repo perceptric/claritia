@@ -6,6 +6,7 @@ import { allFields, type Form } from "../forms/schema.ts";
 import { loadMeeting } from "../meetings/public.ts";
 import { refundProvider, settleForm, settleMeeting, startMeetingPay } from "./flow.ts";
 import { isPayProvider, payClient, type PayClient, type PayProvider } from "./providers.ts";
+import { publicMessage } from "../http.ts";
 
 // PayPal and Square on the server (docs/integrations-plan.md, Next step 12): the workspace's own keys, read from its
 // connection in Settings › Integrations, and the checks the routes run.
@@ -61,6 +62,6 @@ export async function refundIfProvider(rpc: Rpc, meetingId: string): Promise<{ o
   try {
     return { ok: true, refunded: await refundProvider(rpc, client, v) };
   } catch (e) {
-    return { ok: false, reason: e instanceof Error ? e.message : "The refund didn't go through." };
+    return { ok: false, reason: publicMessage(e) };
   }
 }

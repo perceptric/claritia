@@ -6,7 +6,7 @@ import { prepareSubmit } from "@/lib/forms/submit";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { isUuid } from "@/lib/uuid";
-import { bad } from "@/lib/http";
+import { bad, fail } from "@/lib/http";
 
 // The Test button: POST { workspaceId, id }. Sends a fill marked as a test through the live version and every
 // destination (docs/form-builder.md Part 10). The app then watches its deliveries turn green or red.
@@ -28,6 +28,6 @@ export async function POST(request: Request) {
   const r = prepareSubmit(f.body, f.version, { v: 1, version: f.version, key, answers: sampleAnswers(f.body, `test+${tag}@${domain}`), ms: 60_000, consent: { given: true } }, ctx);
   if (!("args" in r)) return bad("errors" in r ? `The test lead didn't pass the form's own checks: ${Object.values(r.errors)[0]}` : r.error);
   const { data, error } = await db.rpc("form_submit", { p_form: b.id, ...r.args, p_test: true });
-  if (error) return bad(error.message);
+  if (error) return fail(error);
   return Response.json({ id: (data as { id: string }).id });
 }

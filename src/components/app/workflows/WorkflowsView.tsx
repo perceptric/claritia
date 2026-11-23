@@ -11,6 +11,7 @@ import { Branch } from "../../Icons";
 import { ErrorNote, errorText, Loading, Page, type ViewProps } from "../ui";
 import { WorkflowsHome } from "./Home";
 import { isUuid } from "@/lib/uuid";
+import { dbError } from "@/lib/errors";
 
 export function WorkflowsView(p: ViewProps & { describe?: (done: () => void) => React.ReactNode }) {
   if (p.id === "new") return <TemplatePicker {...p} />;
@@ -23,7 +24,7 @@ function TemplatePicker({ sb, ws, navigate }: ViewProps) {
   const make = useCallback(
     async (name: string, body: Body) => {
       const { data, error: e } = await sb.rpc("workflow_save", { p_ws: ws.id, p_id: null, p_name: name, p_draft: body, p_revision: null });
-      if (e) throw new Error(e.message);
+      if (e) throw dbError(e);
       const id = (data as { id: string }).id;
       // ?folder=<id> (a folder's + in the tree) files it there.
       const folder = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("folder");

@@ -8,6 +8,7 @@ import { publishFormRouting } from "@/lib/routing/formPublish";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { isUuid } from "@/lib/uuid";
+import { fail, publicMessage } from "@/lib/http";
 
 // Publish a form's draft: POST { workspaceId, id }. The draft is checked against the schema and the workspace's
 // fields first; only a clean copy goes live (docs/form-builder.md Part 3). Its routing goes live with it
@@ -41,7 +42,7 @@ export async function POST(request: Request) {
   const locks = publishLocks(r.form, await readPlan((fn, args) => db.rpc(fn, args), body.workspaceId as string));
   if (locks.refuse.length) return bad(locks.refuse[0]!, 402, { errors: locks.refuse });
   const { data, error } = await db.rpc("form_publish", { p_id: body.id, p_user: auth.user.id, p_body: r.form });
-  if (error) return bad(error.message, 500);
+  if (error) return fail(error, 500);
   // The new version shows at once on this server (others read it again within 10 seconds, or on the first send).
   forgetPublic(body.id);
   // Routing's field list includes the form's questions.
@@ -49,6 +50,6 @@ export async function POST(request: Request) {
   const schedule = r.form.after.schedule && !locks.routing ? { ...r.form.after.schedule, routes: [] } : r.form.after.schedule;
   const routing = await publishFormRouting((f, args) => db.rpc(f, args), db, { ws: body.workspaceId as string, user: auth.user.id, formId: body.id, formName: (form.name as string) ?? "Form", schedule })
     .then((x) => ({ problems: x.problems, ...(locks.note ? { locked: locks.note } : {}) }))
-    .catch((e: unknown) => ({ problems: [] as string[], error: e instanceof Error ? e.message : "Couldn't publish the routing." }));
+    .catch((e: unknown) => ({ problems: [] as string[], error: publicMessage(e) }));
   return Response.json({ version: data as number, routing });
 }

@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { hashKey, keyFromHeader } from "./apiKeys.ts";
 import { serviceClient } from "./serviceClient.ts";
+import { publicMessage } from "./http.ts";
 
 export type ApiCaller = { sb: SupabaseClient; keyId: string; workspaceId: string };
 
@@ -47,7 +48,7 @@ export type Problem = { error: string; status: number };
 /** A project of the caller's workspace, by id or name. With no ref, the workspace's only project. */
 export async function resolveProject(caller: ApiCaller, ref: unknown): Promise<ApiProject | Problem> {
   const { data, error } = await caller.sb.from("projects").select("id, name").eq("workspace_id", caller.workspaceId).order("created_at");
-  if (error) return { error: error.message, status: 500 };
+  if (error) return { error: publicMessage(error), status: 500 };
   const projects = (data ?? []) as ApiProject[];
   if (ref === undefined || ref === null || ref === "") {
     if (projects.length === 1) return projects[0]!;

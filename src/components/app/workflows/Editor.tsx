@@ -26,6 +26,8 @@ import { flowKeys, isRequiredFlow, lockedStep } from "@/lib/workflows/meetingFlo
 import { MeetingEmailPanel, type SystemRow } from "./MeetingEmailPanel";
 import { kitsBrandFirst } from "@/lib/brand/workspaceKit";
 import { draftSync } from "@/lib/workflows/draftSync";
+import { errorText } from "@/lib/attempt";
+import { dbError } from "@/lib/errors";
 
 type SaveState = "idle" | "saving" | "saved" | "retry" | "conflict";
 const STATUS: Record<"draft" | "live" | "paused", [string, Tone]> = {
@@ -276,7 +278,7 @@ export function WorkflowEditor({
     });
     if (e) {
       patch?.((d) => ({ ...d, wf: { ...d.wf, status: was } }));
-      return setError(e.message);
+      return setError(errorText(dbError(e)));
     }
     invalidate(`workflows:${ws.id}`);
     if (!patch) await reload();
@@ -291,7 +293,7 @@ export function WorkflowEditor({
     )
       return;
     const { error: e } = await sb.rpc("workflow_delete", { p_id: id });
-    if (e) return setError(e.message);
+    if (e) return setError(errorText(dbError(e)));
     savedRef.current = latest.current.n;
     goHome();
   };

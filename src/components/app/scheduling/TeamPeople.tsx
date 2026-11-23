@@ -28,6 +28,7 @@ import { rt, useScreen, type Person as RtPerson, type Team } from "../routing/rt
 import { CreateTeam, METHOD_WORDS, usedBy } from "../routing/rt/TeamsTab";
 import { toast } from "../routing/Toast";
 import { Badge, Button, ErrorNote, IconButton, invalidate, Loading, must, Segmented, Td, Th, Toggle, useQuery, type Role, type ViewProps } from "../ui";
+import { errorText } from "@/lib/attempt";
 
 type Method = keyof typeof METHOD_WORDS;
 
@@ -65,7 +66,7 @@ export function TeamPeople(props: ViewProps & { onFix: () => void }) {
     invalidate(`routing_reps:${ws.id}`);
     invalidate("app_counts");
   };
-  const fail = (e: unknown) => setError(e instanceof Error ? e.message : "Couldn't save.");
+  const fail = (e: unknown) => setError(errorText(e));
   /** A team saved with its method and every member's weight, so nothing else about it changes. */
   const saveTeam = async (t: Team, members: string[], method: string, words: string) => {
     setError("");

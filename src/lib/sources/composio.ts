@@ -1,3 +1,4 @@
+import { UserError } from "../errors.ts";
 // Composio holds the sign-in for most tools (docs/sources-setup.md, "Composio"): the person connects on Composio's
 // hosted page, Composio keeps and refreshes the tokens or keys, and each call a connector makes goes through
 // Composio's proxy execute, which signs it with the connected account. Claritia's connector code is unchanged: the
@@ -256,7 +257,7 @@ export async function composioExtras(kind: string, val: Record<string, unknown>,
       const me = await call<{ urls?: Record<string, string> }>(`${login}/services/oauth2/userinfo`).catch(() => null);
       const rest = str(me?.urls?.rest ?? me?.urls?.custom_domain);
       const origin = rest ? new URL(rest).origin : sub && !/^(login|test)$/i.test(sub) ? `https://${sub.replace(/\.my\.salesforce\.com$/i, "")}.my.salesforce.com` : "";
-      if (!ok(origin)) throw new Error("Salesforce didn't say where the org lives. Connect it again.");
+      if (!ok(origin)) throw new UserError("Salesforce didn't say where the org lives. Connect it again.");
       return { instance_url: origin };
     }
     case "pipedrive":
@@ -269,7 +270,7 @@ export async function composioExtras(kind: string, val: Record<string, unknown>,
       const h = host(str(val.instanceEndpoint ?? val.base_url) || sub);
       const region = str(val.region).toLowerCase();
       const url = h.includes(".") ? `https://${h}` : h ? `https://${h}.${/^crm\d*$/.test(region) ? region : "crm"}.dynamics.com` : "";
-      if (!/^https:\/\/[a-z0-9-]+\.crm[0-9]*\.dynamics\.com$/.test(url)) throw new Error("Dynamics 365 didn't say which environment. Connect it again.");
+      if (!/^https:\/\/[a-z0-9-]+\.crm[0-9]*\.dynamics\.com$/.test(url)) throw new UserError("Dynamics 365 didn't say which environment. Connect it again.");
       return { org_url: url };
     }
     case "gohighlevel":

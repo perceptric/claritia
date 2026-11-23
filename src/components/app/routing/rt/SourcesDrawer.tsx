@@ -15,6 +15,7 @@ import { askConfirm } from "../../Dialogs";
 import { Badge, ErrorNote, IconButton, type ViewProps } from "../../ui";
 import { rt, type FormInfo, type Screen } from "./api";
 import { Row } from "./parts";
+import { errorText } from "@/lib/attempt";
 
 type Mapping = SourceRow["mappings"][number];
 
@@ -70,7 +71,7 @@ export function SourcesDrawer({ session, ws, d, policyId, ro, onClose, onStaged 
       });
       onStaged();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't stage the change.");
+      setError(errorText(e));
     } finally {
       setBusy(false);
     }

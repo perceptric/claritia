@@ -8,7 +8,7 @@ import { viaLink } from "@/lib/share/channels";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { AUTOMATION_SYSTEM, AUTOMATION_TOOLS, automationFromWords, type FromWords, type FromWordsCtx } from "@/lib/workflows/fromWords";
-import { bad } from "@/lib/http";
+import { bad, publicMessage } from "@/lib/http";
 
 // An automation from a sentence (docs/email-studio-plan.md Part 6): POST { workspaceId, words } answers { name, body }
 // for a draft workflow, or { error }. The workspace's forms, meeting types and lists (by id, with the forms' and
@@ -56,7 +56,6 @@ export async function POST(request: Request) {
     return Response.json(result);
   } catch (e) {
     if (e instanceof OutOfCredits) return bad(e.message, 402);
-    const msg = e instanceof Error ? e.message : "";
-    return bad(`Tia didn't answer: ${msg.slice(0, 200) || "try again"}`, 502);
+    return bad(publicMessage(e), 502);
   }
 }

@@ -14,6 +14,7 @@ import { overwriteOf } from "../forms/overwrite.ts";
 import { policyFor, type SyncRules } from "../delivery/rules.ts";
 import { allFields, isContent, type Choice, type FieldType, type Form, type Overwrite } from "../forms/schema.ts";
 import { AuthError, RateLimited, type Ctx } from "./types.ts";
+import { UserError } from "../errors.ts";
 
 export const CRM_VENDORS = ["hubspot", "salesforce", "omniscient"] as const;
 export type CrmVendor = (typeof CRM_VENDORS)[number];
@@ -202,7 +203,7 @@ export function forgetProperties(sourceId?: string) {
 /** The source's contact properties, from the CRM's API or from the last 10 minutes. Throws when the read fails. */
 export async function listProperties(ctx: Ctx, o: { now?: number; fresh?: boolean } = {}): Promise<CrmProperty[]> {
   const kind = ctx.source.kind;
-  if (!isCrmVendor(kind)) throw new Error(`${ctx.source.name} has no fields to link.`);
+  if (!isCrmVendor(kind)) throw new UserError(`${ctx.source.name} has no fields to link.`);
   const now = o.now ?? Date.now();
   const hit = cache.get(ctx.source.id);
   if (hit && !o.fresh && now - hit.at < TTL_MS) return hit.props;

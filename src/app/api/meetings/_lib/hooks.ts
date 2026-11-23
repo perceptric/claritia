@@ -4,6 +4,7 @@ import { checkEndpoint, newSecret, openEndpoint, sampleBody, sealEndpoint, sendW
 import { cleanLook, type PageLook } from "../../../../lib/meetings/look.ts";
 import { call, Refused, roleOf, saveProfile, type Actor } from "./host";
 import { isUuid } from "@/lib/uuid";
+import { dbError } from "@/lib/errors";
 
 // The Booking page and Webhooks tabs (docs/scheduling-plan.md Parts 4 and 5). Everyone sets their own page; owners
 // set the team's handle and the webhooks.
@@ -152,6 +153,6 @@ export async function saveLook(rpc: Rpc, a: Actor, raw: unknown, team: boolean):
   if (team) await owner(rpc, a);
   const look = cleanLook(raw);
   const { error } = await rpc("booking_look_save", { p_ws: a.ws, p_user: team ? null : a.user, p_look: look });
-  if (error) throw error.message.includes("no_profile") ? new Refused(400, "Save your profile first.") : new Error(error.message);
+  if (error) throw error.message.includes("no_profile") ? new Refused(400, "Save your profile first.") : dbError(error);
   return { look };
 }

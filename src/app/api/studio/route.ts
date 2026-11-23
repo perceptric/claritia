@@ -17,7 +17,7 @@ import { hostLogo, hostOf, readPage, readSite, readSource } from "@/lib/studio/s
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { isUuid } from "@/lib/uuid";
-import { bad } from "@/lib/http";
+import { bad, fail } from "@/lib/http";
 
 // Form Studio (docs/forms-chat-plan.md). POST { workspaceId, mode, ... }:
 //   site    { url }                  → { site, name, logo }   the quick look the owner confirms: name and real logo, no AI
@@ -144,7 +144,7 @@ export async function POST(request: Request) {
     const { data: had } = await db.from("brand_kits").select("id, source_url").eq("workspace_id", ws);
     const same = ((had ?? []) as { id: string; source_url: string | null }[]).find((k) => k.source_url && hostOf(k.source_url) === host);
     const started = await db.rpc("brand_scan_start", { p_user: auth.user.id, p_ws: ws, p_url: `https://${host}`, p_kit: same?.id ?? null, p_form: null });
-    if (started.error) return bad(started.error.message);
+    if (started.error) return fail(started.error);
     const kitId = started.data as string;
     if (b.mode === "confirm") {
       const name = String(b.name ?? "").trim().slice(0, 120) || host;
@@ -183,7 +183,7 @@ export async function POST(request: Request) {
     const state = ["new", "draft", "live", "changed"].includes(c.state as string) ? (c.state as string) : "draft";
     const row = { id, workspace_id: ws, form_id: form, brand_kit_id: kit, name: String(c.name ?? "").trim().slice(0, 120) || "New form", state, body, updated_at: new Date().toISOString() };
     const up = had.data ? await db.from("form_chats").update(row).eq("id", id) : await db.from("form_chats").insert({ ...row, created_by: auth.user.id });
-    if (up.error) return bad(up.error.message, 500);
+    if (up.error) return fail(up.error, 500);
     return Response.json({ ok: true });
   }
 
@@ -233,7 +233,7 @@ export async function POST(request: Request) {
     const up = row
       ? await db.from("studio_threads").update({ title, messages, updated_at: now }).eq("id", id)
       : await db.from("studio_threads").insert({ id, workspace_id: ws, form_chat_id: chatId, title, messages, created_by: auth.user.id, updated_at: now });
-    if (up.error) return bad(up.error.message, 500);
+    if (up.error) return fail(up.error, 500);
     return Response.json({ ok: true, title });
   }
 
@@ -304,12 +304,12 @@ export async function POST(request: Request) {
           .update({ name, draft: r.form, brand_kit_id: kitId, draft_rev: ((had as { draft_rev: number }).draft_rev ?? 0) + 1, updated_at: new Date().toISOString() })
           .eq("id", formId)
           .eq("workspace_id", ws);
-        if (up.error) return bad(up.error.message, 500);
+        if (up.error) return fail(up.error, 500);
         return Response.json({ formId });
       }
     }
     const ins = await db.from("forms").insert({ workspace_id: ws, name, draft: r.form, brand_kit_id: kitId, created_by: auth.user.id, kind: "built" }).select("id").single();
-    if (ins.error) return bad(ins.error.message, 500);
+    if (ins.error) return fail(ins.error, 500);
     return Response.json({ formId: (ins.data as { id: string }).id });
   }
 

@@ -19,6 +19,8 @@ import { saveDesign } from "../../forms/designSave";
 import type { Kit } from "../../forms/shared";
 import { docOf as rowDocOf, type CanvasRow } from "./preview";
 import { emailTokens } from "@/lib/design/email/look";
+import { errorText } from "@/lib/attempt";
+import { dbError } from "@/lib/errors";
 
 export type EmailDraft = {
   id: string | null;
@@ -160,7 +162,7 @@ export function useCanvasEditor({ sb, session, ws, rows, kits, onSaved, onNotice
     try {
       return await Promise.race([call, timeout]);
     } catch (e) {
-      return { error: { message: e instanceof Error ? e.message : "Network error" }, status: 0 };
+      return { error: { message: errorText(e) }, status: 0 };
     }
   };
 
@@ -193,7 +195,7 @@ export function useCanvasEditor({ sb, session, ws, rows, kits, onSaved, onNotice
     } else {
       // Failed for good: the change waits for Try again (with its order kept).
       pending.current.set(id, { tries: 0, waitFor: p.waitFor, timer: 0 });
-      commit((x) => ({ ...x, failed: { ...x.failed, [id]: { name: st.name, message: r.error!.message } } }));
+      commit((x) => ({ ...x, failed: { ...x.failed, [id]: { name: st.name, message: errorText(dbError(r.error!)) } } }));
     }
     refreshBusy();
     // A change made while this save was on its way.
@@ -404,7 +406,7 @@ export function useCanvasEditor({ sb, session, ws, rows, kits, onSaved, onNotice
     await flush();
     if (s.current.failed[`kit:${kitId}`]) return;
     const { error } = await sb.rpc("brand_kit_design_publish", { p_id: kitId });
-    if (error) return note(error.message);
+    if (error) return note(errorText(dbError(error)));
     commit((x) => (x.kits[kitId] ? { ...x, kits: { ...x.kits, [kitId]: { ...x.kits[kitId]!, live: x.kits[kitId]!.system } } } : x));
   };
 

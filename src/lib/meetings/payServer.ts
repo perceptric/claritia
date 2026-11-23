@@ -6,6 +6,8 @@ import { serviceClient } from "../serviceClient.ts";
 import { handleFormPayEvent, type FormPayStripe } from "../forms/pay.ts";
 import { handlePayEvent, refundFor, type PayEvent, type PayResult, type PayStripe } from "./pay.ts";
 import { loadMeeting } from "./public.ts";
+import { UserError, dbError } from "../errors.ts";
+import { publicMessage } from "../http.ts";
 
 // The real Stripe behind pay.ts: Checkout and refunds on a workspace's connected account (Connect Standard), the
 // Connect onboarding link, the webhook, and refundMeeting() for a host's cancel (the Meetings screen calls it).
@@ -36,7 +38,7 @@ export function payStripe(stripe: Stripe): PayStripe {
         },
         { stripeAccount: account, idempotencyKey: `checkout-${p.meetingId}` },
       );
-      if (!s.url) throw new Error("No checkout page.");
+      if (!s.url) throw new UserError("No checkout page.");
       return { id: s.id, url: s.url };
     },
     async refund(account, paymentIntent, key) {
@@ -65,7 +67,7 @@ export function formPayStripe(stripe: Stripe): FormPayStripe {
         },
         { stripeAccount: account, idempotencyKey: `form-checkout-${p.submissionId}` },
       );
-      if (!s.url) throw new Error("No checkout page.");
+      if (!s.url) throw new UserError("No checkout page.");
       return { id: s.id, url: s.url };
     },
   };
@@ -102,7 +104,7 @@ export async function connectLink(rpc: Rpc, stripe: Stripe, ws: string, existing
     const a = await stripe.accounts.create({ type: "standard", metadata: { workspace_id: ws } }, { idempotencyKey: `connect-${ws}` });
     account = a.id;
     const { error } = await rpc("payment_account_set", { p_ws: ws, p_account: account, p_ready: !!a.charges_enabled });
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
   }
   const back = `${appBase()}/settings/sources`;
   const link = await stripe.accountLinks.create({ account, type: "account_onboarding", refresh_url: `${back}?stripe=retry`, return_url: `${back}?stripe=done` });
@@ -113,7 +115,7 @@ export async function connectLink(rpc: Rpc, stripe: Stripe, ws: string, existing
 export async function refreshAccount(rpc: Rpc, stripe: Stripe, ws: string, account: string): Promise<boolean> {
   const a = await stripe.accounts.retrieve(account);
   const { error } = await rpc("payment_account_set", { p_ws: ws, p_account: account, p_ready: !!a.charges_enabled });
-  if (error) throw new Error(error.message);
+  if (error) throw dbError(error);
   return !!a.charges_enabled;
 }
 
@@ -156,6 +158,6 @@ export async function refundMeeting(meetingId: string): Promise<{ ok: true; refu
   try {
     return await refundFor(rpc, payStripe(stripe), v);
   } catch (e) {
-    return { ok: false, reason: e instanceof Error ? e.message : "Stripe didn't answer." };
+    return { ok: false, reason: publicMessage(e) };
   }
 }

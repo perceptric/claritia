@@ -7,6 +7,7 @@
 
 import type { Imported } from "./googleImport.ts";
 import { PageBuilder, type Q } from "./linkImport.ts";
+import { UserError } from "../errors.ts";
 
 export const PASTE_MAX = 50_000;
 
@@ -511,8 +512,8 @@ export function importPasted(text: string): Imported {
   const t = String(text ?? "").slice(0, PASTE_MAX);
   const parsed = parseJson(t) ?? parseText(t);
   const questions = parsed.items.filter((i): i is Question => i.t === "q");
-  if (!questions.length) throw new Error("No questions found. Paste the form's questions, one per line or numbered.");
-  if (questions.length > 200) throw new Error("That's more than 200 questions. Paste a shorter form.");
+  if (!questions.length) throw new UserError("No questions found. Paste the form's questions, one per line or numbered.");
+  if (questions.length > 200) throw new UserError("That's more than 200 questions. Paste a shorter form.");
 
   const b = new PageBuilder();
   for (const p of parsed.intro) b.text(p);

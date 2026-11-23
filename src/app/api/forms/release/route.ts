@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { routeSpamLead, routedSpam } from "@/lib/routing/spamRelease";
 import { isUuid } from "@/lib/uuid";
+import { publicMessage } from "@/lib/http";
 
 // Not spam (docs/forms-plan.md 1.1): fills held as spam become leads, through the same checks and steps as on the way
 // in (src/lib/forms/submit.ts releaseFill). A lead the routing spam check caught is routed first, with that check
@@ -49,7 +50,7 @@ export async function POST(request: Request) {
       continue;
     }
     if (routedSpam(s)) {
-      const routed = await routeSpamLead(rpc, db, { ws, user: auth.user.id, submission: s.id }).catch((e: unknown) => ({ error: e instanceof Error ? e.message : "Try again in a moment." }));
+      const routed = await routeSpamLead(rpc, db, { ws, user: auth.user.id, submission: s.id }).catch((e: unknown) => ({ error: publicMessage(e) }));
       if ("error" in routed) {
         errors[s.id] = routed.error;
         continue;

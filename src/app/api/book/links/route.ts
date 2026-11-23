@@ -8,6 +8,7 @@ import { seal, unseal } from "@/lib/seal";
 import { serviceClient } from "@/lib/serviceClient";
 import { base } from "../_shared";
 import { isUuid } from "@/lib/uuid";
+import { fail } from "@/lib/http";
 
 // Make a single-use link, a one-off meeting or a poll (docs/meetings-scheduler.md 1.8b), for a signed-in member:
 // POST { workspaceId, kind, typeId?, title?, offered?: [{ start }], length?, location?, expiresAt? }. Only the token's
@@ -43,7 +44,7 @@ export async function POST(request: Request) {
     }
     if (link.owner_user_id !== auth.user.id && (await roleIn(auth, ws, { fresh: true })) !== "owner") return bad("Only the link's owner can change it.", 403);
     const { error } = body.action === "close" ? await db.from("meeting_links").update({ closed_at: new Date().toISOString() }).eq("id", link.id) : await db.from("meeting_links").delete().eq("id", link.id);
-    if (error) return bad(error.message, 500);
+    if (error) return fail(error, 500);
     return Response.json({ ok: true });
   }
   const rpc = (fn: string, args: Record<string, unknown>) => db.rpc(fn, args);
@@ -65,7 +66,7 @@ export async function POST(request: Request) {
     sealed = null;
   }
   const { data, error } = await db.from("meeting_links").insert({ workspace_id: ws, ...r.row, token_sealed: sealed }).select("id").single();
-  if (error) return planRefusal(error.message) ? bad(planRefusal(error.message)!, 402, { code: "plan" }) : bad(error.message, 500);
+  if (error) return planRefusal(error.message) ? bad(planRefusal(error.message)!, 402, { code: "plan" }) : fail(error, 500);
   const path = r.row.kind === "poll" ? "p" : "l";
   return Response.json({ id: (data as { id: string }).id, url: `${base()}/book/${path}/${r.token}` });
 }

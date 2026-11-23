@@ -4,7 +4,7 @@ import { notReady, sendReady } from "@/lib/email/ready";
 import { requireUser, roleIn } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { isUuid } from "@/lib/uuid";
-import { bad } from "@/lib/http";
+import { bad, fail } from "@/lib/http";
 
 // Send or schedule a campaign draft (docs/email-studio-plan.md Part 5): POST { workspaceId, emailId, lists, everyone,
 // topicId, sendAt, fromName, fromEmail, replyTo, spreadHours, smart }. The From address must be on one of the workspace's
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
   const sender = { from_name: text(b.fromName, 80), from_email: text(b.fromEmail, 254), reply_to: text(b.replyTo, 254), spread_hours: spread, smart: b.smart === true };
 
   const [row, ready] = await Promise.all([db.from("emails").select("id, subject, doc, status").eq("id", id).eq("workspace_id", ws).eq("kind", "broadcast").maybeSingle(), sendReady(db, ws)]);
-  if (row.error) return bad(row.error.message, 500);
+  if (row.error) return fail(row.error, 500);
   if (!row.data) return bad("Email not found.", 404);
   const no = notReady(ready);
   if (no) return no;
@@ -48,7 +48,7 @@ export async function POST(request: Request) {
   });
   if (error) {
     const known = /Add a subject|The email is empty|Pick who gets it|Pick a time|Topic not found|List not found|Nobody is in that audience|Pick a verified domain|Keep the From name under 80 characters|Check the reply-to address|Spread it over 1 to 72 hours|Pick Intelligent Send or Gradual Send/.exec(error.message);
-    return bad(known ? `${known[0]}.` : error.message, known ? 400 : 500);
+    return known ? bad(`${known[0]}.`) : fail(error, 500);
   }
   return Response.json(data);
 }

@@ -14,6 +14,7 @@ import { fieldsFor, membersOf } from "../router/actions.ts";
 import { compileRouting, sampleLead, type MeetingLite } from "./compile.ts";
 import { effectiveSource, hasChanges, toV2, withScope, type SourceRow } from "./screenModel.ts";
 import * as S from "./screens.ts";
+import { UserError, dbError } from "../errors.ts";
 
 const key = (p: string) => `${p}_${randomUUID().replace(/-/g, "")}`;
 const policyOf = (s: SourceRow | null): string | null => (s ? ((s.draft?.policy_id as string | undefined) ?? s.policy_id) : null);
@@ -39,7 +40,7 @@ export function formsBooking(forms: { id: string; name: string; version: number 
 
 export async function meetingsOf(db: SupabaseClient, ws: string): Promise<MeetingLite[]> {
   const r = await db.from("meeting_types").select("id, name, active, hosts, settings").eq("workspace_id", ws);
-  if (r.error) throw new Error(r.error.message);
+  if (r.error) throw dbError(r.error);
   return (r.data ?? []) as MeetingLite[];
 }
 
@@ -64,9 +65,9 @@ export async function publishFormRouting(rpc: Rpc, db: SupabaseClient, o: { ws: 
     row = screen.policies.find((p) => p.id === made.id) ?? null;
     rename = true;
   }
-  if (!row) throw new Error("Couldn't find this form's routing.");
+  if (!row) throw new UserError("Couldn't find this form's routing.");
   const start = row.draft ?? row.live;
-  if (!start) throw new Error("This form's routing has nothing to start from.");
+  if (!start) throw new UserError("This form's routing has nothing to start from.");
   const teamKeys = new Set(screen.teams.flatMap((t) => t.keys));
   const { body, problems } = compileRouting(toV2(start, { reviewer: screen.me, teamKeys }), { def: s.meetingTypeId, routes: s.routes, types, teamKeys, ...(s.before ? { before: s.before } : {}) });
   await S.save(rpc, c, { policy: row.id, body: withScope(body), ...(rename ? { name: o.formName.slice(0, 80) || "Form" } : {}), revision: row.draft_revision });
@@ -83,7 +84,7 @@ export async function publishFormRouting(rpc: Rpc, db: SupabaseClient, o: { ws: 
   const now = screen.policies.find((p) => p.id === row!.id);
   if (now && hasChanges(now)) {
     let review = await S.review(rpc, c, deps, { policy: row.id });
-    if (review.errors.length) throw new Error(`Routing: ${review.errors.map((e) => e.text).join(" ")}`);
+    if (review.errors.length) throw new UserError(`Routing: ${review.errors.map((e) => e.text).join(" ")}`);
     if (!review.evidence) {
       await S.test(rpc, c, deps, { policy: row.id, version: "draft", revision: review.revision, source: formSource()?.id ?? null, email: "maya@globex.com", values: sampleLead(body) });
       review = await S.review(rpc, c, deps, { policy: row.id });

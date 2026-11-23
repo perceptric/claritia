@@ -16,13 +16,14 @@ import { syncHostsSoon } from "../../../../lib/billingHosts.ts";
 import { DEFAULT_SETTINGS, type MeetingType } from "../../../../lib/meetings/types.ts";
 import { bookUrl, canEditType, checkProfile, slugify, timesText, uniqueSlug } from "../../../../components/app/meetings/model.ts";
 import { isUuid } from "../../../../lib/uuid.ts";
+import { dbError, UserError } from "../../../../lib/errors.ts";
 
 export type Actor = { ws: string; user: string };
 type Role = "owner" | "member";
 type TypeRow = MeetingType & { created_by: string | null };
 
 /** A refusal the route sends back as is: a status and a line for the person. */
-export class Refused extends Error {
+export class Refused extends UserError {
   status: number;
   errors?: string[];
   constructor(status: number, message: string, errors?: string[]) {
@@ -54,7 +55,7 @@ export async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown
   if (error) {
     const code = Object.keys(WORDS).find((k) => error.message.includes(k));
     if (code) throw new Refused(WORDS[code]![0], WORDS[code]![1]);
-    throw new Error(error.message);
+    throw dbError(error);
   }
   return data as T;
 }
@@ -81,7 +82,7 @@ export async function roleOf(rpc: Rpc, a: Actor): Promise<{ role: Role }> {
       if (all.error) return { data: null, error: all.error };
       return { data: ((all.data as { id: string; role: Role }[] | null) ?? []).find((m) => m.id === a.user)?.role ?? null, error: null };
     });
-    if (r.error) throw new Error(r.error.message);
+    if (r.error) throw dbError(r.error);
     return r.data ?? null;
   });
   if (!role) throw new Refused(404, "Workspace not found.");

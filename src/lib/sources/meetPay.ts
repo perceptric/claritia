@@ -5,6 +5,7 @@
 
 import { paypalClient } from "../pay/providers.ts";
 import type { Connector } from "./types.ts";
+import { UserError } from "../errors.ts";
 
 export const webex: Connector = {
   kind: "webex",
@@ -51,7 +52,7 @@ export const square: Connector = {
       auth: false,
       headers: { authorization: `Bearer ${ctx.secret("access_token")}`, "Square-Version": "2024-10-17" },
     });
-    if (!d.location?.id) throw new Error("Square has no such location.");
+    if (!d.location?.id) throw new UserError("Square has no such location.");
     return { id: d.location.id, label: d.location.business_name ?? d.location.name ?? "Square" };
   },
   defaults: { contact: {} },

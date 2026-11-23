@@ -1,5 +1,6 @@
 import { lockSections, parseLock, replaceStepCode } from "@/lib/lock";
 import { requireUser } from "@/lib/serverAuth";
+import { fail } from "@/lib/http";
 
 type Heal = { id: string; test_id: string; position: number; old_code: string; new_code: string; status: string };
 
@@ -15,7 +16,7 @@ export async function POST(request: Request) {
   if (typeof body.healId !== "string" || (body.decision !== "approved" && body.decision !== "rejected")) return Response.json({ error: "Missing fix or decision." }, { status: 400 });
 
   const { data: heal, error } = await sb.from("heals").select("id, test_id, position, old_code, new_code, status").eq("id", body.healId).maybeSingle<Heal>();
-  if (error) return Response.json({ error: error.message }, { status: 500 });
+  if (error) return fail(error, 500);
   if (!heal) return Response.json({ error: "Fix not found." }, { status: 404 });
   if (heal.status !== "pending") return Response.json({ error: `This fix was already ${heal.status}.` }, { status: 409 });
 
@@ -26,11 +27,11 @@ export async function POST(request: Request) {
 
   if (body.decision === "rejected") {
     const e = await decide("rejected");
-    return e ? Response.json({ error: e.message }, { status: 400 }) : Response.json({ ok: true });
+    return e ? fail(e, 400) : Response.json({ ok: true });
   }
 
   const { data: test, error: testErr } = await sb.from("tests").select("id, lock, version").eq("id", heal.test_id).maybeSingle<{ id: string; lock: string | null; version: number }>();
-  if (testErr) return Response.json({ error: testErr.message }, { status: 500 });
+  if (testErr) return fail(testErr, 500);
   if (!test) return Response.json({ error: "The test was deleted." }, { status: 404 });
 
   // The step must still have the code this fix replaces. Otherwise someone changed it, and the fix is out of date.
@@ -42,8 +43,8 @@ export async function POST(request: Request) {
   }
 
   const { data: saved, error: saveErr } = await sb.from("tests").update({ lock: next }).eq("id", test.id).eq("version", test.version).select("version");
-  if (saveErr) return Response.json({ error: saveErr.message }, { status: 500 });
+  if (saveErr) return fail(saveErr, 500);
   if (!saved?.length) return Response.json({ error: "Someone saved this test just now. Try again." }, { status: 409 });
   const e = await decide("approved");
-  return e ? Response.json({ error: e.message }, { status: 400 }) : Response.json({ ok: true, version: saved[0]!.version });
+  return e ? fail(e, 400) : Response.json({ ok: true, version: saved[0]!.version });
 }

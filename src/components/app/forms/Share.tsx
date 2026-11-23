@@ -20,6 +20,7 @@ import { Ic } from "./ic";
 import { Menu } from "./Menu";
 import { Box, BTN, CARD, copyText, CROW, GHOST_SM, IB, IB_SM, RowText, Seg, Tg, useNote } from "./parts";
 import type { FormRow, Kit } from "./shared";
+import { UserError } from "@/lib/errors";
 
 type Way = "link" | "embed" | "html" | "email" | "qr";
 type Props = ViewProps & { form: Form; row: FormRow & { kind?: "built" | "captured" }; apply: (ops: Op | Op[], words?: string) => boolean; kit: Kit | null; site: string };
@@ -220,7 +221,7 @@ function PreviewCard({ session, ws, form, row, apply, host }: Pick<Props, "sessi
       body.append("file", f, f.name || "preview.png");
       const res = await fetch("/api/assets", { method: "POST", headers: { Authorization: `Bearer ${session.access_token}` }, body });
       const out = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
-      if (!res.ok || !out.url) throw new Error(out.error ?? "Try again in a moment.");
+      if (!res.ok || !out.url) throw new UserError(out.error ?? "Try again in a moment.");
       apply({ op: "set_share", share: { image: out.url } }, "Changed the link's picture");
     } catch (e) {
       setErr(errorText(e));

@@ -5,6 +5,7 @@
 import { useState } from "react";
 import { Check, Copy } from "../Icons";
 import { IconButton } from "./ui";
+import { errorText } from "@/lib/attempt";
 
 export async function copyText(text: string): Promise<boolean> {
   try {
@@ -33,7 +34,7 @@ export function CopyButton({ text, get, label = "Copy link", size = 14, onError 
             setTimeout(() => setDone(false), 1400);
           }
         } catch (err) {
-          onError?.(err instanceof Error ? err.message : String(err));
+          onError?.(errorText(err));
         } finally {
           setBusy(false);
         }

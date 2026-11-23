@@ -8,6 +8,7 @@ import { checkLink, withDefaults, type LinkRow } from "../meetings/public.ts";
 import type { MeetingType } from "../meetings/types.ts";
 import { seal } from "../seal.ts";
 import { buttons, esc, section } from "./app.ts";
+import { dbError } from "../errors.ts";
 
 const EMAIL = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
 
@@ -55,7 +56,7 @@ export async function slackBook(
   const locked = await lockFor(o.rpc, o.ws, "single_use");
   if (locked) return say(locked);
   const { data, error } = await o.rpc("slack_book_info", { p_ws: o.ws, p_user: o.user, p_email: email });
-  if (error) throw new Error(error.message);
+  if (error) throw dbError(error);
   const info = data as Info;
   if (!info.host) return say("Couldn't find the host in Claritia.");
   const t = pickType(info.types, words);

@@ -1,5 +1,6 @@
 import { firstError, parseLock } from "@/lib/lock";
 import { requireUser } from "@/lib/serverAuth";
+import { fail } from "@/lib/http";
 
 /**
  * Start a run of a test. Steps with no code are written by the runner during the run.
@@ -13,12 +14,12 @@ export async function POST(request: Request) {
   if (typeof body.testId !== "string") return Response.json({ error: "Missing test." }, { status: 400 });
 
   const { data: test, error } = await sb.from("tests").select("id, project_id, steps, lock").eq("id", body.testId).maybeSingle();
-  if (error) return Response.json({ error: error.message }, { status: 500 });
+  if (error) return fail(error, 500);
   if (!test) return Response.json({ error: "Test not found." }, { status: 404 });
 
   const envQuery = sb.from("environments").select("id, name").eq("project_id", test.project_id).order("created_at").limit(1);
   const { data: envs, error: envError } = typeof body.environmentId === "string" ? await sb.from("environments").select("id, name").eq("id", body.environmentId).eq("project_id", test.project_id) : await envQuery;
-  if (envError) return Response.json({ error: envError.message }, { status: 500 });
+  if (envError) return fail(envError, 500);
   const env = envs?.[0];
   if (!env) return Response.json({ error: "Add an environment to this project in Environments first." }, { status: 400 });
 
@@ -34,6 +35,6 @@ export async function POST(request: Request) {
   }
 
   const { data: runId, error: runError } = await sb.rpc("start_run", { p_test: test.id, p_env: env.id });
-  if (runError) return Response.json({ error: runError.message }, { status: /five runs/i.test(runError.message) ? 429 : 400 });
+  if (runError) return fail(runError, /five runs/i.test(runError.message) ? 429 : 400);
   return Response.json({ id: runId });
 }

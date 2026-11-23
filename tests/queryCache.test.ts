@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { GENERIC, UserError } from "../src/lib/errors.ts";
 import { matches, QueryCache } from "../src/lib/queryCache.ts";
 
 const later = <T>(value: T, ms = 5) => new Promise<T>((r) => setTimeout(() => r(value), ms));
-const fail = (msg: string, ms = 5) => new Promise<never>((_, reject) => setTimeout(() => reject(new Error(msg)), ms));
+const fail = (msg: string, ms = 5) => new Promise<never>((_, reject) => setTimeout(() => reject(new UserError(msg)), ms));
 
 test("two asks for one key share one fetch", async () => {
   const c = new QueryCache();
@@ -46,6 +47,18 @@ test("a failed fetch keeps the last good data and reports the error", async () =
   assert.equal(c.get("k").error, "offline");
   await c.fetch("k", () => later("ok again"), true);
   assert.equal(c.get("k").error, "");
+});
+
+test("a failed fetch shows only a message written for people", async () => {
+  const c = new QueryCache();
+  const log = console.error;
+  console.error = () => {};
+  try {
+    await assert.rejects(c.fetch("k", () => Promise.reject(new Error('relation "secret_table" does not exist'))));
+  } finally {
+    console.error = log;
+  }
+  assert.equal(c.get("k").error, GENERIC);
 });
 
 test("optimistic update shows at once and stays when the write works", async () => {

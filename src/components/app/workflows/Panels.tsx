@@ -15,6 +15,7 @@ import { Modal } from "../meetings/parts";
 import { Sheet } from "../Sheet";
 import { Badge, Button, ErrorNote, errorText, Input, must, postJson, Tabs, timeAgo, type Tone, useQuery } from "../ui";
 import type { Version } from "./data";
+import { dbError } from "@/lib/errors";
 
 /** A sheet from the right, over the editor. */
 function Drawer({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
@@ -194,7 +195,7 @@ export function HistoryDrawer({ sb, id, versions, live, names, onClose }: { sb: 
   const retry = async (run: string) => {
     if (!(await askConfirm("Try the failed step again?", { ok: "Try again" }))) return;
     const { error: e } = await sb.rpc("workflow_retry", { p_run: run });
-    if (e) setError(e.message);
+    if (e) setError(errorText(dbError(e)));
     else setTick((t) => t + 1);
   };
 

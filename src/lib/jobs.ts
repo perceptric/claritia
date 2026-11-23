@@ -3,6 +3,8 @@
 // later by the database (1, 5, 30 minutes, then 2 and 6 hours); throw `new JobError(msg, { retry: false })` to stop
 // retrying. Jobs run in lanes: 0 for what a person waits on, 1 for normal work, 2 for bulk (087_job_lanes.sql).
 
+import { UserError } from "./errors.ts";
+
 export type Job = {
   id: string;
   workspace_id: string | null;
@@ -15,7 +17,7 @@ export type Job = {
 };
 
 /** The one call the queue needs: Supabase's `rpc`, or a fake in tests. */
-export type Rpc = (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
+export type Rpc = (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }>;
 
 export class JobError extends Error {
   retry: boolean;
@@ -27,10 +29,14 @@ export class JobError extends Error {
   }
 }
 
-/** Call a database function and return its data, or throw its error named after the function. */
+/**
+ * Call a database function and return its data, or throw its error named after the function. The error keeps the
+ * database's code, and a message the function wrote for people (P0001) is thrown as it is (src/lib/errors.ts).
+ */
 export async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Promise<T> {
   const { data, error } = await rpc(fn, args);
-  if (error) throw new Error(`${fn}: ${error.message}`);
+  if (error?.code === "P0001") throw new UserError(error.message);
+  if (error) throw Object.assign(new Error(`${fn}: ${error.message}`), { code: error.code });
   return data as T;
 }
 

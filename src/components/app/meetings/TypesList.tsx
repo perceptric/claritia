@@ -15,6 +15,7 @@ import { LinkDialog } from "./LinkDialog";
 import { kindLabel, lengthsText } from "./model";
 import { AvatarStack, copyText, CopyButton, meetingsApi, ownZone, usePeople, useWorkspaceSlug } from "./parts";
 import { bookingBase } from "@/lib/meetings/handles";
+import { UserError } from "@/lib/errors";
 
 export type TypeRow = MeetingType & { created_by: string | null; updated_at: string };
 
@@ -51,7 +52,7 @@ export function TypesList(props: ViewProps) {
   const copyTimes = (t: TypeRow) =>
     act(async () => {
       const r = await meetingsApi<{ text: string }>(session, ws.id, "times", { typeId: t.id, tz: ownZone() });
-      if (!r.text) throw new Error(`${t.name} has no free times in its window.`);
+      if (!r.text) throw new UserError(`${t.name} has no free times in its window.`);
       if (await copyText(r.text)) {
         setCopied(t.id);
         setTimeout(() => setCopied((c) => (c === t.id ? null : c)), 1600);

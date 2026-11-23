@@ -13,6 +13,7 @@ import { Modal } from "../../meetings/parts";
 import { Button, Loading, type ViewProps } from "../../ui";
 import { ApiError, newKey, rt, type ReviewOut, type Screen } from "./api";
 import { namesOf } from "./parts";
+import { errorText } from "@/lib/attempt";
 
 export function PublishDialog({
   session,
@@ -41,7 +42,7 @@ export function PublishDialog({
         const r = await rt<ReviewOut>(session, ws.id, "rt_review", { policy: row.id });
         if (live) setRev(r);
       } catch (e) {
-        if (live) setError(e instanceof Error ? e.message : "Couldn't check this draft.");
+        if (live) setError(errorText(e));
       }
     })();
     return () => {
@@ -77,7 +78,7 @@ export function PublishDialog({
         return;
       }
       setPhase("ready");
-      setError(e instanceof Error ? e.message : "Couldn't publish.");
+      setError(errorText(e));
     }
   };
   const check = async () => {
@@ -88,7 +89,7 @@ export function PublishDialog({
       setPhase("ready");
       setError("It wasn't published. You can publish again.");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Still no answer. Check again in a moment.");
+      setError(errorText(e));
     }
   };
 

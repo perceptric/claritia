@@ -12,7 +12,7 @@ import { assignmentBadge, bookingBadge, fieldOf, firstName, reasonWords, recover
 import { askText } from "../../Dialogs";
 import { Choice } from "../../inbound/parts";
 import { Sheet } from "../../Sheet";
-import { Badge, Button, ErrorNote, invalidate, Loading, Toggle, useQuery, type ViewProps } from "../../ui";
+import { Badge, Button, ErrorNote, errorText, invalidate, Loading, Toggle, useQuery, type ViewProps } from "../../ui";
 import { askToConnect } from "../SalesReps";
 import { toast } from "../Toast";
 import { ApiError, newKey, rt, type ChildPreview, type ChildResult, type ReassignPreview, type ReassignResult, type RunDetail, type Screen } from "./api";
@@ -30,7 +30,6 @@ const REASON_WORDS: Record<string, string> = {
   source_disconnected: "Form disconnected from routing",
 };
 
-const errText = (e: unknown, fallback: string) => (e instanceof Error ? e.message : fallback);
 
 export function RunDrawer({ session, ws, run, d, onClose, onOpen }: Pick<ViewProps, "session"> & { ws: string; run: string; d: Screen; onClose: () => void; onOpen: (run: string) => void }) {
   const names = useMemo(() => namesOf(d.people, d.teams).people, [d.people, d.teams]);
@@ -53,7 +52,7 @@ export function RunDrawer({ session, ws, run, d, onClose, onOpen }: Pick<ViewPro
       if (done) toast({ text: done });
       refresh();
     } catch (e) {
-      setError(errText(e, "That didn't work."));
+      setError(errorText(e));
     } finally {
       setBusy(false);
     }
@@ -298,7 +297,7 @@ function ChildPanel({ session, ws, r, d, who, onDone, onCancel }: Pick<ViewProps
       setPv(p);
       setStale(false);
     } catch (e) {
-      setError(errText(e, "Couldn't preview."));
+      setError(errorText(e));
     } finally {
       setBusy(false);
     }
@@ -311,7 +310,7 @@ function ChildPanel({ session, ws, r, d, who, onDone, onCancel }: Pick<ViewProps
         setStale(false);
         setFix(Object.fromEntries(p.fields.map((f) => [f.key, f.value === null || f.value === undefined ? "" : String(f.value)])));
       })
-      .catch((e) => setError(errText(e, "Couldn't preview.")));
+      .catch((e) => setError(errorText(e)));
   }, [session, ws, r.id, held, r.review?.reason]);
   const confirm = async () => {
     if (!pv?.ref) return;
@@ -327,7 +326,7 @@ function ChildPanel({ session, ws, r, d, who, onDone, onCancel }: Pick<ViewProps
       onDone(out);
     } catch (e) {
       // No answer: it may have committed; the same attempt id resumes it.
-      setError(e instanceof ApiError && e.lost ? "No answer yet. Confirm again to resume the same attempt." : errText(e, "Couldn't route."));
+      setError(e instanceof ApiError && e.lost ? "No answer yet. Confirm again to resume the same attempt." : errorText(e));
     } finally {
       setBusy(false);
     }
@@ -452,7 +451,7 @@ function AssignPanel({ session, ws, r, d, who, review, onDone, onCancel }: Pick<
     try {
       setPv(await rt<ReassignPreview>(session, ws, "rt_reassign_preview", { run: r.id, user: u }));
     } catch (e) {
-      setError(errText(e, "Couldn't check."));
+      setError(errorText(e));
     }
   };
   const confirm = async () => {
@@ -468,7 +467,7 @@ function AssignPanel({ session, ws, r, d, who, review, onDone, onCancel }: Pick<
       }
       onDone(out.owner);
     } catch (e) {
-      setError(e instanceof ApiError && e.lost ? "No answer yet. Confirm again to finish the same change." : errText(e, "Couldn't reassign."));
+      setError(e instanceof ApiError && e.lost ? "No answer yet. Confirm again to finish the same change." : errorText(e));
     } finally {
       setBusy(false);
     }

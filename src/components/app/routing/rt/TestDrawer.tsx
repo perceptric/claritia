@@ -18,6 +18,7 @@ import { Sheet } from "../../Sheet";
 import { Badge, Button, ErrorNote, IconButton, Toggle, type ViewProps } from "../../ui";
 import { rt, type Screen, type TestOut } from "./api";
 import { Initials, namesOf, PersonChoice } from "./parts";
+import { errorText } from "@/lib/attempt";
 
 type Found = { id: string; name: string; email: string | null };
 type Inputs = { email: string; contact?: Found | null; values: Record<string, string>; contactOwner: string | null; companyOwner: string | null; spam: boolean; unavailable: boolean; noSlots: boolean };
@@ -101,7 +102,7 @@ export function TestDrawer({ session, ws, d, row, body, flush, onClose }: Pick<V
       setRes(out);
       setStale(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "The test didn't run.");
+      setError(errorText(e));
     } finally {
       setBusy(false);
     }

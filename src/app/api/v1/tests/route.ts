@@ -2,7 +2,7 @@ import { findProject, requireKey } from "@/lib/apiAuth";
 import { buildLock, firstError, parseLock } from "@/lib/lock";
 import { APP_URL } from "@/lib/site";
 import { stepId } from "@/lib/testfile";
-import { bad } from "@/lib/http";
+import { bad, fail } from "@/lib/http";
 
 /** A project's tests: GET /api/v1/tests?project=<id or name>. */
 export async function GET(request: Request) {
@@ -11,7 +11,7 @@ export async function GET(request: Request) {
   const project = await findProject(caller, new URL(request.url).searchParams.get("project"));
   if ("denied" in project) return project.denied;
   const { data, error } = await caller.sb.from("tests").select("id, name, use_case, priority, steps, updated_at").eq("workspace_id", caller.workspaceId).eq("project_id", project.id).order("use_case").order("name");
-  if (error) return Response.json({ error: error.message }, { status: 500 });
+  if (error) return fail(error, 500);
   return Response.json({
     project,
     tests: (data ?? []).map((t) => ({ id: t.id, name: t.name, use_case: t.use_case, priority: t.priority, steps: Array.isArray(t.steps) ? t.steps.length : 0, updated_at: t.updated_at })),
@@ -56,6 +56,6 @@ export async function POST(request: Request) {
     .insert({ project_id: project.id, name: finalName, use_case: useCase, steps: steps.map((s) => ({ id: stepId(), kind: s.kind, text: s.text })), lock })
     .select("id, name, version")
     .single<{ id: string; name: string; version: number }>();
-  if (error) return bad(error.message, 500);
+  if (error) return fail(error, 500);
   return Response.json({ ...data, project, url: `${APP_URL}/tests/${data.id}` }, { status: 201 });
 }

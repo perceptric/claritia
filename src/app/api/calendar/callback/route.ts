@@ -3,6 +3,7 @@ import { finishConnect } from "@/lib/meetings/providers/connect";
 import type { Rpc } from "@/lib/jobs";
 import { readState } from "@/lib/sources/oauth";
 import { serviceClient } from "@/lib/serviceClient";
+import { publicMessage } from "@/lib/http";
 
 // Google, Microsoft and Zoom send the person back here after they allow access. Save the sealed sign-in and the
 // calendar list, queue the first busy read and push channels, and go back to My calendar.
@@ -27,6 +28,6 @@ export async function GET(request: Request) {
     const r = await finishConnect(rpc, { state, code, redirect: `${base}/api/calendar/callback`, fallbackEmail });
     return go({ connected: r.provider });
   } catch (e) {
-    return go({ error: e instanceof Error ? e.message.slice(0, 200) : "Could not connect." });
+    return go({ error: publicMessage(e).slice(0, 200) });
   }
 }

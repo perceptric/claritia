@@ -3,6 +3,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { jsonRequest, textOf, usageOf } from "./claude.ts";
+import { UserError } from "./errors.ts";
 
 export type PlanPage = { pattern: string; name: string | null; purpose: string | null; title: string | null; forms: { fields: { label: string; type: string }[]; submit: string }[]; buttons: string[]; links: string[] };
 export type PlanRequest = {
@@ -134,8 +135,8 @@ export function claudePlanner(opts: { apiKey: string; model?: string; effort?: "
     const stream = client.beta.messages.stream(jsonRequest({ model, maxTokens: 32000, effort: opts.effort ?? "medium", schema: SCHEMA, system: SYSTEM, content: planPrompt(r), fallback: true }));
     const res = await stream.finalMessage();
     const usage = usageOf(res);
-    if (res.stop_reason === "refusal") throw new Error("Claude declined to plan these tests.");
-    if (res.stop_reason === "max_tokens") throw new Error("The plan was too long to finish. Try again with shorter notes.");
+    if (res.stop_reason === "refusal") throw new UserError("Claude declined to plan these tests.");
+    if (res.stop_reason === "max_tokens") throw new UserError("The plan was too long to finish. Try again with shorter notes.");
     const out = JSON.parse(textOf(res)) as { tests?: unknown[] };
     return { proposals: cleanProposals(out.tests ?? [], r), usage };
   };

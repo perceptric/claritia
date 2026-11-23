@@ -15,6 +15,7 @@ import { routingApi } from "./api";
 import { RunLines, type LinkTo } from "./Lines";
 import { ROUTING, useLiveBody } from "./screenParts";
 import { decisionOf, factsOf, fromWords, leadOf, routedBy, type RunRow } from "./screensModel";
+import { UserError } from "@/lib/errors";
 
 const COLS = "id, contact_id, reason, version, kind, owner, by, queue_id, rule_id, steps, facts, ms, created_at, undone_at";
 
@@ -132,7 +133,7 @@ export function RunPanel({ sb, session, ws, role, navigate, runId, onClose, onRo
   const forms = useFormNames(sb, ws.id);
   const run = useQuery(`router_run:${ws.id}:${id}`, async () => {
     const r = must(await sb.from("router_runs").select(COLS).eq("workspace_id", ws.id).eq("id", id).maybeSingle()) as unknown as RunRow | null;
-    if (!r) throw new Error("This run is gone.");
+    if (!r) throw new UserError("This run is gone.");
     return { r };
   });
   const [busy, setBusy] = useState(false);

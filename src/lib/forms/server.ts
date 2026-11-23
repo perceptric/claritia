@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Ctx, PublicForm } from "./submit.ts";
 import { studioPublic } from "../studio/liveForm.ts";
+import { dbError } from "../errors.ts";
 
 // What the public form routes share (docs/form-builder.md Part 6): the live form with a short cache (always a Form
 // Studio page: a version from before the Studio is turned into one as it's read), a per-visitor rate limit, the
@@ -16,7 +17,7 @@ export async function loadPublic(db: SupabaseClient, id: string, fresh = false):
   const hit = cache.get(id);
   if (!fresh && hit && Date.now() - hit.at < CACHE_MS) return hit.form;
   const { data, error } = await db.rpc("form_public", { p_id: id });
-  if (error) throw new Error(error.message);
+  if (error) throw dbError(error);
   const form = data ? studioPublic(data as PublicForm) : null;
   if (cache.size > 5000) cache.clear();
   cache.set(id, { at: Date.now(), form });

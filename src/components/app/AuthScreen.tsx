@@ -9,6 +9,7 @@ import { Logo } from "../Logo";
 import { FlowDemo } from "./FlowDemo";
 import { Turnstile } from "./Turnstile";
 import { Badge, Button, ErrorNote, errorText } from "./ui";
+import { UserError } from "@/lib/errors";
 
 // Signed out, the screen has its own address: /signin, or /signup from "Start free". The page someone first opened is
 // kept for after signing in; an app's sign-in (/oauth/authorize) keeps its own address and request.
@@ -158,7 +159,7 @@ const emailFromAddress = () => (typeof window === "undefined" ? "" : (new URLSea
 
 // A stuck request should never leave the button spinning forever.
 function withTimeout<T>(p: Promise<T>, ms = 20000): Promise<T> {
-  return Promise.race([p, new Promise<T>((_, reject) => setTimeout(() => reject(new Error("The request took too long. Check your connection and try again.")), ms))]);
+  return Promise.race([p, new Promise<T>((_, reject) => setTimeout(() => reject(new UserError("The request took too long. Check your connection and try again.")), ms))]);
 }
 
 const RESEND_AFTER = 30;

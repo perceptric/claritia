@@ -6,6 +6,7 @@ import { claudePlanner, cleanProposals, type Planner, type PlanPage } from "./pl
 import { claudePicker, selectByRules, selectionFrom, type ChangedFile, type Picker, type Selection } from "./prSelect.ts";
 import { loadOutcomes } from "./runOutcomes.ts";
 import { APP_URL } from "./site.ts";
+import { dbError } from "./errors.ts";
 
 type Link = { id: string; workspace_id: string; project_id: string; installation_id: number; repo_full_name: string; run_on: "pull_request" | "preview"; scope: "all" | "use_case"; use_case: string | null; pick_tests: boolean; environments: { name: string; base_url: string } | null };
 type Check = { id: string; workspace_id: string; link_id: string; installation_id: number; repo_full_name: string; head_sha: string; pr_number: number | null; base_url: string; run_ids: string[]; check_run_id: number | null; status: "pending" | "done"; conclusion: string | null; finished_count: number; error: string | null; created_at: string; selection: Selection | null };
@@ -146,7 +147,7 @@ async function proposeForPr(sb: SupabaseClient, link: Link, pr: number, title: s
 async function startOne(sb: SupabaseClient, link: Link, sha: string, pr: number | null, url: string | null, deps: Deps, opened?: { title: string }) {
   const pick = await pickTests(sb, link, sha, pr, deps);
   const { data, error } = await sb.rpc("github_start_check", { p_link: link.id, p_sha: sha, p_pr: pr, p_base_url: url, p_test_ids: pick.testIds, p_selection: pick.selection, p_ai_calls: pick.aiCalls });
-  if (error) throw new Error(error.message);
+  if (error) throw dbError(error);
   for (const check of (data ?? []) as Check[]) await postCheck(sb, check, link);
   // A new pull request that adds flows no test covers gets proposed tests for them. The check is already posted, so a
   // failure here is only reported.

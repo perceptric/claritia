@@ -9,6 +9,7 @@ import { themeById } from "./themes.ts";
 import { FONTS } from "./themes.ts";
 import { focusOf, sizedUrl, STARTER_PHOTOS } from "../media.ts";
 import type { FieldKind, FormField, FormTemplate } from "./types.ts";
+import { UserError } from "../../errors.ts";
 
 /** A question as its card shows it: the label, what kind of answer, and the first options. */
 export type CardQuestion = { label: string; kind: FieldKind; opts?: string[]; lo?: number; hi?: number };
@@ -88,9 +89,9 @@ export async function templatePreview(id: string, css?: string): Promise<{ html:
     import("../../studio/styleCss.ts"),
   ]);
   const t = templateById(id);
-  if (!t) throw new Error("Template not found.");
+  if (!t) throw new UserError("Template not found.");
   const checked = checkForm(templateForm(t));
-  if ("errors" in checked) throw new Error("This template can't be shown right now.");
+  if ("errors" in checked) throw new UserError("This template can't be shown right now.");
   const page = formToPage(checked.form);
   return { html: page.html, css: page.css, brand: css || styleCssById(templateTheme(t)) };
 }

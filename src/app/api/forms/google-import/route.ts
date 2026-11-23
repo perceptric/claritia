@@ -6,6 +6,7 @@ import { oauthReady, oauthUrl } from "@/lib/sources/oauth";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { DEFAULT_BRAND_CSS } from "@/lib/studio/brandDefault";
+import { publicMessage } from "@/lib/http";
 
 // Import a Google Form (docs/integrations-plan.md, Next step 13): POST { workspaceId, link }. With the workspace's
 // Google Forms sign-in, answers the form as a Studio page { name, html, css, brand, notes }, which the Forms page
@@ -39,6 +40,6 @@ export async function POST(request: Request) {
     const status = (e as { status?: number }).status ?? 0;
     // A sign-in Google turned down (no status: the sign-in error): sign in again.
     if (!status && /sign in again/i.test((e as Error).message)) return signIn();
-    return bad(googleError(status || 502, (e as Error).message), status === 403 || status === 404 ? 400 : 502);
+    return bad(status === 401 || status === 403 || status === 404 ? googleError(status) : publicMessage(e), status === 403 || status === 404 ? 400 : 502);
   }
 }

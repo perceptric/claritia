@@ -19,11 +19,12 @@ import { slackInstallUrl, slackReady } from "../slack/app.ts";
 import { signState } from "../sources/oauth.ts";
 import { emptyBody, type Decision, type Facts, type RouterBody, type Run } from "./types.ts";
 import { isUuid } from "../uuid.ts";
+import { UserError, dbError } from "../errors.ts";
 
 
 export type Caller = { ws: string; user: string; role: "owner" | "member" };
 
-export class Refused extends Error {
+export class Refused extends UserError {
   status: number;
   constructor(status: number, message: string) {
     super(message);
@@ -252,7 +253,7 @@ export async function saveDraft(rpc: Rpc, c: Caller, body: unknown, revision: nu
   const { data, error } = await rpc("router_draft_save", { p_ws: c.ws, p_body: clean, p_revision: revision, p_user: c.user });
   if (error) {
     if (error.message.includes("conflict")) throw new Refused(409, "Someone else changed the draft.");
-    throw new Error(error.message);
+    throw dbError(error);
   }
   return { revision: data as number, body: clean };
 }
@@ -668,7 +669,7 @@ export async function markContacted(rpc: Rpc, c: Caller, contact: string | null)
   if (error) {
     if (error.message.includes("not_owner")) throw new Refused(403, "Only the lead's owner can mark it contacted.");
     if (error.message.includes("not_found")) throw new Refused(404, "Lead not found.");
-    throw new Error(error.message);
+    throw dbError(error);
   }
   return { met: data === true };
 }
@@ -686,7 +687,7 @@ export async function saveCrmOwners(db: SupabaseClient, c: Caller, rows: unknown
   if (!asked.length) return { ok: true };
   // The workspace's own sources among those named, in one read; then every link in one write.
   const { data: srcs, error } = await db.from("sources").select("id").eq("workspace_id", c.ws).in("id", asked);
-  if (error) throw new Error(error.message);
+  if (error) throw dbError(error);
   const mine = new Set(((srcs ?? []) as { id: string }[]).map((s) => s.id));
   const at = new Date().toISOString();
   // The same owner named twice keeps its last row, as when they were saved one by one.
@@ -705,7 +706,7 @@ export async function saveCrmOwners(db: SupabaseClient, c: Caller, rows: unknown
   }
   if (byKey.size) {
     const up = await db.from("crm_owner_links").upsert([...byKey.values()], { onConflict: "source_id,crm_owner_id" });
-    if (up.error) throw new Error(up.error.message);
+    if (up.error) throw dbError(up.error);
   }
   return { ok: true };
 }

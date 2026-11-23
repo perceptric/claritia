@@ -13,6 +13,7 @@ import { planCached, planLets, type PlanRead } from "../planGate.ts";
 import { decide } from "./engine.ts";
 import type { Decision, Facts, InputIssue, Provenance, Reason, RepFacts, RouterBody, StepResult, TeamFacts } from "./types.ts";
 import { isUuid } from "../uuid.ts";
+import { UserError } from "../errors.ts";
 
 type RawRep = {
   name: string;
@@ -426,7 +427,7 @@ export async function route(
     if (res.status === "gone") return { status: "gone" };
     // stale: decide again with fresh facts (the rep's new count or pause is in them now).
   }
-  throw new Error("The router couldn't settle on a team member; trying again later.");
+  throw new UserError("The router couldn't settle on a team member; trying again later.");
 }
 
 /** The body with its rules off: below Pro, every lead takes the default path (docs/pricing.md, Routing by answer). */

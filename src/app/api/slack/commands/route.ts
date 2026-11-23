@@ -6,6 +6,7 @@ import { slackEmail, slackSigned, tokenOf } from "@/lib/slack/app";
 import { slackBook } from "@/lib/slack/book";
 import { later } from "@/lib/later";
 import { serviceClient } from "@/lib/serviceClient";
+import { dbError } from "@/lib/errors";
 
 // Slack's slash commands (docs/router.md Part 17). Slack signs each request; the answer goes back only to the person
 // who typed it. /book <lead email> [type words]: a single-use booking link.
@@ -61,7 +62,7 @@ async function answerBook(db: NonNullable<ReturnType<typeof serviceClient>>, f: 
       },
       saveLink: async (row) => {
         const { error } = await db.from("meeting_links").insert(row);
-        if (error) throw new Error(error.message);
+        if (error) throw dbError(error);
       },
     });
   } catch {

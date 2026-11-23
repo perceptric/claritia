@@ -9,12 +9,13 @@ import { readCursor } from "./ctx.ts";
 import { dealRecord, day, num } from "./opportunities.ts";
 import { describeSObject, SF_API } from "./properties.ts";
 import type { ActivityItem, ActivityResult, Connector, Ctx, Page, PushChange, PushOptions, PushResult, RawRecord } from "./types.ts";
+import { UserError } from "../errors.ts";
 
 const V = SF_API;
 const OVERLAP_MS = 5 * 60_000;
 const base = (ctx: Ctx) => {
   const u = ctx.secret("instance_url");
-  if (!/^https:\/\/[a-z0-9.-]+\.(salesforce|force)\.com$/i.test(u)) throw new Error("Sign in to Salesforce again.");
+  if (!/^https:\/\/[a-z0-9.-]+\.(salesforce|force)\.com$/i.test(u)) throw new UserError("Sign in to Salesforce again.");
   return `${u}/services/data/${V}`;
 };
 

@@ -15,6 +15,7 @@ import { DEFAULT_SETTINGS, type MeetingType, type Slot } from "../meetings/types
 import type { AvailabilityFailure } from "../routing/states.ts";
 import type { Booked, Booking } from "./calendar.ts";
 import { isUuid } from "../uuid.ts";
+import { dbError } from "../errors.ts";
 
 export type { Booked, Booking };
 
@@ -81,7 +82,7 @@ export function fillType(ctx: Pick<FillCtx, "type" | "hosts">): MeetingType | nu
 
 export async function fillCtx(rpc: Rpc, submission: string, type: string): Promise<FillCtx | null> {
   const { data, error } = await rpc("form_booking_ctx", { p_submission: submission, p_type: type });
-  if (error) throw new Error(error.message);
+  if (error) throw dbError(error);
   const c = data as FillCtx | null;
   if (c?.type) c.type = { ...c.type, settings: { ...DEFAULT_SETTINGS, ...c.type.settings } };
   return c;
@@ -134,7 +135,7 @@ export async function offerForFill(
   // Collective (a rule's team, everyone attends): the members are taken once for this fill, and kept.
   if (o.all && !ctx.hosts?.length) {
     const { data, error } = await rpc("form_booking_hosts", { p_submission: o.submission, p_hosts: o.all.hosts?.length ? o.all.hosts.slice(0, 20) : null, p_key: o.all.key });
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     ctx.hosts = Array.isArray(data) && data.length ? (data as string[]) : null;
     if (!ctx.hosts) {
       o.report?.("unknown");
@@ -152,7 +153,7 @@ export async function offerForFill(
   // With a rep, the book-later email offers that rep's times only (092); before 092, the plain call.
   const shown = rep ? await callNewer(rpc, "form_booking_shown_rep", { p_submission: o.submission, p_type: o.typeId, p_owner: owner }) : null;
   const { data, error } = shown ?? (await rpc("form_booking_shown", { p_submission: o.submission, p_type: o.typeId, p_owner: owner }));
-  if (error) throw new Error(error.message);
+  if (error) throw dbError(error);
   // The token's time runs from the first showing, so a retried send gets the same token.
   const exp = new Date(data as string).getTime() + BOOK_TTL;
   if (!(exp > (o.clock ?? Date.now()))) return null;

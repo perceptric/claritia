@@ -11,6 +11,7 @@
 import { enqueueJob, type Rpc } from "../jobs.ts";
 import { guestContact, loadMeeting, type MeetingView } from "./public.ts";
 import { isUuid } from "../uuid.ts";
+import { dbError } from "../errors.ts";
 
 /** Checkout must stay open at least 30 minutes (Stripe's minimum); the time itself is held for 10. */
 export const CHECKOUT_MINUTES = 30;
@@ -31,7 +32,7 @@ export type PayEvent = {
 
 async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Promise<T> {
   const { data, error } = await rpc(fn, args);
-  if (error) throw new Error(error.message);
+  if (error) throw dbError(error);
   return data as T;
 }
 
@@ -125,7 +126,7 @@ export async function handlePayEvent(rpc: Rpc, stripe: PayStripe, e: PayEvent): 
     // Only a meeting still waiting on this session lets go; a paid or canceled one is left alone.
     if (v.meeting.status !== "pending_payment" || (v.meeting.payment?.session && v.meeting.payment.session !== obj.id)) return { ok: true, did: "skipped" };
     const { error } = await rpc("meeting_status", { p_id: meetingId, p_status: "canceled", p_reason: "The payment wasn't completed.", p_by: null });
-    if (error && !error.message.includes("bad_change")) throw new Error(error.message);
+    if (error && !error.message.includes("bad_change")) throw dbError(error);
     await call(rpc, "meeting_payment", { p_id: meetingId, p_patch: { status: e.type === "checkout.session.expired" ? "expired" : "failed" } });
     return { ok: true, did: "released" };
   }

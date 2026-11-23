@@ -1,3 +1,4 @@
+import { errorText } from "./attempt.ts";
 /**
  * A small shared cache for the app's screens (no React here, so it runs in tests).
  *
@@ -23,8 +24,6 @@ type Entry = {
   stale: boolean;
   used: number;
 };
-
-const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 export const matches = (key: string, name: string) => key === name || key.startsWith(`${name}:`);
 

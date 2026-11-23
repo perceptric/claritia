@@ -7,6 +7,7 @@ import { entryOf } from "./catalog.ts";
 import { connectorFor } from "./registry.ts";
 import type { HookEvent, HookRequest } from "./types.ts";
 import { isUuid } from "../uuid.ts";
+import { dbError } from "../errors.ts";
 
 // Webhooks in, from the form and meeting tools around Claritia's forms: fills from Typeform, Tally and Webflow, and
 // bookings from Calendly and Cal.com, which link to the fill they followed. Each delivery is checked (the URL's token,
@@ -38,7 +39,7 @@ export async function stage(db: Pick<SupabaseClient, "rpc">, source: string, eve
     },
     { anyError: true },
   );
-  if (many.error) throw new Error(many.error.message);
+  if (many.error) throw dbError(many.error);
   return many.data ?? 0;
 }
 

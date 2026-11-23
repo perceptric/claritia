@@ -49,6 +49,7 @@ import { PublishDialog } from "./PublishDialog";
 import { PlanLock, planHas, usePlan } from "../../PlanLock";
 import { SourcesDrawer } from "./SourcesDrawer";
 import { TestDrawer } from "./TestDrawer";
+import { errorText } from "@/lib/attempt";
 
 type Q = { data: Screen | null; error: string; reload: () => void };
 type SaveState = "saved" | "saving" | "error" | "conflict";
@@ -138,7 +139,7 @@ function Editor({ sb, session, ws, navigate, d, policyId, back, screen }: ViewPr
           setSave("conflict");
         } else {
           setSave("error");
-          setSaveErr(e instanceof Error ? e.message : "Couldn't save");
+          setSaveErr(errorText(e));
         }
         throw e;
       }
@@ -281,7 +282,7 @@ function Editor({ sb, session, ws, navigate, d, policyId, back, screen }: ViewPr
                     toast({ text: "Created a disconnected copy" });
                     navigate("routing", `policies/${out.id}`);
                   } catch (e) {
-                    void tell("Couldn't duplicate", e instanceof Error ? e.message : undefined);
+                    void tell("Couldn't duplicate", errorText(e));
                   }
                 })(),
             }
@@ -300,7 +301,7 @@ function Editor({ sb, session, ws, navigate, d, policyId, back, screen }: ViewPr
                     toast({ text: row.archived ? "Restored as a draft" : "Archived" });
                     if (!row.archived) back();
                   } catch (e) {
-                    void tell("Couldn't change it", e instanceof Error ? e.message : undefined);
+                    void tell("Couldn't change it", errorText(e));
                   }
                 })(),
             }
@@ -782,7 +783,7 @@ function VersionsSheet({ session, ws, policyId, names, canRestore, onClose, onRe
   useEffect(() => {
     rt<{ versions: Version[] }>(session, ws, "rt_versions", { policy: policyId })
       .then((r) => setList(r.versions))
-      .catch((e) => setError(e instanceof Error ? e.message : "Couldn't load the versions."));
+      .catch((e) => setError(errorText(e)));
   }, [session, ws, policyId]);
   return (
     <Sheet title="Versions" onClose={onClose} width={620}>
@@ -807,7 +808,7 @@ function VersionsSheet({ session, ws, policyId, names, canRestore, onClose, onRe
                 onClick={() =>
                   void (async () => {
                     if (!(await askConfirm(`Restore v${v.version} as the draft?`, { body: "Publishing it makes a new version. Existing assignments and meetings stay as they are.", ok: "Restore" }))) return;
-                    await onRestore(v).catch((e) => setError(e instanceof Error ? e.message : "Couldn't restore."));
+                    await onRestore(v).catch((e) => setError(errorText(e)));
                   })()
                 }
               >

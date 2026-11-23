@@ -16,6 +16,7 @@ import { Sheet } from "../../Sheet";
 import { Badge, Button, ErrorNote, Loading, type ViewProps } from "../../ui";
 import { rt, newKey, useScreen, type Confirmed, type Preview, type Screen } from "./api";
 import { Initials, namesOf, PersonChoice, slotWords } from "./parts";
+import { errorText } from "@/lib/attempt";
 
 type Step = "start" | "found" | "assigned" | "pending" | "booked" | "failed";
 
@@ -87,7 +88,7 @@ function Handoff({ session, ws, d, contact, onClose, onDone }: Pick<ViewProps, "
         setBase(p);
         setValues(Object.fromEntries(p.fields.map((f) => [f.key, show(f.value, f.key)])));
       })
-      .catch((e) => setError(e instanceof Error ? e.message : "Couldn't open this contact."));
+      .catch((e) => setError(errorText(e)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contact, session, ws.id]);
 
@@ -110,7 +111,7 @@ function Handoff({ session, ws, d, contact, onClose, onDone }: Pick<ViewProps, "
       setReason("");
       setStep("found");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't find a recipient.");
+      setError(errorText(e));
     } finally {
       setBusy(false);
     }
@@ -156,7 +157,7 @@ function Handoff({ session, ws, d, contact, onClose, onDone }: Pick<ViewProps, "
         setError("That time was just taken. Please choose another.");
       } else setStep("failed");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't save the handoff.");
+      setError(errorText(e));
     } finally {
       setBusy(false);
     }
@@ -177,7 +178,7 @@ function Handoff({ session, ws, d, contact, onClose, onDone }: Pick<ViewProps, "
       setStep("pending");
       void poll(done.run);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't book.");
+      setError(errorText(e));
     } finally {
       setBusy(false);
     }

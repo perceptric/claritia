@@ -8,6 +8,7 @@
 
 import { rowCells } from "./rows.ts";
 import { AuthError, RateLimited, type Connector, type Ctx, type RowTarget } from "./types.ts";
+import { UserError } from "../errors.ts";
 
 const GRAPH = "https://graph.microsoft.com/v1.0";
 export const TABLE = "ClaritiaFills";
@@ -17,7 +18,7 @@ const enc = encodeURIComponent;
 /** The workbook's address in Graph from a target id ("driveId!itemId"). */
 function book(target: RowTarget): string {
   const [drive, item] = target.id.split("!");
-  if (!drive || !item) throw new Error("Pick the workbook again in the form's Sync tab.");
+  if (!drive || !item) throw new UserError("Pick the workbook again in the form's Sync tab.");
   return `${GRAPH}/drives/${enc(drive)}/items/${enc(item)}/workbook`;
 }
 
@@ -30,15 +31,15 @@ const asTarget = (d: Item): RowTarget => ({ id: `${d.parentReference?.driveId ??
 /** A workbook from its link (Excel's Share or the address bar). */
 export async function workbookFromLink(ctx: Ctx, link: string): Promise<RowTarget> {
   const l = link.trim();
-  if (!/^https:\/\/([a-z0-9-]+\.)*(sharepoint\.com|onedrive\.live\.com|1drv\.ms|office\.com|live\.com|cloud\.microsoft)\//i.test(l)) throw new Error("Paste the workbook's link from Excel's Share button.");
+  if (!/^https:\/\/([a-z0-9-]+\.)*(sharepoint\.com|onedrive\.live\.com|1drv\.ms|office\.com|live\.com|cloud\.microsoft)\//i.test(l)) throw new UserError("Paste the workbook's link from Excel's Share button.");
   const d = await ctx.api<Item>(`${GRAPH}/shares/${shareId(l)}/driveItem?$select=id,name,webUrl,parentReference`);
-  if (!/\.xlsx$/i.test(d.name)) throw new Error("That link isn't an Excel workbook (.xlsx).");
-  if (!d.parentReference?.driveId) throw new Error("Microsoft didn't say where that workbook is. Try its link from Excel's Share button.");
+  if (!/\.xlsx$/i.test(d.name)) throw new UserError("That link isn't an Excel workbook (.xlsx).");
+  if (!d.parentReference?.driveId) throw new UserError("Microsoft didn't say where that workbook is. Try its link from Excel's Share button.");
   return asTarget(d);
 }
 
 /** Something to try again: Excel sometimes answers a busy workbook with a refusal that clears in a moment. */
-const again = (why: string) => new Error(`${why}; trying again later.`);
+const again = (why: string) => new UserError(`${why}; trying again later.`);
 
 /** The ClaritiaFills table's header, made with its sheet the first time. */
 async function header(ctx: Ctx, base: string): Promise<string[]> {
@@ -52,7 +53,7 @@ async function header(ctx: Ctx, base: string): Promise<string[]> {
     try {
       await ctx.api(`${base}/worksheets/add`, { method: "POST", body: JSON.stringify({ name: SHEET }) });
     } catch (e) {
-      if ((e as { status?: number }).status === 404) throw Object.assign(new Error("That workbook is gone from OneDrive. Pick another in the form's Sync tab."), { gone: true });
+      if ((e as { status?: number }).status === 404) throw Object.assign(new UserError("That workbook is gone from OneDrive. Pick another in the form's Sync tab."), { gone: true });
       // Made by another fill a moment ago.
       if (e instanceof AuthError || e instanceof RateLimited || ![400, 409].includes((e as { status?: number }).status ?? 0)) throw e;
     }

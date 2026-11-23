@@ -12,6 +12,7 @@ import type { Connector, Ctx, ObjectKind, Page, RawRecord, SourceRow } from "./t
 
 import { appendRow } from "./dbRows.ts";
 import { bindCursor, queryError, START_CURSOR, type WhQuery } from "./sql.ts";
+import { UserError } from "../errors.ts";
 
 export { START_CURSOR, type WhQuery } from "./sql.ts";
 export const PAGE = 5000;
@@ -27,7 +28,7 @@ const rowsOf = (columns: string[], arrays: unknown[][]) => arrays.map((a) => Obj
 
 async function guard(ctx: Ctx, host: string) {
   if (ctx.local) return;
-  if (!host || (await hostIsPrivate(host))) throw new Error("That host is on a private network. Use the database's public address.");
+  if (!host || (await hostIsPrivate(host))) throw new UserError("That host is on a private network. Use the database's public address.");
 }
 
 async function runPg(ctx: Ctx, sql: string, cursor: string, limit: number): Promise<Result> {
@@ -78,7 +79,7 @@ async function runMysql(ctx: Ctx, sql: string, cursor: string, limit: number): P
 async function runClickhouse(ctx: Ctx, sql: string, cursor: string, limit: number): Promise<Result> {
   const base = ctx.secret("url").replace(/\/+$/, "");
   const u = new URL(base);
-  if (u.protocol !== "https:" && !ctx.local) throw new Error("Use the https address.");
+  if (u.protocol !== "https:" && !ctx.local) throw new UserError("Use the https address.");
   await guard(ctx, u.hostname);
   const b = bindCursor(wrap(sql, ctx.query?.cursor ?? "1", limit), () => "{cursor:String}");
   const q = new URLSearchParams({ readonly: "1", max_execution_time: String(TIMEOUT_MS / 1000), default_format: "JSONCompact", ...(b.count ? { param_cursor: cursor } : {}) });
@@ -98,7 +99,7 @@ async function runBigquery(ctx: Ctx, sql: string, cursor: string, limit: number)
   try {
     sa = JSON.parse(ctx.secret("service_account"));
   } catch {
-    throw new Error("Paste the service account's JSON key.");
+    throw new UserError("Paste the service account's JSON key.");
   }
   const now = Math.floor(Date.now() / 1000);
   const assertion = jwtRs256({ iss: sa.client_email, scope: "https://www.googleapis.com/auth/bigquery", aud: "https://oauth2.googleapis.com/token", iat: now, exp: now + 3600 }, sa.private_key);
@@ -134,7 +135,7 @@ async function runBigquery(ctx: Ctx, sql: string, cursor: string, limit: number)
       timeoutMs: 45_000,
     });
   }
-  if (!d.jobComplete) throw new Error("The query took over 2 minutes.");
+  if (!d.jobComplete) throw new UserError("The query took over 2 minutes.");
   const columns = (d.schema?.fields ?? []).map((f) => f.name);
   return { columns, rows: rowsOf(columns, (d.rows ?? []).map((r) => r.f.map((c) => c.v))) };
 }
@@ -150,7 +151,7 @@ export function snowflakeJwt(account: string, user: string, privateKey: string, 
 
 async function runSnowflake(ctx: Ctx, sql: string, cursor: string, limit: number): Promise<Result> {
   const account = ctx.secret("account").trim();
-  if (!/^[A-Za-z0-9_.-]{3,100}$/.test(account)) throw new Error("Enter the account identifier, like myorg-myaccount.");
+  if (!/^[A-Za-z0-9_.-]{3,100}$/.test(account)) throw new UserError("Enter the account identifier, like myorg-myaccount.");
   const base = `https://${account.toLowerCase()}.snowflakecomputing.com/api/v2/statements`;
   const headers = { authorization: `Bearer ${snowflakeJwt(account, ctx.secret("user"), ctx.secret("private_key"))}`, "x-snowflake-authorization-token-type": "KEYPAIR_JWT" };
   const b = bindCursor(wrap(sql, ctx.query?.cursor ?? "1", limit), () => "?");
@@ -174,7 +175,7 @@ async function runSnowflake(ctx: Ctx, sql: string, cursor: string, limit: number
 
 async function runDatabricks(ctx: Ctx, sql: string, cursor: string, limit: number): Promise<Result> {
   const host = ctx.secret("host").replace(/^https?:\/\//, "").replace(/\/.*$/, "");
-  if (!/^[a-z0-9.-]+\.(cloud\.databricks\.com|azuredatabricks\.net|gcp\.databricks\.com)$/i.test(host)) throw new Error("Enter the workspace address, like dbc-123.cloud.databricks.com.");
+  if (!/^[a-z0-9.-]+\.(cloud\.databricks\.com|azuredatabricks\.net|gcp\.databricks\.com)$/i.test(host)) throw new UserError("Enter the workspace address, like dbc-123.cloud.databricks.com.");
   const b = bindCursor(wrap(sql, ctx.query?.cursor ?? "1", limit), () => ":cursor");
   type DbOut = { statement_id: string; status: { state: string; error?: { message: string } }; manifest?: { schema: { columns: { name: string }[] } }; result?: { data_array?: unknown[][] } };
   const headers = { authorization: `Bearer ${ctx.secret("token")}` };
@@ -196,7 +197,7 @@ async function runDatabricks(ctx: Ctx, sql: string, cursor: string, limit: numbe
   });
   const start = Date.now();
   while (["PENDING", "RUNNING"].includes(d.status.state) && Date.now() - start < TIMEOUT_MS) d = await ctx.api<DbOut>(`https://${host}/api/2.0/sql/statements/${d.statement_id}`, { auth: false, headers });
-  if (d.status.state !== "SUCCEEDED") throw new Error(d.status.error?.message ?? `The query ${d.status.state.toLowerCase()}.`);
+  if (d.status.state !== "SUCCEEDED") throw new UserError(d.status.error?.message ?? `The query ${d.status.state.toLowerCase()}.`);
   const columns = (d.manifest?.schema.columns ?? []).map((c) => c.name);
   return { columns, rows: rowsOf(columns, d.result?.data_array ?? []) };
 }
@@ -214,7 +215,7 @@ const RUNNERS: Record<string, (ctx: Ctx, sql: string, cursor: string, limit: num
 /** Run a query once, for the source page's Test button and for pulls. */
 export async function runQuery(ctx: Ctx, q: WhQuery, cursor: string, limit = PAGE): Promise<Result> {
   const wrong = queryError(q);
-  if (wrong) throw new Error(wrong);
+  if (wrong) throw new UserError(wrong);
   return RUNNERS[ctx.source.kind]({ ...ctx, query: q }, q.sql, cursor, limit);
 }
 
@@ -235,7 +236,7 @@ function warehouse(kind: string): Connector {
     guess: true,
     async account(ctx) {
       const r = await RUNNERS[kind]({ ...ctx, query: { sql: "select 1 as one", key: "one", cursor: "one", target: "contacts" } }, "select 1 as one", START_CURSOR, 1);
-      if (!r.rows.length) throw new Error("The database answered with nothing.");
+      if (!r.rows.length) throw new UserError("The database answered with nothing.");
       const where = ctx.secret("host") || ctx.secret("account") || ctx.secret("url") || (() => {
         try {
           return (JSON.parse(ctx.secret("service_account")) as { project_id?: string }).project_id ?? kind;
@@ -254,7 +255,7 @@ function warehouse(kind: string): Connector {
       const last = r.rows.length ? r.rows[r.rows.length - 1][q.cursor] : null;
       const next = last == null ? from : String(last);
       const more = r.rows.length >= PAGE;
-      if (more && next === from) throw new Error(`Over ${PAGE.toLocaleString("en-US")} rows share one cursor value; use a finer cursor column.`);
+      if (more && next === from) throw new UserError(`Over ${PAGE.toLocaleString("en-US")} rows share one cursor value; use a finer cursor column.`);
       return { records, cursor: next, more };
     },
     // A row per form fill (docs/integrations-plan.md step 2b).

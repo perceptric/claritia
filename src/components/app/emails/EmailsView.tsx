@@ -26,6 +26,7 @@ import { WorkflowsView } from "../workflows/WorkflowsView";
 import { isRoleAddress } from "@/lib/emails/role";
 import { Badge, Button, Checkbox, ErrorNote, errorText, IconButton, invalidate, Loading, must, Page, postJson, Section, Segmented, Td, Th, timeAgo, useQuery, type Tone, type ViewProps } from "../ui";
 import { kitsBrandFirst } from "@/lib/brand/workspaceKit";
+import { dbError } from "@/lib/errors";
 
 export function EmailsView(props: ViewProps) {
   const p = emailsPage(props.id);
@@ -124,7 +125,7 @@ function Campaigns({ sb, session, ws, navigate }: ViewProps) {
     if (fn === "cancel" && !(await askConfirm(`Cancel ${c.name}?`, { body: "It goes back to a draft and nobody gets it.", ok: "Cancel sending", danger: true }))) return;
     setError("");
     const r = fn === "cancel" ? await sb.rpc("email_campaign_cancel", { p_ws: ws.id, p_email: c.id }) : await sb.rpc("email_campaign_pause", { p_ws: ws.id, p_email: c.id, p_pause: fn === "pause" });
-    if (r.error) setError(r.error.message);
+    if (r.error) setError(errorText(dbError(r.error)));
     void list.reload();
   };
   const newGroup = async () => {
@@ -833,7 +834,7 @@ function Voice({ sb, ws }: ViewProps) {
     setError("");
     const { error: e } = await sb.rpc("brand_brief_save", { p_ws: ws.id, p_kit: k.id, p_brief: text });
     if (e) {
-      setError(e.message);
+      setError(errorText(dbError(e)));
       setState("");
       return;
     }

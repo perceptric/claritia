@@ -1,3 +1,4 @@
+import { UserError } from "../errors.ts";
 // Routing's state vocabulary (docs/routing-workflow.md Section 4): assignment, booking, external sync and review are
 // separate dimensions, never one status that has to mean both "assigned" and "booked". The database checks the same
 // lists (095_routing_policies.sql). Runs in the browser and on the server.
@@ -42,7 +43,7 @@ export type ErrorCode = (typeof ERROR_CODES)[number];
 
 export type RoutingError = { code: ErrorCode; message: string; field?: string; retryable: boolean; operationId?: string; state?: unknown };
 
-export class RoutingFailure extends Error {
+export class RoutingFailure extends UserError {
   readonly error: RoutingError;
   constructor(e: RoutingError) {
     super(e.message);

@@ -3,6 +3,7 @@ import { createClient, type SupabaseClient, type User } from "@supabase/supabase
 import { roles } from "./roleCache.ts";
 import { askAuth, verifyJwt, type Claims, type VerifyEnv } from "./verifyJwt.ts";
 import { isUuid } from "./uuid.ts";
+import { dbError } from "./errors.ts";
 
 export const supabaseUrl = () => process.env.SUPABASE_URL?.trim().replace(/\/+$/, "") ?? "";
 
@@ -84,7 +85,7 @@ export async function roleIn(auth: { user: { id: string }; sb: SupabaseClient },
     const { serviceClient } = await import("./serviceClient.ts");
     const db = serviceClient() ?? auth.sb;
     const { data, error } = await db.from("workspace_members").select("role").eq("workspace_id", workspaceId).eq("user_id", auth.user.id).maybeSingle();
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     return (data as { role?: string } | null)?.role ?? null;
   };
   // A failed read counts as "not in it" (as before) and isn't kept. `fresh` (billing) reads past the cache.

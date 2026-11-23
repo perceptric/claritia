@@ -17,6 +17,7 @@ import { BTN, copyText, GHOST, IB, Seg, SegN, Thumb, useNote } from "./parts";
 import { Menu } from "./Menu";
 import { confirmPause } from "./pause";
 import { formLink } from "@/lib/forms/linkImport";
+import { UserError } from "@/lib/errors";
 
 export type ListRow = {
   id: string;
@@ -76,7 +77,7 @@ export function FormHome(props: ViewProps & { studio?: React.ReactNode }) {
   const duplicate = (r: ListRow) =>
     act(async () => {
       const f = must(await sb.from("forms").select("draft, brand_kit_id").eq("id", r.id).maybeSingle()) as { draft: Form; brand_kit_id: string | null } | null;
-      if (!f) throw new Error("That form is gone.");
+      if (!f) throw new UserError("That form is gone.");
       must(await sb.rpc("form_create", { p_ws: ws.id, p_name: `${r.name} (copy)`.slice(0, 120), p_draft: f.draft, p_brand_kit: f.brand_kit_id, p_kind: r.kind }));
       list.reload();
       note.show("Duplicated as a draft");

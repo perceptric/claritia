@@ -8,11 +8,12 @@ import type { HttpOpts } from "./http.ts";
 import { loadAccount, openProvider, openToken, providerFor, sealToken, zoomFor, type AccountRow } from "./index.ts";
 import { planCheck } from "../../planGate.ts";
 import { isUuid } from "../../uuid.ts";
+import { UserError } from "../../errors.ts";
 
 export type Caller = { ws: string; user: string; role: "owner" | "member"; email?: string };
 export type Connectable = "google" | "microsoft" | "zoom";
 
-export class CalendarRefused extends Error {
+export class CalendarRefused extends UserError {
   status: number;
   constructor(status: number, message: string) {
     super(message);
@@ -76,7 +77,7 @@ export async function finishConnect(rpc: Rpc, o: { state: State; code: string; r
     [email, calendars] = await Promise.all([p.email!(), p.calendars()]);
   }
   email = email || o.fallbackEmail || "";
-  if (!email) throw new Error(`${NAME[provider]} didn't say which account this is.`);
+  if (!email) throw new UserError(`${NAME[provider]} didn't say which account this is.`);
   const over = await planCheck(rpc, "plan_check_calendar", { p_ws: o.state.ws, p_user: o.state.user, p_provider: provider, p_email: email });
   if (over) throw new CalendarRefused(402, over);
   const id = await call<string>(rpc, "calendar_connect", {

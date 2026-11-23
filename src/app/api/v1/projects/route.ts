@@ -1,4 +1,5 @@
 import { requireKey } from "@/lib/apiAuth";
+import { fail } from "@/lib/http";
 
 /** The workspace's projects and their environments. */
 export async function GET(request: Request) {
@@ -10,7 +11,7 @@ export async function GET(request: Request) {
     sb.from("environments").select("id, project_id, name, base_url").eq("workspace_id", workspaceId).order("created_at"),
   ]);
   const error = projects.error ?? envs.error;
-  if (error) return Response.json({ error: error.message }, { status: 500 });
+  if (error) return fail(error, 500);
   const rows = (envs.data ?? []) as { id: string; project_id: string; name: string; base_url: string }[];
   return Response.json({
     projects: (projects.data ?? []).map((p) => ({

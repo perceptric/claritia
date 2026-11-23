@@ -7,7 +7,7 @@ import { deps } from "@/lib/sources/run";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { isUuid } from "@/lib/uuid";
-import { bad } from "@/lib/http";
+import { bad, publicMessage } from "@/lib/http";
 
 // Where a form's rows go (docs/integrations-plan.md step 2), for the form's Sync tab. Read live from the tool.
 //   GET ?workspaceId=&sourceId=                                  → { targets: [{ id, name, url }] }  Airtable, Notion
@@ -33,7 +33,7 @@ async function load(request: Request, ws: unknown, sourceId: unknown) {
   return { d, kind: src.kind as string };
 }
 
-const why = (e: unknown) => String((e as Error).message ?? e).slice(0, 200);
+const why = (e: unknown) => publicMessage(e);
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -43,7 +43,7 @@ export async function GET(request: Request) {
   try {
     return Response.json({ targets: (await l.d.connector.targets(l.d.ctx)).slice(0, 500) }, { headers: { "cache-control": "no-store" } });
   } catch (e) {
-    return Response.json({ error: `Couldn't read them: ${why(e)}` }, { headers: { "cache-control": "no-store" } });
+    return Response.json({ error: why(e) }, { headers: { "cache-control": "no-store" } });
   }
 }
 

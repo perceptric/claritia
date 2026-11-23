@@ -16,13 +16,14 @@ import { failure, RoutingFailure, type Outcome } from "./states.ts";
 import { validatePolicy, type Issue } from "./validate.ts";
 import { DENIED, may } from "./access.ts";
 import { isUuid } from "../uuid.ts";
+import { UserError } from "../errors.ts";
 
 export type Caller = { ws: string; user: string; role: "owner" | "member" };
 
 /** What the screens need besides the database: the workspace's people and the fields rules can test. */
 export type Deps = { members: () => Promise<{ id: string; name: string; email: string }[]>; fields: () => Promise<FieldDef[]> };
 
-export class Refusal extends Error {
+export class Refusal extends UserError {
   status: number;
   code: string;
   state?: unknown;

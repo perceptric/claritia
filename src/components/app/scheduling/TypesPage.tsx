@@ -31,6 +31,7 @@ import { Corners } from "./panel";
 import { newDraft, placeIcon, TypePanel, type HostStatus, type Named, type PanelData } from "./TypePanel";
 import { KindTip } from "../meetings/KindTip";
 import { bookingBase } from "@/lib/meetings/handles";
+import { UserError, dbError } from "@/lib/errors";
 
 /** A new meeting from a template (src/lib/meetings/templates.ts), or blank with no id, opened in the new panel to check and save. */
 export function starterDraft(id: string | null, me: string, team: string[]) {
@@ -67,7 +68,7 @@ export function TypesPage(props: ViewProps & { open: string }) {
     const at = (u: string) => status.get(u) ?? (status.set(u, { cal: false, out: [] }), status.get(u)!);
     for (const c of (cals.data ?? []) as { user_id: string; provider: string; status: string }[]) if (c.provider !== "zoom" && c.status === "ok") at(c.user_id).cal = true;
     for (const r of (reps.data ?? []) as { user_id: string; out_dates: { from: string; to: string }[] | null }[]) at(r.user_id).out = r.out_dates ?? [];
-    if (booked.error) throw new Error(booked.error.message);
+    if (booked.error) throw dbError(booked.error);
     const perType = new Map<string, number>();
     for (const r of (booked.data ?? []) as { type_id: string }[]) perType.set(r.type_id, (perType.get(r.type_id) ?? 0) + 1);
     return {
@@ -249,7 +250,7 @@ export function TypesPage(props: ViewProps & { open: string }) {
                                 run: () =>
                                   void act(async () => {
                                     const r = await meetingsApi<{ text: string }>(session, ws.id, "times", { typeId: t.id, tz: ownZone() });
-                                    if (!r.text) throw new Error(`${t.name} has no free times in its window.`);
+                                    if (!r.text) throw new UserError(`${t.name} has no free times in its window.`);
                                     if (await copyText(r.text)) flash(t.id);
                                   }),
                               },

@@ -5,6 +5,7 @@
 import { createHash } from "node:crypto";
 import Anthropic from "@anthropic-ai/sdk";
 import type { Rpc } from "../jobs.ts";
+import { UserError } from "../errors.ts";
 
 export { readStep, stepEmail } from "./email.ts";
 
@@ -95,14 +96,14 @@ export function claudeDrafter(apiKey: string): Drafter {
       system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
       messages: [{ role: "user", content: prompt(input) }],
     });
-    if (res.stop_reason === "refusal") throw new Error("The AI declined to write this. Change the brief and try again.");
-    if (res.stop_reason === "max_tokens") throw new Error("The draft ran too long. Ask for fewer emails.");
+    if (res.stop_reason === "refusal") throw new UserError("The AI declined to write this. Change the brief and try again.");
+    if (res.stop_reason === "max_tokens") throw new UserError("The draft ran too long. Ask for fewer emails.");
     const text = res.content.map((b) => (b.type === "text" ? b.text : "")).join("");
     let out: { steps?: DraftStep[] };
     try {
       out = JSON.parse(text);
     } catch {
-      throw new Error("The AI's answer couldn't be read. Try again.");
+      throw new UserError("The AI's answer couldn't be read. Try again.");
     }
     const u = res.usage;
     return {
@@ -162,7 +163,7 @@ export async function draftSteps(rpc: Rpc, drafter: Drafter, ws: string, input: 
   if (!hit.error && hit.data) return { steps: cleanSteps((hit.data as { steps: DraftStep[] }).steps, input.domains, input.count), cached: true };
   const out = await drafter(input);
   const steps = cleanSteps(out.steps, input.domains, input.count);
-  if (!steps.length) throw new Error("The AI didn't write any emails. Add more to the brief and try again.");
+  if (!steps.length) throw new UserError("The AI didn't write any emails. Add more to the brief and try again.");
   await rpc("ai_cache_put", { p_ws: ws, p_kind: "nurture_draft", p_key: key, p_output: { steps: out.steps }, p_model: out.model, p_in: out.input_tokens, p_out: out.output_tokens });
   return { steps, cached: false };
 }

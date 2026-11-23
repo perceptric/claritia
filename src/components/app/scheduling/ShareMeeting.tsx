@@ -13,6 +13,7 @@ import { copyText, meetingsApi, Modal, ownZone } from "../meetings/parts";
 import { useLinkBase } from "../views/LinkDomainSettings";
 import { QrCode, signatureHtml } from "../meetings/Share";
 import { BuilderPick, CodeBox, EmbedSteps, LinkRow, SitePreview } from "../SharePieces";
+import { UserError } from "@/lib/errors";
 
 export type Pane = "link" | "site" | "email";
 
@@ -54,7 +55,7 @@ export function ShareMeeting({ session, ws, type, wsSlug, onClose, onSingleUse, 
     setError("");
     try {
       const r = await meetingsApi<{ text: string }>(session, ws.id, "times", { typeId: type.id, tz: ownZone() });
-      if (!r.text) throw new Error(`${type.name} has no free times in its window.`);
+      if (!r.text) throw new UserError(`${type.name} has no free times in its window.`);
       await copy("times", r.text);
     } catch (e) {
       setError(errorText(e));

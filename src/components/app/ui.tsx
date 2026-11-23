@@ -7,6 +7,7 @@ import { Dots } from "./Ai";
 import { Check, Minus, Plus } from "../Icons";
 
 import type { Route } from "@/lib/nav";
+import { dbError, GENERIC, UserError } from "@/lib/errors";
 export type { Route };
 export type Workspace = { id: string; name: string; features: string[] };
 export type Project = { id: string; name: string; workspace_id: string; created_at: string };
@@ -244,7 +245,7 @@ async function callApi<T>(session: Session, method: "GET" | "POST", path: string
   const headers: Record<string, string> = { Authorization: `Bearer ${session.access_token}`, ...(body ? { "Content-Type": "application/json" } : {}) };
   const res = await fetch(path, { method, headers, body: body ? JSON.stringify(body) : undefined });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error ?? "Something went wrong.");
+  if (!res.ok) throw new UserError(typeof data.error === "string" ? data.error : GENERIC);
   return data as T;
 }
 
@@ -252,8 +253,8 @@ export const getJson = <T = Record<string, unknown>,>(session: Session, path: st
 export const postJson = <T = Record<string, unknown>,>(session: Session, path: string, body: object) => callApi<T>(session, "POST", path, body);
 
 /** Throw a Supabase error so callers can show it. */
-export function must<T>(res: { data: T | null; error: { message: string } | null }): T {
-  if (res.error) throw new Error(res.error.message);
+export function must<T>(res: { data: T | null; error: { message: string; code?: string } | null }): T {
+  if (res.error) throw dbError(res.error);
   return res.data as T;
 }
 

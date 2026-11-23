@@ -4,7 +4,7 @@ import { makeFromTemplate, ownKit } from "@/lib/forms/gallery/make";
 import { isTheme } from "@/lib/forms/gallery/themes";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
-import { bad } from "@/lib/http";
+import { bad, fail } from "@/lib/http";
 
 // Use template (docs/form-templates.md, docs/forms-chat-plan.md Part 8): POST { workspaceId, template, kitId?, theme?,
 // plain?, pages? } makes a Form Studio form from a gallery template, in a workspace brand, a style (the template's own unless
@@ -27,6 +27,6 @@ export async function POST(request: Request) {
     const made = await makeFromTemplate({ sb: auth.sb, db, ws, t, kitId: kit, theme: isTheme(b.theme) ? b.theme : null, plain: b.plain === true, pages: b.pages === "one" || b.pages === "multi" ? b.pages : null });
     return Response.json(made);
   } catch (e) {
-    return bad(e instanceof Error ? e.message : "This form template can't be used right now.", 500);
+    return fail(e, 500);
   }
 }

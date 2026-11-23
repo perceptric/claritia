@@ -25,6 +25,7 @@ import { toast } from "../Toast";
 import { closeName } from "@/lib/routing/teamNames";
 import { rt, type Person, type Screen, type Team } from "./api";
 import { Initials, Pills } from "./parts";
+import { errorText } from "@/lib/attempt";
 
 type Q = { data: Screen | null; reload: () => void; mutate: <R>(change: (prev: Screen) => Screen, write: () => Promise<R>) => Promise<R> };
 
@@ -67,7 +68,7 @@ export function TeamsTab({ session, ws, navigate, screen, teamId, pick }: ViewPr
       invalidate(`routing_screen:${ws.id}`);
       toast({ text: words });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't save the team.");
+      setError(errorText(e));
     }
   };
   const saveMember = async (user: string, patch: Patch, words: string) => {
@@ -83,7 +84,7 @@ export function TeamsTab({ session, ws, navigate, screen, teamId, pick }: ViewPr
       toast({ text: words });
       return true;
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't save.");
+      setError(errorText(e));
       return false;
     }
   };
@@ -361,7 +362,7 @@ export function CreateTeam({ people, teams, onClose, onCreate }: { people: Perso
     try {
       await onCreate(name.trim(), members);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't create the team.");
+      setError(errorText(e));
       setBusy(false);
     }
   };

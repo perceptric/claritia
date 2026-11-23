@@ -5,7 +5,8 @@
 import ts from "typescript";
 import { zipSync, strToU8 } from "fflate";
 import { buildLock, parseLock, type Action, type Arg, type Call } from "./lock.ts";
-import { fromYaml, lockOutline, lockPath, slug, stepId, TestFileError, testPath, toYaml, type BlockRef, type Step, type TestDoc } from "./testfile.ts";
+import { fromYaml, lockOutline, lockPath, slug, stepId, testPath, toYaml, type BlockRef, type Step, type TestDoc } from "./testfile.ts";
+import { publicMessage } from "./http.ts";
 
 export type ExportTest = TestDoc & { lock: string | null };
 
@@ -203,7 +204,7 @@ export function importFiles(files: { name: string; text: string }[], blocks: Blo
       try {
         result.tests.push({ ...fromYaml(f.text, blocks), lock: null, file: f.name });
       } catch (e) {
-        result.skipped.push({ file: f.name, reason: e instanceof TestFileError ? e.message : String(e) });
+        result.skipped.push({ file: f.name, reason: publicMessage(e) });
       }
       continue;
     }

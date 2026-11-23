@@ -2,6 +2,7 @@ import { requireKey } from "@/lib/apiAuth";
 import { isUuid } from "@/lib/uuid";
 import { startRuns, type StartInput } from "@/lib/apiRuns";
 import { loadOutcomes } from "@/lib/runOutcomes";
+import { fail } from "@/lib/http";
 
 /**
  * Start runs: POST /api/v1/runs { project, environment?, tests?: [id or name], use_case?, base_url? }.
@@ -28,7 +29,7 @@ export async function GET(request: Request) {
   try {
     runs = await loadOutcomes(caller.sb, caller.workspaceId, ids);
   } catch (e) {
-    return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
+    return fail(e, 500);
   }
   const missing = ids.find((id) => !runs.some((r) => r.id === id));
   if (missing) return Response.json({ error: `Run ${missing} not found.` }, { status: 404 });

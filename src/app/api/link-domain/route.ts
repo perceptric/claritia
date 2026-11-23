@@ -7,7 +7,7 @@ import { requireUser, roleIn } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { SITE_HOST } from "@/lib/site";
 import { isUuid } from "@/lib/uuid";
-import { bad } from "@/lib/http";
+import { bad, fail } from "@/lib/http";
 
 // Settings › Link domain (docs/sharing-plan.md step 4).
 //   GET ?workspaceId=      the workspace's subdomain (when those are on), its custom domain and its state, and the
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
     if (problem) return bad(problem);
     const hostname = cleanHostname(raw);
     const ins = await db.from("link_domains").insert({ workspace_id: ws, hostname }).select(COLS).single();
-    if (ins.error) return bad(ins.error.code === "23505" ? "That domain is already in use." : ins.error.message, ins.error.code === "23505" ? 409 : 500);
+    if (ins.error) return ins.error.code === "23505" ? bad("That domain is already in use.", 409) : fail(ins.error, 500);
     let row = ins.data as DomainRow;
     if (fly) {
       try {
@@ -92,7 +92,7 @@ export async function POST(request: Request) {
     if (role !== "owner") return bad("Only owners remove the domain.", 403);
     if (!cur.domain) return Response.json({ ...cur, domain: null });
     const del = await db.from("link_domains").delete().eq("workspace_id", ws);
-    if (del.error) return bad(del.error.message, 500);
+    if (del.error) return fail(del.error, 500);
     forgetDomain(cur.domain.hostname);
     if (fly) await removeCert(fly, cur.domain.hostname).catch(() => undefined);
     return Response.json({ ...cur, domain: null });

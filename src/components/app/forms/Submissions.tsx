@@ -23,6 +23,7 @@ import { ago } from "./formModel";
 import { Ic } from "./ic";
 import { GHOST, GHOST_SM, GHOST_SM_RED, IB, LINK, Seg, SegN, useNote, Tg } from "./parts";
 import type { Destination, SourceRow } from "./shared";
+import { UserError } from "@/lib/errors";
 
 type Fill = {
   id: string;
@@ -244,7 +245,7 @@ export function Submissions(props: ViewProps & { form: Form; formId: string; des
               if (rest.length) {
                 const r = await postJson<{ released: number; errors: Record<string, string> }>(session, "/api/forms/release", { workspaceId: ws.id, ids: rest });
                 const first = Object.values(r.errors)[0];
-                if (first) throw new Error(first);
+                if (first) throw new UserError(first);
               }
             }
           },
@@ -259,7 +260,7 @@ export function Submissions(props: ViewProps & { form: Form; formId: string; des
   const exportAll = () =>
     run(async () => {
       const res = await fetch(`/api/forms/${formId}/export?filters=${encodeURIComponent(fkey)}`, { headers: { Authorization: `Bearer ${session.access_token}` } });
-      if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? "The export didn't finish.");
+      if (!res.ok) throw new UserError(((await res.json().catch(() => ({}))) as { error?: string }).error ?? "The export didn't finish.");
       download(await res.blob(), /filename="([^"]+)"/.exec(res.headers.get("content-disposition") ?? "")?.[1] ?? "answers.csv");
     }, "Export started. It downloads in a moment.");
   const exportPicked = () => {
@@ -465,7 +466,7 @@ export function Submissions(props: ViewProps & { form: Form; formId: string; des
             onPdf={() =>
               void run(async () => {
                 const res = await fetch(`/api/forms/submissions/${openRow.id}/pdf`, { headers: { Authorization: `Bearer ${session.access_token}` } });
-                if (!res.ok) throw new Error("The PDF didn't download. Try again.");
+                if (!res.ok) throw new UserError("The PDF didn't download. Try again.");
                 download(await res.blob(), `fill-${openRow.id.slice(0, 8)}.pdf`);
               }, "PDF downloaded")
             }

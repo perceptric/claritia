@@ -23,6 +23,7 @@ import { LeftItem } from "./Share";
 import { Select } from "../Select";
 import type { Destination, SourceRow } from "./shared";
 import type { useCrm } from "./useCrm";
+import { UserError } from "@/lib/errors";
 
 const PUSHES = new Set(CATALOG.filter((e) => e.twoWay || e.pushes).map((e) => e.kind));
 /** CRMs offered to connect when they aren't yet. */
@@ -312,7 +313,7 @@ function ListPane({ sb, session, ws, formId, dests, failed, reload, source, logo
   const lists = useQuery(`tool_lists:${source.id}`, async () => {
     const res = await fetch(`/api/forms/tool-lists?workspaceId=${encodeURIComponent(ws.id)}&sourceId=${encodeURIComponent(source.id)}`, { headers: { Authorization: `Bearer ${session.access_token}` } });
     const j = (await res.json().catch(() => ({}))) as { lists?: { id: string; name: string }[]; error?: string };
-    if (!j.lists) throw new Error(j.error ?? "Couldn't read the lists.");
+    if (!j.lists) throw new UserError(j.error ?? "Couldn't read the lists.");
     return j.lists;
   });
   const run = async (fn: () => Promise<unknown>, words?: string) => {
@@ -462,7 +463,7 @@ function DocPane({ sb, session, ws, formId, dests, failed, reload, patchDests, s
   const templates = useQuery(byLink ? null : `tool_targets:${source.id}`, async () => {
     const res = await fetch(`/api/forms/tool-targets?workspaceId=${encodeURIComponent(ws.id)}&sourceId=${encodeURIComponent(source.id)}`, { headers });
     const j = (await res.json().catch(() => ({}))) as { targets?: Target[]; error?: string };
-    if (!j.targets) throw new Error(j.error ?? "Couldn't read the templates.");
+    if (!j.targets) throw new UserError(j.error ?? "Couldn't read the templates.");
     return j.targets;
   });
   const run = async (fn: () => Promise<unknown>, words?: string) => {
@@ -581,7 +582,7 @@ function FilesPane({ sb, session, ws, form, formId, dests, failed, reload, patch
   const folders = useQuery(listable ? `tool_targets:${source.id}` : null, async () => {
     const res = await fetch(`/api/forms/tool-targets?workspaceId=${encodeURIComponent(ws.id)}&sourceId=${encodeURIComponent(source.id)}`, { headers });
     const j = (await res.json().catch(() => ({}))) as { targets?: Target[]; error?: string };
-    if (!j.targets) throw new Error(j.error ?? "Couldn't read the folders.");
+    if (!j.targets) throw new UserError(j.error ?? "Couldn't read the folders.");
     return j.targets;
   });
   const run = async (fn: () => Promise<unknown>, words?: string) => {
@@ -740,7 +741,7 @@ function AlertPane({ sb, session, ws, formId, dests, failed, reload, patchDests,
   const channels = useQuery(pick ? `tool_targets:${source.id}` : null, async () => {
     const res = await fetch(`/api/forms/tool-targets?workspaceId=${encodeURIComponent(ws.id)}&sourceId=${encodeURIComponent(source.id)}`, { headers: { Authorization: `Bearer ${session.access_token}` } });
     const j = (await res.json().catch(() => ({}))) as { targets?: Target[]; error?: string };
-    if (!j.targets) throw new Error(j.error ?? "Couldn't read the channels.");
+    if (!j.targets) throw new UserError(j.error ?? "Couldn't read the channels.");
     return j.targets;
   });
   const run = async (fn: () => Promise<unknown>, words?: string) => {
@@ -861,7 +862,7 @@ function RowsPane({ sb, session, ws, form, formId, dests, failed, reload, source
   const targets = useQuery(google || sql ? null : `tool_targets:${source.id}`, async () => {
     const res = await fetch(`/api/forms/tool-targets?workspaceId=${encodeURIComponent(ws.id)}&sourceId=${encodeURIComponent(source.id)}`, { headers });
     const j = (await res.json().catch(() => ({}))) as { targets?: Target[]; error?: string };
-    if (!j.targets) throw new Error(j.error ?? `Couldn't read the ${word.toLowerCase()}s.`);
+    if (!j.targets) throw new UserError(j.error ?? `Couldn't read the ${word.toLowerCase()}s.`);
     return j.targets;
   });
   const run = async (fn: () => Promise<unknown>, words?: string) => {

@@ -10,10 +10,11 @@ import { enqueueJob, type Rpc } from "../jobs.ts";
 import { payAmount, type Form } from "../forms/schema.ts";
 import { guestContact, loadMeeting, type MeetingView } from "../meetings/public.ts";
 import { PROVIDER_NAME, type PayClient, type PayProvider, type PayRef, type PayState } from "./providers.ts";
+import { dbError } from "../errors.ts";
 
 async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Promise<T> {
   const { data, error } = await rpc(fn, args);
-  if (error) throw new Error(error.message);
+  if (error) throw dbError(error);
   return data as T;
 }
 

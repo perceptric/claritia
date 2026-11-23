@@ -7,7 +7,7 @@ import { emailChatParts } from "@/lib/emails/server";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { isUuid } from "@/lib/uuid";
-import { bad } from "@/lib/http";
+import { bad, publicMessage } from "@/lib/http";
 
 // Many new emails from one prompt (docs/email-canvas-b5.md section 3). POST { workspaceId, step: "plan", message,
 // group, history? } plans a series (names, subjects, one line each, at most 10) or answers with a question;
@@ -62,6 +62,6 @@ export async function POST(request: Request) {
     }
     return bad("Unknown step.");
   } catch (e) {
-    return bad(`The AI didn't answer: ${e instanceof Error ? e.message.slice(0, 200) : "try again"}`, 502);
+    return bad(publicMessage(e), 502);
   }
 }

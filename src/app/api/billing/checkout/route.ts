@@ -2,6 +2,7 @@ import { appBase, ensureProducts, ensureWebhook, hostsNow, isPaidPlan, linesFor,
 import { isInterval } from "@/lib/plans";
 import { requireUser, roleIn } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
+import { fail } from "@/lib/http";
 
 /**
  * Start a Stripe checkout for a paid plan, monthly or yearly, with one line priced per seat. Only the
@@ -33,7 +34,7 @@ export async function POST(request: Request) {
     const made = await stripe.customers.create({ email: user.email, metadata: { workspace_id: body.workspaceId } });
     customer = made.id;
     const { error } = await admin.from("workspace_billing").upsert({ workspace_id: body.workspaceId, stripe_customer_id: customer }, { onConflict: "workspace_id" });
-    if (error) return Response.json({ error: error.message }, { status: 500 });
+    if (error) return fail(error, 500);
   }
 
   const [products, hosts] = await Promise.all([ensureProducts(stripe), hostsNow(admin, body.workspaceId), ensureWebhook(stripe)]);

@@ -9,6 +9,8 @@ import { seal } from "@/lib/seal";
 import { requireUser, roleIn } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { isUuid } from "@/lib/uuid";
+import { publicMessage } from "@/lib/http";
+import { dbError } from "@/lib/errors";
 
 // The Routing screens' server side (docs/router-ux.md 7.3): POST { workspaceId, action, ... }. The caller signs in and
 // names a workspace they're in; the work runs with the service client after the role checks in
@@ -69,7 +71,7 @@ export async function POST(request: Request) {
           if (text.length < 2) return { contacts: [] };
           const like = `%${text}%`;
           const r = await db.from("contacts").select("id, first_name, last_name, email").eq("workspace_id", ws).is("deleted_at", null).or(`email.ilike.${like},first_name.ilike.${like},last_name.ilike.${like}`).limit(8);
-          if (r.error) throw new Error(r.error.message);
+          if (r.error) throw dbError(r.error);
           return { contacts: (r.data ?? []).map((x) => ({ id: x.id as string, name: [x.first_name, x.last_name].filter(Boolean).join(" "), email: (x.email as string | null) ?? null })) };
         }
         case "rt_form_source":
@@ -170,7 +172,7 @@ export async function POST(request: Request) {
     if (e instanceof A.Refused) return Response.json({ error: e.message }, { status: e.status });
     const r = S.refusalOf(e);
     if (r) return Response.json({ error: r.message, code: r.code, ...(r.state !== undefined ? { state: r.state } : {}) }, { status: r.status });
-    return Response.json({ error: e instanceof Error ? e.message.slice(0, 300) : "Something went wrong." }, { status: 502 });
+    return Response.json({ error: publicMessage(e).slice(0, 300) }, { status: 502 });
   }
 }
 

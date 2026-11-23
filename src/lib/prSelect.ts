@@ -5,6 +5,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { jsonRequest, textOf, usageOf } from "./claude.ts";
+import { UserError } from "./errors.ts";
 
 export type ChangedFile = { filename: string; status: string; additions: number; deletions: number; patch?: string };
 export type PickTest = { id: string; name: string; use_case: string; steps: string[] };
@@ -77,7 +78,7 @@ export function claudePicker(opts: { apiKey: string; model?: string }): Picker {
   return async (files, tests, pages) => {
     const res = await client.beta.messages.create(jsonRequest({ model, maxTokens: 4000, effort: "low", schema: SCHEMA, system: SYSTEM, content: pickPrompt(files, tests, pages), fallback: false }));
     const usage = usageOf(res);
-    if (res.stop_reason === "refusal" || res.stop_reason === "max_tokens") throw new Error("Claude didn't pick tests.");
+    if (res.stop_reason === "refusal" || res.stop_reason === "max_tokens") throw new UserError("Claude didn't pick tests.");
     const out = JSON.parse(textOf(res)) as { run_all?: boolean; reason?: string; tests?: { name: string; why: string }[]; new_flows?: string[] };
     return { runAll: out.run_all !== false, reason: String(out.reason ?? ""), tests: out.tests ?? [], newFlows: (out.new_flows ?? []).map(String).filter(Boolean).slice(0, 5), usage };
   };

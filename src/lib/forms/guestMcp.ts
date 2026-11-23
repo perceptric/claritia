@@ -4,6 +4,7 @@ import { mcpServer, ToolError, type Tool } from "../mcpProtocol.ts";
 import { APP_URL } from "../site.ts";
 import { findTemplates, GUEST_KEY, guestForm, guestIpHash, guestKeyHash, newGuestKey, STYLE_IDS } from "./guest.ts";
 import { isUuid } from "../uuid.ts";
+import { UserError } from "../errors.ts";
 
 // The MCP server for someone who hasn't signed in (docs/mcp.md, "Forms before sign-up"): ChatGPT or Claude finds a
 // template or writes the page, and the form goes live at once with a claim link. Signed-in tools are listed too;
@@ -48,7 +49,7 @@ const guestTools: Tool<GuestCtx>[] = [
       if ("error" in made) throw new ToolError(made.error);
       const { key, hash } = newGuestKey();
       const { data, error } = await ctx.sb.rpc("guest_form_make", { p_name: name, p_token_hash: hash, p_ip_hash: guestIpHash(ctx.ip), p_body: made.form });
-      if (error) throw error.message.includes("too_many_guest_forms") ? new ToolError("This connection made 20 forms today. Sign in to Claritia to make more.") : new Error("Couldn't make the form. Try again.");
+      if (error) throw error.message.includes("too_many_guest_forms") ? new ToolError("This connection made 20 forms today. Sign in to Claritia to make more.") : new UserError("Couldn't make the form. Try again.");
       const id = data as string;
       const l = links(id, key);
       return {
@@ -70,7 +71,7 @@ const guestTools: Tool<GuestCtx>[] = [
       const made = guestForm({ name, template: typeof args.template === "string" ? args.template : undefined, html: typeof args.html === "string" ? args.html : undefined, css: typeof args.css === "string" ? args.css : undefined, style: typeof args.style === "string" ? args.style : undefined });
       if ("error" in made) throw new ToolError(made.error);
       const { data, error } = await ctx.sb.rpc("guest_form_update", { p_form: id, p_token_hash: guestKeyHash(key), p_name: name, p_body: made.form });
-      if (error) throw error.message.includes("guest_form_not_found") ? new ToolError("That form was claimed, closed, or the key is wrong. Once claimed, it's changed in Claritia.") : new Error("Couldn't save the form. Try again.");
+      if (error) throw error.message.includes("guest_form_not_found") ? new ToolError("That form was claimed, closed, or the key is wrong. Once claimed, it's changed in Claritia.") : new UserError("Couldn't save the form. Try again.");
       const l = links(id, key);
       return { text: `Updated (version ${data}): ${l.live}\nQuestions: ${made.questions.join(", ")}`, data: { form_id: id, version: data, live_url: l.live, claim_url: l.claim, questions: made.questions } };
     },

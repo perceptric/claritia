@@ -3,6 +3,7 @@ import { activeAccount, composioCreds, dropAccount } from "@/lib/sources/composi
 import { readState } from "@/lib/sources/oauth";
 import { connectSource } from "@/lib/sources/server";
 import { serviceClient } from "@/lib/serviceClient";
+import { publicMessage } from "@/lib/http";
 
 // Back from Composio's connect page (src/app/api/sources/connect): the signed state says which workspace and tool;
 // the connected account Composio names must be that workspace's, for that tool, and ACTIVE before it's saved. Then
@@ -32,6 +33,6 @@ export async function GET(request: Request) {
   } catch (e) {
     // The workspace's own new account that didn't connect isn't kept at Composio either (never the one in use).
     if (made && made !== old) await dropAccount(made);
-    return go({ error: e instanceof Error ? e.message.slice(0, 200) : "Could not connect." });
+    return go({ error: publicMessage(e).slice(0, 200) });
   }
 }

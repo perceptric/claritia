@@ -10,6 +10,7 @@ import { routerTools } from "./router/mcp.ts";
 import { emailTools } from "./emails/mcp.ts";
 import { APP_URL } from "./site.ts";
 import { fromYaml, TestFileError, toYaml, type BlockRef, type Step } from "./testfile.ts";
+import { dbError } from "./errors.ts";
 
 type Ctx = ApiCaller & { pollMs?: number };
 
@@ -25,7 +26,7 @@ async function project(ctx: Ctx, ref: unknown) {
 
 async function blocksOf(ctx: Ctx, projectId: string): Promise<BlockRef[]> {
   const { data, error } = await ctx.sb.from("blocks").select("id, name").eq("workspace_id", ctx.workspaceId).eq("project_id", projectId);
-  if (error) throw new Error(error.message);
+  if (error) throw dbError(error);
   return (data ?? []) as BlockRef[];
 }
 
@@ -37,7 +38,7 @@ async function findTest(ctx: Ctx, ref: unknown, projectRef: unknown): Promise<Te
   let q = ctx.sb.from("tests").select(TEST_FIELDS).eq("workspace_id", ctx.workspaceId);
   if (projectRef) q = q.eq("project_id", (await project(ctx, projectRef)).id);
   const { data, error } = isUuid(ref.trim()) ? await q.eq("id", ref.trim()) : await q.ilike("name", ref.trim().replace(/[%_\\]/g, "\\$&"));
-  if (error) throw new Error(error.message);
+  if (error) throw dbError(error);
   const rows = (data ?? []) as TestRow[];
   if (!rows.length) throw new ToolError(`Test ${ref} not found. Call list_tests to see the tests.`);
   if (rows.length > 1) throw new ToolError(`More than one test is called ${ref}. Pass project, or the test's id.`);
@@ -66,7 +67,7 @@ const tools: Tool<Ctx>[] = [
         ctx.sb.from("projects").select("id, name").eq("workspace_id", ctx.workspaceId).order("created_at"),
         ctx.sb.from("environments").select("project_id, name, base_url").eq("workspace_id", ctx.workspaceId).order("created_at"),
       ]);
-      if (projects.error || envs.error) throw new Error((projects.error ?? envs.error)!.message);
+      if (projects.error || envs.error) throw dbError((projects.error ?? envs.error)!);
       const data = (projects.data ?? []).map((p) => ({ id: p.id, name: p.name, environments: (envs.data ?? []).filter((e) => e.project_id === p.id).map((e) => ({ name: e.name, base_url: e.base_url })) }));
       const text = data.length ? data.map((p) => `${p.name}\n${p.environments.map((e) => `  ${e.name}: ${e.base_url}`).join("\n") || "  (no environments)"}`).join("\n") : "No projects yet. Make one at " + APP_URL;
       return { text, data: { projects: data } };
@@ -84,7 +85,7 @@ const tools: Tool<Ctx>[] = [
         ctx.sb.from("tests").select("id, name, use_case, priority, steps").eq("workspace_id", ctx.workspaceId).eq("project_id", p.id).order("use_case").order("name"),
         ctx.sb.from("runs").select("test_id, status, verdict, created_at").eq("workspace_id", ctx.workspaceId).eq("project_id", p.id).order("created_at", { ascending: false }).limit(500),
       ]);
-      if (tests.error || runs.error) throw new Error((tests.error ?? runs.error)!.message);
+      if (tests.error || runs.error) throw dbError((tests.error ?? runs.error)!);
       const last = new Map<string, { status: string; verdict: string | null }>();
       for (const r of runs.data ?? []) if (r.test_id && !last.has(r.test_id)) last.set(r.test_id, r);
       const data = (tests.data ?? []).map((t) => ({ id: t.id, name: t.name, use_case: t.use_case, priority: t.priority, steps: Array.isArray(t.steps) ? t.steps.length : 0, last_result: last.get(t.id)?.status ?? null }));
@@ -104,7 +105,7 @@ const tools: Tool<Ctx>[] = [
         blocksOf(ctx, t.project_id),
         ctx.sb.from("runs").select("id, status, verdict, verdict_reason, created_at").eq("workspace_id", ctx.workspaceId).eq("test_id", t.id).order("created_at", { ascending: false }).limit(5),
       ]);
-      if (runs.error) throw new Error(runs.error.message);
+      if (runs.error) throw dbError(runs.error);
       const yaml = toYaml(t, blocks);
       const recent = (runs.data ?? []).map((r) => ({ status: r.status, verdict: r.verdict, reason: r.verdict_reason, url: `${APP_URL}/runs/${r.id}` }));
       const text = [
@@ -150,7 +151,7 @@ const tools: Tool<Ctx>[] = [
       const res = existing
         ? await ctx.sb.from("tests").update(fields).eq("id", existing.id).eq("version", existing.version).select("id, name, version").maybeSingle()
         : await ctx.sb.from("tests").insert({ ...fields, project_id: p.id }).select("id, name, version").single();
-      if (res.error) throw new ToolError(res.error.message);
+      if (res.error) throw dbError(res.error);
       if (!res.data) throw new ToolError("Someone saved this test at the same moment. Call get_test and try again.");
       const saved = res.data as { id: string; name: string; version: number };
       return { text: `${existing ? "Updated" : "Created"} ${saved.name} (version ${saved.version}) in ${p.name}. Run it with verify_change.\n${APP_URL}/tests/${saved.id}`, data: { ...saved, project: p, url: `${APP_URL}/tests/${saved.id}`, created: !existing } };
@@ -206,7 +207,7 @@ const tools: Tool<Ctx>[] = [
     async run(ctx, args) {
       const p = await project(ctx, args.project);
       const { data, error } = await ctx.sb.from("heals").select("id, position, step_label, old_code, new_code, error, created_at, tests(name)").eq("workspace_id", ctx.workspaceId).eq("project_id", p.id).eq("status", "pending").order("created_at", { ascending: false }).limit(20);
-      if (error) throw new Error(error.message);
+      if (error) throw dbError(error);
       const fixes = ((data ?? []) as unknown as { id: string; position: number; step_label: string; old_code: string; new_code: string; error: string; tests: { name: string } | null }[]).map((h) => ({ test: h.tests?.name ?? "Test", step: h.position, label: h.step_label, old_code: h.old_code, new_code: h.new_code, error: h.error, review: `${APP_URL}/approvals/${h.id}` }));
       const text = fixes.length ? fixes.map((f) => `${f.test}, step ${f.step} (${f.label})\n- ${f.old_code.replace(/\n/g, "\n- ")}\n+ ${f.new_code.replace(/\n/g, "\n+ ")}\nReview: ${f.review}`).join("\n\n") : "No fixes waiting.";
       return { text, data: { fixes } };

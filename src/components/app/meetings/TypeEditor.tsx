@@ -24,6 +24,7 @@ import { CopyButton, meetingsApi, Modal, ownZone, PersonAvatar, useNow, usePeopl
 import { TYPE_COLS, type TypeRow } from "./TypesList";
 import { bookingBase } from "@/lib/meetings/handles";
 import { hasOptions, QUESTION_TYPES } from "@/lib/meetings/questions";
+import { UserError } from "@/lib/errors";
 
 export type Draft = Pick<MeetingType, "name" | "slug" | "kind" | "hosts" | "settings" | "secret" | "active" | "locked" | "owner_user_id">;
 type LockKey = MeetingType["locked"][number];
@@ -222,7 +223,7 @@ export function TypeEditor(props: ViewProps) {
           ) : null}
           {!isNew ? (
             <>
-              <CopyButton label="Copy times" get={async () => (await meetingsApi<{ text: string }>(session, ws.id, "times", { typeId: id, length, tz })).text || Promise.reject(new Error("No free times in the window."))} onError={(m) => setErrors([m])} />
+              <CopyButton label="Copy times" get={async () => (await meetingsApi<{ text: string }>(session, ws.id, "times", { typeId: id, length, tz })).text || Promise.reject(new UserError("No free times in the window."))} onError={(m) => setErrors([m])} />
               <IconButton label="New link" onClick={() => setLinking(true)}>
                 <LinkIcon size={15} />
               </IconButton>

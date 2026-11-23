@@ -9,6 +9,7 @@ import { Trash, Upload } from "../../Icons";
 import { askConfirm } from "../Dialogs";
 import { errorText, useQuery } from "../ui";
 import { Popover, Row, TextIn } from "../forms/controls";
+import { UserError } from "@/lib/errors";
 
 export type AssetCtx = {
   session: Session;
@@ -47,7 +48,7 @@ export function ImagePicker({ label, value, onChange, ctx, placeholder }: { labe
       body.set("file", f);
       const res = await fetch("/api/assets", { method: "POST", headers: { Authorization: `Bearer ${ctx.session.access_token}` }, body });
       const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
-      if (!res.ok || !data.url) throw new Error(data.error ?? "Try again in a moment.");
+      if (!res.ok || !data.url) throw new UserError(data.error ?? "Try again in a moment.");
       onChange(data.url);
       assets.reload();
     } catch (e) {

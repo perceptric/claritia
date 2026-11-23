@@ -8,8 +8,9 @@ import type { Trace } from "@/lib/routing/evaluate";
 import type { Issue } from "@/lib/routing/validate";
 import type { PolicyRow, SourceRow } from "@/lib/routing/screenModel";
 import { useQuery } from "../../ui";
+import { UserError } from "@/lib/errors";
 
-export class ApiError extends Error {
+export class ApiError extends UserError {
   status: number;
   code: string;
   state: unknown;

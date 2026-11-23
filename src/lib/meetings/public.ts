@@ -18,6 +18,7 @@ import { checkSettings } from "./check.ts";
 import { guestLocation, toGuestType, type GuestIn, type GuestSlot, type GuestType, type Profile } from "./guest.ts";
 import { DEFAULT_SETTINGS, type Location, type MeetingSource, type MeetingStatus, type MeetingType, type Slot, type Span } from "./types.ts";
 import { isUuid } from "../uuid.ts";
+import { dbError } from "../errors.ts";
 
 const MIN = 60_000;
 /** The brand kit a booking page uses; `design` is its published design system (077_book_design.sql). */
@@ -27,7 +28,7 @@ type Ws = { id: string; name: string; slug: string | null; kit: Kit; turnstile: 
 
 async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Promise<T> {
   const { data, error } = await rpc(fn, args);
-  if (error) throw new Error(error.message);
+  if (error) throw dbError(error);
   return data as T;
 }
 
@@ -69,7 +70,7 @@ export async function loadTarget(rpc: Rpc, ws: string, slug: string | null, form
   const p_form = form && isUuid(form) ? form : null;
   const page = await callNewer(rpc, "book_page", { p_ws: w, p_slug: s, p_form, p_handle: null });
   if (page) {
-    if (page.error) throw new Error(page.error.message);
+    if (page.error) throw dbError(page.error);
     const t = page.data as (Target & { look?: unknown }) | null;
     return t ? finish(t, t.look) : null;
   }
@@ -98,7 +99,7 @@ export async function loadHandleTarget(rpc: Rpc, handle: string, type: string | 
   const page = await callNewer(rpc, "book_page", { p_ws: null, p_slug: ty, p_form, p_handle: hh });
   let out: { h: Handle; t: Target } | null;
   if (page) {
-    if (page.error) throw new Error(page.error.message);
+    if (page.error) throw dbError(page.error);
     const t = page.data as (Target & { look?: unknown; handle?: Handle | null }) | null;
     out = t?.handle ? { h: t.handle, t: finish(t, t.look) } : null;
   } else {
@@ -450,19 +451,19 @@ export async function bookOneOff(rpc: Rpc, o: { view: LinkView; start: number; g
     p_location: linkLocation(v),
     p_booked_by: null,
   };
-  const refused = (message: string): BookOutcome => {
-    const code = codeOf(message, ["slot_taken", "link_used", "link_closed"] as const);
-    if (!code) throw new Error(message);
+  const refused = (e: { message: string; code?: string }): BookOutcome => {
+    const code = codeOf(e.message, ["slot_taken", "link_used", "link_closed"] as const);
+    if (!code) throw dbError(e);
     return { ok: false, error: code, slots: code === "slot_taken" ? rest() : [] };
   };
   // The meeting with its manage token, the guest's contact and meeting_sync, in one transaction (090).
   const all = await callNewer(rpc, "meeting_book_all", { ...args, p_sealed: sealedToken(token), p_contact_row: contactId ? null : await guestRow.catch(() => null), p_sync: true });
   if (all) {
-    if (all.error) return refused(all.error.message);
+    if (all.error) return refused(all.error);
     return { ok: true, meetingId: (all.data as { id: string }).id, token, start: o.start, end, hosts: [host], pending: false };
   }
   const { data, error } = await rpc("meeting_book", args);
-  if (error) return refused(error.message);
+  if (error) return refused(error);
   const meetingId = data as string;
   await keepManageToken(rpc, meetingId, token).catch(() => undefined);
   if (!contactId) await guestContact(rpc, meetingId, o.guest);
@@ -498,7 +499,7 @@ export async function pollVote(rpc: Rpc, token: string, vote: { email: string; n
     return { ok: true, ...(viewed ? { view: v ? { ...v, type: v.type ? withDefaults(v.type) : null } : null } : {}) };
   }
   const code = codeOf(error.message, ["link_closed", "bad_pick"] as const);
-  if (!code) throw new Error(error.message);
+  if (!code) throw dbError(error);
   return { ok: false, error: code };
 }
 
@@ -548,19 +549,19 @@ export async function pollBookWinner(rpc: Rpc, o: { view: LinkView; start: numbe
     p_location: linkLocation(v),
     p_booked_by: o.bookedBy,
   };
-  const refused = async (message: string): Promise<PollBook> => {
-    const code = codeOf(message, ["slot_taken", "link_closed", "not_offered"] as const);
-    if (!code) throw new Error(message);
+  const refused = async (e: { message: string; code?: string }): Promise<PollBook> => {
+    const code = codeOf(e.message, ["slot_taken", "link_closed", "not_offered"] as const);
+    if (!code) throw dbError(e);
     return { ok: false, error: code, free: code === "slot_taken" ? await free(o.start) : [] };
   };
   // The meeting, its manage token, the lead's contact and meeting_sync in one transaction (090).
   const all = await callNewer(rpc, "poll_book_all", { ...args, p_sealed: sealedToken(token), p_contact_row: await guestContactRow({ email: lead.email, name: lead.name }).catch(() => null) });
   if (all) {
-    if (all.error) return refused(all.error.message);
+    if (all.error) return refused(all.error);
     return { ok: true, meetingId: (all.data as { id: string }).id, token, guests };
   }
   const { data, error } = await rpc("poll_book", args);
-  if (error) return refused(error.message);
+  if (error) return refused(error);
   const meetingId = data as string;
   await keepManageToken(rpc, meetingId, token).catch(() => undefined);
   await guestContact(rpc, meetingId, { email: lead.email, name: lead.name });
@@ -780,7 +781,7 @@ export async function reschedule(rpc: Rpc, o: { view: MeetingView; start: number
   const { error } = moved ?? (await rpc("meeting_move", args));
   if (error) {
     const found = codeOf(error.message, ["slot_taken", "full", "not_movable"] as const);
-    if (!found) throw new Error(error.message);
+    if (!found) throw dbError(error);
     const code = found === "full" ? "slot_taken" : found;
     return { ok: false, error: code, slots: code === "slot_taken" ? (await moveSlots(rpc, v, now)).filter((x) => x.start !== o.start).map((x) => ({ start: x.start })) : [] };
   }
@@ -803,7 +804,7 @@ export async function cancelByGuest(rpc: Rpc, o: { view: MeetingView; reason?: s
   const { error } = done ?? (await rpc("meeting_status", { p_id: v.meeting.id, p_status: "canceled", p_reason: reason, p_by: null }));
   if (error) {
     if (error.message.includes("bad_change")) return { ok: false, error: "not_cancelable" };
-    throw new Error(error.message);
+    throw dbError(error);
   }
   if (done) return { ok: true, view: viewOf(done.data) };
   if (was === "booked") await enqueueJob(rpc, { workspaceId: v.meeting.workspace_id, kind: "meeting_sync", key: `cancel:${v.meeting.id}:${Date.now()}`, payload: { meeting: v.meeting.id, action: "cancel" } });

@@ -5,6 +5,7 @@
 // answer that starts with "=" stays text and never runs as a formula. Endpoints "check" against a real account.
 
 import { AuthError, RateLimited, type Connector, type Ctx, type FillRow, type RowTarget } from "./types.ts";
+import { UserError } from "../errors.ts";
 
 export const FIXED = ["Sent at", "Fill ID", "Form"] as const;
 /** A fill's row as ordered name and value pairs: the fixed columns, then the questions. */
@@ -48,7 +49,7 @@ export async function createSheet(ctx: Ctx, title: string): Promise<RowTarget> {
 /** A spreadsheet from its link (or id): its name, address and first tab. */
 export async function sheetFromLink(ctx: Ctx, link: string): Promise<RowTarget> {
   const id = /\/spreadsheets\/d\/([A-Za-z0-9_-]{20,})/.exec(link)?.[1] ?? (/^[A-Za-z0-9_-]{20,}$/.test(link.trim()) ? link.trim() : null);
-  if (!id) throw new Error("Paste the spreadsheet's link from your browser.");
+  if (!id) throw new UserError("Paste the spreadsheet's link from your browser.");
   const d = await ctx.api<{ properties: { title: string }; spreadsheetUrl: string; sheets: { properties: { title: string } }[] }>(`${SHEETS}/${id}?fields=properties.title,spreadsheetUrl,sheets.properties.title`);
   return { id, name: d.properties.title, url: d.spreadsheetUrl, sheet: d.sheets?.[0]?.properties.title ?? "Sheet1" };
 }
@@ -121,9 +122,9 @@ export const airtable: Connector = {
   },
   async append(ctx, target, row, o) {
     const [base, table] = target.id.split("/");
-    if (!base || !table) throw new Error("Pick the table again in the form's Sync tab.");
+    if (!base || !table) throw new UserError("Pick the table again in the form's Sync tab.");
     const t = ((await ctx.api<{ tables: AtTable[] }>(`${AT}/meta/bases/${base}/tables`)).tables ?? []).find((x) => x.id === table);
-    if (!t) throw new Error("That table is gone from Airtable. Pick another in the form's Sync tab.");
+    if (!t) throw new UserError("That table is gone from Airtable. Pick another in the form's Sync tab.");
     const cells = rowCells(row);
     const have = new Set(t.fields.map((f) => f.name));
     for (const c of cells) {
@@ -143,7 +144,7 @@ export const airtable: Connector = {
     const fields = Object.fromEntries(cells.filter((c) => c.value !== "").map((c) => [c.name, c.value]));
     const d = await ctx.api<{ records: { id: string }[] }>(`${AT}/${base}/${table}`, { method: "POST", body: JSON.stringify({ records: [{ fields }], typecast: true }) });
     const id = d.records?.[0]?.id;
-    if (!id) throw new Error("Airtable didn't take this fill.");
+    if (!id) throw new UserError("Airtable didn't take this fill.");
     return { externalId: id };
   },
   defaults: { contact: {} },

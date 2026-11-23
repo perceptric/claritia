@@ -7,6 +7,7 @@ import { fieldsFor } from "../router/actions.ts";
 import { readPast } from "../router/server.ts";
 import { dynamicHosts, dynamicOf, narrowTo, routeQuestions, routeValues, testsPastFill, type RouteQuestion } from "./dynamic.ts";
 import type { MeetingType } from "./types.ts";
+import { dbError } from "../errors.ts";
 
 export async function questionsFor(db: SupabaseClient, ws: string, t: MeetingType): Promise<RouteQuestion[]> {
   if (!dynamicOf(t)) return [];
@@ -45,7 +46,7 @@ export async function routedType(rpc: Rpc, db: SupabaseClient, o: { ws: string; 
     }
   }
   const { data, error } = await rpc("routing_team_list", { p_ws: o.ws });
-  if (error) throw new Error(error.message);
+  if (error) throw dbError(error);
   const teams = (data ?? {}) as Record<string, { members: { user: string }[] }>;
   return narrowTo(o.type, dynamicHosts(o.type, routeValues(o.answers, qs, fromEmail, past), teams));
 }

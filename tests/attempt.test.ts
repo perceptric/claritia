@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { attempt } from "../src/lib/attempt.ts";
+import { UserError } from "../src/lib/errors.ts";
 
 test("attempt marks busy, runs after only on success, and turns a throw into the error", async () => {
   const log: string[] = [];
@@ -9,7 +10,7 @@ test("attempt marks busy, runs after only on success, and turns a throw into the
   assert.deepEqual(log, ["error:", "busy:true", "run", "after", "busy:false"]);
   log.length = 0;
   await attempt(async () => {
-    throw new Error("Nope");
+    throw new UserError("Nope");
   }, o);
   assert.deepEqual(log, ["error:", "busy:true", "error:Nope", "busy:false"]);
 });

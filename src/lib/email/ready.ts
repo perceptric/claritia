@@ -1,6 +1,7 @@
 import "server-only";
 import { rpcOr } from "../rpcCompat.ts";
 import type { serviceClient } from "../serviceClient.ts";
+import { dbError } from "../errors.ts";
 
 // Whether a workspace can send right now: a From address on a verified domain, and sending not paused. Read fresh
 // every time, so a pause or a new From address counts at once (Settings › Sending's test, Share's Email the link).
@@ -16,7 +17,7 @@ export async function sendReady(db: Db, ws: string): Promise<Ready> {
     const { data: domain } = await db.rpc("verified_domain_for", { p_ws: ws, p_email: s.from_email });
     return { data: { from_email: s.from_email as string, paused: !!s.paused, verified: !!(domain as { id?: string } | null)?.id }, error: null };
   }, { anyError: true });
-  if (r.error) throw new Error(r.error.message);
+  if (r.error) throw dbError(r.error);
   return r.data ?? { from_email: null, paused: false, verified: false };
 }
 

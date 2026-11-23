@@ -8,6 +8,7 @@ import { kitBooks, kitMeeting, kitWorkflows } from "./kit.ts";
 import { withPages, type PagesMode } from "./pages.ts";
 import type { FormTemplate } from "./types.ts";
 import { isUuid } from "../../uuid.ts";
+import { dbError } from "../../errors.ts";
 
 // Use template on the server (docs/form-templates.md, docs/forms-chat-plan.md Part 8): the template as a Form Studio
 // page in the look picked: a style (the one picked on the website, or the template's own), a workspace brand (its
@@ -35,7 +36,7 @@ export async function makeFromTemplate(o: { sb: SupabaseClient; db: SupabaseClie
   const css = kitId ? (kitCss ?? "") : o.plain ? "" : styleCssById(o.theme || templateTheme(t));
   const draft = templateDraft(withPages(t, o.pages), css, meeting);
   const { data: id, error } = await sb.rpc("form_create", { p_ws: ws, p_name: t.name, p_draft: draft, p_brand_kit: kitId, p_kind: "built" });
-  if (error) throw new Error(error.message);
+  if (error) throw dbError(error);
   let made = 0;
   let failed = 0;
   for (const key of kitWorkflows(t)) {

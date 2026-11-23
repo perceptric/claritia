@@ -9,9 +9,10 @@ import { keyed, signedByComposio } from "./keyed.ts";
 import { refreshRequest } from "./oauth.ts";
 import type { Connector, Ctx, PushChange, PushResult, SourceRow } from "./types.ts";
 import { isUuid } from "../uuid.ts";
+import { UserError } from "../errors.ts";
 
 const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
-const gone = () => Object.assign(new Error("The record is gone."), { status: 404 });
+const gone = () => Object.assign(new UserError("The record is gone."), { status: 404 });
 const isGone = (e: unknown) => [404, 410].includes((e as { status?: number })?.status ?? 0);
 
 /** A form lead as the tools take it: the mapping's columns (defaults below), cleaned. */
@@ -105,13 +106,13 @@ function dataverse(ctx: Ctx): Promise<Dv> {
   let p = dvTokens.get(ctx);
   if (!p) {
     p = (async () => {
-      if (!DYN.test(url)) throw new Error("Connect Dynamics 365 again.");
+      if (!DYN.test(url)) throw new UserError("Connect Dynamics 365 again.");
       // On Composio the sign-in is already for the team's own address, and Composio adds it to each call.
       if (signedByComposio(ctx)) return { url, token: "" };
-      if (ctx.creds.type !== "oauth" || !ctx.creds.refresh) throw Object.assign(new Error("Sign in to Dynamics 365 again."), { status: 401 });
+      if (ctx.creds.type !== "oauth" || !ctx.creds.refresh) throw Object.assign(new UserError("Sign in to Dynamics 365 again."), { status: 401 });
       const r = refreshRequest("dynamics", ctx.creds.refresh, `${url}/user_impersonation offline_access`);
       const t = await ctx.api<{ access_token?: string }>(r.url, { method: "POST", auth: false, headers: { "content-type": "application/x-www-form-urlencoded" }, body: r.body });
-      if (!t.access_token) throw Object.assign(new Error("Sign in to Dynamics 365 again."), { status: 401 });
+      if (!t.access_token) throw Object.assign(new UserError("Sign in to Dynamics 365 again."), { status: 401 });
       return { url, token: t.access_token };
     })();
     p.catch(() => dvTokens.delete(ctx));
@@ -128,14 +129,14 @@ export const dynamics: Connector = {
     // On Composio the environment was picked on its connect page (src/lib/sources/composio.ts composioExtras).
     if (signedByComposio(ctx)) {
       const url = ctx.secret("org_url");
-      if (!DYN.test(url)) throw new Error("Connect Dynamics 365 again.");
+      if (!DYN.test(url)) throw new UserError("Connect Dynamics 365 again.");
       await ctx.api(`${url}/api/data/v9.2/WhoAmI`, { headers: { "OData-MaxVersion": "4.0", "OData-Version": "4.0" } });
       return { id: url, label: new URL(url).hostname };
     }
     // The first Dynamics environment the person can open; its address is the connection's account.
     const d = await ctx.api<{ value?: { Url: string; FriendlyName?: string }[] }>("https://globaldisco.crm.dynamics.com/api/discovery/v2.0/Instances");
     const i = (d.value ?? []).find((x) => DYN.test(x.Url.replace(/\/+$/, "")));
-    if (!i) throw new Error("This Microsoft account has no Dynamics 365 environment.");
+    if (!i) throw new UserError("This Microsoft account has no Dynamics 365 environment.");
     return { id: i.Url.replace(/\/+$/, ""), label: i.FriendlyName ?? i.Url };
   },
   async push(ctx, changes) {
@@ -180,7 +181,7 @@ export const goHighLevel: Connector = {
   gapMs: 150,
   async account(ctx) {
     const loc = ctx.secret("locationId");
-    if (!loc) throw new Error("Pick a sub-account when you sign in to GoHighLevel.");
+    if (!loc) throw new UserError("Pick a sub-account when you sign in to GoHighLevel.");
     const d = await ctx.api<{ location?: { id: string; name?: string } }>(`${GHL}/locations/${encodeURIComponent(loc)}`, { headers: GHL_HEADERS });
     return { id: loc, label: d.location?.name ?? "GoHighLevel" };
   },
@@ -206,7 +207,7 @@ export const goHighLevel: Connector = {
 const FS_DOMAIN = /^[a-z0-9-]+\.(myfreshworks\.com|freshsales\.io)$/;
 const fsDomain = (ctx: Ctx) => {
   const d = ctx.secret("domain").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
-  if (!FS_DOMAIN.test(d)) throw new Error("Use your Freshsales address, like acme.myfreshworks.com.");
+  if (!FS_DOMAIN.test(d)) throw new UserError("Use your Freshsales address, like acme.myfreshworks.com.");
   return d;
 };
 const fs = <T>(ctx: Ctx, path: string, init: RequestInit = {}) =>
@@ -342,7 +343,7 @@ function boardOf(ctx: Ctx): Promise<Board> {
     p = (async () => {
       const typed = /(\d{6,})/.exec(ctx.secret("board") ?? "")?.[1];
       const id = typed ?? (await gql<{ boards: { id: string; name: string }[] }>(ctx, "query { boards(limit: 200) { id name } }")).boards.find((b) => /^leads$/i.test(b.name.trim()))?.id;
-      if (!id) throw new Error("Paste the Leads board's link in Settings › Integrations, or name a board Leads.");
+      if (!id) throw new UserError("Paste the Leads board's link in Settings › Integrations, or name a board Leads.");
       const d = await gql<{ boards: { columns: Col[] }[] }>(ctx, "query ($b: [ID!]) { boards(ids: $b) { columns { id title type } } }", { b: [id] });
       return { id, cols: d.boards[0]?.columns ?? [] };
     })();

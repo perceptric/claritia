@@ -2,6 +2,7 @@ import "server-only";
 import { authConfigEnv, COMPOSIO_TOOLS, composioBase, composioExtras, composioFetch, composioHeaders, failureOf, type ComposioTool } from "./composio.ts";
 import type { Creds } from "./types.ts";
 import { setTimeout as sleepFor } from "node:timers/promises";
+import { UserError } from "../errors.ts";
 
 // Connecting a tool on Composio (docs/sources-setup.md, "Composio"): find the tool's auth config (one set by hand in
 // COMPOSIO_AUTH_CONFIG_<TOOLKIT>, else the project's own, else a new Composio-managed one, as the SDK's
@@ -47,7 +48,7 @@ export async function authConfigFor(t: ComposioTool, o: Net = {}): Promise<strin
     const auth_config = t.managed ? { type: "use_composio_managed_auth" } : { type: "use_custom_auth", authScheme: t.scheme, credentials: {} };
     const made = await call<{ auth_config?: { id?: string } }>("/api/v3.1/auth_configs", { ...o, method: "POST", body: JSON.stringify({ toolkit: { slug: t.toolkit }, auth_config }) });
     id = made.auth_config?.id;
-    if (!id) throw new Error("Composio didn't make an auth config.");
+    if (!id) throw new UserError("Composio didn't make an auth config.");
   }
   configs.set(t.toolkit, id);
   return id;
@@ -56,7 +57,7 @@ export async function authConfigFor(t: ComposioTool, o: Net = {}): Promise<strin
 /** Composio's hosted connect page for this workspace and tool, coming back to `callbackUrl`. */
 export async function connectLink(kind: string, ws: string, callbackUrl: string, o: Net = {}): Promise<{ url: string; account: string }> {
   const t = COMPOSIO_TOOLS[kind];
-  if (!t) throw new Error("This tool doesn't connect through Composio.");
+  if (!t) throw new UserError("This tool doesn't connect through Composio.");
   const auth_config_id = await authConfigFor(t, o);
   const d = await call<{ redirect_url?: string; connected_account_id?: string }>("/api/v3.1/connected_accounts/link", {
     ...o,
@@ -67,7 +68,7 @@ export async function connectLink(kind: string, ws: string, callbackUrl: string,
     configs.delete(t.toolkit);
     throw e;
   });
-  if (!d.redirect_url || !d.connected_account_id) throw new Error("Composio didn't open a connect page.");
+  if (!d.redirect_url || !d.connected_account_id) throw new UserError("Composio didn't open a connect page.");
   return { url: d.redirect_url, account: d.connected_account_id };
 }
 
@@ -87,19 +88,19 @@ export type ConnectedAccount = {
  */
 export async function activeAccount(kind: string, ws: string, id: string, o: Net & { sleep?: (ms: number) => Promise<void>; tries?: number } = {}): Promise<ConnectedAccount> {
   const t = COMPOSIO_TOOLS[kind];
-  if (!t || !/^[A-Za-z0-9_-]{4,100}$/.test(id)) throw new Error("Could not connect.");
+  if (!t || !/^[A-Za-z0-9_-]{4,100}$/.test(id)) throw new UserError("Could not connect.");
   const sleep = o.sleep ?? ((ms: number) => sleepFor(ms));
   // The way back names the account in its query, which anyone can change: it counts only if it's this workspace's
   // own (its Composio user) for this tool.
   const mine = await call<{ items?: { id: string }[] }>(`/api/v3.1/connected_accounts?${new URLSearchParams({ user_ids: ws, toolkit_slugs: t.toolkit, limit: "200" })}`, o);
-  if (!(mine.items ?? []).some((x) => x.id === id)) throw new Error("That connection isn't this workspace's.");
+  if (!(mine.items ?? []).some((x) => x.id === id)) throw new UserError("That connection isn't this workspace's.");
   for (let i = 0; ; i++) {
     const a = await call<ConnectedAccount>(`/api/v3.1/connected_accounts/${encodeURIComponent(id)}`, o);
-    if (a.toolkit?.slug && a.toolkit.slug !== t.toolkit) throw new Error("That connection is for another tool.");
-    if (a.user_id && a.user_id !== ws) throw new Error("That connection is for another workspace.");
+    if (a.toolkit?.slug && a.toolkit.slug !== t.toolkit) throw new UserError("That connection is for another tool.");
+    if (a.user_id && a.user_id !== ws) throw new UserError("That connection is for another workspace.");
     if (a.status === "ACTIVE" && !a.is_disabled) return a;
     if (!["INITIALIZING", "INITIATED"].includes(a.status) || i >= (o.tries ?? 5)) {
-      throw new Error(a.status_reason ? `It didn't connect: ${a.status_reason}`.slice(0, 200) : "It didn't finish connecting. Try again.");
+      throw new UserError(a.status_reason ? `It didn't connect: ${a.status_reason}`.slice(0, 200) : "It didn't finish connecting. Try again.");
     }
     await sleep(1000);
   }

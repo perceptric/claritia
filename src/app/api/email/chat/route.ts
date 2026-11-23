@@ -8,7 +8,7 @@ import { readScope } from "@/lib/design/email/scope";
 import { emailChatParts } from "@/lib/emails/server";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
-import { bad } from "@/lib/http";
+import { bad, publicMessage } from "@/lib/http";
 
 // One AI turn on an email built with blocks (docs/design-system.md Part 7.2): POST { workspaceId, ref?, doc, subject,
 // message, history?, confirmed?, variants? }. The email and the brand kit's draft styles go to runEmailChat through
@@ -82,7 +82,7 @@ export async function POST(request: Request) {
   try {
     outs = await Promise.all(Array.from({ length: count }, (_, i) => turn(i)));
   } catch (e) {
-    return bad(`The AI didn't answer: ${e instanceof Error ? e.message.slice(0, 200) : "try again"}`, 502);
+    return bad(publicMessage(e), 502);
   }
   const ref = typeof b.ref === "string" && REF.test(b.ref) ? b.ref : null;
   if (ref && count === 1 && outs[0]!.lines.length) {

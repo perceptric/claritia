@@ -8,6 +8,7 @@
 
 import { createHash, createHmac } from "node:crypto";
 import type { Connector, CopyFile, CopyFill, Ctx, RowTarget } from "./types.ts";
+import { UserError } from "../errors.ts";
 
 export type { CopyFile, CopyFill };
 
@@ -23,7 +24,7 @@ const refusal = (message: string) => Object.assign(new Error(message), { refused
 const transient = (status: number) => status === 429 || status >= 500;
 class Hiccup extends Error {}
 const raw = (ctx: Ctx) => {
-  if (!ctx.raw) throw new Error("This connection can't upload files.");
+  if (!ctx.raw) throw new UserError("This connection can't upload files.");
   return ctx.raw.bind(ctx);
 };
 const enc = encodeURIComponent;
@@ -92,7 +93,7 @@ async function driveUpload(ctx: Ctx, folder: string, f: CopyFile): Promise<void>
     "Drive",
   );
   const session = start.headers.get("location");
-  if (!session) throw new Error("Drive didn't start the upload.");
+  if (!session) throw new UserError("Drive didn't start the upload.");
   const total = f.bytes.length;
   // Drive answers 308 with the bytes it has ("bytes=0-N") until the last part.
   const after = (res: Response): number | "done" => {
@@ -161,7 +162,7 @@ async function odUpload(ctx: Ctx, folder: string, f: CopyFile): Promise<void> {
   const s = await jsonOf<{ uploadUrl?: string }>(
     await ok(await r(`${odPath(folder, f.name)}:/createUploadSession`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ item: { "@microsoft.graph.conflictBehavior": "fail" } }) }), "OneDrive"),
   );
-  if (!s.uploadUrl) throw new Error("OneDrive didn't start the upload.");
+  if (!s.uploadUrl) throw new UserError("OneDrive didn't start the upload.");
   const total = f.bytes.length;
   const next = async (res: Response): Promise<number | "done"> => {
     if (res.status === 200 || res.status === 201) return "done";
@@ -239,7 +240,7 @@ async function dbxUpload(ctx: Ctx, path: string, f: CopyFile): Promise<void> {
   const total = f.bytes.length;
   const first = await jsonOf<{ session_id?: string }>(await ok(await send("/files/upload_session/start", { close: false }, 0, CHUNK), "Dropbox"));
   const id = first.session_id;
-  if (!id) throw new Error("Dropbox didn't start the upload.");
+  if (!id) throw new UserError("Dropbox didn't start the upload.");
   let known = CHUNK;
   await parts(
     total - CHUNK,
@@ -423,7 +424,7 @@ async function s3Put(ctx: Ctx, k: S3Keys, key: string, f: CopyFile): Promise<voi
   }
   const started = await (await ok(await s3(ctx, k, "POST", key, { query: { uploads: "" }, type: f.type }), "S3")).text();
   const id = /<UploadId>([^<]+)<\/UploadId>/.exec(started)?.[1];
-  if (!id) throw new Error("S3 didn't start the upload.");
+  if (!id) throw new UserError("S3 didn't start the upload.");
   const etags: string[] = [];
   let part = 1;
   // A part is sent again under its own number: S3 keeps the last one.
@@ -449,8 +450,8 @@ export const amazonS3: Connector = {
   async account(ctx) {
     const k = s3Keys(ctx);
     const res = await s3(ctx, k, "HEAD", "");
-    if (res.status === 403) throw new Error("That key can't reach the bucket.");
-    if (res.status === 404 || res.status === 301) throw new Error("No bucket by that name in that region.");
+    if (res.status === 403) throw new UserError("That key can't reach the bucket.");
+    if (res.status === 404 || res.status === 301) throw new UserError("No bucket by that name in that region.");
     await ok(res, "S3");
     return { id: k.bucket, label: `${k.bucket} (S3)` };
   },

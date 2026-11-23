@@ -26,6 +26,7 @@ import { lockLine, planFor, toolFeature } from "@/lib/plans";
 import { planHas } from "../../PlanLock";
 import { meetingsApi } from "../../meetings/parts";
 import { workspacePeople } from "../../shared";
+import { UserError } from "@/lib/errors";
 
 type Line = { t?: string; done?: string; cut?: boolean; css?: string; say?: string; profile?: unknown; error?: string; working?: number; beat?: number };
 
@@ -227,12 +228,12 @@ export function Studio({ sb, session, ws, navigate, formId = "", chatId = "", fr
       },
       saveThread: async (chatId, t) => {
         const res = await post({ mode: "thread-save", thread: { id: t.id, chatId, title: t.title, messages: t.messages } });
-        if (res.status === 503) throw Object.assign(new Error("Chats aren't kept one by one on this server yet."), { missing: true });
-        if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error || "Couldn't save the chat.");
+        if (res.status === 503) throw Object.assign(new UserError("Chats aren't kept one by one on this server yet."), { missing: true });
+        if (!res.ok) throw new UserError(((await res.json().catch(() => ({}))) as { error?: string }).error || "Couldn't save the chat.");
       },
       deleteThread: async (id) => {
         const res = await post({ mode: "thread-delete", id });
-        if (!res.ok && res.status !== 503) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error || "Couldn't delete the chat.");
+        if (!res.ok && res.status !== 503) throw new UserError(((await res.json().catch(() => ({}))) as { error?: string }).error || "Couldn't delete the chat.");
       },
       confirmDeleteThread: (title) => askConfirm(`Delete "${title}"?`, { body: "The form stays as it is.", ok: "Delete", danger: true }),
       keepProfile: (id, profile) => {
@@ -254,13 +255,13 @@ export function Studio({ sb, session, ws, navigate, formId = "", chatId = "", fr
       readSite: async (host) => {
         const res = await post({ mode: "site", url: host });
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw Object.assign(new Error(data.error ?? `Couldn't open ${host}.`), { browser: !!data.browser });
+        if (!res.ok) throw Object.assign(new UserError(data.error ?? `Couldn't open ${host}.`), { browser: !!data.browser });
         return data;
       },
       page: async (url) => {
         const res = await post({ mode: "page", url });
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error ?? "Couldn't open that page.");
+        if (!res.ok) throw new UserError(data.error ?? "Couldn't open that page.");
         return data;
       },
       scan: (host) => postJson<{ kitId: string }>(sessionRef.current, "/api/studio", { workspaceId: ws.id, mode: "scan", url: host }),
@@ -280,7 +281,7 @@ export function Studio({ sb, session, ws, navigate, formId = "", chatId = "", fr
           if (l.error) err = l.error;
           if (l.css) out = { css: l.css, say: l.say ?? "", profile: readProfile(l.profile) };
         });
-        if (!out) throw new Error(err || "Couldn't read the brand's look. Try again.");
+        if (!out) throw new UserError(err || "Couldn't read the brand's look. Try again.");
         return out;
       },
       times: (typeId) => postJson<{ starts: number[]; length: number }>(sessionRef.current, "/api/meetings/times", { workspaceId: ws.id, typeId, pick: true }),
@@ -303,7 +304,7 @@ export function Studio({ sb, session, ws, navigate, formId = "", chatId = "", fr
           throw Object.assign(e instanceof Error ? e : new Error(String(e)), { text: all });
         }
         if (done) return done;
-        throw Object.assign(new Error(err || "Tia didn't finish. Try again."), { text: all });
+        throw Object.assign(new UserError(err || "Tia didn't finish. Try again."), { text: all });
       },
       deleteBrand: async (id) => {
         must(await sb.rpc("brand_kit_delete", { p_id: id }));
@@ -398,7 +399,7 @@ export function Studio({ sb, session, ws, navigate, formId = "", chatId = "", fr
         body.set("file", file);
         const res = await fetch("/api/assets", { method: "POST", headers: { Authorization: `Bearer ${sessionRef.current.access_token}` }, body });
         const data = (await res.json().catch(() => ({}))) as { url?: string; sizes?: number[]; error?: string };
-        if (!res.ok || !data.url) throw new Error(data.error ?? "Couldn't upload this photo. Try again.");
+        if (!res.ok || !data.url) throw new UserError(data.error ?? "Couldn't upload this photo. Try again.");
         invalidate(`design_assets:${ws.id}`);
         return { url: data.url, sizes: data.sizes ?? [] };
       },

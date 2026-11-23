@@ -7,6 +7,7 @@
 import { createHash } from "node:crypto";
 import type { AnalyticsEvent, Connector, Ctx } from "./types.ts";
 import { isUuid } from "../uuid.ts";
+import { UserError } from "../errors.ts";
 
 export type { AnalyticsEvent } from "./types.ts";
 
@@ -45,7 +46,7 @@ export const segment: Connector = {
 
 const phHost = (ctx: Ctx) => {
   const h = ctx.secret("host").trim().replace(/\/+$/, "") || "https://us.i.posthog.com";
-  if (!/^https:\/\/[a-z0-9.-]+$/i.test(h)) throw Object.assign(new Error("Use your PostHog address, like https://us.i.posthog.com."), { status: 400 });
+  if (!/^https:\/\/[a-z0-9.-]+$/i.test(h)) throw Object.assign(new UserError("Use your PostHog address, like https://us.i.posthog.com."), { status: 400 });
   return h;
 };
 

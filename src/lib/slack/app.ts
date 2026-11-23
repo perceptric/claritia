@@ -8,6 +8,7 @@
 import { createHmac } from "node:crypto";
 import { same } from "../sign.ts";
 import { seal, unseal } from "../seal.ts";
+import { UserError } from "../errors.ts";
 
 const env = (name: string) => process.env[name]?.trim() ?? "";
 
@@ -28,7 +29,7 @@ export async function slackExchange(code: string, redirect: string, fetcher: typ
   const body = new URLSearchParams({ code, redirect_uri: redirect, client_id: env("SLACK_CLIENT_ID"), client_secret: env("SLACK_CLIENT_SECRET") });
   const res = await fetcher("https://slack.com/api/oauth.v2.access", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body, signal: AbortSignal.timeout(10_000) });
   const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; access_token?: string; bot_user_id?: string; team?: { id?: string; name?: string } };
-  if (!j.ok || !j.access_token || !j.team?.id) throw new Error(j.error ? `Slack said ${j.error}.` : "Slack sign-in failed.");
+  if (!j.ok || !j.access_token || !j.team?.id) throw new UserError(j.error ? `Slack said ${j.error}.` : "Slack sign-in failed.");
   return { team: j.team.id, teamName: j.team.name ?? "", bot: j.bot_user_id ?? "", token: j.access_token };
 }
 

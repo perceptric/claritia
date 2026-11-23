@@ -8,12 +8,13 @@
 
 import { keyed, signedByComposio } from "./keyed.ts";
 import type { Connector, Ctx, FillRow, RowTarget } from "./types.ts";
+import { UserError } from "../errors.ts";
 
 export type AppendOpts = { retry: boolean; person?: { email: string | null; name: string | null } | null; link?: string };
 type Made = { externalId: string; url?: string };
 
 const status = (e: unknown) => (e as { status?: number })?.status ?? 0;
-const gone = (what: string) => new Error(`The ${what} is gone. Pick another one in the form's Sync tab.`);
+const gone = (what: string) => new UserError(`The ${what} is gone. Pick another one in the form's Sync tab.`);
 /** A refusal that means the picked place isn't there anymore. */
 const isGone = (e: unknown) => status(e) === 404 || /not found|does not exist|invalid id|model not found|Entity not found/i.test(String((e as Error)?.message ?? ""));
 
@@ -69,7 +70,7 @@ export const linear: Connector = {
       const d = await linearQ<{ issueCreate: { success: boolean; issue: { id: string; url: string } | null } }>(ctx, "mutation ($i: IssueCreateInput!) { issueCreate(input: $i) { success issue { id url } } }", {
         i: { teamId: target.id, title: workTitle(row, o), description: workText(row, o) },
       });
-      if (!d.issueCreate.issue) throw new Error("Linear didn't make the issue.");
+      if (!d.issueCreate.issue) throw new UserError("Linear didn't make the issue.");
       return { externalId: d.issueCreate.issue.id, url: d.issueCreate.issue.url } as Made;
     } catch (e) {
       throw isGone(e) ? gone("Linear team") : e;
@@ -249,7 +250,7 @@ export const smartsuite: Connector = {
 const ZD = /^[a-z0-9][a-z0-9-]{0,62}$/;
 const zdSub = (ctx: Ctx) => {
   const s = ctx.secret("subdomain").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\.zendesk\.com.*$/, "");
-  if (!ZD.test(s)) throw new Error("Use your Zendesk address, like acme or acme.zendesk.com.");
+  if (!ZD.test(s)) throw new UserError("Use your Zendesk address, like acme or acme.zendesk.com.");
   return s;
 };
 const zd = <T>(ctx: Ctx, path: string, init: RequestInit = {}) =>
@@ -261,7 +262,7 @@ export const zendesk: Connector = {
   gapMs: 150,
   async account(ctx) {
     const d = await zd<{ user: { id: number; email: string } }>(ctx, "/users/me.json");
-    if (!d.user?.id) throw new Error("Zendesk didn't take this email and API token.");
+    if (!d.user?.id) throw new UserError("Zendesk didn't take this email and API token.");
     return { id: zdSub(ctx), label: `${zdSub(ctx)}.zendesk.com` };
   },
   async targets(ctx) {
@@ -301,7 +302,7 @@ export const zendesk: Connector = {
 const FD = /^[a-z0-9-]+\.freshdesk\.com$/;
 const fdDomain = (ctx: Ctx) => {
   const d = ctx.secret("domain").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
-  if (!FD.test(d)) throw new Error("Use your Freshdesk address, like acme.freshdesk.com.");
+  if (!FD.test(d)) throw new UserError("Use your Freshdesk address, like acme.freshdesk.com.");
   return d;
 };
 const fd = <T>(ctx: Ctx, path: string, init: RequestInit = {}) =>
@@ -322,7 +323,7 @@ export const freshdesk: Connector = {
     return [{ id: "any", name: "No group" }, ...groups.map((g) => ({ id: String(g.id), name: g.name }))];
   },
   async append(ctx, target, row, o: AppendOpts) {
-    if (!o.person?.email) throw new Error("Freshdesk needs the person's email to make a ticket.");
+    if (!o.person?.email) throw new UserError("Freshdesk needs the person's email to make a ticket.");
     try {
       if (o.retry) {
         const f = await fd<{ results: { id: number }[] }>(ctx, `/search/tickets?query=${encodeURIComponent(`"tag:'${fdTag(row.id)}'"`)}`);
@@ -348,7 +349,7 @@ const IC = { "intercom-version": "2.11" };
 /** An Intercom conversation per fill, from the person (found by email, else made as a lead). */
 export async function intercomAppend(ctx: Ctx, _target: RowTarget, row: FillRow, o: AppendOpts): Promise<Made> {
   const email = o.person?.email;
-  if (!email) throw new Error("Intercom needs the person's email to open a conversation.");
+  if (!email) throw new UserError("Intercom needs the person's email to open a conversation.");
   if (o.retry) {
     const f = await ctx.api<{ conversations?: { id: string }[] }>("https://api.intercom.io/conversations/search", {
       method: "POST",

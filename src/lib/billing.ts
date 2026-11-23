@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { cents, isInterval, isPaidPlan, planById, seats, type Interval, type PlanId } from "./plans.ts";
 import { APP_URL } from "./site.ts";
+import { UserError, dbError } from "./errors.ts";
 
 // Billing needs one setting: STRIPE_SECRET_KEY. Prices come from src/lib/plans.ts (docs/pricing.md), and the app makes
 // its own products, webhook and billing page in Stripe the first time they're needed.
@@ -175,7 +176,7 @@ export async function applySubscription(admin: Admin, sub: Stripe.Subscription) 
     },
     { onConflict: "workspace_id" },
   );
-  if (error) throw new Error(error.message);
+  if (error) throw dbError(error);
   return { ok: true as const, workspaceId, plan, hosts };
 }
 
@@ -183,7 +184,7 @@ type BillingRow = { plan: string; billing_interval?: string | null; stripe_subsc
 
 async function billingRow(admin: Admin, ws: string): Promise<BillingRow | null> {
   const { data, error } = await admin.from("workspace_billing").select("plan, billing_interval, stripe_subscription_id, hosts").eq("workspace_id", ws).maybeSingle();
-  if (error) throw new Error(error.message);
+  if (error) throw dbError(error);
   return data as BillingRow | null;
 }
 
@@ -219,7 +220,7 @@ export async function syncHosts(stripe: Stripe, admin: Admin, ws: string): Promi
     await stripe.subscriptionItems.update(seat.id, { quantity: want, proration_behavior: "create_prorations" });
   }
   const { error } = await admin.from("workspace_billing").update({ hosts: want, updated_at: new Date().toISOString() }).eq("workspace_id", ws);
-  if (error) throw new Error(error.message);
+  if (error) throw dbError(error);
   return want;
 }
 
@@ -229,7 +230,7 @@ export async function syncHosts(stripe: Stripe, admin: Admin, ws: string): Promi
  */
 export async function changePlan(stripe: Stripe, admin: Admin, ws: string, plan: Paid, interval: Interval): Promise<Stripe.Subscription> {
   const b = await billingRow(admin, ws);
-  if (!b || !isPaidPlan(b.plan) || !b.stripe_subscription_id) throw new Error("This workspace has no paid plan to change.");
+  if (!b || !isPaidPlan(b.plan) || !b.stripe_subscription_id) throw new UserError("This workspace has no paid plan to change.");
   const from: Interval = isInterval(b.billing_interval) ? b.billing_interval : "month";
   const [sub, hosts, products] = await Promise.all([stripe.subscriptions.retrieve(b.stripe_subscription_id), hostsNow(admin, ws), ensureProducts(stripe)]);
   const old = linesOf(sub, b.plan, from);

@@ -66,6 +66,7 @@ import { flowKeys } from "@/lib/workflows/meetingFlows";
 import { EmailBuilder } from "../../email/EmailBuilder";
 import { kitsBrandFirst } from "@/lib/brand/workspaceKit";
 import { emailTokens } from "@/lib/design/email/look";
+import { UserError } from "@/lib/errors";
 
 export const UNGROUPED = "ungrouped";
 /** The workspace's System emails (docs/system-emails.md): one canvas, "campaigns/group/system". */
@@ -807,7 +808,7 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
         // The email being edited takes the width through its own editor, so its next save keeps it (and Undo works).
         if (d.id === r.id && d.doc && !d.readOnly) {
           d.apply({ doc: { ...d.doc, settings: { ...d.doc.settings, width: w as EmailDoc["settings"]["width"] } } });
-          if (!(await d.flush())) throw new Error(d.error || "The width wasn't saved.");
+          if (!(await d.flush())) throw new UserError(d.error || "The width wasn't saved.");
         } else must(await sb.rpc("email_draft_save", { p_ws: ws.id, p_id: r.id, p_name: r.name, p_subject: r.subject, p_preheader: r.preheader ?? "", p_doc: { ...doc, settings: { ...doc.settings, width: w } } }));
         await rows.reload();
         setWidths((m) => {
@@ -836,7 +837,7 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
       await saved(id);
       const r = rowsNow().find((x) => x.id === id);
       if (!r) return;
-      if (!r.doc) throw new Error("This email has no blocks to copy.");
+      if (!r.doc) throw new UserError("This email has no blocks to copy.");
       const nid = must(await sb.rpc("email_draft_save", { p_ws: ws.id, p_id: null, p_name: `${r.name} copy`.slice(0, 200), p_subject: r.subject, p_preheader: r.preheader ?? "", p_doc: r.doc })) as string;
       if (!ungrouped) await place(nid, groupId, list.findIndex((x) => x.id === id) + 1);
       await rows.reload();

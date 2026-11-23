@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 import { qs, readCursor } from "./ctx.ts";
 import { keyed, signedByComposio } from "./keyed.ts";
 import { AuthError, RateLimited, type Connector, type Ctx, type Page, type PushChange, type PushOptions, type PushResult, type RawRecord } from "./types.ts";
+import { UserError } from "../errors.ts";
 
 const since5 = (iso: string) => new Date(Date.parse(iso) - 300_000).toISOString();
 const newest = (rs: { updatedAt?: string | null }[], m: string) => rs.reduce((x, r) => ((r.updatedAt ?? "") > x ? (r.updatedAt as string) : x), m);
@@ -16,13 +17,13 @@ const endpoints = new Map<string, string>();
 async function mcBase(ctx: Ctx) {
   if (ctx.creds.type === "key") {
     const dc = ctx.secret("api_key").split("-").pop() ?? "";
-    if (!/^[a-z]{2}\d{1,3}$/.test(dc)) throw new Error("That doesn't look like a Mailchimp API key (it ends in -us21 or similar).");
+    if (!/^[a-z]{2}\d{1,3}$/.test(dc)) throw new UserError("That doesn't look like a Mailchimp API key (it ends in -us21 or similar).");
     return `https://${dc}.api.mailchimp.com/3.0`;
   }
   // A Composio connection found its data center at connect.
   if (signedByComposio(ctx)) {
     const at = ctx.secret("api_endpoint");
-    if (!/^https:\/\/[a-z]{2}\d{1,3}\.api\.mailchimp\.com$/.test(at)) throw new Error("Reconnect Mailchimp: its data center is unknown.");
+    if (!/^https:\/\/[a-z]{2}\d{1,3}\.api\.mailchimp\.com$/.test(at)) throw new UserError("Reconnect Mailchimp: its data center is unknown.");
     return `${at}/3.0`;
   }
   // A signed-in account says which data center it lives in.
@@ -139,7 +140,7 @@ export const klaviyo: Connector = {
 
 const acBase = (ctx: Ctx) => {
   const u = ctx.secret("url").replace(/\/+$/, "");
-  if (!/^https:\/\/[a-z0-9-]+\.(api-us1|activehosted)\.com$|^https:\/\/[a-z0-9-]+\.api-[a-z]+\d*\.com$/i.test(u)) throw new Error("Use the API URL from ActiveCampaign › Settings › Developer.");
+  if (!/^https:\/\/[a-z0-9-]+\.(api-us1|activehosted)\.com$|^https:\/\/[a-z0-9-]+\.api-[a-z]+\d*\.com$/i.test(u)) throw new UserError("Use the API URL from ActiveCampaign › Settings › Developer.");
   return `${u}/api/3`;
 };
 const acHeaders = (ctx: Ctx) => keyed(ctx, { "api-token": ctx.secret("api_key") });

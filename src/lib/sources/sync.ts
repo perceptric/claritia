@@ -14,6 +14,7 @@ import { call, type Rpc } from "../jobs.ts";
 import { agreed, cellOf, changedKeys, compared, decide, effectiveMapping, outOnly, OWNER, propOf, pushable, recordsToCompanies, recordsToRows, toRemote, type Col, type SavedMapping } from "./map.ts";
 import { toOpportunityRows } from "./opportunities.ts";
 import type { ActivityItem, ActivityResult, Connector, Ctx, HookEvent, ObjectKind, PushChange, PushOptions, RawRecord } from "./types.ts";
+import { UserError, dbError } from "../errors.ts";
 
 export type Deps = { rpc: Rpc; connector: Connector; ctx: Ctx; clean: CleanCtx; saved: SavedMapping[]; now?: () => number };
 export type Counts = { pulled: number; written: number; skipped: number; errors: number };
@@ -61,7 +62,7 @@ async function applyContacts(d: Deps, records: RawRecord[]): Promise<Counts> {
   if (!live.length) return c;
 
   const cols = effectiveMapping(d.connector, "contact", d.saved, await seen(d, "contact", live), d.clean.custom);
-  if (!cols.some((m) => m.target === "email")) throw new Error("Map a column to Email for this source.");
+  if (!cols.some((m) => m.target === "email")) throw new UserError("Map a column to Email for this source.");
   // The score only goes out.
   const inCols = cols.filter((m) => !outOnly(m.target) && m.target !== OWNER);
   const ownerCol = cols.find((m) => m.target === OWNER);
@@ -97,7 +98,7 @@ async function applyContacts(d: Deps, records: RawRecord[]): Promise<Counts> {
     // The email changed on their side: move it on ours, so the same person stays one contact.
     if (held?.email_clean && held.email_clean !== x.email_clean) {
       const { error } = await d.rpc("contact_update", { p_id: held.local_id, p_source: src.kind, p_values: { email: x.email, email_clean: x.email_clean, email_class: x.email_class } });
-      if (error && !/Another contact has this email/.test(error.message)) throw new Error(error.message);
+      if (error && !/Another contact has this email/.test(error.message)) throw dbError(error);
     }
     write.push(x);
     meta.push({ x, values, before: held });

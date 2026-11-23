@@ -4,6 +4,7 @@ import { SITE_HOST } from "../site.ts";
 import { nextState, pointsAt, systemResolver, type DomainState, type Resolver } from "./check.ts";
 import { certReady, checkCert, linkTarget, type Fly } from "./fly.ts";
 import { forgetDomain } from "./resolve.ts";
+import { dbError } from "../errors.ts";
 
 // A workspace's link domain on the server (docs/sharing-plan.md step 4): checking it, and the address its links use.
 
@@ -26,7 +27,7 @@ export async function checkDomain(db: SupabaseClient, row: DomainRow, o: { fly: 
   const next = nextState({ status: row.status, certOk: row.cert_ok }, dnsOk, cert);
   const patch = { status: next.status, dns_ok: dnsOk, cert_ok: next.certOk, last_error: next.status === "active" ? null : error, checked_at: new Date().toISOString() };
   const { error: e } = await db.from("link_domains").update(patch).eq("workspace_id", row.workspace_id);
-  if (e) throw new Error(e.message);
+  if (e) throw dbError(e);
   forgetDomain(row.hostname);
   return { ...row, ...patch };
 }

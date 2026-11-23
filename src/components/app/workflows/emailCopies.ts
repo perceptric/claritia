@@ -10,6 +10,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { designOf, emailSteps, ensurePayload, mergeCopies, sameEmail, type EmailCopy } from "@/lib/workflows/stepEmails";
 import type { Body, Step } from "@/lib/workflows/types";
+import { dbError } from "@/lib/errors";
 
 type Sync = (fn: (b: Body) => Body) => void;
 
@@ -39,7 +40,7 @@ export function useEmailCopies({ sb, ws, id, body, sync, readOnly }: { sb: Supab
   /** Make the copies match the steps and bring their words into the draft. */
   const ensure = useCallback(async () => {
     const r = await sb.rpc("workflow_email_ensure", { p_ws: ws, p_wf: id, p_steps: ensurePayload(withDesigns(latest.current)) });
-    if (r.error) throw new Error(r.error.message);
+    if (r.error) throw dbError(r.error);
     const list = (r.data ?? []) as EmailCopy[];
     const next = new Map(list.map((c) => [c.step, { ...c, made: false }]));
     copiesRef.current = next;
@@ -74,7 +75,7 @@ export function useEmailCopies({ sb, ws, id, body, sync, readOnly }: { sb: Supab
       if (!c || sameEmail(s.email, c)) continue;
       const doc = designOf(s.email);
       const r = await sb.rpc("email_draft_save", { p_ws: ws, p_id: c.id, p_name: s.email.subject.trim() || "Email", p_subject: s.email.subject, p_preheader: s.email.preheader, p_doc: doc });
-      if (r.error) throw new Error(r.error.message);
+      if (r.error) throw dbError(r.error);
       const next = new Map(copiesRef.current);
       next.set(s.id, { ...c, subject: s.email.subject, preheader: s.email.preheader, doc });
       copiesRef.current = next;

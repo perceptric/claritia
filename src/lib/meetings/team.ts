@@ -10,6 +10,7 @@ import { liveRouterCached, type LiveRouter } from "../router/server.ts";
 import type { Queue } from "../router/types.ts";
 import { isOpen, pickHost, type Turns } from "./slots.ts";
 import type { MeetingType } from "./types.ts";
+import { dbError } from "../errors.ts";
 
 export const ROUTER_WAIT_MS = 300;
 
@@ -65,7 +66,7 @@ export async function pickTeamHost(
     const r = await within(
       (async () => {
         const { data, error } = await rpc("router_pick", { p_ws: o.ws, p_pick: { queue: o.team!.queue.id, method: o.team!.queue.method, candidates } });
-        if (error) throw new Error(error.message);
+        if (error) throw dbError(error);
         return data as { user: string } | null;
       })(),
       o.ms ?? ROUTER_WAIT_MS,
@@ -88,7 +89,7 @@ export async function recordTeamRun(rpc: Rpc, o: { ws: string; type: MeetingType
   const r = await within(
     (async () => {
       const { error } = await rpc("meeting_team_run", args);
-      if (error) throw new Error(error.message);
+      if (error) throw dbError(error);
       return true;
     })(),
     o.ms ?? ROUTER_WAIT_MS,
@@ -112,7 +113,7 @@ export async function handOffMeetings(
 ): Promise<HandOff> {
   const { hostStates } = await import("./server.ts");
   const { data, error } = await rpc("meeting_upcoming_for", { p_ws: o.ws, p_contact: o.contact });
-  if (error) throw new Error(error.message);
+  if (error) throw dbError(error);
   const list = ((data ?? []) as Upcoming[]).filter((m) => m.host !== o.user);
   const out: HandOff = { moved: 0, kept: 0 };
   for (const m of list) {
@@ -129,7 +130,7 @@ export async function handOffMeetings(
         out.kept++;
         continue;
       }
-      throw new Error(moveError.message);
+      throw dbError(moveError);
     }
     await enqueueJob(rpc, { workspaceId: o.ws, kind: "meeting_sync", key: `move:${m.id}:${Date.now()}`, payload: { meeting: m.id, action: "move" } });
     out.moved++;

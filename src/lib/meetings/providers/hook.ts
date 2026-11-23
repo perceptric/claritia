@@ -5,10 +5,11 @@
 
 import type { Rpc } from "../../jobs.ts";
 import { readChannelToken } from "./index.ts";
+import { dbError } from "../../errors.ts";
 
 async function hook(rpc: Rpc, account: string, channel: string) {
   const { data, error } = await rpc("calendar_hook", { p_account: account, p_channel: channel });
-  if (error) throw new Error(error.message);
+  if (error) throw dbError(error);
   return data === true;
 }
 

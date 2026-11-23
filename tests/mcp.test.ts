@@ -1,7 +1,7 @@
 // The MCP server, spoken to the way Claude Code and Cursor do, with a stand-in database.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mcpServer, MCP_VERSIONS } from "../src/lib/mcpProtocol.ts";
+import { mcpServer, ToolError, MCP_VERSIONS } from "../src/lib/mcpProtocol.ts";
 import { resultsText } from "../src/lib/mcpText.ts";
 import type { Outcome } from "../src/lib/outcome.ts";
 
@@ -183,8 +183,13 @@ test("verify_change refuses addresses that aren't web addresses", async () => {
   assert.match(r.content[0]!.text, /web address/);
 });
 
-test("a tool that throws comes back as an error result, not a broken connection", async () => {
-  const server = mcpServer<null>({ name: "x", title: "X", version: "1", instructions: "", tools: [{ name: "boom", title: "Boom", description: "", inputSchema: { type: "object" }, run: async () => { throw new Error("db down"); } }] });
-  const r = (await server(null, JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "boom" } }))) as Row;
-  assert.deepEqual(r.result, { content: [{ type: "text", text: "db down" }], isError: true });
+test("a tool that throws comes back as an error result: its own words for the agent, a reference for anything else", async () => {
+  const tool = (name: string, err: Error) => ({ name, title: name, description: "", inputSchema: { type: "object" }, run: async () => { throw err; } });
+  const server = mcpServer<null>({ name: "x", title: "X", version: "1", instructions: "", tools: [tool("boom", new Error("db down: connection refused at 10.0.0.5")), tool("said", new ToolError("Pass yaml: the test file."))] });
+  const call = async (name: string) => ((await server(null, JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name } }))) as Row).result as { content: { text: string }[]; isError: boolean };
+  const raw = await call("boom");
+  assert.equal(raw.isError, true);
+  assert.match(raw.content[0]!.text, /^Something went wrong\. Try again in a moment\. \(Reference [0-9a-f]{8}\)$/);
+  assert.ok(!raw.content[0]!.text.includes("10.0.0.5"), "no internal detail reaches the agent");
+  assert.deepEqual(await call("said"), { content: [{ type: "text", text: "Pass yaml: the test file." }], isError: true });
 });

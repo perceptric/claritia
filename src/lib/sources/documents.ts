@@ -12,6 +12,7 @@
 import { docName, fillTags, missingNote, tagValues } from "../documents/tags.ts";
 import { keyed } from "./keyed.ts";
 import type { Connector, Ctx, RowTarget } from "./types.ts";
+import { UserError } from "../errors.ts";
 
 export type DocOut = { externalId: string; url?: string; notes?: string[] } | { wait: number; reason: string };
 
@@ -89,7 +90,7 @@ export const docUrl = (id: string) => `https://docs.google.com/document/d/${id}/
 /** The template from its link, for the Sync tab. */
 export async function docFromLink(ctx: Ctx, link: string): Promise<RowTarget> {
   const id = /\/document\/d\/([A-Za-z0-9_-]{20,})/.exec(link)?.[1] ?? (/^[A-Za-z0-9_-]{20,}$/.test(link.trim()) ? link.trim() : null);
-  if (!id) throw new Error("Paste the template doc's link from your browser.");
+  if (!id) throw new UserError("Paste the template doc's link from your browser.");
   const d = await ctx.api<GDoc>(`${DOCS}/${id}?fields=documentId,title`);
   return { id, name: d.title ?? "Template", url: docUrl(id) };
 }
@@ -142,7 +143,7 @@ function dsAccount(ctx: Ctx): Promise<DsAccount> {
   if (!p) {
     p = ctx.api<{ accounts?: DsAccount[] }>("https://account.docusign.com/oauth/userinfo").then((d) => {
       const a = (d.accounts ?? []).find((x) => x.is_default) ?? d.accounts?.[0];
-      if (!a || !/^https:\/\/[a-z0-9.-]+\.docusign\.net$/.test(a.base_uri)) throw new Error("This DocuSign sign-in has no account.");
+      if (!a || !/^https:\/\/[a-z0-9.-]+\.docusign\.net$/.test(a.base_uri)) throw new UserError("This DocuSign sign-in has no account.");
       return a;
     });
     p.catch(() => dsAccounts.delete(ctx));
@@ -196,7 +197,7 @@ export const docusign: Connector = {
         customFields: { textCustomFields: [{ name: "claritia_fill", value: fill.id, show: "false" }] },
       }),
     });
-    if (!made.envelopeId) throw new Error("DocuSign didn't make the envelope.");
+    if (!made.envelopeId) throw new UserError("DocuSign didn't make the envelope.");
     return { externalId: made.envelopeId, url: dsLink(made.envelopeId) };
   },
   defaults: { contact: {} },

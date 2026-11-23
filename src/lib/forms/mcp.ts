@@ -11,6 +11,7 @@ import { DEFAULT_BRAND_CSS } from "../studio/brandDefault.ts";
 import { formToPage } from "../studio/fromForm.ts";
 import { pageForm, type PageAfter } from "../studio/page.ts";
 import { isUuid } from "../uuid.ts";
+import { dbError, UserError } from "../errors.ts";
 
 // Forms on the MCP server (docs/form-builder.md 4.3). Every form is a Form Studio page (docs/forms-chat-plan.md):
 // create_form makes one, set_form_page writes its HTML under the same contract Tia writes to, and edit_form's ops only
@@ -22,7 +23,7 @@ async function findForm(ctx: ApiCaller, ref: unknown): Promise<Row> {
   if (typeof ref !== "string" || !ref.trim()) throw new ToolError("Pass form: the form's name or id.");
   const q = ctx.sb.from("forms").select("id, name, status, version, draft, draft_rev").eq("workspace_id", ctx.workspaceId);
   const { data, error } = isUuid(ref.trim()) ? await q.eq("id", ref.trim()) : await q.ilike("name", ref.trim().replace(/[%_\\]/g, "\\$&"));
-  if (error) throw new Error(error.message);
+  if (error) throw dbError(error);
   const rows = (data ?? []) as Row[];
   if (!rows.length) throw new ToolError(`Form ${ref} not found. Call list_forms to see them.`);
   if (rows.length > 1) throw new ToolError(`More than one form is called ${ref}. Pass its id.`);
@@ -40,7 +41,7 @@ export const formTools: Tool<ApiCaller>[] = [
     readOnly: true,
     async run(ctx) {
       const { data, error } = await ctx.sb.from("forms").select("id, name, status, version, updated_at").eq("workspace_id", ctx.workspaceId).order("updated_at", { ascending: false });
-      if (error) throw new Error(error.message);
+      if (error) throw dbError(error);
       const forms = (data ?? []) as { id: string; name: string; status: string; version: number }[];
       return { text: forms.length ? forms.map((f) => `${f.name} (${f.status}, version ${f.version}) ${f.id}`).join("\n") : "No forms yet. Make one with create_form.", data: { forms } };
     },
@@ -69,12 +70,12 @@ export const formTools: Tool<ApiCaller>[] = [
       const { data: kits } = await ctx.sb.from("brand_kits").select("id, studio_css, source_url").eq("workspace_id", ctx.workspaceId).order("created_at");
       const kit = ((kits ?? []) as { id: string; studio_css: string | null; source_url: string | null }[]).find((k) => k.source_url && k.studio_css) ?? null;
       const base = checkForm(t ? t.form() : emptyForm());
-      if ("errors" in base) throw new Error(base.errors[0]);
+      if ("errors" in base) throw new UserError(base.errors[0]);
       const conv = formToPage(base.form);
       const made = checkForm(pageForm({ html: conv.html, css: conv.css, brand: kit?.studio_css ?? DEFAULT_BRAND_CSS, after: conv.after, title: name }).form);
-      if ("errors" in made) throw new Error(made.errors[0]);
+      if ("errors" in made) throw new UserError(made.errors[0]);
       const { data, error } = await ctx.sb.from("forms").insert({ workspace_id: ctx.workspaceId, name, draft: made.form, brand_kit_id: kit?.id ?? null, kind: "built" }).select("id").single();
-      if (error) throw new Error(error.message);
+      if (error) throw dbError(error);
       return { text: `Made ${name}: ${APP_URL}/forms/${data.id}`, data: { id: data.id } };
     },
   },
@@ -98,7 +99,7 @@ export const formTools: Tool<ApiCaller>[] = [
         form = r.form;
       }
       const { data, error } = await ctx.sb.from("forms").update({ draft: form, draft_rev: f.draft_rev + 1, updated_at: new Date().toISOString() }).eq("id", f.id).eq("draft_rev", f.draft_rev).select("id");
-      if (error) throw new Error(error.message);
+      if (error) throw dbError(error);
       if (!data?.length) throw new ToolError("The form changed while you edited it. Call get_form and try again.");
       return { text: lines.join("\n"), data: { id: f.id, draft: form } };
     },
@@ -120,7 +121,7 @@ export const formTools: Tool<ApiCaller>[] = [
       const check = checkForm(next, { custom: await customOf(ctx) });
       if ("errors" in check) throw new ToolError(`The page was refused: ${check.errors.join(" ")}`);
       const { data, error } = await ctx.sb.from("forms").update({ draft: check.form, draft_rev: f.draft_rev + 1, updated_at: new Date().toISOString() }).eq("id", f.id).eq("draft_rev", f.draft_rev).select("id");
-      if (error) throw new Error(error.message);
+      if (error) throw dbError(error);
       if (!data?.length) throw new ToolError("The form changed while you edited it. Call get_form and try again.");
       return { text: `Saved ${f.name}'s page: ${questions.length} questions.`, data: { id: f.id, questions: questions.map((q) => ({ name: q.name, id: q.id, label: q.label, required: q.required })) } };
     },
@@ -135,7 +136,7 @@ export const formTools: Tool<ApiCaller>[] = [
       const f = await findForm(ctx, args.form);
       const n = Math.min(50, Math.max(1, Math.floor(Number(args.limit) || 20)));
       const { data, error } = await ctx.sb.from("submissions").select("id, created_at, values").eq("workspace_id", ctx.workspaceId).eq("form_id", f.id).eq("spam", false).eq("test", false).order("created_at", { ascending: false }).limit(n);
-      if (error) throw new Error(error.message);
+      if (error) throw dbError(error);
       const rows = (data ?? []) as { id: string; created_at: string; values: Record<string, unknown> }[];
       if (!rows.length) return { text: `${f.name} has no answers yet.`, data: { answers: [] } };
       const line = (r: (typeof rows)[number]) => `${r.created_at.slice(0, 16).replace("T", " ")}: ${Object.entries(r.values ?? {}).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : String(v)}`).join("; ")}`;
@@ -160,7 +161,7 @@ export const formTools: Tool<ApiCaller>[] = [
       const locks = publishLocks(check.form, await readPlan((fn, a) => ctx.sb.rpc(fn, a), ctx.workspaceId));
       if (locks.refuse.length) throw new ToolError(locks.refuse[0]!);
       const { data, error } = await ctx.sb.rpc("form_publish", { p_id: f.id, p_user: key!.created_by, p_body: check.form });
-      if (error) throw new Error(error.message);
+      if (error) throw dbError(error);
       const embed = `<script src="${APP_URL}/forms/v1.js" async></script>\n<claritia-form form-id="${f.id}"></claritia-form>`;
       return { text: `${f.name} is live (version ${data}).\n${embed}\nLink: ${APP_URL}/f/${f.id}`, data: { version: data, embed } };
     },

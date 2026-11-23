@@ -6,9 +6,10 @@ import { createHash } from "node:crypto";
 import { call, type Rpc } from "../jobs.ts";
 import { creditCost } from "../plans.ts";
 import { isMissingFunction, rpcOr } from "../rpcCompat.ts";
+import { UserError, dbError } from "../errors.ts";
 
 /** The month's AI credits are used up (docs/pricing.md). Routes show its message as it is. */
-export class OutOfCredits extends Error {
+export class OutOfCredits extends UserError {
   status = 402;
   constructor() {
     super("You've used this month's AI credits. Upgrade in Settings › Billing for more.");
@@ -110,6 +111,6 @@ export async function cachedStep<T>(
     },
     { anyError: true },
   );
-  if (stored.error) throw new Error(stored.error.message);
+  if (stored.error) throw dbError(stored.error);
   return { result: r.result, cached: false, usage: r.usage, cost };
 }

@@ -7,7 +7,7 @@ import { addressesOf, MAX_TO, shareEmail } from "@/lib/share/shareEmail";
 import { formLink } from "@/lib/share/formLink";
 import { viaLink } from "@/lib/share/channels";
 import { isUuid } from "@/lib/uuid";
-import { bad } from "@/lib/http";
+import { bad, fail } from "@/lib/http";
 
 // Share › Email › Send the link (docs/sharing-plan.md): one short email with the form's link, to up to 200 addresses,
 // from the team or from the person sending it (their name on the team's address). POST { workspaceId, formId,
@@ -41,11 +41,11 @@ export async function POST(request: Request) {
   // From me: the sender's own name on the team's verified address; else the team's name as Settings has it.
   const fromName = b.from === "me" ? senderName(auth.user) : "";
   const { data: emailId, error: e1 } = await db.rpc("email_create", { p_ws: ws, p_user: auth.user.id, p_values: { kind: "one_to_one", name: `Share: ${f.name}`.slice(0, 200), subject: mail.subject, preheader: "", html: mail.html, text: mail.text, links: extractLinks(mail.html), marketing: true, from_name: fromName } });
-  if (e1) return bad(e1.message, 500);
+  if (e1) return fail(e1, 500);
   // Before 125 there's no form_id: the email still goes, Share just can't follow it.
   await db.from("emails").update({ form_id: f.id }).eq("id", emailId as string).then(() => null, () => null);
   const { data: queued, error: e2 } = await db.rpc("email_queue_to", { p_email: emailId, p_to: to });
-  if (e2) return bad(/function .* does not exist|Could not find the function/i.test(e2.message) ? "This isn't set up on the server yet." : e2.message, 500);
+  if (e2) return /function .* does not exist|Could not find the function/i.test(e2.message) ? bad("This isn't set up on the server yet.", 500) : fail(e2, 500);
   return Response.json({ ok: true, queued: queued as number });
 }
 

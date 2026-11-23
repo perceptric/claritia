@@ -8,6 +8,7 @@
 import type { Rpc } from "../jobs.ts";
 import { allFields, payAmount, type Form } from "./schema.ts";
 import { isUuid } from "../uuid.ts";
+import { dbError } from "../errors.ts";
 
 export type FormPayStripe = {
   checkout(account: string, p: { submissionId: string; workspaceId: string; formId: string; name: string; amount: number; currency: string; email: string | null; successUrl: string; cancelUrl: string; coupons?: boolean }): Promise<{ id: string; url: string }>;
@@ -52,7 +53,7 @@ export async function startFormCheckout(
     coupons: allFields(o.form).some((f) => f.type === "payment" && f.pay?.coupons),
   });
   const { error } = await rpc("submission_payment", { p_sid: o.submissionId, p_patch: { session: s.id, url: s.url, account: o.account, amount: due.amount, currency: due.currency, status: "open" } });
-  if (error) throw new Error(error.message);
+  if (error) throw dbError(error);
   return { url: s.url };
 }
 
@@ -80,7 +81,7 @@ export async function handleFormPayEvent(rpc: Rpc, e: { type: string; account?: 
   const intent = typeof obj.payment_intent === "string" ? obj.payment_intent : (obj.payment_intent?.id ?? null);
   if (paid) {
     const { error } = await rpc("submission_payment", { p_sid: sid, p_patch: { session: obj.id, status: "paid", paid_at: new Date().toISOString(), ...(intent ? { intent } : {}) } });
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     return "paid";
   }
   if (e.type === "checkout.session.expired" || e.type === "checkout.session.async_payment_failed") {
@@ -88,7 +89,7 @@ export async function handleFormPayEvent(rpc: Rpc, e: { type: string; account?: 
     const { data } = await rpc("submission_payment", { p_sid: sid, p_patch: {} });
     if ((data as { status?: string } | null)?.status === "paid") return "skipped";
     const { error } = await rpc("submission_payment", { p_sid: sid, p_patch: { status: e.type === "checkout.session.expired" ? "expired" : "failed" } });
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     return "closed";
   }
   return "skipped";
