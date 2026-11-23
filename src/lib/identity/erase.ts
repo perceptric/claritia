@@ -2,7 +2,8 @@
 // only the hashes, so the same email starts fresh if it ever comes back.
 
 import { cleanIdentifier, isRejected } from "./clean.ts";
-import { withTx, workspaceLock, type Db, type Pool } from "./stitch.ts";
+import { withTx, type Db, type Pool } from "./db.ts";
+import { workspaceLock } from "./stitch.ts";
 
 async function current(db: Db, id: string): Promise<string | null> {
   let cur: string | null = id;

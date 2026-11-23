@@ -2,7 +2,7 @@
 // session's account comes from, in order: the person's work email, a network the workspace learned, the IP
 // vendor's business match. The person's account wins; the network's is kept beside it.
 
-import type { Db } from "../identity/stitch.ts";
+import type { Db } from "../identity/db.ts";
 import { cleanDomain } from "./domains.ts";
 
 const ACCOUNT_KINDS = ["business", "education", "government"];

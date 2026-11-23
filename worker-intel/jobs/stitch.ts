@@ -2,7 +2,8 @@ import type pg from "pg";
 import { JobError, type Handler } from "../../src/lib/jobs.ts";
 import { erasePerson, exportPerson } from "../../src/lib/identity/erase.ts";
 import { rebuildWorkspace } from "../../src/lib/identity/rebuild.ts";
-import { stitchDevice, stitchOne, withTx, workspaceLock, type Evidence } from "../../src/lib/identity/stitch.ts";
+import { withTx, type Evidence } from "../../src/lib/identity/db.ts";
+import { stitchDevice, stitchOne, workspaceLock } from "../../src/lib/identity/stitch.ts";
 import { settingsFor } from "../settings.ts";
 import { isUuid } from "../../src/lib/uuid.ts";
 

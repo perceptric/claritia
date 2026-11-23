@@ -2,7 +2,8 @@
 // revoked, in arrival order. Undo works by revoking evidence and rebuilding. Old person ids get aliases to the new
 // person holding most of their identifiers, so links and URLs keep working.
 
-import { stitchOne, withTx, workspaceLock, type Pool, type Settings } from "./stitch.ts";
+import { withTx, type Pool } from "./db.ts";
+import { stitchOne, workspaceLock, type Settings } from "./stitch.ts";
 
 const KIOSK_UNTIL = "9999-12-31T00:00:00Z";
 
