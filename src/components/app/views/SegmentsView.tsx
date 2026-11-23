@@ -12,7 +12,7 @@ import { askConfirm } from "../Dialogs";
 import { FilterEditor, Popover } from "../FilterBar";
 import { Select } from "../Select";
 import { SampleStats, ToolIntro } from "../ToolIntro";
-import { Badge, Button, CardHead, Empty, ErrorNote, errorText, Input, Loading, must, Page, Panel, Segmented, Td, Th, timeAgo, useLoad, type ViewProps } from "../ui";
+import { Badge, Button, CardHead, ErrorNote, errorText, Input, Loading, must, Page, Panel, Segmented, Td, Th, timeAgo, useLoad, type ViewProps } from "../ui";
 import { useMeta } from "../records/meta";
 
 type Group = { op: "and" | "or"; rules: Node[] };
@@ -121,7 +121,12 @@ function SegmentList({ sb, ws, navigate }: Pick<ViewProps, "sb" | "ws" | "naviga
 
 function SegmentPage({ sb, ws, id, navigate }: Pick<ViewProps, "sb" | "ws" | "navigate"> & { id: string }) {
   const isNew = id === "new";
-  const seg = useLoad(async () => (isNew ? null : (must(await sb.from("segments").select("id, name, kind, rules, count, refreshed_at, error, source_id").eq("id", id).maybeSingle()) as Segment | null)), id);
+  const seg = useLoad(async () => {
+    if (isNew) return null;
+    const found = must(await sb.from("segments").select("id, name, kind, rules, count, refreshed_at, error, source_id").eq("id", id).maybeSingle()) as Segment | null;
+    if (!found) throw new Error("Segment not found");
+    return found;
+  }, id);
   const extra = useLoad(async () => {
     const [s, o] = await Promise.all([
       sb.from("sources").select("id, name").eq("workspace_id", ws.id).neq("status", "disconnected").order("name"),
@@ -132,8 +137,8 @@ function SegmentPage({ sb, ws, id, navigate }: Pick<ViewProps, "sb" | "ws" | "na
       objects: ((o.data ?? []) as { key: string; plural: string }[]).map((x) => ({ value: x.key, label: x.plural })),
     };
   }, ws.id);
-  if ((!isNew && seg.data === undefined) || !extra.data) return <Loading />;
-  if (!isNew && !seg.data) return <Empty title="Segment not found" />;
+  // A failed reload keeps the segment on screen, so edits in progress aren't lost.
+  if ((!isNew && !seg.data) || !extra.data) return seg.error || extra.error ? <ErrorNote message={seg.error || extra.error} /> : <Loading />;
   return <Builder sb={sb} wsId={ws.id} seg={seg.data ?? null} ctx={{ sb, wsId: ws.id, ...extra.data }} navigate={navigate} reload={seg.reload} />;
 }
 
