@@ -20,7 +20,7 @@ import { FieldsPanel, HistoryPanel, sourceLabel, type Change } from "../records/
 import { ImportPanel } from "../records/ImportPanel";
 import { RecordsList, type Preset, type ViewState } from "../records/RecordsList";
 import { SidePanel } from "../records/SidePanel";
-import { DEFAULT_WIDTH, type Row } from "../records/RecordTable";
+import { cols, type Row } from "../records/RecordTable";
 import { activeTime } from "./VisitorsView";
 
 const LIFECYCLE_LABEL = Object.fromEntries(LIFECYCLES.map((l) => [l.value, l.label]));
@@ -29,8 +29,6 @@ const BASIS_TONE: Record<Basis, Tone> = { opt_in: "green", soft_opt_in: "green",
 
 const displayName = (c: { first_name: string | null; last_name: string | null; email: string | null }) => fullName(c) ?? c.email ?? "Contact";
 const fmtDate = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-const cols = (...keys: string[]) => keys.map((key) => ({ key, width: DEFAULT_WIDTH }));
-
 const CONTACTS_BASE: ViewState = {
   filters: [],
   columns: cols("company", "title", "lifecycle", "lead_status", "owner", "country", "score", "updated_at"),

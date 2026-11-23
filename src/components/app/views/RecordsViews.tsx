@@ -12,9 +12,7 @@ import type { Link } from "../records/FieldInput";
 import { useMeta } from "../records/meta";
 import { FieldsPanel, HistoryPanel, type Change } from "../records/RecordParts";
 import { RecordsList, type ViewState } from "../records/RecordsList";
-import { DEFAULT_WIDTH, type Row } from "../records/RecordTable";
-
-const cols = (...keys: string[]) => keys.map((key) => ({ key, width: DEFAULT_WIDTH }));
+import { cols, DEFAULT_WIDTH, type Row } from "../records/RecordTable";
 
 const COMPANIES_BASE: ViewState = {
   filters: [],

@@ -16,6 +16,8 @@ export type Column = { key: string; width?: number };
 const MIN = 80;
 const MAX = 600;
 export const DEFAULT_WIDTH = 170;
+/** Columns at the default width, for a view's starting layout. */
+export const cols = (...keys: string[]) => keys.map((key) => ({ key, width: DEFAULT_WIDTH }));
 
 export function displayName(r: Row): string {
   const n = valueOf(r, "name");

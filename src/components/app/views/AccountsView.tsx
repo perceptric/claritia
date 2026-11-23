@@ -9,6 +9,7 @@ import { Users } from "../../Icons";
 import { Badge, Button, CardHead, Empty, ErrorNote, errorText, Loading, must, Page, Panel, Td, Th, timeAgo, useLoad, type Tone, type ViewProps } from "../ui";
 import { FilterBar, useFilters } from "../FilterBar";
 import { activeTime, LEVEL_TONE } from "./VisitorsView";
+import { DEFAULT_SIGNALS } from "@/lib/web/signals";
 
 type Row = {
   id: string;
@@ -182,11 +183,6 @@ type Visit = {
   signals: string[];
 };
 
-const HALF_LIFE: Record<string, number> = {
-  page_pricing: 7, page_demo: 7, page_compare: 10, page_security: 14, page_integrations: 14, docs_depth: 14, case_study: 14, return_visit: 7,
-  multi_person: 7, review_site_ref: 10, ai_assistant_ref: 10, engaged_session: 7, form_submit: 14, demo_request: 21, new_person: 14,
-};
-
 function AccountPage({ sb, id, navigate }: ViewProps) {
   // Decay is worked out at load time, so the page doesn't shift while it's open.
   const detail = useLoad(async () => ({ ...(must(await sb.rpc("account_detail", { p_id: id })) as Detail), loadedAt: Date.now() }), id);
@@ -215,7 +211,7 @@ function AccountPage({ sb, id, navigate }: ViewProps) {
   const people = new Map(d.people.map((p) => [p.id, p.email]));
   const contributions = d.signals
     .map((s) => {
-      const half = d.half_lives[s.kind] ?? HALF_LIFE[s.kind] ?? 14;
+      const half = d.half_lives[s.kind] ?? DEFAULT_SIGNALS[s.kind]?.half_life_days ?? 14;
       return { ...s, half, points: decayed({ kind: s.kind, weight: s.weight, half_life_days: half, at: +new Date(s.at), person_id: s.person_id }, now) };
     })
     .sort((x, y) => y.points - x.points);
