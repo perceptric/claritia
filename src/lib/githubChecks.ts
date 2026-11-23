@@ -46,7 +46,8 @@ async function postCheck(sb: SupabaseClient, check: Check, link: Link) {
     Object.assign(body, { status: "in_progress", started_at: new Date().toISOString(), output: { title: `Running ${n} ${n === 1 ? "test" : "tests"}`, summary: `${why ? `${why}\n\n` : ""}Running on ${where(check)}.` } });
   }
   const run = await gh<{ id: number }>("POST", `/repos/${check.repo_full_name}/check-runs`, token, body);
-  await sb.from("github_checks").update({ check_run_id: run.id }).eq("id", check.id);
+  const { error } = await sb.from("github_checks").update({ check_run_id: run.id }).eq("id", check.id);
+  if (error) throw new Error(`Saving the check run: ${error.message}`);
   check.check_run_id = run.id;
 }
 
@@ -57,25 +58,32 @@ const ALL: Pick = { selection: null, testIds: null, aiCalls: 0, newFlows: [], fi
 async function pickTests(sb: SupabaseClient, link: Link, sha: string, pr: number | null, deps: Deps): Promise<Pick> {
   if (!link.pick_tests || !deps.picker) return ALL;
   const all = (reason: string): Pick => ({ ...ALL, selection: { mode: "all", reason } });
+  const why = (e: unknown) => (e instanceof Error ? e.message : String(e)).slice(0, 200);
   const token = await installationToken(link.installation_id);
   let number = pr;
   if (!number) {
-    const pulls = await gh<{ number: number; state: string }[]>("GET", `/repos/${link.repo_full_name}/commits/${sha}/pulls`, token).catch(() => []);
+    let pulls: { number: number; state: string }[];
+    try {
+      pulls = await gh<{ number: number; state: string }[]>("GET", `/repos/${link.repo_full_name}/commits/${sha}/pulls`, token);
+    } catch (e) {
+      return all(`The commit's pull request couldn't be looked up (${why(e)}), so every test runs.`);
+    }
     number = pulls.find((p) => p.state === "open")?.number ?? null;
     if (!number) return all("No open pull request has this commit, so every test runs.");
   }
   let files: ChangedFile[];
   try {
     files = await gh<ChangedFile[]>("GET", `/repos/${link.repo_full_name}/pulls/${number}/files?per_page=100`, token);
-  } catch {
-    return all("The pull request's files couldn't be read, so every test runs.");
+  } catch (e) {
+    return all(`The pull request's files couldn't be read (${why(e)}), so every test runs.`);
   }
   const byRule = selectByRules(files);
   if (byRule) return { ...ALL, files, selection: byRule, testIds: byRule.mode === "none" ? [] : null };
 
   let q = sb.from("tests").select("id, name, use_case, steps").eq("project_id", link.project_id);
   if (link.scope === "use_case" && link.use_case) q = q.eq("use_case", link.use_case);
-  const [{ data: testRows }, { data: pageRows }] = await Promise.all([q, sb.from("app_pages").select("pattern, name").eq("project_id", link.project_id).limit(200)]);
+  const [{ data: testRows, error: testErr }, { data: pageRows, error: pageErr }] = await Promise.all([q, sb.from("app_pages").select("pattern, name").eq("project_id", link.project_id).limit(200)]);
+  if (testErr || pageErr) return { ...all(`The tests couldn't be read (${(testErr ?? pageErr)!.message}), so every test runs.`), files };
   const tests = ((testRows ?? []) as { id: string; name: string; use_case: string; steps: { kind: string; text?: string }[] }[])
     .filter((t) => Array.isArray(t.steps) && t.steps.length)
     .map((t) => ({ id: t.id, name: t.name, use_case: t.use_case, steps: t.steps.map((x) => (x.kind === "check" ? `check: ${x.text}` : x.kind === "use" ? "use a block" : String(x.text))) }));
@@ -84,8 +92,8 @@ async function pickTests(sb: SupabaseClient, link: Link, sha: string, pr: number
     const reply = await deps.picker(files, tests, (pageRows ?? []) as { pattern: string; name: string | null }[]);
     const selection = selectionFrom(reply, tests);
     return { selection, testIds: selection.mode === "picked" ? selection.tests.map((t) => t.id) : null, aiCalls: 1, newFlows: reply.newFlows, files };
-  } catch {
-    return { ...all("The test picker couldn't decide, so every test runs."), files };
+  } catch (e) {
+    return { ...all(`The test picker couldn't decide (${why(e)}), so every test runs.`), files };
   }
 }
 
@@ -115,9 +123,10 @@ async function proposeForPr(sb: SupabaseClient, link: Link, pr: number, title: s
   });
   const proposals = cleanProposals(r.proposals, { site: "", pages: [], tests: existing, blocks: blockRows.map((b) => b.name), notes: "" }).slice(0, 5);
   const ids = new Map(blockRows.map((b) => [b.name, b.id]));
-  const { data: plan } = await sb.from("plans").insert({ workspace_id: link.workspace_id, project_id: link.project_id, notes: `PR #${pr} in ${link.repo_full_name}`, status: "done", proposals: proposals.length, ai_calls: PR_PROPOSAL_CREDITS, ai_input_tokens: r.usage.input, ai_output_tokens: r.usage.output, finished_at: new Date().toISOString() }).select("id").single<{ id: string }>();
+  const { data: plan, error: planErr } = await sb.from("plans").insert({ workspace_id: link.workspace_id, project_id: link.project_id, notes: `PR #${pr} in ${link.repo_full_name}`, status: "done", proposals: proposals.length, ai_calls: PR_PROPOSAL_CREDITS, ai_input_tokens: r.usage.input, ai_output_tokens: r.usage.output, finished_at: new Date().toISOString() }).select("id").single<{ id: string }>();
+  if (planErr) throw new Error(`Saving proposed tests: ${planErr.message}`);
   if (!proposals.length) return;
-  await sb.from("test_proposals").insert(
+  const { error } = await sb.from("test_proposals").insert(
     proposals.map((p) => ({
       workspace_id: link.workspace_id,
       project_id: link.project_id,
@@ -131,6 +140,7 @@ async function proposeForPr(sb: SupabaseClient, link: Link, pr: number, title: s
       steps: p.steps.map((s) => (s.kind === "use" ? { kind: "use", block: ids.get(s.block) } : s)).filter((s) => s.kind !== "use" || s.block),
     })),
   );
+  if (error) throw new Error(`Saving proposed tests: ${error.message}`);
 }
 
 async function startOne(sb: SupabaseClient, link: Link, sha: string, pr: number | null, url: string | null, deps: Deps, opened?: { title: string }) {
@@ -138,8 +148,9 @@ async function startOne(sb: SupabaseClient, link: Link, sha: string, pr: number 
   const { data, error } = await sb.rpc("github_start_check", { p_link: link.id, p_sha: sha, p_pr: pr, p_base_url: url, p_test_ids: pick.testIds, p_selection: pick.selection, p_ai_calls: pick.aiCalls });
   if (error) throw new Error(error.message);
   for (const check of (data ?? []) as Check[]) await postCheck(sb, check, link);
-  // A new pull request that adds flows no test covers gets proposed tests for them. Never blocks the check.
-  if (opened && pr && pick.newFlows.length && deps.planner) await proposeForPr(sb, link, pr, opened.title, pick.newFlows, pick.files, deps.planner).catch(() => undefined);
+  // A new pull request that adds flows no test covers gets proposed tests for them. The check is already posted, so a
+  // failure here is only reported.
+  if (opened && pr && pick.newFlows.length && deps.planner) await proposeForPr(sb, link, pr, opened.title, pick.newFlows, pick.files, deps.planner);
 }
 
 /** Act on a GitHub event. Errors for one link don't stop the others; they're returned. */
