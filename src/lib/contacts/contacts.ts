@@ -6,7 +6,8 @@ import { cleanDomain } from "../company/domains.ts";
 import { cleanEmail, isRejected } from "../identity/clean.ts";
 import type { Rpc } from "../jobs.ts";
 import { basisFor, BASES, type Basis } from "./consent.ts";
-import { countryCode, customValue, LIFECYCLES, type CustomField } from "./fields.ts";
+import { customValue, LIFECYCLES, type CustomField } from "../records/fields.ts";
+import { countryCode } from "./fields.ts";
 import type { ContactInput } from "./import.ts";
 
 /** A source kind from source_kinds (supabase/migrations/034_records.sql), like "csv", "hubspot" or "manual". */

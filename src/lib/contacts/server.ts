@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { requireUser } from "../serverAuth.ts";
-import type { CustomField } from "./fields.ts";
+import type { CustomField } from "../records/fields.ts";
 import type { Ctx } from "./import.ts";
 
 // What the contacts routes share: the member check, and what cleaning needs from the workspace.

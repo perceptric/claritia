@@ -6,7 +6,8 @@
 
 import { useEffect, useState } from "react";
 import { BASES, IMPORT_SOURCES, sourceRefused, type Basis, type ImportSource } from "@/lib/contacts/consent";
-import { TARGETS, type CustomField, type Target } from "@/lib/contacts/fields";
+import { TARGETS, type Target } from "@/lib/contacts/fields";
+import type { CustomField } from "@/lib/records/fields";
 import { Upload } from "../../Icons";
 import { askConfirm, askText } from "../Dialogs";
 import { Select } from "../Select";

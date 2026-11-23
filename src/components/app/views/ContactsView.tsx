@@ -6,8 +6,8 @@
 
 import { useState } from "react";
 import { BASES, BASIS_LABEL, type Basis } from "@/lib/contacts/consent";
-import { fullName, LIFECYCLES, type ContactRow, type CustomField } from "@/lib/contacts/fields";
-import type { AnyField } from "@/lib/records/fields";
+import { fullName, type ContactRow } from "@/lib/contacts/fields";
+import { LIFECYCLES, type AnyField, type CustomField } from "@/lib/records/fields";
 import { Contact, Plus, Upload } from "../../Icons";
 import { askConfirm, askText, tell } from "../Dialogs";
 import { Popover } from "../FilterBar";
