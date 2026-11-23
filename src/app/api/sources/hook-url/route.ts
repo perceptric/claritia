@@ -1,6 +1,6 @@
 import { unseal } from "@/lib/seal";
-import { hookUrl, isOwner } from "@/lib/sources/server";
-import { requireUser } from "@/lib/serverAuth";
+import { hookUrl } from "@/lib/sources/server";
+import { isOwner, requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { isUuid } from "@/lib/uuid";
 
@@ -11,7 +11,7 @@ export async function GET(request: Request) {
   const id = new URL(request.url).searchParams.get("id") ?? "";
   if (!isUuid(id)) return Response.json({ error: "Source not found." }, { status: 404 });
   const { data: src } = await auth.sb.from("sources").select("workspace_id, kind").eq("id", id).maybeSingle();
-  if (!src || !(await isOwner(auth.sb, auth.user.id, src.workspace_id))) return Response.json({ error: "Source not found." }, { status: 404 });
+  if (!src || !(await isOwner(auth, src.workspace_id))) return Response.json({ error: "Source not found." }, { status: 404 });
   const db = serviceClient();
   if (!db) return Response.json({ error: "The server is not set up for this." }, { status: 500 });
   const { data } = await db.from("source_secrets").select("hook_sealed").eq("source_id", id).maybeSingle();

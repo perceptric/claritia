@@ -1,6 +1,6 @@
 import { formValues, newContact, writeContacts, type ContactForm } from "@/lib/contacts/contacts";
-import { cleaningCtx, isMember } from "@/lib/contacts/server";
-import { requireUser } from "@/lib/serverAuth";
+import { cleaningCtx } from "@/lib/contacts/server";
+import { isMember, requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { isUuid } from "@/lib/uuid";
 

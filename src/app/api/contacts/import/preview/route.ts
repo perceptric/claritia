@@ -1,8 +1,8 @@
 import { chunksOf, fileRows, kindOf } from "@/lib/contacts/files";
 import { mappingError, prepareImport, type Mapping } from "@/lib/contacts/import";
-import { cleaningCtx, isMember } from "@/lib/contacts/server";
+import { cleaningCtx } from "@/lib/contacts/server";
 import { openFile, validPath } from "@/lib/contacts/storage";
-import { requireUser } from "@/lib/serverAuth";
+import { isMember, requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 
 // What an import would do to its first rows: POST { workspaceId, path, fileName, sheet, mapping } returns up to 20

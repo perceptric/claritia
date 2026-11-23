@@ -1,5 +1,6 @@
 import "server-only";
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
+import { isUuid } from "./uuid.ts";
 
 export const supabaseUrl = () => process.env.SUPABASE_URL?.trim().replace(/\/+$/, "") ?? "";
 
@@ -22,3 +23,15 @@ export async function requireUser(request: Request): Promise<{ sb: SupabaseClien
   if (!data?.user) return deny("Please sign in again.", 401);
   return { sb, user: data.user };
 }
+
+type Caller = { sb: SupabaseClient; user: User };
+
+/** The caller's role in a workspace, or null when they aren't in it or the id isn't one. */
+async function roleIn(c: Caller, workspaceId: unknown): Promise<string | null> {
+  if (!isUuid(workspaceId)) return null;
+  const { data } = await c.sb.from("workspace_members").select("role").eq("workspace_id", workspaceId).eq("user_id", c.user.id).maybeSingle<{ role: string }>();
+  return data?.role ?? null;
+}
+
+export const isMember = async (c: Caller, workspaceId: unknown) => (await roleIn(c, workspaceId)) !== null;
+export const isOwner = async (c: Caller, workspaceId: unknown) => (await roleIn(c, workspaceId)) === "owner";

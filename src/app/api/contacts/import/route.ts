@@ -2,9 +2,9 @@ import { INLINE_BYTES } from "@/lib/contacts/csv";
 import { kindOf } from "@/lib/contacts/files";
 import { mappingError, type Mapping } from "@/lib/contacts/import";
 import { executeImport, type ImportRow } from "@/lib/contacts/importJob";
-import { cleaningCtx, isMember } from "@/lib/contacts/server";
+import { cleaningCtx } from "@/lib/contacts/server";
 import { fileSize, validPath } from "@/lib/contacts/storage";
-import { requireUser } from "@/lib/serverAuth";
+import { isMember, requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 
 // Start an import of an uploaded file: POST { workspaceId, path, fileName, sheet, mapping, kind }. Files up to 3 MB

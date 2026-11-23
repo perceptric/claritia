@@ -1,10 +1,9 @@
 import { unseal } from "@/lib/seal";
 import { makeCtx } from "@/lib/sources/ctx";
-import { isOwner } from "@/lib/sources/server";
 import { queryError, START_CURSOR, type WhQuery } from "@/lib/sources/sql";
 import type { Creds, SourceRow } from "@/lib/sources/types";
 import { runQuery } from "@/lib/sources/warehouse";
-import { requireUser } from "@/lib/serverAuth";
+import { isOwner, requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { isUuid } from "@/lib/uuid";
 
@@ -18,7 +17,7 @@ export async function POST(request: Request) {
   const id = typeof body.id === "string" ? body.id : "";
   if (!isUuid(id)) return Response.json({ error: "Source not found." }, { status: 404 });
   const { data: src } = await auth.sb.from("sources").select("workspace_id").eq("id", id).maybeSingle();
-  if (!src || !(await isOwner(auth.sb, auth.user.id, src.workspace_id))) return Response.json({ error: "Source not found." }, { status: 404 });
+  if (!src || !(await isOwner(auth, src.workspace_id))) return Response.json({ error: "Source not found." }, { status: 404 });
   const q = { ...body.query, target: body.query?.target ?? "contacts" } as WhQuery;
   const wrong = queryError(q);
   if (wrong) return Response.json({ error: wrong }, { status: 400 });

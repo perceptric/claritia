@@ -1,9 +1,9 @@
 import { appBase } from "@/lib/billing";
 import { entryOf } from "@/lib/sources/catalog";
 import { oauthReady, oauthUrl, signState } from "@/lib/sources/oauth";
-import { connectSource, isOwner } from "@/lib/sources/server";
+import { connectSource } from "@/lib/sources/server";
 import type { Creds, Settings } from "@/lib/sources/types";
-import { requireUser } from "@/lib/serverAuth";
+import { isOwner, requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 
 // Connect a tool: POST { workspaceId, kind, keys?, hookSecret?, settings? }. A tool with one-click sign-in returns
@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   const auth = await requireUser(request);
   if ("denied" in auth) return auth.denied;
   const body = (await request.json().catch(() => ({}))) as { workspaceId?: unknown; kind?: unknown; keys?: Record<string, unknown>; hookSecret?: unknown; settings?: Settings };
-  if (!(await isOwner(auth.sb, auth.user.id, body.workspaceId))) return bad("Only owners can connect tools.", 403);
+  if (!(await isOwner(auth, body.workspaceId))) return bad("Only owners can connect tools.", 403);
   const ws = body.workspaceId as string;
   const kind = typeof body.kind === "string" ? body.kind : "";
   const e = entryOf(kind);

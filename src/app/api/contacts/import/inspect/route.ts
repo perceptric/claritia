@@ -1,8 +1,8 @@
 import { chunksOf, inspect, kindOf, xlsxSheets } from "@/lib/contacts/files";
-import { cleaningCtx, isMember } from "@/lib/contacts/server";
+import { cleaningCtx } from "@/lib/contacts/server";
 import { fileSize, openFile, validPath } from "@/lib/contacts/storage";
 import { guessTarget } from "@/lib/contacts/fields";
-import { requireUser } from "@/lib/serverAuth";
+import { isMember, requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 
 // Look at an uploaded file: POST { workspaceId, path, fileName, sheet? } returns its sheets (Excel), header, first

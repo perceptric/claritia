@@ -1,8 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { seal, unseal } from "@/lib/seal";
-import { requireUser } from "@/lib/serverAuth";
+import { isOwner, requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
-import { isUuid } from "@/lib/uuid";
 
 // The identify secret signs claritia("identify", ...) calls (docs/identity.md 5.2). It is sealed in
 // identity_settings.identify_secrets_sealed as {current, next}; the stitch job accepts both, so a rotation keeps
@@ -10,12 +9,6 @@ import { isUuid } from "@/lib/uuid";
 
 const bad = (error: string, status = 400) => Response.json({ error }, { status });
 type Secrets = { current?: string; next?: string };
-
-async function owner(auth: Exclude<Awaited<ReturnType<typeof requireUser>>, { denied: Response }>, workspaceId: unknown) {
-  if (!isUuid(workspaceId)) return false;
-  const { data } = await auth.sb.from("workspace_members").select("role").eq("workspace_id", workspaceId).eq("user_id", auth.user.id).maybeSingle();
-  return data?.role === "owner";
-}
 
 async function read(sb: NonNullable<ReturnType<typeof serviceClient>>, ws: string): Promise<Secrets> {
   const { data } = await sb.from("identity_settings").select("identify_secrets_sealed").eq("workspace_id", ws).maybeSingle();
@@ -28,7 +21,7 @@ export async function GET(request: Request) {
   const auth = await requireUser(request);
   if ("denied" in auth) return auth.denied;
   const ws = new URL(request.url).searchParams.get("workspaceId");
-  if (!(await owner(auth, ws))) return bad("Only the workspace owner can see this.", 403);
+  if (!(await isOwner(auth, ws))) return bad("Only the workspace owner can see this.", 403);
   const sb = serviceClient();
   if (!sb) return bad("The server is not set up for this.", 500);
   try {
@@ -44,7 +37,7 @@ export async function POST(request: Request) {
   const auth = await requireUser(request);
   if ("denied" in auth) return auth.denied;
   const body = (await request.json().catch(() => ({}))) as { workspaceId?: unknown; action?: unknown };
-  if (!(await owner(auth, body.workspaceId))) return bad("Only the workspace owner can change this.", 403);
+  if (!(await isOwner(auth, body.workspaceId))) return bad("Only the workspace owner can change this.", 403);
   if (body.action !== "rotate" && body.action !== "drop_old") return bad("Unknown action.");
   const ws = body.workspaceId as string;
   const sb = serviceClient();

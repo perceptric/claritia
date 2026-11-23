@@ -1,16 +1,10 @@
 import { SLACK_WEBHOOK } from "@/lib/alerts";
 import { seal, unseal } from "@/lib/seal";
-import { requireUser } from "@/lib/serverAuth";
+import { isMember, requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { parseRule, slackAccountMessage } from "@/lib/web/accountAlerts";
 
 const bad = (error: string, status = 400) => Response.json({ error }, { status });
-
-async function member(auth: Exclude<Awaited<ReturnType<typeof requireUser>>, { denied: Response }>, workspaceId: unknown) {
-  if (typeof workspaceId !== "string") return false;
-  const { data } = await auth.sb.from("workspace_members").select("role").eq("workspace_id", workspaceId).eq("user_id", auth.user.id).maybeSingle();
-  return !!data;
-}
 
 /**
  * Account alert rules. { workspaceId, rule, slackUrl, dailyCap? } adds one (the Slack address is sealed first).
@@ -20,7 +14,7 @@ export async function POST(request: Request) {
   const auth = await requireUser(request);
   if ("denied" in auth) return auth.denied;
   const body = (await request.json().catch(() => ({}))) as { workspaceId?: unknown; rule?: unknown; slackUrl?: unknown; dailyCap?: unknown; ruleId?: unknown; test?: unknown };
-  if (!(await member(auth, body.workspaceId))) return bad("Workspace not found.", 404);
+  if (!(await isMember(auth, body.workspaceId))) return bad("Workspace not found.", 404);
   const sb = serviceClient();
   if (!sb) return bad("The server is not set up for alerts.", 500);
 
@@ -64,7 +58,7 @@ export async function DELETE(request: Request) {
   const auth = await requireUser(request);
   if ("denied" in auth) return auth.denied;
   const body = (await request.json().catch(() => ({}))) as { workspaceId?: unknown; ruleId?: unknown };
-  if (!(await member(auth, body.workspaceId))) return bad("Workspace not found.", 404);
+  if (!(await isMember(auth, body.workspaceId))) return bad("Workspace not found.", 404);
   const sb = serviceClient();
   if (!sb) return bad("The server is not set up for alerts.", 500);
   const { error } = await sb.from("account_alert_rules").delete().eq("id", String(body.ruleId)).eq("workspace_id", body.workspaceId as string);
