@@ -5,7 +5,7 @@
 
 import { useState } from "react";
 import { askConfirm } from "../Dialogs";
-import { Badge, Button, CardHead, ErrorNote, errorText, Field, Input, Loading, must, Panel, postJson, Tabs, useLoad, type ViewProps } from "../ui";
+import { Badge, Button, CardHead, ErrorNote, errorText, Field, getJson, Input, Loading, must, Panel, postJson, Tabs, useLoad, type ViewProps } from "../ui";
 import { domainList } from "@/lib/identity/domainList";
 import { Copy } from "./SitesPanel";
 import type { SiteHealth } from "./VisitorsView";
@@ -85,11 +85,8 @@ export function claritiaIdentify(userId, email) {
 claritia("identify", signed);`;
 
 function Secret({ sb, session, ws }: Pick<ViewProps, "sb" | "session" | "ws">) {
-  const auth = { Authorization: `Bearer ${session.access_token}` };
   const state = useLoad(async () => {
-    const res = await fetch(`/api/identity-secret?workspaceId=${ws.id}`, { headers: auth });
-    const data = (await res.json().catch(() => ({}))) as { secret?: string | null; old?: boolean; error?: string };
-    if (!res.ok) throw new Error(data.error ?? "Something went wrong.");
+    const data = await getJson<{ secret?: string | null; old?: boolean }>(session, `/api/identity-secret?workspaceId=${ws.id}`);
     return { secret: data.secret ?? null, old: !!data.old };
   }, ws.id);
   const sites = useLoad(async () => must(await sb.rpc("site_health", { p_ws: ws.id })) as SiteHealth[], ws.id);

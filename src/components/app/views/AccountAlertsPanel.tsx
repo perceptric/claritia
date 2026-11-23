@@ -6,7 +6,7 @@ import { useState } from "react";
 import { ruleText, type AlertRule } from "@/lib/web/accountAlerts";
 import { askConfirm } from "../Dialogs";
 import { Select } from "../Select";
-import { attempt, Button, CardHead, ErrorNote, Field, Input, Loading, must, Panel, postJson, useLoad, type ViewProps } from "../ui";
+import { attempt, Button, CardHead, deleteJson, ErrorNote, Field, Input, Loading, must, Panel, postJson, useLoad, type ViewProps } from "../ui";
 
 type Saved = { id: string; rule: AlertRule; slack_hint: string | null; daily_cap: number };
 
@@ -30,9 +30,7 @@ export function AccountAlertsPanel({ sb, session, ws }: Pick<ViewProps, "sb" | "
   const remove = (id: string) =>
     run(id, async () => {
       if (!(await askConfirm("Remove this alert?", { ok: "Remove", danger: true }))) return;
-      const res = await fetch("/api/account-alerts", { method: "DELETE", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ workspaceId: ws.id, ruleId: id }) });
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) throw new Error(data.error ?? "Something went wrong.");
+      await deleteJson(session, "/api/account-alerts", { workspaceId: ws.id, ruleId: id });
       rules.reload();
     });
 

@@ -13,7 +13,7 @@ import { BrandLogo } from "../BrandLogo";
 import { askConfirm } from "../Dialogs";
 import { Select } from "../Select";
 import { SampleStats, ToolIntro } from "../ToolIntro";
-import { attempt, Badge, Button, CardHead, ErrorNote, errorText, Field, Input, Loading, must, Panel, postJson, Td, Th, timeAgo, useLoad, type Tone, type ViewProps } from "../ui";
+import { attempt, Badge, Button, CardHead, ErrorNote, errorText, Field, getJson, Input, Loading, must, Panel, postJson, Td, Th, timeAgo, useLoad, type Tone, type ViewProps } from "../ui";
 import { CheckBox } from "../records/RecordTable";
 import { SidePanel } from "../records/SidePanel";
 
@@ -41,13 +41,6 @@ const EVERY = [
 ];
 const SEL = "h-9 w-full rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong";
 const OBJECT_LABEL: Record<string, string> = { contacts: "Contacts", companies: "Companies", lists: "Lists", suppressions: "Unsubscribes", events: "Activity", records: "Records" };
-
-async function getJson<T>(session: ViewProps["session"], path: string): Promise<T> {
-  const res = await fetch(path, { headers: { Authorization: `Bearer ${session.access_token}` } });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error ?? "Something went wrong.");
-  return data as T;
-}
 
 const search = () => (typeof window === "undefined" ? new URLSearchParams() : new URLSearchParams(window.location.search));
 
