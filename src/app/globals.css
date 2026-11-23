@@ -46,8 +46,6 @@
   --radius-2xl: 10px;
 
   /* Flat: hairlines do the work, a real shadow only for things that float */
-  --shadow-xs: 0 1px 1px rgb(12 12 11 / 0.04);
-  --shadow-card: 0 0 0 1px #eaeaea;
   --shadow-pop: 0 0 0 1px rgb(12 12 11 / 0.08), 0 24px 48px -16px rgb(12 12 11 / 0.18), 0 8px 16px -8px rgb(12 12 11 / 0.08);
 }
 
@@ -150,84 +148,10 @@ body {
 }
 }
 
-/* A hairline with small ticks at each end */
-.ticks {
-  position: relative;
-  height: 1px;
-  background: var(--color-line);
-}
-.ticks::before,
-.ticks::after {
-  content: "";
-  position: absolute;
-  top: -3px;
-  width: 1px;
-  height: 7px;
-  background: var(--color-line-strong);
-}
-.ticks::before {
-  left: 0;
-}
-.ticks::after {
-  right: 0;
-}
-
 /* Thin scrollbars */
 * {
   scrollbar-width: thin;
   scrollbar-color: #dadad6 transparent;
-}
-
-/* Legal pages */
-.legal h2 {
-  margin: 2.25rem 0 0.75rem;
-  font-size: 1.15rem;
-  font-weight: 500;
-}
-.legal p,
-.legal li {
-  font-size: 15px;
-  line-height: 1.7;
-  color: #4a4a46;
-}
-.legal p {
-  margin: 0 0 0.9rem;
-}
-.legal ul {
-  margin: 0 0 1rem;
-  padding-left: 1.25rem;
-  list-style: disc;
-}
-.legal li {
-  margin-bottom: 0.4rem;
-}
-.legal a {
-  color: var(--color-brand);
-  text-decoration: underline;
-}
-.legal code {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  background: var(--color-canvas);
-  padding: 1px 5px;
-  border-radius: 3px;
-}
-.legal table {
-  width: 100%;
-  margin: 0 0 1.25rem;
-  border-collapse: collapse;
-  font-size: 14px;
-}
-.legal th,
-.legal td {
-  border: 1px solid var(--color-line);
-  padding: 8px 10px;
-  text-align: left;
-  vertical-align: top;
-}
-.legal th {
-  background: var(--color-canvas);
-  font-weight: 500;
 }
 
 /* Marketing site */
@@ -257,33 +181,6 @@ body {
   .mk-pulse {
     animation: none;
   }
-}
-
-/* A card's header bar: a black dot, then a mono label in capitals */
-@layer components {
-.card-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 40px;
-  padding: 0 16px;
-  border-bottom: 1px solid var(--color-line);
-  background: var(--color-canvas);
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: var(--color-muted);
-}
-.card-head::before {
-  content: "";
-  flex-shrink: 0;
-  width: 6px;
-  height: 6px;
-  border-radius: 9999px;
-  background: var(--color-ink);
-}
 }
 
 @layer components {
