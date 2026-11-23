@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { cleanSteps, isUse, MAX_NAME, slug, stepId, type Step } from "@/lib/testfile";
 import { Box, Plus, Trash } from "../../Icons";
-import { askConfirm, askText } from "../Dialogs";
+import { askConfirm, askText, useLeaveGuard } from "../Dialogs";
 import { StepsEditor } from "../StepsEditor";
 import { Badge, Button, Empty, ErrorNote, errorText, Field, Loading, must, Page, Panel, setLeaveGuard, Th, timeAgo, useLoad, type ViewProps } from "../ui";
 
@@ -48,16 +48,7 @@ function BlockEditor({ sb, project, id, navigate }: ViewProps) {
   const clean = useMemo(() => cleanSteps(steps), [steps]);
   const dirty = !!saved && (name.trim() !== saved.name || JSON.stringify(clean) !== JSON.stringify(saved.steps));
 
-  useEffect(() => {
-    if (!dirty) return;
-    setLeaveGuard(() => askConfirm("Leave without saving?", { body: "Your changes to this block will be lost.", ok: "Leave", danger: true }));
-    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
-    window.addEventListener("beforeunload", warn);
-    return () => {
-      setLeaveGuard(null);
-      window.removeEventListener("beforeunload", warn);
-    };
-  }, [dirty]);
+  useLeaveGuard(dirty, "block");
 
   const save = async () => {
     if (!saved) return;

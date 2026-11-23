@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button } from "./ui";
+import { Button, setLeaveGuard } from "./ui";
 
 // The app's own pop-up questions, in place of the browser's prompt, confirm and alert boxes.
 // Call askText, askConfirm or tell from anywhere; <DialogHost /> (mounted once) shows them.
@@ -113,4 +113,18 @@ export function DialogHost() {
       </form>
     </div>
   );
+}
+
+/** While `dirty`, ask before leaving the page (in the app) or closing the tab: "Your changes to this <what> will be lost." */
+export function useLeaveGuard(dirty: boolean, what: string) {
+  useEffect(() => {
+    if (!dirty) return;
+    setLeaveGuard(() => askConfirm("Leave without saving?", { body: `Your changes to this ${what} will be lost.`, ok: "Leave", danger: true }));
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => {
+      setLeaveGuard(null);
+      window.removeEventListener("beforeunload", warn);
+    };
+  }, [dirty, what]);
 }

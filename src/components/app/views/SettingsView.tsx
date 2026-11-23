@@ -14,7 +14,7 @@ import { settingsGroups, type SettingsTab } from "@/lib/settingsTabs";
 import { FieldsSettings, ObjectsSettings } from "./FieldsSettings";
 import { ImportsSettings } from "./ImportsSettings";
 import { SourcesSettings, SyncLog } from "./SourcesSettings";
-import { announceChange, attempt, Avatar, Badge, Button, CardHead, ErrorNote, errorText, Loading, must, Page, Panel, postJson, timeAgo, useLoad, type ViewProps } from "../ui";
+import { announceChange, attempt, Avatar, Badge, Button, CardHead, ErrorNote, errorText, Loading, must, Page, Panel, postJson, timeAgo, useCopy, useLoad, type ViewProps } from "../ui";
 
 type Usage = { plan: PlanId; period_start: string; period_end: string; minutes_used: number; minutes_limit: number | null; credits_used: number; credits_limit: number | null; projects_used: number; projects_limit: number | null };
 
@@ -103,19 +103,14 @@ function PlanPanel({ sb, session, ws, role }: Pick<ViewProps, "sb" | "session" |
 
 /** A label, a line to copy, and a Copy button. */
 function CopyRow({ label, text }: { label: string; text: string }) {
-  const [copied, setCopied] = useState(false);
+  const [copied, copy] = useCopy();
   return (
     <div className="flex items-center gap-2">
       <span className="label-mono w-24 shrink-0">{label}</span>
       <code className="min-w-0 flex-1 truncate border border-line bg-canvas px-2.5 py-1.5 font-mono text-[12.5px]">{text}</code>
       <Button
         variant="ghost"
-        onClick={() =>
-          navigator.clipboard?.writeText(text).then(() => {
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1500);
-          })
-        }
+        onClick={() => copy(text)}
       >
         <Copy size={12} />
         {copied ? "Copied" : "Copy"}

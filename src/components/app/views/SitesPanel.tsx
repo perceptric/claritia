@@ -4,26 +4,21 @@
 
 import { useState } from "react";
 import { askText } from "../Dialogs";
-import { Badge, Button, CardHead, ErrorNote, errorText, Field, Input, Loading, must, Panel, Tabs, timeAgo, useLoad, type ViewProps } from "../ui";
+import { Badge, Button, CardHead, ErrorNote, errorText, Field, Input, Loading, must, Panel, Tabs, timeAgo, useCopy, useLoad, type ViewProps } from "../ui";
 import { COLLECT_URL as COLLECT } from "@/lib/site";
 import { nextProxyFile } from "@/lib/web/proxy";
 import type { SiteHealth } from "./VisitorsView";
 
 
 export function Copy({ text }: { text: string }) {
-  const [done, setDone] = useState(false);
+  const [done, copy] = useCopy();
   return (
     <div className="flex items-start gap-2">
       <pre className="min-w-0 flex-1 overflow-x-auto rounded-md border border-line bg-canvas px-3 py-2 font-mono text-[11.5px] leading-5 whitespace-pre">{text}</pre>
       <Button
         variant="ghost"
         className="h-7 px-2.5"
-        onClick={() => {
-          void navigator.clipboard.writeText(text).then(() => {
-            setDone(true);
-            setTimeout(() => setDone(false), 1500);
-          });
-        }}
+        onClick={() => copy(text)}
       >
         {done ? "Copied" : "Copy"}
       </Button>

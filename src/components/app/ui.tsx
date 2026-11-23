@@ -33,6 +33,17 @@ export const mayLeave = () => (leaveGuard ? leaveGuard() : Promise.resolve(true)
 /** Tell every loaded page that data changed, so lists reload. */
 export const announceChange = () => window.dispatchEvent(new Event("claritia:changed"));
 
+/** Copy text to the clipboard; `copied` is true for a moment after, for a "Copied" label. */
+export function useCopy(): [copied: boolean, copy: (text: string) => void] {
+  const [copied, setCopied] = useState(false);
+  const copy = (text: string) =>
+    void navigator.clipboard?.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  return [copied, copy];
+}
+
 /** Call `tick` every `ms` while `live` is true, such as reloading while a job runs. */
 export function usePoll(live: boolean, ms: number, tick: () => void) {
   const latest = useRef(tick);

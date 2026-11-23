@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { cleanSteps, fromYaml, lockOutline, lockPath, MAX_NAME, PRIORITIES, testPath, TestFileError, toYaml, type BlockRef, type Priority, type Step, type TestDoc } from "@/lib/testfile";
 import { Copy, ListIcon, Play, Trash } from "../../Icons";
-import { askConfirm, askText } from "../Dialogs";
+import { askConfirm, askText, useLeaveGuard } from "../Dialogs";
 import { Select } from "../Select";
 import { StepsEditor } from "../StepsEditor";
 import { TestPreview, TestRunLog } from "./TestRuns";
-import { Badge, Button, ErrorNote, errorText, Field, Loading, Page, Panel, postJson, PriorityBars, Segmented, setLeaveGuard, Tabs, timeAgo, type Environment, type ViewProps } from "../ui";
+import { Badge, Button, ErrorNote, errorText, Field, Loading, Page, Panel, postJson, PriorityBars, Segmented, setLeaveGuard, Tabs, timeAgo, useCopy, type Environment, type ViewProps } from "../ui";
 
 export type TestRow = TestDoc & { id: string; project_id: string; lock: string | null; version: number; created_at: string; updated_at: string };
 type Version = TestDoc & { id: string; version: number; lock: string | null; author_email: string | null; created_at: string };
@@ -19,7 +19,7 @@ const TEST_COLUMNS = "id, project_id, name, use_case, priority, steps, lock, ver
 
 /** A file view: its path in a bar on top, the text below, and a copy button. */
 function FileBox({ path, text, badge, children }: { path: string; text: string; badge?: React.ReactNode; children?: React.ReactNode }) {
-  const [copied, setCopied] = useState(false);
+  const [copied, copy] = useCopy();
   return (
     <div className="frame overflow-hidden border border-line bg-panel">
       <div className="flex h-10 items-center gap-2 border-b border-line bg-canvas px-3">
@@ -27,12 +27,7 @@ function FileBox({ path, text, badge, children }: { path: string; text: string; 
         {badge}
         <button
           type="button"
-          onClick={() => {
-            navigator.clipboard?.writeText(text).then(() => {
-              setCopied(true);
-              setTimeout(() => setCopied(false), 1500);
-            });
-          }}
+          onClick={() => copy(text)}
           className="ml-auto inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] font-medium text-muted hover:bg-hover hover:text-ink"
         >
           <Copy size={12} />
@@ -106,17 +101,7 @@ export function TestView({ sb, session, project, id, navigate }: ViewProps) {
   const lockChanged = lockTouched && lockText !== (saved?.lock ?? "");
   const dirty = !!(saved && cleaned && (lockChanged || JSON.stringify([cleaned.name, cleaned.use_case, cleaned.priority, cleaned.steps]) !== JSON.stringify([saved.name, saved.use_case, saved.priority, saved.steps])));
 
-  // Ask before leaving with unsaved changes, in the app and when closing the tab.
-  useEffect(() => {
-    if (!dirty) return;
-    setLeaveGuard(() => askConfirm("Leave without saving?", { body: "Your changes to this test will be lost.", ok: "Leave", danger: true }));
-    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
-    window.addEventListener("beforeunload", warn);
-    return () => {
-      setLeaveGuard(null);
-      window.removeEventListener("beforeunload", warn);
-    };
-  }, [dirty]);
+  useLeaveGuard(dirty, "test");
 
   // YAML edits apply when you leave the YAML tab or save.
   const applyYaml = (): TestDoc | null => {
