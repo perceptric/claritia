@@ -19,7 +19,7 @@ export async function isOwner(sb: SupabaseClient, userId: string, ws: unknown): 
 export const hookUrl = (kind: string, id: string, token?: string) => `${appBase()}/api/hooks/${kind}/${id}${token ? `?t=${token}` : ""}`;
 
 /** Default settings for a new source of this kind. */
-export function defaultSettings(kind: string): Settings {
+function defaultSettings(kind: string): Settings {
   const e = entryOf(kind);
   const objects: Settings["objects"] = {};
   for (const o of e?.objects ?? []) objects[o] = o === "contacts" && e?.twoWay ? "both" : "in";

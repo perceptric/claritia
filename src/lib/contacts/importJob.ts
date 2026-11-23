@@ -27,7 +27,7 @@ const call = async (rpc: Rpc, fn: string, args: Record<string, unknown>) => {
 };
 
 /** Which source a file import writes as, so the field order can rank it. */
-export function sourceOfFile(imp: Pick<ImportRow, "kind" | "file_name">): Source {
+function sourceOfFile(imp: Pick<ImportRow, "kind" | "file_name">): Source {
   if (imp.kind === "paste") return "paste";
   const k = kindOf(imp.file_name);
   return k === "xlsx" ? "excel" : k === "vcf" ? "vcard" : "csv";

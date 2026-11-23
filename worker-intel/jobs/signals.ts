@@ -20,7 +20,7 @@ async function types(pool: pg.Pool, ws: string) {
 }
 
 /** Signals for one visit. Returns the account to rescore, or null. */
-export async function signalVisit(pool: pg.Pool, sessionId: string): Promise<{ workspace: string; account: string } | null> {
+async function signalVisit(pool: pg.Pool, sessionId: string): Promise<{ workspace: string; account: string } | null> {
   const s = (
     await pool.query(
       `select s.id, s.workspace_id, s.site_id, s.account_id, s.person_id, s.person_level, s.ref_class, s.referrer_host, s.started_at, s.internal, s.is_bot,

@@ -63,7 +63,7 @@ export function FieldValue({ field, value, links }: { field: AnyField; value: un
 }
 
 /** Find records to link, for relation fields. */
-export function RecordPicker({
+function RecordPicker({
   sb,
   wsId,
   object,

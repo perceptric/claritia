@@ -10,7 +10,7 @@ const BASE = "https://api.hubapi.com";
 const OVERLAP_MS = 5 * 60_000;
 const CAP = 9_900;
 
-export const HUBSPOT_CONTACT_PROPS = [
+const HUBSPOT_CONTACT_PROPS = [
   "email", "firstname", "lastname", "jobtitle", "phone", "mobilephone", "company", "website", "country", "state", "lifecyclestage", "hs_lead_status",
   "hs_email_optout", "hs_email_hard_bounce_reason_enum", "hs_legal_basis", "lastmodifieddate", "createdate",
 ];

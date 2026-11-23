@@ -107,7 +107,7 @@ const VISIT_PRESETS: { name: string; filters: Filter[] }[] = [
 ];
 
 /** The visitor's square avatar: initials on their color. */
-export function VisitorAvatar({ code, size = 24 }: { code: string; size?: number }) {
+function VisitorAvatar({ code, size = 24 }: { code: string; size?: number }) {
   const p = persona(code);
   return (
     <span

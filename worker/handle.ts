@@ -99,7 +99,7 @@ async function readJson<T>(file: string | null): Promise<T[]> {
 }
 
 /** How a step's comment reads in the lock: the step's words, "check: ..." or "use: Block name". */
-export function lockLabel(kind: string, label: string) {
+function lockLabel(kind: string, label: string) {
   if (kind === "check") return `check: ${label.replace(/^Check:\s*/, "")}`;
   if (kind === "use") return `use: ${label.replace(/^Use\s+/, "")}`;
   return label;

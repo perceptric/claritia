@@ -31,7 +31,7 @@ export function effectiveMapping(c: Connector, object: "contact" | "company", sa
   return out.filter((m) => m.target !== "skip");
 }
 
-export const cellOf = (v: unknown): string => {
+const cellOf = (v: unknown): string => {
   if (v == null) return "";
   if (Array.isArray(v)) return v.map(cellOf).filter(Boolean).join(";");
   if (typeof v === "object") return "";
@@ -68,7 +68,7 @@ function norm(v: unknown): unknown {
   return v;
 }
 
-export function localValue(t: string, c: Local): unknown {
+function localValue(t: string, c: Local): unknown {
   if (t === "email") return norm(c.email_clean);
   if (t === "company") return norm(c.company_name);
   if (t === "website") return norm(c.company_domain);

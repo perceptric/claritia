@@ -18,7 +18,7 @@ export function kindOf(name: string): FileKind | null {
 }
 
 /** A spreadsheet cell as text: dates as dates, formulas as their result, rich text and links as their text. */
-export function cellText(v: unknown): string {
+function cellText(v: unknown): string {
   if (v == null) return "";
   if (v instanceof Date) {
     if (Number.isNaN(v.getTime())) return "";

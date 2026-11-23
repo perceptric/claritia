@@ -14,4 +14,3 @@ const ALL: Connector[] = [hubspot, salesforce, omniscient, pipedrive, attio, clo
 const BY_KIND = new Map(ALL.map((c) => [c.kind, c]));
 
 export const connectorFor = (kind: string): Connector | undefined => BY_KIND.get(kind);
-export const CONNECTORS = ALL;

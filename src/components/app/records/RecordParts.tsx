@@ -26,7 +26,7 @@ const SOURCE_LABEL: Record<string, string> = {
 export const sourceLabel = (s: string) => SOURCE_LABEL[s] ?? s.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
 
 /** The sections to show: the workspace's layout, then custom groups, then everything else under Details. */
-export function sectionsFor(fields: AnyField[], layout: Meta["layout"], skip: string[] = []): { name: string; fields: AnyField[] }[] {
+function sectionsFor(fields: AnyField[], layout: Meta["layout"], skip: string[] = []): { name: string; fields: AnyField[] }[] {
   const visible = fields.filter((f) => !f.hidden && !skip.includes(f.key));
   const byKey = new Map(visible.map((f) => [f.key, f]));
   const used = new Set<string>();

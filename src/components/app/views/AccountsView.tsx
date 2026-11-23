@@ -63,8 +63,8 @@ const ACCOUNT_PRESETS: { name: string; filters: Filter[] }[] = [
   },
 ];
 
-export const STAGE_TONE: Record<string, Tone> = { evaluating: "brand", researching: "violet", engaged: "gray", unknown: "gray" };
-export const TEMP_TONE: Record<string, Tone> = { hot: "red", steady: "gray", cooling: "amber", cold: "gray" };
+const STAGE_TONE: Record<string, Tone> = { evaluating: "brand", researching: "violet", engaged: "gray", unknown: "gray" };
+const TEMP_TONE: Record<string, Tone> = { hot: "red", steady: "gray", cooling: "amber", cold: "gray" };
 
 function Meter({ value }: { value: number | null }) {
   return (

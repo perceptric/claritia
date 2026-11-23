@@ -5,7 +5,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const NAME_RE = /e-?mail/i;
 
 /** Fields that are never read, even when they match. */
-export function neverRead(el: Element): boolean {
+function neverRead(el: Element): boolean {
   const ac = (el.getAttribute("autocomplete") || "").toLowerCase();
   return (
     (el as HTMLInputElement).type === "password" ||
@@ -20,7 +20,7 @@ function labelSaysEmail(el: HTMLInputElement): boolean {
 }
 
 /** Finds the email in a form or container, in the order of docs/identity.md 5.4. Returns "" when there is none. */
-export function findEmail(root: ParentNode): string {
+function findEmail(root: ParentNode): string {
   const inputs = Array.from(root.querySelectorAll("input")).filter((el) => !neverRead(el));
   const tries: ((el: HTMLInputElement) => boolean)[] = [
     (el) => el.type === "email",
@@ -39,7 +39,7 @@ export function findEmail(root: ParentNode): string {
 }
 
 /** The form's name for reports: its id or name, or `data-clr-form`. Never its contents. */
-export function formName(el: Element | null): string {
+function formName(el: Element | null): string {
   if (!el) return "";
   return (el.getAttribute("data-clr-form") || el.id || el.getAttribute("name") || "").slice(0, 100);
 }

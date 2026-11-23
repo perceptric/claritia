@@ -36,7 +36,7 @@ export type ContactRow = {
 export const fullName = (c: { first_name: string | null; last_name: string | null }) => [c.first_name, c.last_name].filter(Boolean).join(" ").trim() || null;
 
 /** Built-in contact fields. Keys match contacts_where in supabase/migrations/033_contacts.sql. */
-export const CONTACT_FIELDS: FilterField<ContactRow>[] = [
+const CONTACT_FIELDS: FilterField<ContactRow>[] = [
   { key: "name", label: "Name", type: "text", get: fullName },
   { key: "email", label: "Email", type: "text", get: (c) => c.email },
   { key: "company", label: "Company", type: "text", get: (c) => c.company_name },

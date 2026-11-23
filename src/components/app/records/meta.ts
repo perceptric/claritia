@@ -8,12 +8,12 @@ import { must, useLoad } from "../ui";
 
 export type Meta = { fields: AnyField[]; custom: CustomField[]; people: Person[]; lists: Option[]; object: ObjectDef | null; layout: { name: string; keys: string[] }[] };
 
-export const OBJECT_LABELS: Record<string, ObjectDef> = {
+const OBJECT_LABELS: Record<string, ObjectDef> = {
   contact: { key: "contact", label: "Contact", plural: "Contacts", icon: "contact" },
   company: { key: "company", label: "Company", plural: "Companies", icon: "company" },
 };
 
-export async function loadMeta(sb: SupabaseClient, wsId: string, object: string): Promise<Meta> {
+async function loadMeta(sb: SupabaseClient, wsId: string, object: string): Promise<Meta> {
   const [custom, settings, people, lists, obj, layout] = await Promise.all([
     sb.from("fields").select("key, label, type, options, config, required, group_name, position").eq("workspace_id", wsId).eq("object", object).order("position"),
     sb.from("field_settings").select("key, label, hidden, options").eq("workspace_id", wsId).eq("object", object),

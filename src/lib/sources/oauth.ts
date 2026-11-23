@@ -6,7 +6,7 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypt
 
 export type OauthCfg = { env: string; authorize: string; token: string; scope?: string; basic?: boolean; pkce?: boolean; extra?: Record<string, string> };
 
-export const OAUTH: Record<string, OauthCfg> = {
+const OAUTH: Record<string, OauthCfg> = {
   hubspot: {
     env: "HUBSPOT",
     authorize: "https://app.hubspot.com/oauth/authorize",

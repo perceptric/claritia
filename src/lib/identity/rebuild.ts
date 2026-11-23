@@ -4,7 +4,7 @@
 
 import { stitchOne, workspaceLock, type Pool, type Settings } from "./stitch.ts";
 
-export const KIOSK_UNTIL = "9999-12-31T00:00:00Z";
+const KIOSK_UNTIL = "9999-12-31T00:00:00Z";
 
 export async function rebuildWorkspace(pool: Pool, ws: string, settings: Settings): Promise<{ replayed: number; aliased: number }> {
   const c = await pool.connect();

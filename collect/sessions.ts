@@ -4,7 +4,7 @@
 import type { Prior } from "./store.ts";
 
 export const IDLE_MS = 30 * 60_000;
-export const MAX_MS = 12 * 3600_000;
+const MAX_MS = 12 * 3600_000;
 
 export type Live = {
   id: string;

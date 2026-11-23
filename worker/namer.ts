@@ -33,7 +33,7 @@ const SCHEMA = {
   additionalProperties: false,
 };
 
-export function describePages(site: string, pages: PageToName[]): string {
+function describePages(site: string, pages: PageToName[]): string {
   return [
     `Site: ${site}`,
     ...pages.map((p) =>

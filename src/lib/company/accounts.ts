@@ -5,7 +5,7 @@
 import type { Db } from "../identity/stitch.ts";
 import { cleanDomain } from "./domains.ts";
 
-export const ACCOUNT_KINDS = ["business", "education", "government"];
+const ACCOUNT_KINDS = ["business", "education", "government"];
 
 /** The account for a domain in this workspace, made if it's new (and then queued for enrichment). */
 export async function accountForDomain(db: Db, ws: string, raw: string): Promise<string | null> {
@@ -27,7 +27,7 @@ export async function accountForDomain(db: Db, ws: string, raw: string): Promise
 }
 
 /** The account a person's work email points to, or null for free mail, role inboxes, partners and own domains. */
-export async function accountForPerson(db: Db, ws: string, person: string): Promise<string | null> {
+async function accountForPerson(db: Db, ws: string, person: string): Promise<string | null> {
   const r = await db.query(
     `select domain from identifiers where workspace_id = $1 and person_id = $2 and kind = 'email' and class = 'work' order by created_at limit 1`,
     [ws, person],
@@ -36,7 +36,7 @@ export async function accountForPerson(db: Db, ws: string, person: string): Prom
 }
 
 /** The network's account: learned from the workspace's own people first, then the IP vendor's business match. */
-export async function accountForNetwork(db: Db, ws: string, net: string): Promise<{ account: string; source: "learned_network" | "vendor_network" } | null> {
+async function accountForNetwork(db: Db, ws: string, net: string): Promise<{ account: string; source: "learned_network" | "vendor_network" } | null> {
   const learned = (await db.query(`select account_id from learned_networks where workspace_id = $1 and net = $2::cidr and account_id is not null`, [ws, net])).rows[0];
   if (learned) return { account: learned.account_id, source: "learned_network" };
   const flagged = (await db.query(`select 1 from network_flags where workspace_id = $1 and net = $2::cidr and flag in ('shared', 'ignore')`, [ws, net])).rows[0];

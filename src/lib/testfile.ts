@@ -11,7 +11,6 @@
 
 import { parse, stringify } from "yaml";
 
-export type StepKind = "do" | "check" | "use";
 export type TextStep = { id: string; kind: "do" | "check"; text: string };
 export type UseStep = { id: string; kind: "use"; block: string };
 export type Step = TextStep | UseStep;
@@ -21,10 +20,10 @@ export type TestDoc = { name: string; use_case: string; priority: Priority; step
 export type BlockRef = { id: string; name: string };
 
 export const PRIORITIES: Priority[] = ["low", "medium", "high"];
-export const MAX_STEPS = 200;
+const MAX_STEPS = 200;
 export const MAX_STEP_TEXT = 500;
 export const MAX_NAME = 120;
-export const MAX_USE_CASE = 60;
+const MAX_USE_CASE = 60;
 
 /** "Sign in with Google" becomes "sign-in-with-google". Used for file names and block references. */
 export function slug(name: string) {

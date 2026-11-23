@@ -140,7 +140,7 @@ const b = (key: string, label: string, kind: FieldKind, edit: boolean, extra: Pa
   ...extra,
 });
 
-export const CONTACT_BUILTINS: BuiltIn[] = [
+const CONTACT_BUILTINS: BuiltIn[] = [
   b("name", "Name", "text", false, { sort: "name", hideable: false }),
   b("email", "Email", "email", false, { sort: "email", hideable: false, filter: "text" }),
   b("first_name", "First name", "text", true),
@@ -167,7 +167,7 @@ export const CONTACT_BUILTINS: BuiltIn[] = [
   b("updated_at", "Updated", "datetime", false, { sort: "updated_at" }),
 ];
 
-export const COMPANY_BUILTINS: BuiltIn[] = [
+const COMPANY_BUILTINS: BuiltIn[] = [
   b("name", "Name", "text", true, { sort: "name", hideable: false }),
   b("domain", "Domain", "url", false, { sort: "domain", filter: "text" }),
   b("industry", "Industry", "text", true),
@@ -184,13 +184,13 @@ export const COMPANY_BUILTINS: BuiltIn[] = [
   b("updated_at", "Updated", "datetime", false, { sort: "updated_at" }),
 ];
 
-export const RECORD_BUILTINS: BuiltIn[] = [
+const RECORD_BUILTINS: BuiltIn[] = [
   b("name", "Name", "text", true, { sort: "name", hideable: false }),
   b("created_at", "Created", "datetime", false, { sort: "created_at" }),
   b("updated_at", "Updated", "datetime", false, { sort: "updated_at" }),
 ];
 
-export const builtinsFor = (object: string) => (object === "contact" ? CONTACT_BUILTINS : object === "company" ? COMPANY_BUILTINS : RECORD_BUILTINS);
+const builtinsFor = (object: string) => (object === "contact" ? CONTACT_BUILTINS : object === "company" ? COMPANY_BUILTINS : RECORD_BUILTINS);
 
 export type FieldSetting = { key: string; label: string | null; hidden: boolean; options: Option[] | null };
 

@@ -53,7 +53,7 @@ function withMissing(cols: Col[], values: Record<string, unknown>, r: RawRecord 
   return out;
 }
 
-export async function applyContacts(d: Deps, records: RawRecord[]): Promise<Counts> {
+async function applyContacts(d: Deps, records: RawRecord[]): Promise<Counts> {
   const c = zero();
   const src = d.ctx.source;
   c.pulled = records.length;
@@ -154,7 +154,7 @@ export async function applyCompanies(d: Deps, records: RawRecord[]): Promise<Cou
   return c;
 }
 
-export async function applySuppressions(d: Deps, records: RawRecord[]): Promise<Counts> {
+async function applySuppressions(d: Deps, records: RawRecord[]): Promise<Counts> {
   const c = zero();
   c.pulled = records.length;
   const rows = records
@@ -184,7 +184,7 @@ function emailOf(d: Deps, data: Record<string, unknown>): string | null {
 }
 
 /** Warehouse rows as activity on contacts. A row read again (the cursor overlaps) adds nothing. */
-export async function applyEvents(d: Deps, records: RawRecord[]): Promise<Counts> {
+async function applyEvents(d: Deps, records: RawRecord[]): Promise<Counts> {
   const c = zero();
   c.pulled = records.length;
   const q = d.ctx.source.settings.query;
@@ -208,7 +208,7 @@ export async function applyEvents(d: Deps, records: RawRecord[]): Promise<Counts
 }
 
 /** Warehouse rows as records of a custom object. Columns fill the fields with the same key ("Seats" fills seats). */
-export async function applyRecords(d: Deps, records: RawRecord[]): Promise<Counts> {
+async function applyRecords(d: Deps, records: RawRecord[]): Promise<Counts> {
   const c = zero();
   c.pulled = records.length;
   const q = d.ctx.source.settings.query;

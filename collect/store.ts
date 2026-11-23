@@ -94,7 +94,7 @@ export interface Store {
   ping(): Promise<void>;
 }
 
-export const deviceHash = (deviceId: string) => createHash("sha256").update(deviceId).digest();
+const deviceHash = (deviceId: string) => createHash("sha256").update(deviceId).digest();
 
 export class PgStore implements Store {
   pool: pg.Pool;

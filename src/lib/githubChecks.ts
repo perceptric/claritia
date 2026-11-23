@@ -14,7 +14,7 @@ const LINK_FIELDS = "id, workspace_id, project_id, installation_id, repo_full_na
 
 /** The AI the GitHub flow uses: Haiku picks the affected tests, Sonnet proposes tests for new flows. Both need ANTHROPIC_API_KEY on the web app. */
 export type Deps = { picker?: Picker; planner?: Planner };
-export function defaultDeps(): Deps {
+function defaultDeps(): Deps {
   const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
   if (!apiKey) return {};
   return { picker: claudePicker({ apiKey }), planner: claudePlanner({ apiKey, model: "claude-sonnet-5-5" }) };
