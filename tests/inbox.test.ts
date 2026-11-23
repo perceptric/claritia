@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parseLock } from "../src/lib/lock.ts";
-import { anyDigits, codeNearWords, extractLink, type InboxMail } from "../worker/runner.ts";
+import { anyDigits, codeNearWords, extractLink, type InboxMail } from "../worker/mail.ts";
 import { inboxAddress } from "../worker/handle.ts";
 
 const mail = (subject: string, text: string, html = ""): InboxMail => ({ subject, text, html, receivedAt: "" });

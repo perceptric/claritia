@@ -2,9 +2,8 @@
 // with Playwright. Records a video, a trace, a screenshot after each step, and the page's console.
 // Knows nothing about the database: the worker passes in what to run and gets results back through hooks.
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { unzipSync, zipSync } from "fflate";
 import pw from "playwright-core";
 import type { Browser, BrowserContext, Locator, Page } from "playwright-core";
 import { buildLock, lockSections, parseLock, type Action, type Arg, type Call } from "../src/lib/lock.ts";
@@ -12,11 +11,12 @@ import { cachedHostCheck } from "../src/lib/privateNet.ts";
 import { guardContext, type TunnelClient } from "./tunnel.ts";
 import type { Writer } from "./writer.ts";
 import { setTimeout as sleep } from "node:timers/promises";
+import { anyDigits, codeNearWords, extractLink, type InboxMail } from "./mail.ts";
+import { maskSecrets, scrubTrace } from "./secrets.ts";
 
 export type StepStatus = "running" | "passed" | "failed" | "skipped";
 export type StepUpdate = { position: number; status: StepStatus; retried?: boolean; startedMs?: number; durationMs?: number; error?: string | null; screenshot?: string; written?: boolean; healed?: boolean; code?: string };
 /** An email that reached a test inbox. */
-export type InboxMail = { subject: string; text: string; html: string; receivedAt: string };
 /** The project's test inbox: an address per name for this run, and the mail that reached it. */
 export type Inbox = { address: (tag: string) => string; read: (address: string, since: Date) => Promise<InboxMail[]> };
 /** A step as the test has it now. `label` is how its step comment reads in the lock. */
@@ -72,88 +72,9 @@ export type Hooks = { step: (u: StepUpdate) => Promise<void>; frame?: (jpeg: Buf
 
 const MAX_WRITES_PER_STEP = 5;
 const MAX_NETWORK = 2000;
-
-/** Text of an email, with tags taken out of the HTML when there's no plain text. */
-function mailText(m: InboxMail) {
-  if (m.text.trim()) return m.text;
-  return m.html.replace(/<(script|style)[\s\S]*?<\/\1>/gi, " ").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&");
-}
-
-/** A code right after words like "code" or "verification": 4 to 8 letters and digits, with at least one digit. */
-export function codeNearWords(m: InboxMail): string | null {
-  const text = `${m.subject}\n${mailText(m)}`.replace(/\s+/g, " ");
-  for (const k of text.matchAll(/\b(?:code|pin|otp|passcode|one-time|verification|verify)\b/gi)) {
-    const after = text.slice(k.index! + k[0].length, k.index! + k[0].length + 50);
-    const hit = /(?<![A-Za-z0-9-])(?=[A-Za-z0-9-]*\d)([A-Za-z0-9]{3,8}(?:-[A-Za-z0-9]{3,4})?)(?![A-Za-z0-9-])/.exec(after);
-    if (hit && hit[1]!.length >= 4) return hit[1]!;
-  }
-  return null;
-}
-
-/** Any 4 to 8 digit number on its own, in an email about signing in or verifying. A welcome email's order number never counts. */
-export function anyDigits(m: InboxMail): string | null {
-  if (!/code|verif|otp|\bpin\b|passcode|confirm|sign.?in|log.?in/i.test(`${m.subject}\n${mailText(m)}`)) return null;
-  const digits = /(?<![\d.,/:#-])(\d{4,8})(?![\d.,/:-])/.exec(`${m.subject}\n${mailText(m)}`);
-  return digits ? digits[1]! : null;
-}
-
-/** A link in an email. With a pattern, the first link that matches. Otherwise the first sign-in, confirm or reset style link, then any link. */
-export function extractLink(m: InboxMail, pattern?: RegExp): string | null {
-  const links: string[] = [];
-  for (const h of m.html.matchAll(/href\s*=\s*["']([^"']+)["']/gi)) links.push(h[1]!.replace(/&amp;/g, "&"));
-  for (const t of mailText(m).matchAll(/https?:\/\/[^\s<>"')\]]+/g)) links.push(t[0]);
-  const web = links.filter((l) => /^https?:\/\//i.test(l));
-  if (pattern) return web.find((l) => pattern.test(l)) ?? null;
-  const useful = web.filter((l) => !/unsubscribe|preferences|privacy|terms/i.test(l));
-  return useful.find((l) => /verify|confirm|activate|magic|login|log-in|sign-?in|reset|token|auth|invite/i.test(l)) ?? useful[0] ?? null;
-}
 const same = (a: string, b: string) => a.replace(/\s+/g, " ").trim().toLowerCase() === b.replace(/\s+/g, " ").trim().toLowerCase();
 
 const VIEWPORT = { width: 1280, height: 720 };
-
-
-/** Hide every secret value in a piece of text. */
-export function maskSecrets(text: string, secrets: Record<string, string>) {
-  let out = text;
-  for (const v of Object.values(secrets).filter((s) => s.length >= 3).sort((a, b) => b.length - a.length)) out = out.split(v).join("••••");
-  return out;
-}
-
-/** The forms a secret can take inside a trace: as typed, escaped inside JSON, and URL-encoded. */
-function secretForms(secrets: Record<string, string>) {
-  const forms = new Set<string>();
-  for (const v of Object.values(secrets)) {
-    if (v.length < 3) continue;
-    forms.add(v);
-    forms.add(JSON.stringify(v).slice(1, -1));
-    forms.add(encodeURIComponent(v));
-    forms.add(encodeURIComponent(v).replace(/%20/g, "+"));
-  }
-  return [...forms].sort((a, b) => b.length - a.length).map((f) => Buffer.from(f, "utf8"));
-}
-
-/**
- * Playwright traces keep what was typed into fields, page snapshots and console messages.
- * Before a trace leaves the runner, every secret in every file inside it is overwritten with * of the same length.
- */
-async function scrubTrace(path: string, secrets: Record<string, string>) {
-  const forms = secretForms(secrets);
-  if (!forms.length) return 0;
-  const files = unzipSync(new Uint8Array(await readFile(path)));
-  let hits = 0;
-  for (const [name, data] of Object.entries(files)) {
-    const buf = Buffer.from(data.buffer, data.byteOffset, data.byteLength);
-    for (const f of forms) {
-      for (let i = buf.indexOf(f); i >= 0; i = buf.indexOf(f, i + f.length)) {
-        buf.fill(0x2a, i, i + f.length);
-        hits++;
-      }
-    }
-    files[name] = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
-  }
-  if (hits) await writeFile(path, zipSync(files, { level: 6 }));
-  return hits;
-}
 
 /** The useful part of a Playwright error: its first lines, without the long call log. */
 function shortError(e: unknown) {
@@ -161,7 +82,6 @@ function shortError(e: unknown) {
   const lines = text.split("\n").filter((l) => l.trim() && !/^\s*-\s/.test(l) && !/Call log:/i.test(l));
   return lines.slice(0, 3).join(" ").replace(/\s+/g, " ").slice(0, 600);
 }
-
 
 export async function executeRun(input: RunInput, hooks: Hooks): Promise<RunResult> {
   const started = Date.now();

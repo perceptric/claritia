@@ -8,7 +8,8 @@ import { mkdtempSync, readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { executeRun, type Inbox, type InboxMail, type StepUpdate } from "../worker/runner.ts";
+import type { InboxMail } from "../worker/mail.ts";
+import { executeRun, type Inbox, type StepUpdate } from "../worker/runner.ts";
 import type { Writer } from "../worker/writer.ts";
 
 // The stand-in mail service. The site "sends" mail here; the runner reads it through the Inbox.
