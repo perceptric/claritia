@@ -10,7 +10,7 @@ import { DEFAULT_AVAILABILITY, type Availability } from "@/lib/meetings/types";
 import { Check, Refresh, Trash } from "../../Icons";
 import { BrandLogo } from "../BrandLogo";
 import { askConfirm } from "../Dialogs";
-import { Badge, Button, CardHead, ErrorNote, errorText, IconButton, Input, Loading, must, Panel, postJson, timeAgo, Toggle, useQuery, type ViewProps } from "../ui";
+import { attempt, Badge, Button, CardHead, ErrorNote, errorText, IconButton, Input, Loading, must, Panel, postJson, timeAgo, Toggle, useQuery, type ViewProps } from "../ui";
 import { HoursEditor } from "./HoursEditor";
 import { slugify } from "./model";
 import { CopyButton, meetingsApi, ownZone, PersonAvatar, useWorkspaceSlug } from "./parts";
@@ -246,16 +246,10 @@ function HoursPanel({ session, ws, saved, onSaved, userId }: { session: ViewProp
           size="sm"
           disabled={!dirty || busy}
           onClick={async () => {
-            setError("");
-            setBusy(true);
-            try {
+            await attempt(async () => {
               await meetingsApi(session, ws, "availability", { availability: draft, ...(userId ? { userId } : {}) });
               onSaved();
-            } catch (e) {
-              setError(errorText(e));
-            } finally {
-              setBusy(false);
-            }
+            }, { setError, setBusy });
           }}
         >
           Save
@@ -294,16 +288,10 @@ function ProfilePanel({ session, ws, email, saved, onSaved }: { session: ViewPro
           size="sm"
           disabled={!dirty || busy}
           onClick={async () => {
-            setError("");
-            setBusy(true);
-            try {
+            await attempt(async () => {
               await meetingsApi(session, ws, "profile", { profile: draft });
               onSaved();
-            } catch (e) {
-              setError(errorText(e));
-            } finally {
-              setBusy(false);
-            }
+            }, { setError, setBusy });
           }}
         >
           Save

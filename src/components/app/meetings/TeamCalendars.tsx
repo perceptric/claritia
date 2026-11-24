@@ -9,7 +9,7 @@ import { useState } from "react";
 import { DEFAULT_AVAILABILITY, type Availability, type MeetingType } from "@/lib/meetings/types";
 import { Pencil } from "../../Icons";
 import { BrandLogo } from "../BrandLogo";
-import { Badge, Button, CardHead, ErrorNote, errorText, IconButton, invalidate, Loading, must, Panel, type Role, Td, Th, Toggle, useQuery, type ViewProps } from "../ui";
+import { attempt, Badge, Button, CardHead, ErrorNote, errorText, IconButton, invalidate, Loading, must, Panel, type Role, Td, Th, Toggle, useQuery, type ViewProps } from "../ui";
 import { withoutToday } from "../reps/model";
 import { routingApi } from "../routing/api";
 import { localDate } from "../routing/screensModel";
@@ -207,16 +207,10 @@ export function EditHours({ session, ws, person, saved, onClose, onSaved }: { se
           <Button
             disabled={busy}
             onClick={async () => {
-              setError("");
-              setBusy(true);
-              try {
+              await attempt(async () => {
                 await meetingsApi(session, ws, "availability", { userId: person.id, availability: draft });
                 onSaved(draft);
-              } catch (e) {
-                setError(errorText(e));
-              } finally {
-                setBusy(false);
-              }
+              }, { setError, setBusy });
             }}
           >
             Save

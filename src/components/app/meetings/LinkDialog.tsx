@@ -7,7 +7,7 @@
 
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { useMemo, useState } from "react";
-import { postJson, Button, errorText, Loading, useLoad, useQuery, type Workspace } from "../ui";
+import { attempt, Button, Loading, postJson, useLoad, useQuery, type Workspace } from "../ui";
 import { Pick, Seg, TextIn } from "../forms/controls";
 import { lengthsText } from "./model";
 import { CopyButton, meetingsApi, Modal } from "./parts";
@@ -51,19 +51,13 @@ export function LinkDialog({ sb, session, ws, types, initialType, initialKind = 
   const lengths = type?.lengths;
 
   const create = async () => {
-    setError("");
-    setBusy(true);
-    try {
+    await attempt(async () => {
       if (kind === "single_use" && !typeId) throw new Error("Pick a meeting type.");
       if (kind === "one_off" && !picked.length) throw new Error("Pick at least one time.");
       if (kind === "poll" && picked.length < 2) throw new Error("Pick two or more times.");
       const offered = [...picked].sort((a, b) => a - b).map((s) => ({ start: new Date(s).toISOString(), end: new Date(s + length * 60_000).toISOString() }));
       setUrl(await makeLink(session, { workspaceId: ws.id, kind, typeId: typeId || null, ...(kind === "single_use" ? {} : { title: title.trim() || null, length, offered }) }));
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy(false);
-    }
+    }, { setError, setBusy });
   };
 
   return (

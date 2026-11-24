@@ -15,7 +15,7 @@ import { toolFeature } from "@/lib/plans";
 import { PlanLock, planHas, usePlan } from "../PlanLock";
 import { BrandLogo } from "../BrandLogo";
 import { askConfirm, askText, tell } from "../Dialogs";
-import { Badge, ErrorNote, errorText, must, postJson, useQuery, type ViewProps } from "../ui";
+import { attempt, Badge, ErrorNote, errorText, must, postJson, useQuery, type ViewProps } from "../ui";
 import { daysAgo, issuesOf } from "./formModel";
 import { Ic } from "./ic";
 import { BTN, CARD, CROW, GHOST_SM, GHOST_SM_RED, RowText, Seg, useNote, Tg } from "./parts";
@@ -149,17 +149,11 @@ function CrmPane({ sb, session, ws, form, formId, dests, failed, reload, patchDe
   const [busy, setBusy] = useState(false);
   const note = useNote();
   const run = async (fn: () => Promise<unknown>, words?: string) => {
-    setError("");
-    setBusy(true);
-    try {
+    await attempt(async () => {
       await fn();
       if (words) note.show(words);
       reload();
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy(false);
-    }
+    }, { setError, setBusy });
   };
   /** Pause and resume show at once and go back, with the error, if the save fails. */
   const quick = async (change: (ds: Destination[]) => Destination[], fn: () => Promise<unknown>, words?: string) => {
@@ -322,17 +316,11 @@ function ListPane({ sb, session, ws, formId, dests, failed, reload, source, logo
     return j.lists;
   });
   const run = async (fn: () => Promise<unknown>, words?: string) => {
-    setError("");
-    setBusy(true);
-    try {
+    await attempt(async () => {
       await fn();
       if (words) note.show(words);
       reload();
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy(false);
-    }
+    }, { setError, setBusy });
   };
   const save = (body: object) => postJson(session, "/api/forms/destination", { workspaceId: ws.id, formId, kind: "source", sourceId: source.id, name: source.name, ...body });
   const fails = useQuery(`form:${formId}:fails:${d?.id ?? ""}:${failed[d?.id ?? ""] ?? 0}`, async () => (d ? ((must(await sb.from("deliveries").select("id, error").eq("destination_id", d.id).eq("status", "failed").order("created_at", { ascending: false }).limit(200)) ?? []) as { id: string; error: string | null }[]) : []));
@@ -478,17 +466,11 @@ function DocPane({ sb, session, ws, formId, dests, failed, reload, patchDests, s
     return j.targets;
   });
   const run = async (fn: () => Promise<unknown>, words?: string) => {
-    setError("");
-    setBusy(true);
-    try {
+    await attempt(async () => {
       await fn();
       if (words) note.show(words);
       reload();
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy(false);
-    }
+    }, { setError, setBusy });
   };
   const save = (target: Target) => postJson(session, "/api/forms/destination", { workspaceId: ws.id, formId, kind: "source", sourceId: source.id, name: source.name, ...(d ? { id: d.id } : {}), target });
   const target = d ? targetOf(d.config) : null;
@@ -603,17 +585,11 @@ function FilesPane({ sb, session, ws, form, formId, dests, failed, reload, patch
     return j.targets;
   });
   const run = async (fn: () => Promise<unknown>, words?: string) => {
-    setError("");
-    setBusy(true);
-    try {
+    await attempt(async () => {
       await fn();
       if (words) note.show(words);
       reload();
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy(false);
-    }
+    }, { setError, setBusy });
   };
   const save = (target?: Target) => postJson(session, "/api/forms/destination", { workspaceId: ws.id, formId, kind: "source", sourceId: source.id, name: source.name, ...(d ? { id: d.id } : {}), ...(target ? { target } : {}) });
   const makeNew = () =>
@@ -699,17 +675,11 @@ function EventPane({ sb, session, ws, formId, dests, failed, reload, patchDests,
   const [busy, setBusy] = useState(false);
   const note = useNote();
   const run = async (fn: () => Promise<unknown>, words?: string) => {
-    setError("");
-    setBusy(true);
-    try {
+    await attempt(async () => {
       await fn();
       if (words) note.show(words);
       reload();
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy(false);
-    }
+    }, { setError, setBusy });
   };
   const week = d ? (failed[d.id] ?? 0) : 0;
   return (
@@ -774,17 +744,11 @@ function AlertPane({ sb, session, ws, formId, dests, failed, reload, patchDests,
     return j.targets;
   });
   const run = async (fn: () => Promise<unknown>, words?: string) => {
-    setError("");
-    setBusy(true);
-    try {
+    await attempt(async () => {
       await fn();
       if (words) note.show(words);
       reload();
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy(false);
-    }
+    }, { setError, setBusy });
   };
   const save = (target?: Target) => postJson(session, "/api/forms/destination", { workspaceId: ws.id, formId, kind: "source", sourceId: source.id, name: source.name, ...(d ? { id: d.id } : {}), ...(target ? { target } : {}) });
   const target = d ? targetOf(d.config) : null;
@@ -901,17 +865,11 @@ function RowsPane({ sb, session, ws, form, formId, dests, failed, reload, source
     return j.targets;
   });
   const run = async (fn: () => Promise<unknown>, words?: string) => {
-    setError("");
-    setBusy(true);
-    try {
+    await attempt(async () => {
       await fn();
       if (words) note.show(words);
       reload();
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy(false);
-    }
+    }, { setError, setBusy });
   };
   const save = (target: Target) => postJson(session, "/api/forms/destination", { workspaceId: ws.id, formId, kind: "source", sourceId: source.id, name: source.name, ...(d ? { id: d.id } : {}), target });
   const sheet = async (body: object) => (await postJson<{ target: Target }>(session, "/api/forms/tool-targets", { workspaceId: ws.id, sourceId: source.id, ...body })).target;
