@@ -7,6 +7,7 @@
 
 import type { Rpc } from "../jobs.ts";
 import { allFields, payAmount, type Form } from "./schema.ts";
+import { isUuid } from "../uuid.ts";
 
 export type FormPayStripe = {
   checkout(account: string, p: { submissionId: string; workspaceId: string; formId: string; name: string; amount: number; currency: string; email: string | null; successUrl: string; cancelUrl: string; coupons?: boolean }): Promise<{ id: string; url: string }>;
@@ -66,7 +67,7 @@ export async function handleFormPayEvent(rpc: Rpc, e: { type: string; account?: 
   const obj = e.data.object;
   const sid = obj.metadata?.submission_id;
   const ws = obj.metadata?.workspace_id;
-  if (!sid || !ws || !/^[0-9a-f-]{36}$/.test(sid) || !/^[0-9a-f-]{36}$/.test(ws)) return "skipped";
+  if (!sid || !ws || !isUuid(sid) || !isUuid(ws)) return "skipped";
   if (!e.account) return "skipped";
   const current = await accountOf(ws);
   if (current !== e.account) {

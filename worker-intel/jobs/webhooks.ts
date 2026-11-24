@@ -7,8 +7,8 @@
 import { call, JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
 import { firstBody, openEndpoint, sendWebhook, type SendDeps, type Taken } from "../../src/lib/meetings/webhooks.ts";
 import { fillHeld, fillHookBody, type HookFill } from "../../src/lib/hooks/api.ts";
+import { isUuid } from "../../src/lib/uuid.ts";
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export type WebhookDeps = SendDeps & { base: string; secret?: string };
 
@@ -62,7 +62,7 @@ export const meetingWebhook =
   (rpc: Rpc, d: WebhookDeps): Handler =>
   async (job) => {
     const id = String(job.payload.delivery_id ?? "");
-    if (!UUID.test(id)) throw new JobError("meeting_webhook needs a delivery", { retry: false });
+    if (!isUuid(id)) throw new JobError("meeting_webhook needs a delivery", { retry: false });
     const r = await webhookOnce(rpc, d, id, job.attempts >= job.max_attempts);
     if (r.retry) throw new JobError(r.retry.error, { retryAfterS: r.retry.retryAfterS });
   };

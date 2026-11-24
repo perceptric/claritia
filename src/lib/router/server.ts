@@ -12,6 +12,7 @@ import { testsPast } from "./conditions.ts";
 import { planCached, planLets, type PlanRead } from "../planGate.ts";
 import { decide } from "./engine.ts";
 import type { Decision, Facts, InputIssue, Provenance, Reason, RepFacts, RouterBody, StepResult, TeamFacts } from "./types.ts";
+import { isUuid } from "../uuid.ts";
 
 type RawRep = {
   name: string;
@@ -547,7 +548,7 @@ export async function testRoute(
   rpc: Rpc,
   o: { ws: string; contact?: string | null; email?: string | null; body: RouterBody; changes?: Record<string, unknown>; owners?: TryOwners; now?: number },
 ): Promise<{ decision: Decision; facts: Facts } | null> {
-  const users = [o.owners?.company, o.owners?.contact].filter((u): u is string => typeof u === "string" && UUID_RE.test(u));
+  const users = [o.owners?.company, o.owners?.contact].filter((u): u is string => typeof u === "string" && isUuid(u));
   const read = await readFacts(rpc, { ws: o.ws, contact: o.contact ?? null, email: o.email, key: null, body: o.body, reason: "form", now: o.now, users });
   if (!read || "existing" in read) return null;
   const facts = withTryOwners(read.facts, o.owners);
@@ -555,7 +556,6 @@ export async function testRoute(
   return { decision: decide(o.body, facts), facts };
 }
 
-const UUID_RE = /^[0-9a-f-]{36}$/;
 
 /**
  * "Try a lead": who the lead's company and the lead already work with, as typed in the panel. Left out (undefined),
@@ -568,7 +568,7 @@ export function withTryOwners(f: Facts, o: TryOwners | undefined): Facts {
   if (!o) return f;
   const out: Facts = { ...f };
   if (o.company !== undefined) {
-    const owner = o.company && UUID_RE.test(o.company) ? o.company : null;
+    const owner = o.company && isUuid(o.company) ? o.company : null;
     const domain = f.company?.domain ?? f.lead.domain ?? null;
     out.company = f.company
       ? { ...f.company, owner, ownerCrm: null, oppOwner: null, oppName: null }
@@ -577,7 +577,7 @@ export function withTryOwners(f: Facts, o: TryOwners | undefined): Facts {
         : null;
   }
   if (o.contact !== undefined) {
-    const user = o.contact && UUID_RE.test(o.contact) ? o.contact : null;
+    const user = o.contact && isUuid(o.contact) ? o.contact : null;
     out.owner = { user, crm: null };
   }
   return out;

@@ -25,6 +25,7 @@ import { loadWorkflow } from "./data";
 import { WorkflowEditor } from "./Editor";
 import { ensureMeetingSetup } from "./meetingSetup";
 import { kitsBrandFirst } from "@/lib/brand/workspaceKit";
+import { isUuid } from "@/lib/uuid";
 
 type Row = { id: string; name: string; status: "draft" | "live" | "paused"; folder_id: string | null; meeting_kind: string | null; draft: unknown; updated_at: string };
 type FolderRow = { id: string; name: string; position: number };
@@ -81,7 +82,7 @@ export function WorkflowsHome(props: ViewProps & { describe?: (done: () => void)
   );
 
   // One workflow, at full width.
-  if (/^[0-9a-f-]{36}$/.test(id)) {
+  if (isUuid(id)) {
     const row = data.data?.rows.find((r) => r.id === id);
     const folder = row?.folder_id ? data.data?.folders.find((f) => f.id === row.folder_id) : null;
     return <OpenWorkflow key={id} {...props} id={id} back={{ label: folder?.name ?? "Workflows", go: () => (reload(), navigate("workflows", folder ? `folder/${folder.id}` : "")) }} />;

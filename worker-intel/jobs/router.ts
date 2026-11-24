@@ -22,8 +22,8 @@ import { route, type Inputs, type LiveRouter, type SourceRef } from "../../src/l
 import type { Facts, Reason, StepResult } from "../../src/lib/router/types.ts";
 import { REASONS } from "../../src/lib/router/types.ts";
 import type { Mailer } from "./meetings.ts";
+import { isUuid } from "../../src/lib/uuid.ts";
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 // A booking's run is written by meeting_team_run, never routed here.
 const REASON_SET = new Set(Object.keys(REASONS).filter((r) => r !== "booking"));
 
@@ -31,7 +31,7 @@ export const meetingTeamRun =
   (rpc: Rpc): Handler =>
   async (job) => {
     const p = job.payload;
-    if (!job.workspace_id || !UUID.test(String(p.p_meeting ?? "")) || !UUID.test(String(p.p_owner ?? "")) || typeof p.p_queue !== "string") throw new JobError("meeting_team_run needs a meeting, an owner and a queue", { retry: false });
+    if (!job.workspace_id || !isUuid(String(p.p_meeting ?? "")) || !isUuid(String(p.p_owner ?? "")) || typeof p.p_queue !== "string") throw new JobError("meeting_team_run needs a meeting, an owner and a queue", { retry: false });
     await call(rpc, "meeting_team_run", { ...p, p_ws: job.workspace_id });
   };
 
@@ -39,7 +39,7 @@ export const routingAbandon =
   (rpc: Rpc): Handler =>
   async (job) => {
     const run = String(job.payload.run ?? "");
-    if (!job.workspace_id || !UUID.test(run)) throw new JobError("routing_abandon needs a run", { retry: false });
+    if (!job.workspace_id || !isUuid(run)) throw new JobError("routing_abandon needs a run", { retry: false });
     const r = await call<{ state: string | null; wait_s?: number; done?: boolean } | null>(rpc, "routing_booking_abandon", { p_run: run });
     // Active since this check was queued: look again when the new window ends (this job is running, so the key is free).
     if (r?.wait_s && r.wait_s > 0) await enqueueJob(rpc, { workspaceId: job.workspace_id, kind: "routing_abandon", key: run, payload: { run }, delayS: Math.min(r.wait_s + 1, 86_400), maxAttempts: 3 });
@@ -53,10 +53,10 @@ export const routeJob =
     const reason = String(p.reason ?? "api");
     const key = String(p.key ?? job.key ?? "");
     const ws = job.workspace_id;
-    if (!ws || !UUID.test(contact) || !REASON_SET.has(reason) || !key) throw new JobError("route needs a workspace, a contact, a reason and a key", { retry: false });
+    if (!ws || !isUuid(contact) || !REASON_SET.has(reason) || !key) throw new JobError("route needs a workspace, a contact, a reason and a key", { retry: false });
     if (reason === "sla") return passOn(rpc, ws, contact, key, String(p.sla ?? ""));
     if (p.undo === true) await call(rpc, "router_undo", { p_ws: ws, p_contact: contact });
-    const byUser = typeof p.byUser === "string" && UUID.test(p.byUser) ? p.byUser : null;
+    const byUser = typeof p.byUser === "string" && isUuid(p.byUser) ? p.byUser : null;
     // A form send the router was too slow for carries what the send captured: its connection, its mapped answers,
     // the run's first booking state and the policy it resolved (docs/routing-workflow.md Section 13).
     const captured = formCapture(p);
@@ -81,7 +81,7 @@ export const routeJob =
 /** A route job's captured form inputs, checked: anything malformed is left out, never guessed. */
 export function formCapture(p: Record<string, unknown>): { source: SourceRef | null; inputs: Inputs | null; booking: "not_requested" | "awaiting_selection" | undefined; policy: string | null; submission: string | null } {
   const src = p.source as { id?: unknown; revision?: unknown } | undefined;
-  const source = src && typeof src.id === "string" && UUID.test(src.id) && typeof src.revision === "number" ? { id: src.id, revision: src.revision } : null;
+  const source = src && typeof src.id === "string" && isUuid(src.id) && typeof src.revision === "number" ? { id: src.id, revision: src.revision } : null;
   const i = p.inputs as { values?: unknown; provenance?: unknown; issues?: unknown } | undefined;
   const obj = (v: unknown) => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
   const inputs =
@@ -93,8 +93,8 @@ export function formCapture(p: Record<string, unknown>): { source: SourceRef | n
         }
       : null;
   const booking = p.booking === "awaiting_selection" || p.booking === "not_requested" ? p.booking : undefined;
-  const policy = typeof p.policy === "string" && UUID.test(p.policy) ? p.policy : null;
-  const submission = typeof p.submission === "string" && UUID.test(p.submission) ? p.submission : null;
+  const policy = typeof p.policy === "string" && isUuid(p.policy) ? p.policy : null;
+  const submission = typeof p.submission === "string" && isUuid(p.submission) ? p.submission : null;
   return { source, inputs, booking, policy, submission };
 }
 
@@ -117,7 +117,7 @@ type SlaInfo = {
  * why it moved.
  */
 async function passOn(rpc: Rpc, ws: string, contact: string, key: string, run: string) {
-  if (!UUID.test(run)) throw new JobError("A response-time route needs its run", { retry: false });
+  if (!isUuid(run)) throw new JobError("A response-time route needs its run", { retry: false });
   const info = await call<SlaInfo | null>(rpc, "router_sla_info", { p_run: run });
   if (!info || info.sla.status !== "missed" || info.lead?.owner !== info.sla.user_id) return;
   const before: StepResult[] = [{ step: "sla", ok: false, user: info.sla.user_id, minutes: info.minutes }];
@@ -148,7 +148,7 @@ export const routerSla =
   async (job) => {
     const run = String(job.payload.run ?? "");
     const kind = job.payload.kind === "missed" ? "missed" : "nudge";
-    if (!UUID.test(run)) throw new JobError("router_sla needs a run", { retry: false });
+    if (!isUuid(run)) throw new JobError("router_sla needs a run", { retry: false });
     const info = await call<SlaInfo | null>(rpc, "router_sla_info", { p_run: run });
     if (!info || !info.rep || !info.lead) return;
     // Acted on, reassigned or taken back since: nothing to say.
@@ -203,7 +203,7 @@ export const routerAlert =
   (rpc: Rpc, o: AlertOpts): Handler =>
   async (job) => {
     const id = String(job.payload.run ?? "");
-    if (!UUID.test(id)) throw new JobError("router_alert needs a run", { retry: false });
+    if (!isUuid(id)) throw new JobError("router_alert needs a run", { retry: false });
     const info = await call<AlertInfo | null>(rpc, "router_alert_info", { p_run: id });
     if (!info || info.run.undone || info.run.kind === "held") return;
     const r = info.run;

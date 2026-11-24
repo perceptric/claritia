@@ -4,13 +4,13 @@ import type { Form } from "@/lib/forms/schema";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { routeSpamLead, routedSpam } from "@/lib/routing/spamRelease";
+import { isUuid } from "@/lib/uuid";
 
 // Not spam (docs/forms-plan.md 1.1): fills held as spam become leads, through the same checks and steps as on the way
 // in (src/lib/forms/submit.ts releaseFill). A lead the routing spam check caught is routed first, with that check
 // skipped (src/lib/routing/spamRelease.ts), and stays in Spam if it can't be. POST { workspaceId, ids } →
 // { released, errors: { id: reason } }.
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export async function POST(request: Request) {
   const auth = await requireUser(request);
@@ -18,7 +18,7 @@ export async function POST(request: Request) {
   const b = (await request.json().catch(() => ({}))) as { workspaceId?: unknown; ids?: unknown };
   if (!(await isMember(auth, b.workspaceId))) return Response.json({ error: "Workspace not found." }, { status: 404 });
   const ws = b.workspaceId as string;
-  const ids = Array.isArray(b.ids) ? b.ids.filter((x): x is string => typeof x === "string" && UUID.test(x)).slice(0, 100) : [];
+  const ids = Array.isArray(b.ids) ? b.ids.filter((x): x is string => typeof x === "string" && isUuid(x)).slice(0, 100) : [];
   if (!ids.length) return Response.json({ error: "Pick the fills to let through." }, { status: 400 });
   const db = serviceClient();
   if (!db) return Response.json({ error: "The server is not set up for this." }, { status: 500 });

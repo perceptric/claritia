@@ -19,12 +19,12 @@ import { evaluate, fieldsUsed, type Trace } from "./evaluate.ts";
 import { teamsOf } from "./policies.ts";
 import { Refusal, type Caller, type Deps } from "./screens.ts";
 import { validatePolicy } from "./validate.ts";
+import { isUuid } from "../uuid.ts";
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const OP = /^[A-Za-z0-9_-]{8,80}$/;
 
 const uuid = (v: unknown, what: string): string => {
-  if (typeof v !== "string" || !UUID.test(v)) throw new Refusal(400, "invalid_configuration", `Bad ${what}.`);
+  if (typeof v !== "string" || !isUuid(v)) throw new Refusal(400, "invalid_configuration", `Bad ${what}.`);
   return v;
 };
 const opOf = (v: unknown): string => {

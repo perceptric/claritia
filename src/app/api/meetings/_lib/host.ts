@@ -15,6 +15,7 @@ import { planCheck } from "../../../../lib/planGate.ts";
 import { syncHostsSoon } from "../../../../lib/billingHosts.ts";
 import { DEFAULT_SETTINGS, type MeetingType } from "../../../../lib/meetings/types.ts";
 import { bookUrl, canEditType, checkProfile, slugify, timesText, uniqueSlug } from "../../../../components/app/meetings/model.ts";
+import { isUuid } from "../../../../lib/uuid.ts";
 
 export type Actor = { ws: string; user: string };
 type Role = "owner" | "member";
@@ -31,7 +32,6 @@ export class Refused extends Error {
   }
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 // Errors the database functions raise, in plain words.
 const WORDS: Record<string, [number, string]> = {
@@ -60,7 +60,7 @@ export async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown
 }
 
 export async function members(rpc: Rpc, ws: string): Promise<{ id: string; role: Role }[]> {
-  if (!UUID.test(ws)) return [];
+  if (!isUuid(ws)) return [];
   return (await call<{ id: string; role: Role }[] | null>(rpc, "meetings_members", { p_ws: ws })) ?? [];
 }
 
@@ -74,7 +74,7 @@ export async function memberIds(rpc: Rpc, ws: string): Promise<Set<string>> {
  * in this process (src/lib/roleCache.ts), so a request that checks it twice reads it at most once.
  */
 export async function roleOf(rpc: Rpc, a: Actor): Promise<{ role: Role }> {
-  if (!UUID.test(a.ws) || !UUID.test(a.user)) throw new Refused(404, "Workspace not found.");
+  if (!isUuid(a.ws) || !isUuid(a.user)) throw new Refused(404, "Workspace not found.");
   const role = await roles.get(a.ws, a.user, async () => {
     const r = await rpcOr<string | null>(rpc, "meetings_role", { p_ws: a.ws, p_user: a.user }, async () => {
       const all = await rpc("meetings_members", { p_ws: a.ws });
@@ -96,7 +96,7 @@ async function inOrder<T extends readonly unknown[]>(ps: { [K in keyof T]: Promi
 }
 
 async function typeOf(rpc: Rpc, ws: string, id: unknown): Promise<TypeRow> {
-  if (typeof id !== "string" || !UUID.test(id)) throw new Refused(404, "Meeting type not found.");
+  if (typeof id !== "string" || !isUuid(id)) throw new Refused(404, "Meeting type not found.");
   const t = await call<TypeRow | null>(rpc, "meeting_type_get", { p_ws: ws, p_id: id });
   if (!t) throw new Refused(404, "Meeting type not found.");
   return t;
@@ -217,14 +217,14 @@ export async function saveSchedule(rpc: Rpc, a: Actor, user: unknown, id: unknow
   if (/^working hours$/i.test(n)) throw new Refused(409, "Working hours is your default schedule.");
   const r = checkAvailability(raw);
   if ("errors" in r) throw new Refused(400, r.errors[0]!, r.errors);
-  const sid = typeof id === "string" && UUID.test(id) ? id : null;
+  const sid = typeof id === "string" && isUuid(id) ? id : null;
   return call<string>(rpc, "schedule_save", { p_ws: a.ws, p_user: who, p_id: sid, p_name: n, p_tz: r.availability.tz, p_weekly: r.availability.weekly, p_overrides: r.availability.overrides });
 }
 
 export async function deleteSchedule(rpc: Rpc, a: Actor, user: unknown, id: unknown): Promise<void> {
   const { role, who } = await personIn(rpc, a, user);
   if (who !== a.user && role !== "owner") throw new Refused(403, "Only owners can change someone else's hours.");
-  if (typeof id !== "string" || !UUID.test(id)) throw new Refused(404, "Schedule not found.");
+  if (typeof id !== "string" || !isUuid(id)) throw new Refused(404, "Schedule not found.");
   await call(rpc, "schedule_delete", { p_ws: a.ws, p_user: who, p_id: id });
 }
 
@@ -253,7 +253,7 @@ export type HostAction = "held" | "no_show" | "cancel";
  */
 export async function hostAction(rpc: Rpc, a: Actor, meeting: unknown, action: unknown, reason?: unknown): Promise<{ status: string; was: string; payment: Record<string, unknown> | null }> {
   await roleOf(rpc, a);
-  if (typeof meeting !== "string" || !UUID.test(meeting)) throw new Refused(404, "Meeting not found.");
+  if (typeof meeting !== "string" || !isUuid(meeting)) throw new Refused(404, "Meeting not found.");
   const status = action === "cancel" ? "canceled" : action === "held" || action === "no_show" ? action : null;
   if (!status) throw new Refused(400, "Pick held, no-show or cancel.");
   const why = typeof reason === "string" ? reason.trim().slice(0, 500) : "";
@@ -266,7 +266,7 @@ export async function hostAction(rpc: Rpc, a: Actor, meeting: unknown, action: u
  */
 export async function hostLink(rpc: Rpc, a: Actor, meeting: unknown, origin: string, secret?: string): Promise<{ url: string }> {
   await roleOf(rpc, a);
-  if (typeof meeting !== "string" || !UUID.test(meeting)) throw new Refused(404, "Meeting not found.");
+  if (typeof meeting !== "string" || !isUuid(meeting)) throw new Refused(404, "Meeting not found.");
   const m = await call<{ id: string; token_hash: string; token_sealed: string | null }>(rpc, "meeting_manage_info", { p_ws: a.ws, p_id: meeting, p_by: a.user });
   return { url: manageUrl(origin.replace(/\/+$/, ""), await manageToken(rpc, m, secret)) };
 }

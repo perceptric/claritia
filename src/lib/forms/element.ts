@@ -20,6 +20,7 @@ import { answerFrom } from "../share/emailForm.ts";
 import { VIA } from "../share/channels.ts";
 import { ACCESS_CSS, BADGE_CSS, badgeRow, CAL_CSS, consentSpot, pageValues, runPage, shownValues, showsByIf, zoneWords, type PageRun, type Vals } from "../studio/runtime.ts";
 import type { XCtx } from "./extras.ts";
+import { isUuid } from "../uuid.ts";
 
 /** The form script's second part (extras.ts, /forms/x1.js): loaded once, on the first form that has one of its fields. */
 declare const __X1__: string;
@@ -467,7 +468,7 @@ let addressDone = false;
  * Started by <script src=".../forms/v1.js" data-capture="<form id>">.
  */
 export function startCapture(formId: string, base: string) {
-  if (!/^[0-9a-f-]{36}$/.test(formId)) return;
+  if (!isUuid(formId)) return;
   const started = Date.now();
   // Listeners go on at once and keep what was sent; the form's settings are read alongside, so a send made before
   // they arrive still counts.
@@ -853,7 +854,7 @@ export class ClaritiaForm extends Base {
 
   private async load() {
     const id = this.getAttribute("form-id");
-    if (!id || !/^[0-9a-f-]{36}$/.test(id)) return;
+    if (!id || !isUuid(id)) return;
     try {
       const p = personalParam();
       const res = await fetch(`${this.base}/api/forms/${id}${p ? `?p=${encodeURIComponent(p)}` : ""}`, { credentials: "omit" });

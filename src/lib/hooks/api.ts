@@ -5,6 +5,7 @@
 
 import { labeled, type Taken } from "../delivery/send.ts";
 import type { Form } from "../forms/schema.ts";
+import { isUuid } from "../uuid.ts";
 
 export const API_EVENTS = ["form.submitted", "meeting.booked", "meeting.rescheduled", "meeting.canceled", "meeting.held", "meeting.no_show", "lead.routed"] as const;
 export type ApiEvent = (typeof API_EVENTS)[number];
@@ -13,7 +14,6 @@ export const isApiEvent = (v: unknown): v is ApiEvent => typeof v === "string" &
 export const VIAS = ["zapier", "make", "activepieces", "api"] as const;
 export type Via = (typeof VIAS)[number];
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /** A fill as hook_fill reads it (127). */
 export type HookFill = {
@@ -84,7 +84,7 @@ export function checkHook(raw: unknown): { url: string; events: ApiEvent[]; form
   const rawForms = Array.isArray(r.forms) ? r.forms : r.form ? [r.form] : [];
   if (rawForms.length > 50) return { error: "Up to 50 forms per hook." };
   const forms = [...new Set(rawForms.map((f) => String(f).trim().toLowerCase()))];
-  if (forms.some((f) => !UUID.test(f))) return { error: "A form must be a form id." };
+  if (forms.some((f) => !isUuid(f))) return { error: "A form must be a form id." };
   if (forms.length && !events.includes("form.submitted")) return { error: "Only form.submitted hooks take forms." };
   const via = (VIAS as readonly string[]).includes(String(r.via)) ? (r.via as Via) : "api";
   const description = typeof r.description === "string" ? r.description.trim().slice(0, 120) : "";

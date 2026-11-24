@@ -9,18 +9,18 @@ import { acceptFill, qaOk, type Incoming } from "@/lib/forms/submit";
 import { missingProofs } from "@/lib/forms/codes";
 import { formPayStripe } from "@/lib/meetings/payServer";
 import { serviceClient } from "@/lib/serviceClient";
+import { isUuid } from "@/lib/uuid";
 
 // A fill from <claritia-form> (docs/form-builder.md Part 2). Checks everything again, then form_submit saves the
 // submission, the contact, the consent and one delivery per destination in one transaction. The same idem key
 // sent again answers with the first submission (and, for Claritia calendar, the same booking token). Once the form
 // is loaded, the spam check, the cleaning lists and the known-fields check run together.
 
-const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const MAX_BODY = 64 * 1024;
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  if (!ID.test(id)) return json({ error: "Form not found." }, 404);
+  if (!isUuid(id)) return json({ error: "Form not found." }, 404);
   const ip = clientIp(request);
   if (!allowed(`ip:${id}:${ip}`, 10) || !allowed(`form:${id}`, 600)) return json({ error: "Too many tries. Wait a minute and send again." }, 429, { "Retry-After": "60" });
   const text = await request.text();

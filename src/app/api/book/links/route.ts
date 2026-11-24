@@ -7,6 +7,7 @@ import { requireUser } from "@/lib/serverAuth";
 import { seal, unseal } from "@/lib/seal";
 import { serviceClient } from "@/lib/serviceClient";
 import { base } from "../_shared";
+import { isUuid } from "@/lib/uuid";
 
 // Make a single-use link, a one-off meeting or a poll (docs/meetings-scheduler.md 1.8b), for a signed-in member:
 // POST { workspaceId, kind, typeId?, title?, offered?: [{ start }], length?, location?, expiresAt? }. Only the token's
@@ -26,7 +27,7 @@ export async function POST(request: Request) {
   const db = serviceClient();
   if (!db) return bad("The server is not set up for this.", 500);
   if (body.action === "url" || body.action === "close" || body.action === "delete") {
-    if (typeof body.id !== "string" || !/^[0-9a-f-]{36}$/.test(body.id)) return bad("Link not found.", 404);
+    if (typeof body.id !== "string" || !isUuid(body.id)) return bad("Link not found.", 404);
     const { data: row } = await db.from("meeting_links").select("id, kind, token_sealed, owner_user_id").eq("id", body.id).eq("workspace_id", ws).maybeSingle();
     const link = row as { id: string; kind: string; token_sealed: string | null; owner_user_id: string } | null;
     if (!link) return bad("Link not found.", 404);
@@ -51,7 +52,7 @@ export async function POST(request: Request) {
   if (locked) return bad(locked, 402, { code: "plan" });
   let type: MeetingType | null = null;
   if (body.typeId) {
-    if (typeof body.typeId !== "string" || !/^[0-9a-f-]{36}$/.test(body.typeId)) return bad("Meeting type not found.", 404);
+    if (typeof body.typeId !== "string" || !isUuid(body.typeId)) return bad("Meeting type not found.", 404);
     const { data } = await db.from("meeting_types").select("*").eq("id", body.typeId).eq("workspace_id", ws).eq("active", true).maybeSingle();
     if (!data) return bad("Meeting type not found.", 404);
     type = withDefaults(data as MeetingType);

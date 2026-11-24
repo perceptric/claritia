@@ -6,6 +6,7 @@ import { same } from "../sign.ts";
 import { entryOf } from "./catalog.ts";
 import { connectorFor } from "./registry.ts";
 import type { HookEvent, HookRequest } from "./types.ts";
+import { isUuid } from "../uuid.ts";
 
 // Webhooks in, from the form and meeting tools around Claritia's forms: fills from Typeform, Tally and Webflow, and
 // bookings from Calendly and Cal.com, which link to the fill they followed. Each delivery is checked (the URL's token,
@@ -59,7 +60,7 @@ const parseJson = (body: string): unknown => {
 /** A hook for one source: /api/hooks/<kind>/<source id>?t=<token>. */
 export async function sourceHook(db: SupabaseClient, kind: string, id: string, req: HookRequest): Promise<Response> {
   const c = connectorFor(kind);
-  if (!c?.parse || !takesHooks(kind) || !/^[0-9a-f-]{36}$/.test(id)) return Response.json({ error: "Not found." }, { status: 404 });
+  if (!c?.parse || !takesHooks(kind) || !isUuid(id)) return Response.json({ error: "Not found." }, { status: 404 });
   const [{ data: src }, { data: sec }] = await Promise.all([
     db.from("sources").select("kind, status").eq("id", id).maybeSingle(),
     db.from("source_secrets").select("hook_sealed").eq("source_id", id).maybeSingle(),

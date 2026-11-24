@@ -1,5 +1,6 @@
 import "server-only";
-import { isUuid, resolveProject, type ApiCaller } from "./apiAuth.ts";
+import { resolveProject, type ApiCaller } from "./apiAuth.ts";
+import { isUuid } from "./uuid.ts";
 import { startRuns } from "./apiRuns.ts";
 import { mcpServer, ToolError, type Tool } from "./mcpProtocol.ts";
 import { resultsText } from "./mcpText.ts";

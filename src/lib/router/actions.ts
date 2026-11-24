@@ -18,8 +18,8 @@ import { fromLeadSettings, type OldRouting } from "./templates.ts";
 import { slackInstallUrl, slackReady } from "../slack/app.ts";
 import { signState } from "../sources/oauth.ts";
 import { emptyBody, type Decision, type Facts, type RouterBody, type Run } from "./types.ts";
+import { isUuid } from "../uuid.ts";
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export type Caller = { ws: string; user: string; role: "owner" | "member" };
 
@@ -352,7 +352,7 @@ function explainWhy(why: string, until: number | null | undefined, f: Facts, use
 
 /** The Test panel: an email or a contact, with changed fields, against the draft, live or both. Writes nothing. */
 export async function test(rpc: Rpc, db: Q, c: Caller, o: { email?: string | null; contact?: string | null; changes?: Record<string, unknown>; owners?: TryOwners; which: "draft" | "live" | "both"; whyNot?: string | null; draft?: unknown }) {
-  const given = o.contact && /^[0-9a-f-]{36}$/.test(o.contact) ? o.contact : null;
+  const given = o.contact && isUuid(o.contact) ? o.contact : null;
   if (!given && !o.email) throw new Refused(400, "Type an email or pick a contact.");
   // The router row, the live version, the fields and (for an email) the contact, side by side. The row is only read
   // when the editor didn't send its draft, and the live version only when it's tested.
@@ -445,7 +445,7 @@ export async function replay(db: Q, c: Caller, o: { days: number; draft?: unknow
 /** Route again: one lead now, or many by a job each. The lead's earlier runs give their turns back. */
 export async function routeAgain(rpc: Rpc, c: Caller, contacts: string[]) {
   // The same lead picked twice is routed once.
-  const ids = [...new Set(contacts.filter((x) => typeof x === "string" && /^[0-9a-f-]{36}$/.test(x)).map((x) => x.toLowerCase()))].slice(0, 5000);
+  const ids = [...new Set(contacts.filter((x) => typeof x === "string" && isUuid(x)).map((x) => x.toLowerCase()))].slice(0, 5000);
   if (!ids.length) throw new Refused(400, "Pick a contact.");
   if (c.role !== "owner" && ids.length > 1) throw new Refused(403, "Only workspace owners can route many at once.");
   const stamp = Date.now();
@@ -497,7 +497,7 @@ export async function saveRep(rpc: Rpc, c: Caller, user: string, patch: Record<s
   }
   if ("backup" in patch) {
     if (c.role !== "owner" && user === c.user && patch.backup !== undefined) ownerOnly(c);
-    clean.backup = typeof patch.backup === "string" && /^[0-9a-f-]{36}$/.test(patch.backup) && patch.backup !== user ? patch.backup : "";
+    clean.backup = typeof patch.backup === "string" && isUuid(patch.backup) && patch.backup !== user ? patch.backup : "";
   }
   for (const k of ["cap_day", "cap_week"] as const) {
     if (!(k in patch)) continue;
@@ -525,7 +525,7 @@ async function inBatches<T, R>(items: T[], size: number, fn: (x: T) => Promise<R
 /** Held and Unassigned (docs/router-ux.md 4.9). */
 export async function heldAction(rpc: Rpc, db: Q, c: Caller, o: { op: string; contacts?: string[]; domain?: string; user?: string; moveMeetings?: boolean }) {
   ownerOnly(c);
-  const ids = [...new Set((o.contacts ?? []).filter((x) => typeof x === "string" && /^[0-9a-f-]{36}$/.test(x)))].slice(0, 1000);
+  const ids = [...new Set((o.contacts ?? []).filter((x) => typeof x === "string" && isUuid(x)))].slice(0, 1000);
   const stamp = Date.now();
   switch (o.op) {
     case "let_through": {
@@ -582,7 +582,7 @@ export async function heldAction(rpc: Rpc, db: Q, c: Caller, o: { op: string; co
       return { ok: true };
     }
     case "assign": {
-      if (!o.user || !/^[0-9a-f-]{36}$/.test(o.user)) throw new Refused(400, "Pick a team member.");
+      if (!o.user || !isUuid(o.user)) throw new Refused(400, "Pick a team member.");
       // One call for all of them (router_assign_many, 088): each lead in its own step, in a fixed order.
       const owner = o.user;
       const r = await rpcOr<number>(rpc, "router_assign_many", { p_ws: c.ws, p_contacts: ids, p_owner: owner, p_by: c.user }, async () => {
@@ -663,7 +663,7 @@ export async function slackRemove(db: SupabaseClient, c: Caller) {
 
 /** Mark contacted: the lead's owner (or a workspace owner) says they reached out, which meets the response time. */
 export async function markContacted(rpc: Rpc, c: Caller, contact: string | null) {
-  if (!contact || !UUID.test(contact)) throw new Refused(400, "Pick a lead.");
+  if (!contact || !isUuid(contact)) throw new Refused(400, "Pick a lead.");
   const { data, error } = await rpc("router_sla_mark", { p_ws: c.ws, p_contact: contact, p_user: c.user });
   if (error) {
     if (error.message.includes("not_owner")) throw new Refused(403, "Only the lead's owner can mark it contacted.");
@@ -682,7 +682,7 @@ export async function crmOwners(db: Q, c: Caller) {
 export async function saveCrmOwners(db: SupabaseClient, c: Caller, rows: unknown) {
   ownerOnly(c);
   const list = (Array.isArray(rows) ? rows : []).slice(0, 500) as ({ source_id?: unknown; crm_owner_id?: unknown; label?: unknown; user_id?: unknown } | null)[];
-  const asked = [...new Set(list.map((x) => x?.source_id).filter((s): s is string => typeof s === "string" && UUID.test(s)))];
+  const asked = [...new Set(list.map((x) => x?.source_id).filter((s): s is string => typeof s === "string" && isUuid(s)))];
   if (!asked.length) return { ok: true };
   // The workspace's own sources among those named, in one read; then every link in one write.
   const { data: srcs, error } = await db.from("sources").select("id").eq("workspace_id", c.ws).in("id", asked);
@@ -699,7 +699,7 @@ export async function saveCrmOwners(db: SupabaseClient, c: Caller, rows: unknown
       source_id: x.source_id,
       crm_owner_id: crm,
       label: typeof x.label === "string" ? x.label.slice(0, 200) : null,
-      user_id: typeof x.user_id === "string" && /^[0-9a-f-]{36}$/.test(x.user_id) ? x.user_id : null,
+      user_id: typeof x.user_id === "string" && isUuid(x.user_id) ? x.user_id : null,
       updated_at: at,
     });
   }

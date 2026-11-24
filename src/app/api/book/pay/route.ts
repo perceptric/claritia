@@ -5,6 +5,7 @@ import { connectLink, refreshAccount } from "@/lib/meetings/payServer";
 import { republishFormsUsing } from "@/lib/routing/formPublish";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
+import { isUuid } from "@/lib/uuid";
 
 // A workspace's Stripe account for paid meeting types (Connect Standard), for owners:
 //   POST { workspaceId, action: "connect" } → { url }: Stripe's page to connect or finish connecting the account.
@@ -18,7 +19,7 @@ export async function POST(request: Request) {
   const auth = await requireUser(request);
   if ("denied" in auth) return auth.denied;
   const body = (await request.json().catch(() => ({}))) as { workspaceId?: unknown; action?: unknown };
-  const ws = typeof body.workspaceId === "string" && /^[0-9a-f-]{36}$/.test(body.workspaceId) ? body.workspaceId : null;
+  const ws = typeof body.workspaceId === "string" && isUuid(body.workspaceId) ? body.workspaceId : null;
   if (!ws) return bad("Workspace not found.", 404);
   const { data: me } = await auth.sb.from("workspace_members").select("role").eq("workspace_id", ws).eq("user_id", auth.user.id).maybeSingle();
   if (!me) return bad("Workspace not found.", 404);

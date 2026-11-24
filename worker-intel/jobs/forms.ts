@@ -21,8 +21,8 @@ import { alertEmail, replyEmail, replyGoes, resultsEmail, resumeEmail, type Merg
 import { call, enqueueJob, JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
 import { mime, validAddress } from "../../src/lib/meetings/emails.ts";
 import type { Mailer } from "./meetings.ts";
+import { isUuid } from "../../src/lib/uuid.ts";
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export type NotifyInfo = {
   submission: { id: string; workspace_id: string; form_id: string | null; values: Record<string, unknown>; spam: boolean; test: boolean; contact_id: string | null; created_at?: string };
@@ -60,7 +60,7 @@ export const formNotify =
   (rpc: Rpc, o: FormJobOpts): Handler =>
   async (job) => {
     const sid = String(job.payload.submission ?? "");
-    if (!UUID.test(sid)) throw new JobError("form_notify needs a submission", { retry: false });
+    if (!isUuid(sid)) throw new JobError("form_notify needs a submission", { retry: false });
     const info = await call<NotifyInfo | null>(rpc, "form_notify_info", { p_sid: sid });
     // Gone, held as spam since, or a test: nothing to send.
     if (!info || info.submission.spam || info.submission.test || !info.body) return;
@@ -194,7 +194,7 @@ export const formResume =
   (rpc: Rpc, o: Pick<FormJobOpts, "mailer" | "base" | "from">): Handler =>
   async (job) => {
     const id = String(job.payload.draft ?? "");
-    if (!UUID.test(id)) throw new JobError("form_resume needs a draft", { retry: false });
+    if (!isUuid(id)) throw new JobError("form_resume needs a draft", { retry: false });
     const d = await call<{ form: string; form_id: string; email: string; token: string; page: string | null; workspace: string | null; sending: { from_email?: string | null; from_name?: string | null; reply_to?: string | null; paused?: boolean } } | null>(rpc, "form_draft_info", { p_id: id });
     if (!d || !o.mailer || d.sending?.paused || !validAddress(d.email)) return;
     let link: string;

@@ -13,6 +13,7 @@ import type { HttpOpts, Tok } from "./http.ts";
 import { microsoftProvider } from "./microsoft.ts";
 import type { Channel, FullProvider, ZoomClient } from "./types.ts";
 import { zoomClient } from "./zoom.ts";
+import { isUuid } from "../../uuid.ts";
 
 export type { Channel, FullProvider, OwnCalendar, ZoomClient } from "./types.ts";
 export type { Tok } from "./http.ts";
@@ -126,7 +127,7 @@ export function channelToken(accountId: string) {
 /** The account a channel token speaks for, or null when it isn't ours. */
 export function readChannelToken(token: string | null | undefined): string | null {
   const [account, sig] = (token ?? "").split(".");
-  if (!account || !sig || !/^[0-9a-f-]{36}$/.test(account)) return null;
+  if (!account || !sig || !isUuid(account)) return null;
   const want = Buffer.from(channelToken(account).split(".")[1]!);
   const got = Buffer.from(sig);
   return same(want, got) ? account : null;

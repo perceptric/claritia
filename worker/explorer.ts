@@ -9,6 +9,7 @@ import pw from "playwright-core";
 import type { Browser, BrowserContext, Page } from "playwright-core";
 import { cachedHostCheck } from "../src/lib/privateNet.ts";
 import { guardContext, type TunnelClient } from "./tunnel.ts";
+import { isUuid } from "../src/lib/uuid.ts";
 
 export type PageElements = {
   headings: string[];
@@ -57,7 +58,7 @@ const RISKY = /(log[-_ ]?out|sign[-_ ]?out|signout|logoff|delete|destroy|remove|
 function isIdSegment(s: string) {
   return (
     /^\d+$/.test(s) ||
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s) ||
+    isUuid(s) ||
     /^[0-9a-f]{12,}$/i.test(s) ||
     (s.length >= 16 && /\d/.test(s) && /[a-z]/i.test(s) && !s.includes("-")) ||
     /^[a-z0-9-]+-\d{3,}$/i.test(s)

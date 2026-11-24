@@ -7,6 +7,7 @@ import { forgetFields } from "@/lib/router/actions";
 import { publishFormRouting } from "@/lib/routing/formPublish";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
+import { isUuid } from "@/lib/uuid";
 
 // Publish a form's draft: POST { workspaceId, id }. The draft is checked against the schema and the workspace's
 // fields first; only a clean copy goes live (docs/form-builder.md Part 3). Its routing goes live with it
@@ -21,7 +22,7 @@ export async function POST(request: Request) {
   if ("denied" in auth) return auth.denied;
   const body = (await request.json().catch(() => ({}))) as { workspaceId?: unknown; id?: unknown };
   if (!(await isMember(auth, body.workspaceId))) return bad("Workspace not found.", 404);
-  if (typeof body.id !== "string" || !/^[0-9a-f-]{36}$/.test(body.id)) return bad("Form not found.", 404);
+  if (typeof body.id !== "string" || !isUuid(body.id)) return bad("Form not found.", 404);
   const db = serviceClient();
   if (!db) return bad("The server is not set up for this.", 500);
   const { data: form } = await db.from("forms").select("id, name, draft").eq("id", body.id).eq("workspace_id", body.workspaceId as string).maybeSingle();

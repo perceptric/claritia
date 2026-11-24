@@ -7,6 +7,7 @@ import * as A from "./actions.ts";
 import { cleanBody } from "./check.ts";
 import { explain, partText, type Line } from "./explain.ts";
 import type { Decision, Facts, StepResult } from "./types.ts";
+import { isUuid } from "../uuid.ts";
 
 // The router on the MCP server (docs/router-ux.md W10): Claude can read the router, ask why a lead went where it
 // did, test where a lead would go, and propose a change. A proposal is saved as the draft for a person to replay and
@@ -42,7 +43,7 @@ export const routerTools: Tool<ApiCaller>[] = [
     async run(ctx, args) {
       const ref = String(args.contact ?? "").trim().toLowerCase();
       if (!ref) throw new ToolError("Pass contact: an email or id.");
-      const c = (/^[0-9a-f-]{36}$/.test(ref)
+      const c = (isUuid(ref)
         ? await ctx.sb.from("contacts").select("id").eq("workspace_id", ctx.workspaceId).eq("id", ref).maybeSingle()
         : await ctx.sb.from("contacts").select("id").eq("workspace_id", ctx.workspaceId).eq("email_clean", ref).limit(1).maybeSingle()
       ).data as { id: string } | null;

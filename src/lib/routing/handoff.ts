@@ -14,8 +14,8 @@ import type { Decision, Facts, RouterBody } from "../router/types.ts";
 import { evaluate, fieldsUsed, type Trace } from "./evaluate.ts";
 import { DENIED, may, mayHandOff } from "./access.ts";
 import { Refusal, type Caller } from "./screens.ts";
+import { isUuid } from "../uuid.ts";
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 type HandoffSource = { id: string | null; policy: string; live: LiveRouter; meetingTypeId: string | null; revision: number | null };
 
@@ -114,7 +114,7 @@ async function previewOf(rpc: Rpc, c: Caller, o: { contact: string; values?: unk
 
 /** Find recipient (Section 14): read only. No owner, count, turn, task, invitation or event changes. */
 export async function preview(rpc: Rpc, c: Caller, o: { contact: unknown; values?: unknown; now?: number }): Promise<Preview> {
-  if (typeof o.contact !== "string" || !UUID.test(o.contact)) throw new Refusal(400, "invalid_configuration", "Pick a contact.");
+  if (typeof o.contact !== "string" || !isUuid(o.contact)) throw new Refusal(400, "invalid_configuration", "Pick a contact.");
   // A preview reads what a member can already see in the CRM; who may commit is checked at confirm (Section 20).
   return (await previewOf(rpc, c, { contact: o.contact, values: o.values, now: o.now })).p;
 }
@@ -152,7 +152,7 @@ export async function confirm(
     liveBusy?: (hosts: string[], from: number, to: number) => Promise<Set<string>>;
   },
 ): Promise<Committed> {
-  if (typeof o.contact !== "string" || !UUID.test(o.contact)) throw new Refusal(400, "invalid_configuration", "Pick a contact.");
+  if (typeof o.contact !== "string" || !isUuid(o.contact)) throw new Refusal(400, "invalid_configuration", "Pick a contact.");
   const op = typeof o.op === "string" && /^[A-Za-z0-9_-]{8,80}$/.test(o.op) ? o.op : null;
   if (!op) throw new Refusal(400, "invalid_configuration", "Bad request.");
   const ref = (o.ref ?? {}) as { policy?: unknown; version?: unknown; owner?: unknown; recipient?: unknown };
@@ -165,7 +165,7 @@ export async function confirm(
     return { status: "assigned", run: again.id, owner: again.owner, effect: again.effect ?? "new", repeat: true, booking: again.meeting_id ? { state: "pending_confirmation", meeting: again.meeting_id, start: 0 } : { state: "not_requested" } };
   }
 
-  const override = o.override && typeof o.override.user === "string" && UUID.test(o.override.user) ? { user: o.override.user, reason: typeof o.override.reason === "string" ? o.override.reason.trim().slice(0, 300) : "" } : null;
+  const override = o.override && typeof o.override.user === "string" && isUuid(o.override.user) ? { user: o.override.user, reason: typeof o.override.reason === "string" ? o.override.reason.trim().slice(0, 300) : "" } : null;
   if (o.override && !override) throw new Refusal(400, "invalid_configuration", "Pick who gets the lead.");
   if (override && !may(c, "override")) throw new Refusal(403, "permission_denied", DENIED.override);
   if (override && !override.reason) throw new Refusal(400, "invalid_configuration", "Add a reason.");
@@ -253,7 +253,7 @@ export async function confirm(
  * work failed for good, else still pending. Moves the run's booking state when it learns something.
  */
 export async function status(rpc: Rpc, c: Caller, o: { run: unknown }): Promise<{ state: string; start: string | null }> {
-  if (typeof o.run !== "string" || !UUID.test(o.run)) throw new Refusal(400, "invalid_configuration", "Bad run.");
+  if (typeof o.run !== "string" || !isUuid(o.run)) throw new Refusal(400, "invalid_configuration", "Bad run.");
   const r = await call<{ booking_state: string | null; meeting: { id: string; start: string; confirmed: boolean; failed: boolean } | null } | null>(rpc, "routing_handoff_status", { p_ws: c.ws, p_run: o.run });
   if (!r) throw new Refusal(404, "not_found", "That run is gone.");
   if (r.booking_state === "pending_confirmation" && r.meeting) {
@@ -275,7 +275,7 @@ export async function bookRun(
   c: Caller,
   o: { run: unknown; start: unknown; tz?: unknown; now?: number; liveBusy?: (hosts: string[], from: number, to: number) => Promise<Set<string>> },
 ): Promise<{ state: "pending_confirmation"; meeting: string; start: number } | { state: "slot_taken"; slots: number[] }> {
-  if (typeof o.run !== "string" || !UUID.test(o.run) || typeof o.start !== "number") throw new Refusal(400, "invalid_configuration", "Bad request.");
+  if (typeof o.run !== "string" || !isUuid(o.run) || typeof o.start !== "number") throw new Refusal(400, "invalid_configuration", "Bad request.");
   const r = await call<{ id: string; key: string; owner: string | null; by_user: string | null; contact_id: string | null; meeting: { id: string } | null; lead: { name: string | null; email: string | null } } | null>(rpc, "routing_screen_run", { p_ws: c.ws, p_run: o.run });
   if (!r || !r.key.startsWith("handoff:") || !r.owner || !r.contact_id) throw new Refusal(404, "not_found", "That handoff is gone.");
   // The person who made the handoff, the lead's owner, or a workspace owner books it again.

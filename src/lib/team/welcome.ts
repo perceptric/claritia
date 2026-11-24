@@ -2,16 +2,16 @@
 // owner who finished it, with the form they made and what's left to do.
 
 import { esc, page, type MailParts } from "../forms/notify.ts";
+import { isUuid } from "../uuid.ts";
 
 export type WelcomeView = { name: string | null; workspace: string; base: string; form: string | null };
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export function welcomeEmail(v: WelcomeView): MailParts {
   const base = v.base.replace(/\/$/, "");
   const first = (v.name ?? "").trim().split(/\s+/)[0] ?? "";
   const hi = first ? `Hi ${first},` : "Hi,";
-  const form = v.form && UUID.test(v.form) ? `${base}/forms/${v.form}` : null;
+  const form = v.form && isUuid(v.form) ? `${base}/forms/${v.form}` : null;
   const link = form ?? `${base}/forms`;
   const button = form ? "Open your form" : "Open Claritia";
   const steps = [

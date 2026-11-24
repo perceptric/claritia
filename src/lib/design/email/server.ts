@@ -9,11 +9,11 @@ import { brandOf } from "../../brand/workspaceKit.ts";
 import { compileEmail, type Compiled } from "./compile.ts";
 import type { EmailDoc } from "./doc.ts";
 import { emailTokens } from "./look.ts";
+import { isUuid } from "../../uuid.ts";
 
 export type KitRow = { id: string; tokens: unknown; logo_url: string | null; design?: unknown; design_live?: unknown; book_name?: string | null; brand_name?: string | null };
 
 const KIT_COLS = "id, tokens, logo_url, design, design_live, book_name:book->>name";
-const KIT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * The workspace's brand kits, its brand first. With `ids` (the kits the emails name), only those and the brand (the
@@ -32,7 +32,7 @@ export async function loadKits(db: SupabaseClient, workspaceId: string, ids?: (s
   const team = ws?.named === false ? null : ws?.name?.trim() || null;
   const list = ((all.data ?? []) as KitRow[]).map((k) => ({ ...k, brand_name: k.book_name?.trim() || team }));
   const head = brandOf(list, ws?.brand_kit_id);
-  const named = ids ? new Set(ids.filter((x): x is string => !!x && KIT_ID.test(x))) : null;
+  const named = ids ? new Set(ids.filter((x): x is string => !!x && isUuid(x))) : null;
   const rest = list.filter((k) => k !== head && (!named || named.has(k.id)));
   return [...(head ? [head] : []), ...rest];
 }

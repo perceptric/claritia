@@ -16,6 +16,7 @@ import { cleanMessages, cleanTitle, titleFrom } from "@/lib/studio/threads";
 import { hostLogo, hostOf, readPage, readSite, readSource } from "@/lib/studio/site";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
+import { isUuid } from "@/lib/uuid";
 
 // Form Studio (docs/forms-chat-plan.md). POST { workspaceId, mode, ... }:
 //   site    { url }                  → { site, name, logo }   the quick look the owner confirms: name and real logo, no AI
@@ -44,7 +45,6 @@ import { serviceClient } from "@/lib/serviceClient";
 export const maxDuration = 300;
 const bad = (error: string, status = 400) => Response.json({ error }, { status });
 const ZERO: Usage = { input: 0, output: 0, cache_read: 0, cache_write: 0 };
-const UUID = /^[0-9a-f-]{36}$/;
 
 type Turn = { role: "user" | "assistant"; content: string };
 type Block = { type: "text"; text: string } | { type: "image"; source: { type: "base64"; media_type: string; data: string } } | { type: "document"; source: { type: "base64"; media_type: "application/pdf"; data: string }; title?: string };
@@ -169,12 +169,12 @@ export async function POST(request: Request) {
   if (b.mode === "chat-save") {
     // One chat with Tia (docs/studio-v2-plan.md, Part 2): its page, what was said, and its form once published.
     const c = (b.chat && typeof b.chat === "object" ? b.chat : {}) as Record<string, unknown>;
-    const id = typeof c.id === "string" && UUID.test(c.id) ? c.id : "";
+    const id = typeof c.id === "string" && isUuid(c.id) ? c.id : "";
     if (!id) return bad("The chat can't be read.");
     const body = c.body && typeof c.body === "object" ? (c.body as Record<string, unknown>) : {};
     if (JSON.stringify(body).length > 1_900_000) return bad("This chat is too long to save. Start a new chat for big changes.");
-    const kit = typeof c.brandId === "string" && UUID.test(c.brandId) ? c.brandId : null;
-    const form = typeof c.formId === "string" && UUID.test(c.formId) ? c.formId : null;
+    const kit = typeof c.brandId === "string" && isUuid(c.brandId) ? c.brandId : null;
+    const form = typeof c.formId === "string" && isUuid(c.formId) ? c.formId : null;
     if (kit && !(await db.from("brand_kits").select("id").eq("id", kit).eq("workspace_id", ws).maybeSingle()).data) return bad("Brand not found.", 404);
     if (form && !(await db.from("forms").select("id").eq("id", form).eq("workspace_id", ws).maybeSingle()).data) return bad("Form not found.", 404);
     const had = await db.from("form_chats").select("workspace_id").eq("id", id).maybeSingle();
@@ -188,7 +188,7 @@ export async function POST(request: Request) {
   }
 
   if (b.mode === "brand-css") {
-    const kitId = typeof b.kitId === "string" && UUID.test(b.kitId) ? b.kitId : "";
+    const kitId = typeof b.kitId === "string" && isUuid(b.kitId) ? b.kitId : "";
     const css = typeof b.css === "string" ? b.css.slice(0, 200_000) : "";
     if (!kitId || !css.trim()) return bad("Brand not found.", 404);
     const up = await db.from("brand_kits").update({ studio_css: css }).eq("id", kitId).eq("workspace_id", ws);
@@ -197,7 +197,7 @@ export async function POST(request: Request) {
   }
 
   if (b.mode === "brand-profile") {
-    const kitId = typeof b.kitId === "string" && UUID.test(b.kitId) ? b.kitId : "";
+    const kitId = typeof b.kitId === "string" && isUuid(b.kitId) ? b.kitId : "";
     const profile = readProfile(b.profile);
     if (!kitId || !profile) return bad("Brand not found.", 404);
     const up = await db.from("brand_kits").update({ studio_profile: profile }).eq("id", kitId).eq("workspace_id", ws);
@@ -206,7 +206,7 @@ export async function POST(request: Request) {
   }
 
   if (b.mode === "chat-delete") {
-    const id = typeof b.id === "string" && UUID.test(b.id) ? b.id : "";
+    const id = typeof b.id === "string" && isUuid(b.id) ? b.id : "";
     if (!id) return bad("Chat not found.", 404);
     const del = await db.from("form_chats").delete().eq("id", id).eq("workspace_id", ws);
     if (del.error) return Response.json({ error: "Chats aren't set up on this server yet.", missing: true }, { status: 503 });
@@ -217,8 +217,8 @@ export async function POST(request: Request) {
     // One chat about a form (166): its messages after each of Tia's answers, and its name. Made on its first save,
     // with who started it; the form's own chat row (112) has to be saved first.
     const t = (b.thread && typeof b.thread === "object" ? b.thread : {}) as Record<string, unknown>;
-    const id = typeof t.id === "string" && UUID.test(t.id) ? t.id : "";
-    const chatId = typeof t.chatId === "string" && UUID.test(t.chatId) ? t.chatId : "";
+    const id = typeof t.id === "string" && isUuid(t.id) ? t.id : "";
+    const chatId = typeof t.chatId === "string" && isUuid(t.chatId) ? t.chatId : "";
     if (!id || !chatId) return bad("The chat can't be read.");
     const chat = await db.from("form_chats").select("workspace_id").eq("id", chatId).maybeSingle();
     if (chat.error) return Response.json({ error: "Chats aren't set up on this server yet.", missing: true }, { status: 503 });
@@ -239,7 +239,7 @@ export async function POST(request: Request) {
 
   if (b.mode === "thread-delete") {
     // One chat goes; the form and its other chats stay.
-    const id = typeof b.id === "string" && UUID.test(b.id) ? b.id : "";
+    const id = typeof b.id === "string" && isUuid(b.id) ? b.id : "";
     if (!id) return bad("Chat not found.", 404);
     const del = await db.from("studio_threads").delete().eq("id", id).eq("workspace_id", ws);
     if (del.error) return Response.json({ error: "Chats aren't kept one by one on this server yet.", missing: true }, { status: 503 });
@@ -251,7 +251,7 @@ export async function POST(request: Request) {
     // brand's stylesheet (a gallery style's, or the plain one), keeping every field id and what its Settings set, and
     // its live version is kept as the page visitors already get (src/lib/studio/persist.ts). Answers { formId, lost }
     // with what the page couldn't hold, in plain words.
-    const formId = typeof b.formId === "string" && UUID.test(b.formId) ? b.formId : "";
+    const formId = typeof b.formId === "string" && isUuid(b.formId) ? b.formId : "";
     const { data: row } = await db.from("forms").select("id, draft, kind").eq("id", formId).eq("workspace_id", ws).maybeSingle();
     const had = row as { id: string; draft: Record<string, unknown> | null; kind: string | null } | null;
     if (!had?.draft) return bad("Form not found.", 404);
@@ -270,14 +270,14 @@ export async function POST(request: Request) {
     const name = String(b.name ?? "").trim().slice(0, 120) || "New form";
     // The form check, again on the server (docs/studio-v2-plan.md 6.5): no broken form goes live.
     const types = await db.from("meeting_types").select("id, name").eq("workspace_id", ws).eq("active", true);
-    const kitIn = typeof b.kitId === "string" && UUID.test(b.kitId) ? b.kitId : "";
+    const kitIn = typeof b.kitId === "string" && isUuid(b.kitId) ? b.kitId : "";
     const prof = kitIn ? ((await db.from("brand_kits").select("studio_profile").eq("id", kitIn).eq("workspace_id", ws).maybeSingle()).data as { studio_profile?: unknown } | null) : null;
     const langs = b.langs && typeof b.langs === "object" ? (Object.fromEntries(Object.entries(b.langs as Record<string, unknown>).filter(([, v]) => typeof v === "string").slice(0, 6)) as Record<string, string>) : {};
     const issues = checkStudioPage({ html, after, meetings: types.error ? null : ((types.data ?? []) as { id: string; name: string }[]), industry: readProfile(prof?.studio_profile)?.industry ?? null, langs });
     const errs = errorsIn(issues);
     if (errs.length) return Response.json({ error: errs[0]!.text, issues: errs }, { status: 400 });
     // A question keeps its field id when it's renamed or Tia writes the page again: the ids the form had last time.
-    const formIdIn = typeof b.formId === "string" && UUID.test(b.formId) ? b.formId : "";
+    const formIdIn = typeof b.formId === "string" && isUuid(b.formId) ? b.formId : "";
     const prev = formIdIn ? ((await db.from("forms").select("draft").eq("id", formIdIn).eq("workspace_id", ws).maybeSingle()).data as { draft?: { page?: { ids?: Record<string, string>; after?: { always?: unknown } }; notify?: unknown; reply?: unknown; keep?: unknown; share?: unknown; consent?: unknown; spam?: unknown; access?: unknown; track?: unknown } } | null) : null;
     const turnstile = !!turnstileSiteKey() && !!process.env.TURNSTILE_SECRET_KEY?.trim();
     const { form: draft, questions } = pageForm({ html, css: String(b.css ?? ""), brand: String(b.brand ?? ""), after, title: name, prevIds: prev?.draft?.page?.ids ?? {}, turnstile, lang: typeof b.lang === "string" ? b.lang : undefined, langs });
@@ -294,8 +294,8 @@ export async function POST(request: Request) {
     const ctx = await cleaningCtx(db, ws);
     const r = checkForm(draft, { custom: ctx.custom });
     if ("errors" in r) return bad(r.errors[0]!, 400);
-    const kitId = typeof b.kitId === "string" && UUID.test(b.kitId) ? b.kitId : null;
-    const formId = typeof b.formId === "string" && UUID.test(b.formId) ? b.formId : "";
+    const kitId = typeof b.kitId === "string" && isUuid(b.kitId) ? b.kitId : null;
+    const formId = typeof b.formId === "string" && isUuid(b.formId) ? b.formId : "";
     if (formId) {
       const { data: had } = await db.from("forms").select("id, draft_rev").eq("id", formId).eq("workspace_id", ws).maybeSingle();
       if (had) {
@@ -320,7 +320,7 @@ export async function POST(request: Request) {
   }
 
   if (b.mode === "look") {
-    const kitId = typeof b.kitId === "string" && UUID.test(b.kitId) ? b.kitId : "";
+    const kitId = typeof b.kitId === "string" && isUuid(b.kitId) ? b.kitId : "";
     const { data: kit } = await db.from("brand_kits").select("id, name, source_url, tokens").eq("id", kitId).eq("workspace_id", ws).maybeSingle();
     const k = kit as { id: string; name: string; source_url: string | null; tokens: Record<string, unknown> | null } | null;
     if (!k?.source_url) return bad("Brand not found.", 404);

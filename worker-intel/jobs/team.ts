@@ -8,8 +8,8 @@ import { mime, validAddress } from "../../src/lib/meetings/emails.ts";
 import { inviteEmail } from "../../src/lib/team/invite.ts";
 import { welcomeEmail } from "../../src/lib/team/welcome.ts";
 import type { Mailer } from "./meetings.ts";
+import { isUuid } from "../../src/lib/uuid.ts";
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export type InviteOpts = { mailer: Mailer | null; base: string; from: string };
 /** The welcome's options: `covered` says the getting-started emails (src/lib/tips/send.ts) send this workspace's welcome. */
@@ -20,7 +20,7 @@ export const inviteSend =
   (rpc: Rpc, o: InviteOpts): Handler =>
   async (job) => {
     const id = String(job.payload.invite ?? "");
-    if (!UUID.test(id)) throw new JobError("invite_email needs an invite", { retry: false });
+    if (!isUuid(id)) throw new JobError("invite_email needs an invite", { retry: false });
     const info = await call<Info | null>(rpc, "invite_info", { p_id: id, p_sent_for: job.payload.sent_for ?? null });
     if (!info || !validAddress(info.email)) return;
     if (!o.mailer) throw new JobError("Resend isn't set up on the worker (RESEND_API_KEY).", { retry: false });
@@ -52,7 +52,7 @@ export const welcomeSend =
   (rpc: Rpc, o: WelcomeOpts): Handler =>
   async (job) => {
     const user = String(job.payload.user ?? "");
-    if (!UUID.test(user) || !UUID.test(job.workspace_id ?? "")) throw new JobError("welcome_email needs a workspace and a person", { retry: false });
+    if (!isUuid(user) || !isUuid(job.workspace_id ?? "")) throw new JobError("welcome_email needs a workspace and a person", { retry: false });
     const info = await call<Welcome | null>(rpc, "welcome_info", { p_ws: job.workspace_id, p_user: user });
     if (!info || !validAddress(info.email)) return;
     if (o.covered && (await o.covered(job.workspace_id!))) return;

@@ -3,11 +3,11 @@ import { cleanHandle, handleProblem } from "@/lib/meetings/handles";
 import { checkEndpoint, newSecret, openEndpoint, sampleBody, sealEndpoint, sendWebhook, WEBHOOK_EVENTS, isEvent } from "@/lib/meetings/webhooks";
 import { cleanLook, type PageLook } from "../../../../lib/meetings/look.ts";
 import { call, Refused, roleOf, saveProfile, type Actor } from "./host";
+import { isUuid } from "@/lib/uuid";
 
 // The Booking page and Webhooks tabs (docs/scheduling-plan.md Parts 4 and 5). Everyone sets their own page; owners
 // set the team's handle and the webhooks.
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 async function owner(rpc: Rpc, a: Actor) {
   const { role } = await roleOf(rpc, a);
@@ -82,7 +82,7 @@ export async function addWebhook(rpc: Rpc, a: Actor, raw: unknown, key?: string)
 /** Change an endpoint's address, events, note or pause. A new address keeps the secret. */
 export async function changeWebhook(rpc: Rpc, a: Actor, id: unknown, raw: unknown, key?: string): Promise<{ ok: true }> {
   await owner(rpc, a);
-  if (typeof id !== "string" || !UUID.test(id)) throw new Refused(404, "Not found.");
+  if (typeof id !== "string" || !isUuid(id)) throw new Refused(404, "Not found.");
   const r = checkEndpoint(raw);
   if ("error" in r) throw new Refused(400, r.error);
   let sealed: ReturnType<typeof sealEndpoint> | null = null;
@@ -101,7 +101,7 @@ export async function changeWebhook(rpc: Rpc, a: Actor, id: unknown, raw: unknow
 /** A new secret for an endpoint, shown once. The old one stops working at once. */
 export async function rollSecret(rpc: Rpc, a: Actor, id: unknown, key?: string): Promise<{ secret: string }> {
   await owner(rpc, a);
-  if (typeof id !== "string" || !UUID.test(id)) throw new Refused(404, "Not found.");
+  if (typeof id !== "string" || !isUuid(id)) throw new Refused(404, "Not found.");
   const was = await call<string | null>(rpc, "webhook_sealed", { p_ws: a.ws, p_id: id });
   if (!was) throw new Refused(404, "Not found.");
   const secret = newSecret();
@@ -112,21 +112,21 @@ export async function rollSecret(rpc: Rpc, a: Actor, id: unknown, key?: string):
 
 export async function deleteWebhook(rpc: Rpc, a: Actor, id: unknown): Promise<{ ok: true }> {
   await owner(rpc, a);
-  if (typeof id !== "string" || !UUID.test(id)) throw new Refused(404, "Not found.");
+  if (typeof id !== "string" || !isUuid(id)) throw new Refused(404, "Not found.");
   await call(rpc, "webhook_delete", { p_ws: a.ws, p_id: id });
   return { ok: true };
 }
 
 export async function webhookSends(rpc: Rpc, a: Actor, id: unknown) {
   await owner(rpc, a);
-  if (typeof id !== "string" || !UUID.test(id)) throw new Refused(404, "Not found.");
+  if (typeof id !== "string" || !isUuid(id)) throw new Refused(404, "Not found.");
   return { sends: await call<unknown[]>(rpc, "webhook_deliveries_list", { p_ws: a.ws, p_endpoint: id, p_limit: 50 }) };
 }
 
 /** Send a sample right away and say how it went. It shows with the endpoint's other sends. */
 export async function testWebhook(rpc: Rpc, a: Actor, id: unknown, event: unknown, key?: string) {
   await owner(rpc, a);
-  if (typeof id !== "string" || !UUID.test(id)) throw new Refused(404, "Not found.");
+  if (typeof id !== "string" || !isUuid(id)) throw new Refused(404, "Not found.");
   const was = await call<string | null>(rpc, "webhook_sealed", { p_ws: a.ws, p_id: id });
   if (!was) throw new Refused(404, "Not found.");
   const ev = isEvent(event) ? event : "meeting.booked";
@@ -142,7 +142,7 @@ export async function testWebhook(rpc: Rpc, a: Actor, id: unknown, event: unknow
 
 export async function resendWebhook(rpc: Rpc, a: Actor, send: unknown) {
   await owner(rpc, a);
-  if (typeof send !== "string" || !UUID.test(send)) throw new Refused(404, "Not found.");
+  if (typeof send !== "string" || !isUuid(send)) throw new Refused(404, "Not found.");
   await call(rpc, "webhook_resend", { p_ws: a.ws, p_id: send });
   return { ok: true };
 }

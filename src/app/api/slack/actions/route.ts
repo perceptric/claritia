@@ -1,12 +1,12 @@
 import { slackEmail, slackSigned, tokenOf } from "@/lib/slack/app";
 import { later } from "@/lib/later";
 import { serviceClient } from "@/lib/serviceClient";
+import { isUuid } from "@/lib/uuid";
 
 // Buttons in Claritia's Slack messages (docs/router.md Part 17). Slack signs each press. "Mark contacted" meets the
 // lead's response time for the person who pressed it, when they own the lead (or own the workspace). Link buttons
 // also arrive here and need nothing.
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 type Payload = { type?: string; team?: { id?: string }; user?: { id?: string }; response_url?: string; actions?: { action_id?: string; value?: string }[] };
 
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
   const contact = act.value ?? "";
   const team = p.team?.id ?? "";
   const db = serviceClient();
-  if (!db || !UUID.test(contact)) return new Response(null, { status: 200 });
+  if (!db || !isUuid(contact)) return new Response(null, { status: 200 });
   // Slack wants its answer within 3 seconds: say yes now, and do the work (and post how it went) after.
   later(async () => {
     const install = (await db.rpc("slack_install_token", { p_team: team })).data as { workspace_id: string; sealed: string } | null;

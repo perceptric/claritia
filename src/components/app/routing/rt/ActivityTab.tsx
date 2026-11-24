@@ -11,6 +11,7 @@ import { Badge, Button, ErrorNote, Loading, Page, useQuery, type ViewProps } fro
 import { rt, type RunRow, type Screen } from "./api";
 import { Initials, namesOf, Pills, when } from "./parts";
 import { RunDrawer } from "./RunDrawer";
+import { isUuid } from "@/lib/uuid";
 
 type Filter = "all" | "review" | "errors";
 
@@ -18,7 +19,7 @@ export function ActivityTab({ session, ws, navigate, screen, sub }: ViewProps & 
   const d = screen.data!;
   const names = namesOf(d.people, d.teams);
   const filter: Filter = sub === "review" ? "review" : sub === "errors" ? "errors" : "all";
-  const openRun = /^[0-9a-f-]{36}$/.test(sub) ? sub : null;
+  const openRun = isUuid(sub) ? sub : null;
   const [more, setMore] = useState<RunRow[]>([]);
   const [end, setEnd] = useState(false);
   const list = useQuery(`routing_activity:${ws.id}:${filter}`, () => rt<{ runs: RunRow[] }>(session, ws.id, "rt_activity", { filter }), { staleMs: 5_000 });

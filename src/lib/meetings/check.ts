@@ -6,11 +6,11 @@ import { DAYS, DEFAULT_SETTINGS, KINDS, type Availability, type Host, type Kind,
 import { cleanCondition } from "../router/check.ts";
 import type { Dest, Dynamic, DynamicRule } from "../routing/compile.ts";
 import { hasOptions, QUESTION_KINDS } from "./questions.ts";
+import { isUuid } from "../uuid.ts";
 
 const CLOCK = /^([01]\d|2[0-3]):[0-5]\d$|^24:00$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const SLUG = /^[a-z0-9][a-z0-9-]{0,58}[a-z0-9]$/;
-const UUID = /^[0-9a-f-]{36}$/;
 const str = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
 /** A meeting's description: control characters out, line breaks kept (at most one blank line in a row). */
 export const cleanDescription = (v: unknown): string =>
@@ -161,7 +161,7 @@ export function checkSettings(raw: unknown, kind: Kind): { settings: TypeSetting
     ...(price ? { price } : {}),
     ...(str(r.schedule, 60) ? { schedule: str(r.schedule, 60) } : {}),
     ...((kind === "round_robin" || kind === "owner_first") && typeof r.team === "string" && /^[a-z0-9_-]{1,40}$/i.test(r.team) ? { team: r.team } : {}),
-    ...(typeof r.form === "string" && UUID.test(r.form) ? { form: r.form } : {}),
+    ...(typeof r.form === "string" && isUuid(r.form) ? { form: r.form } : {}),
     ...(cleanDynamic(r.dynamic) ? { dynamic: cleanDynamic(r.dynamic)! } : {}),
     questions,
   };
@@ -177,7 +177,7 @@ function cleanDynamic(raw: unknown): Dynamic | null {
   const r = raw as Record<string, unknown>;
   const dest = (d: unknown): Dest | null => {
     const o = (d && typeof d === "object" ? d : {}) as Record<string, unknown>;
-    if (o.kind === "user" && typeof o.id === "string" && UUID.test(o.id)) return { kind: "user", id: o.id };
+    if (o.kind === "user" && typeof o.id === "string" && isUuid(o.id)) return { kind: "user", id: o.id };
     if (o.kind === "team" && typeof o.id === "string" && /^[a-z0-9_-]{1,40}$/i.test(o.id)) return { kind: "team", id: o.id };
     return null;
   };
@@ -205,7 +205,7 @@ export function checkType(raw: unknown, members: Set<string>): { type: Pick<Meet
   for (const h of Array.isArray(r.hosts) ? r.hosts.slice(0, 50) : []) {
     const ho = (h && typeof h === "object" ? h : {}) as Record<string, unknown>;
     const id = str(ho.user_id, 36);
-    if (!UUID.test(id) || !members.has(id)) {
+    if (!isUuid(id) || !members.has(id)) {
       errors.push("A host isn't in this workspace.");
       continue;
     }
@@ -223,5 +223,5 @@ export function checkType(raw: unknown, members: Set<string>): { type: Pick<Meet
   const locked = (Array.isArray(r.locked) ? r.locked : []).filter((k): k is MeetingType["locked"][number] => typeof k === "string" && (k === "name" || k === "kind" || k in DEFAULT_SETTINGS));
   return errors.length
     ? { errors: [...new Set(errors)] }
-    : { type: { name, slug, kind, hosts, settings, secret: r.secret === true, active: r.active !== false, owner_user_id: UUID.test(owner) && members.has(owner) ? owner : null, locked } };
+    : { type: { name, slug, kind, hosts, settings, secret: r.secret === true, active: r.active !== false, owner_user_id: isUuid(owner) && members.has(owner) ? owner : null, locked } };
 }

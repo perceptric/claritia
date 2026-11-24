@@ -1,3 +1,4 @@
+import { isUuid } from "./uuid.ts";
 // The sidebar (docs/email-canvas-plan.md Part A): Forms, then each page of Meetings and of Emails as its own item under
 // a small label, and Settings at the very bottom. Each item is a route and a page, with its own address; the pages
 // have no tab rows. The app opens on Forms. Old addresses keep working: they forward to
@@ -81,13 +82,12 @@ export function inboundDots(r: { routing_action?: number }): { routing: boolean 
 
 export type Tab<T extends string = string> = { value: T; label: string };
 
-const UUID = /^[0-9a-f-]{36}$/;
 
 
 /** One meeting (<id>); the list of upcoming meetings lives in Meetings › Upcoming. Anything else opens the list. */
 export function meetingsPage(id: string): { page: "list" | "meeting"; id: string } {
   const [a = ""] = id.split("/");
-  return UUID.test(a) ? { page: "meeting", id: a } : { page: "list", id: "" };
+  return isUuid(a) ? { page: "meeting", id: a } : { page: "list", id: "" };
 }
 
 export type RoutingPageKey = "" | "teams" | "activity";
@@ -108,24 +108,24 @@ export const ROUTING_TABS: Tab<RoutingPageKey>[] = [
 export function routingPage(id: string): { page: RoutingPageKey; sub: string; id: string } {
   const [raw = "", b = "", c = ""] = id.split("/");
   const a = ({ reps: "teams", team: "teams", history: "activity", leads: "activity", log: "activity", held: "review", review: "review" } as Record<string, string>)[raw] ?? raw;
-  if (a === "policies" && UUID.test(b)) return { page: "", sub: b, id: `policies/${b}` };
+  if (a === "policies" && isUuid(b)) return { page: "", sub: b, id: `policies/${b}` };
   if (a === "teams") {
     if (b === "availability") {
       const tab = (["calendars", "team", "days-off"] as string[]).includes(c) ? c : "";
       return { page: "teams", sub: tab ? `availability/${tab}` : "availability", id: tab ? `teams/availability/${tab}` : "teams/availability" };
     }
-    return UUID.test(b) ? { page: "teams", sub: b, id: `teams/${b}` } : { page: "teams", sub: "", id: "teams" };
+    return isUuid(b) ? { page: "teams", sub: b, id: `teams/${b}` } : { page: "teams", sub: "", id: "teams" };
   }
   if (a === "review" || (a === "activity" && b === "review")) return { page: "activity", sub: "review", id: "activity/review" };
   if (a === "activity" && b === "errors") return { page: "activity", sub: "errors", id: "activity/errors" };
-  if (a === "activity") return UUID.test(b) ? { page: "activity", sub: b, id: `activity/${b}` } : { page: "activity", sub: "", id: "activity" };
+  if (a === "activity") return isUuid(b) ? { page: "activity", sub: b, id: `activity/${b}` } : { page: "activity", sub: "", id: "activity" };
   return { page: "", sub: "", id: "" };
 }
 
 /** Teams: the list (""), one team (<id>) and the working-hours editor with its views ("availability", "availability/team"...). */
 export function teamsPage(sub: string): { page: "list" | "team" | "availability"; sub: string } {
   const [a = "", b = ""] = sub.split("/");
-  if (UUID.test(a)) return { page: "team", sub: a };
+  if (isUuid(a)) return { page: "team", sub: a };
   if (a !== "availability") return { page: "list", sub: "" };
   const tab = (["calendars", "team", "days-off"] as string[]).includes(b) ? b : "";
   return { page: "availability", sub: tab };
@@ -158,13 +158,13 @@ export const EMAILS_TABS: Tab<EmailsPageKey>[] = [
  */
 export function emailsPage(id: string): { page: EmailsPageKey; id: string; open?: string; group?: string; wf?: string } {
   const [raw = "", b = "", c = ""] = id.split("/");
-  if ((raw === "automations" || raw === "journeys") && (b === "new" || UUID.test(b))) return { page: "automations", id: `automations/${b}`, wf: b };
+  if ((raw === "automations" || raw === "journeys") && (b === "new" || isUuid(b))) return { page: "automations", id: `automations/${b}`, wf: b };
   // One folder of workflows (docs/workflows.md): automations/folder/<id>, or "none" for workflows in no folder.
-  if (raw === "automations" && b === "folder" && (UUID.test(c) || c === "none")) return { page: "automations", id: `automations/folder/${c}`, wf: `folder/${c}` };
+  if (raw === "automations" && b === "folder" && (isUuid(c) || c === "none")) return { page: "automations", id: `automations/folder/${c}`, wf: `folder/${c}` };
   // An automation's emails open as their own group: campaigns/group/wf:<workflow id> (docs/email-unify-plan.md, E3);
   // the System emails as campaigns/group/system (docs/system-emails.md).
-  if (raw === "campaigns" && b === "group" && (UUID.test(c) || c === "ungrouped" || c === "system" || (c.startsWith("wf:") && UUID.test(c.slice(3))))) return { page: "campaigns", id: `campaigns/group/${c}`, group: c };
-  if (raw === "campaigns" && UUID.test(b)) return { page: "campaigns", id: `campaigns/${b}`, open: b };
+  if (raw === "campaigns" && b === "group" && (isUuid(c) || c === "ungrouped" || c === "system" || (c.startsWith("wf:") && isUuid(c.slice(3))))) return { page: "campaigns", id: `campaigns/group/${c}`, group: c };
+  if (raw === "campaigns" && isUuid(b)) return { page: "campaigns", id: `campaigns/${b}`, open: b };
   const a = ({ journeys: "automations" } as Record<string, string>)[raw] ?? raw;
   if (a === "automations" || a === "audiences" || a === "brand") return { page: a, id: a };
   // There's no Emails page: every email is edited in its workflow. Its old address opens Workflows.
@@ -184,8 +184,8 @@ export function emailsPage(id: string): { page: EmailsPageKey; id: string; open?
 export function schedulingPage(id: string): { page: SchedulingPageKey; sub: string; id: string } {
   const [a = "", b = "", c = ""] = id.split("/");
   if (a === "types") {
-    if (UUID.test(b) && c === "all") return { page: "types", sub: `${b}/all`, id: `types/${b}/all` };
-    return UUID.test(b) || b === "new" ? { page: "types", sub: b, id: `types/${b}` } : { page: "types", sub: "", id: "types" };
+    if (isUuid(b) && c === "all") return { page: "types", sub: `${b}/all`, id: `types/${b}/all` };
+    return isUuid(b) || b === "new" ? { page: "types", sub: b, id: `types/${b}` } : { page: "types", sub: "", id: "types" };
   }
   if (a === "availability") {
     const tab = (["calendars", "team", "days-off"] as string[]).includes(b) ? b : "";
@@ -235,7 +235,7 @@ export function resolveRoute(first: string, id: string): { route: Route; id: str
   // one meeting keeps its own page. Availability lives in Meetings (it was Routing › Teams'); the old Reps page is
   // Routing › Teams.
   if (first === "meetings" && a === "types") return { route: "scheduling", id: ["types", ...rest].join("/") };
-  if (first === "meetings") return UUID.test(a) ? { route: "meetings", id: a } : { route: "scheduling", id: "upcoming" };
+  if (first === "meetings") return isUuid(a) ? { route: "meetings", id: a } : { route: "scheduling", id: "upcoming" };
   if (first === "scheduling" && a === "forms") return { route: "forms", id: "" };
   const availability = (tab: string | undefined) => ({ route: "scheduling" as Route, id: schedulingPage(["availability", ...(tab ? [tab] : [])].join("/")).id });
   if (first === "availability") return availability(a);

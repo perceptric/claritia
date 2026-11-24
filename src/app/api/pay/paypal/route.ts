@@ -1,16 +1,16 @@
 import { paypalOrderOf, paypalVerify, payClient } from "@/lib/pay/providers";
 import { keysFor, settle } from "@/lib/pay/server";
 import { serviceClient } from "@/lib/serviceClient";
+import { isUuid } from "@/lib/uuid";
 
 // PayPal's webhook for one workspace (docs/integrations-plan.md, Next step 12): set in the team's PayPal app as
 // https://app.tryclaritia.com/api/pay/paypal?w=<workspace id>, with its webhook id in Settings › Integrations.
 // PayPal checks the signature itself (verify-webhook-signature); then the order is read back and settled.
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export async function POST(request: Request) {
   const ws = new URL(request.url).searchParams.get("w") ?? "";
-  if (!UUID.test(ws)) return new Response("Unknown workspace.", { status: 404 });
+  if (!isUuid(ws)) return new Response("Unknown workspace.", { status: 404 });
   const body = await request.text();
   let event: { event_type?: string; resource?: { id?: string; supplementary_data?: { related_ids?: { order_id?: string } } } };
   try {

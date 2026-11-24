@@ -3,6 +3,7 @@ import { buildForSend } from "@/lib/emails/server";
 import { notReady, sendReady } from "@/lib/email/ready";
 import { requireUser, roleIn } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
+import { isUuid } from "@/lib/uuid";
 
 // Send or schedule a campaign draft (docs/email-studio-plan.md Part 5): POST { workspaceId, emailId, lists, everyone,
 // topicId, sendAt, fromName, fromEmail, replyTo, spreadHours, smart }. The From address must be on one of the workspace's
@@ -10,23 +11,22 @@ import { serviceClient } from "@/lib/serviceClient";
 // checked ready, and email_campaign_send (151) freezes the audience and queues it in one transaction. A repeat of the
 // same send answers what the first queued.
 
-const UUID = /^[0-9a-f-]{36}$/;
 const bad = (error: string, status = 400) => Response.json({ error }, { status });
 
 export async function POST(request: Request) {
   const auth = await requireUser(request);
   if ("denied" in auth) return auth.denied;
   const b = (await request.json().catch(() => ({}))) as { workspaceId?: unknown; emailId?: unknown; lists?: unknown; everyone?: unknown; topicId?: unknown; sendAt?: unknown; fromName?: unknown; fromEmail?: unknown; replyTo?: unknown; spreadHours?: unknown; smart?: unknown };
-  const ws = typeof b.workspaceId === "string" && UUID.test(b.workspaceId) ? b.workspaceId : null;
-  const id = typeof b.emailId === "string" && UUID.test(b.emailId) ? b.emailId : null;
+  const ws = typeof b.workspaceId === "string" && isUuid(b.workspaceId) ? b.workspaceId : null;
+  const id = typeof b.emailId === "string" && isUuid(b.emailId) ? b.emailId : null;
   if (!ws || !id) return bad("Email not found.", 404);
   const role = await roleIn(auth, ws);
   if (!role) return bad("Workspace not found.", 404);
   const db = serviceClient();
   if (!db) return bad("The server is not set up for this.", 500);
-  const lists = (Array.isArray(b.lists) ? b.lists : []).filter((x): x is string => typeof x === "string" && UUID.test(x)).slice(0, 50);
+  const lists = (Array.isArray(b.lists) ? b.lists : []).filter((x): x is string => typeof x === "string" && isUuid(x)).slice(0, 50);
   const everyone = b.everyone === true;
-  const topic = typeof b.topicId === "string" && UUID.test(b.topicId) ? b.topicId : null;
+  const topic = typeof b.topicId === "string" && isUuid(b.topicId) ? b.topicId : null;
   const at = typeof b.sendAt === "string" && !Number.isNaN(Date.parse(b.sendAt)) ? new Date(b.sendAt).toISOString() : null;
   if (at && Date.parse(at) < Date.now() - 60_000) return bad("Pick a time in the future.");
   const text = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");

@@ -6,6 +6,7 @@ import { checkDomain, type DomainRow } from "@/lib/domains/server";
 import { requireUser, roleIn } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { SITE_HOST } from "@/lib/site";
+import { isUuid } from "@/lib/uuid";
 
 // Settings › Link domain (docs/sharing-plan.md step 4).
 //   GET ?workspaceId=      the workspace's subdomain (when those are on), its custom domain and its state, and the
@@ -17,12 +18,11 @@ import { SITE_HOST } from "@/lib/site";
 
 const COLS = "workspace_id, hostname, status, dns_ok, cert_ok, last_error, checked_at";
 const bad = (error: string, status = 400) => Response.json({ error }, { status });
-const UUID = /^[0-9a-f-]{36}$/;
 
 async function context(request: Request, ws: unknown) {
   const auth = await requireUser(request);
   if ("denied" in auth) return { denied: auth.denied };
-  if (typeof ws !== "string" || !UUID.test(ws)) return { denied: bad("Workspace not found.", 404) };
+  if (typeof ws !== "string" || !isUuid(ws)) return { denied: bad("Workspace not found.", 404) };
   const role = await roleIn(auth, ws);
   if (!role) return { denied: bad("Workspace not found.", 404) };
   const db = serviceClient();

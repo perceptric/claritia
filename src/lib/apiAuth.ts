@@ -41,8 +41,6 @@ export function forgetKey(keyId?: string) {
   for (const [h, v] of keys) if (v.keyId === keyId) keys.delete(h);
 }
 
-export const isUuid = (v: unknown): v is string => typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
-
 export type ApiProject = { id: string; name: string };
 export type Problem = { error: string; status: number };
 

@@ -3,17 +3,17 @@ import { maskFill } from "@/lib/planHidden";
 import { cleanFilters, csvHead, csvRow, fillColumns, type ExportFill } from "@/lib/forms/results";
 import type { Form } from "@/lib/forms/schema";
 import { requireUser } from "@/lib/serverAuth";
+import { isUuid } from "@/lib/uuid";
 
 // Export answers (docs/forms-plan.md 1.1): every answer of the fills that match the Results filters, as a CSV that
 // streams in pages of 1,000, so a form with a hundred thousand fills downloads in steady memory. Read as the signed-in
 // member, so row level security decides what they get. GET ?filters=<json>.
 
-const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const PAGE = 1000;
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  if (!ID.test(id)) return Response.json({ error: "Form not found." }, { status: 404 });
+  if (!isUuid(id)) return Response.json({ error: "Form not found." }, { status: 404 });
   const auth = await requireUser(request);
   if ("denied" in auth) return auth.denied;
   const sb = auth.sb;

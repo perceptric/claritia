@@ -47,6 +47,7 @@ import { DEFAULT_SETTINGS, type MeetingType, type TypeSettings } from "../../src
 import type { SystemKey } from "../../src/lib/meetings/systemEmails.ts";
 import { flowReminders } from "../../src/lib/workflows/meetingFlows.ts";
 import { meetingFields, readSystemSet, systemOff, systemParts, timesFields, type SystemSet } from "../../src/lib/meetings/systemSend.ts";
+import { isUuid } from "../../src/lib/uuid.ts";
 
 const MIN = 60_000;
 const NOT_SET = "Resend isn't set up on the worker (RESEND_API_KEY).";
@@ -407,7 +408,7 @@ export const meetingNotify =
     inJob(rpc, base, signal, async (o) => {
       const meeting = String(job.payload.meeting ?? "");
       const event = String(job.payload.event ?? "") as Event;
-      if (!/^[0-9a-f-]{36}$/.test(meeting) || !EVENTS.includes(event)) throw new JobError("meeting_notify needs a meeting and an event", { retry: false });
+      if (!isUuid(meeting) || !EVENTS.includes(event)) throw new JobError("meeting_notify needs a meeting and an event", { retry: false });
       if (event === "held") return;
       const info = await load(rpc, meeting);
       if (!info) return;
@@ -574,7 +575,7 @@ export const meetingRemind =
       const meeting = String(job.payload.meeting ?? "");
       const start = ms(String(job.payload.start ?? ""));
       const min = Number(job.payload.minutes);
-      if (!/^[0-9a-f-]{36}$/.test(meeting) || !Number.isFinite(start) || !Number.isInteger(min)) throw new JobError("meeting_remind needs a meeting, a start and minutes", { retry: false });
+      if (!isUuid(meeting) || !Number.isFinite(start) || !Number.isInteger(min)) throw new JobError("meeting_remind needs a meeting, a start and minutes", { retry: false });
       const info = await load(rpc, meeting);
       const now = o.now?.() ?? Date.now();
       // Only for the time it was scheduled for: a moved meeting has its own reminders, a canceled one none.
@@ -625,7 +626,7 @@ export const meetingAfter =
     inJob(rpc, base, signal, async (o) => {
       const meeting = String(job.payload.meeting ?? "");
       const end = ms(String(job.payload.end ?? ""));
-      if (!/^[0-9a-f-]{36}$/.test(meeting) || !Number.isFinite(end)) throw new JobError("meeting_after needs a meeting and an end", { retry: false });
+      if (!isUuid(meeting) || !Number.isFinite(end)) throw new JobError("meeting_after needs a meeting and an end", { retry: false });
       const info = await load(rpc, meeting);
       if (!info || info.meeting.status !== "booked" || ms(info.meeting.end_at) !== end) return;
       const now = o.now?.() ?? Date.now();
@@ -669,12 +670,11 @@ export const meetingBookLater =
     inJob(rpc, base, signal, async (o) => {
       const submission = String(job.payload.submission ?? "");
       const typeId = String(job.payload.type ?? "");
-      const uuid = /^[0-9a-f-]{36}$/;
-      const hostId = typeof job.payload.host === "string" && uuid.test(job.payload.host) ? job.payload.host : null;
-      const ownerId = typeof job.payload.owner === "string" && uuid.test(job.payload.owner) ? job.payload.owner : null;
+      const hostId = typeof job.payload.host === "string" && isUuid(job.payload.host) ? job.payload.host : null;
+      const ownerId = typeof job.payload.owner === "string" && isUuid(job.payload.owner) ? job.payload.owner : null;
       // The rep Routing gave the lead: the email offers their times alone (src/lib/forms/schedule.ts claritiaPlan).
       const only = job.payload.only === true && ownerId ? ownerId : null;
-      if (!uuid.test(submission) || !uuid.test(typeId)) throw new JobError("meeting_book_later needs a submission and a type", { retry: false });
+      if (!isUuid(submission) || !isUuid(typeId)) throw new JobError("meeting_book_later needs a submission and a type", { retry: false });
       const info = await call<LaterInfo | null>(rpc, "meeting_book_later_info", { p_submission: submission, p_type: typeId });
       // The lead booked meanwhile (in the form, or from another link): nothing to do.
       if (!info || info.booked || info.submission.spam) return;
@@ -753,7 +753,7 @@ export const calendarReconnect =
   (job, signal) =>
     inJob(rpc, base, signal, async (o) => {
       const account = String(job.payload.account ?? "");
-      if (!/^[0-9a-f-]{36}$/.test(account)) throw new JobError("calendar_reconnect needs an account", { retry: false });
+      if (!isUuid(account)) throw new JobError("calendar_reconnect needs an account", { retry: false });
       const info = await call<ReconnectInfo | null>(rpc, "calendar_reconnect_info", { p_account: account });
       if (!info || info.account.status !== "reconnect" || !info.person) return;
       const a = info.account;
@@ -788,9 +788,8 @@ type NoteInfo = {
 export const formNotBooked =
   (rpc: Rpc, o: { fetcher?: typeof fetch } = {}): Handler =>
   async (job) => {
-    const uuid = /^[0-9a-f-]{36}$/;
     const p = job.payload;
-    const id = (k: string) => (typeof p[k] === "string" && uuid.test(p[k] as string) ? (p[k] as string) : null);
+    const id = (k: string) => (typeof p[k] === "string" && isUuid(p[k] as string) ? (p[k] as string) : null);
     if (!id("submission") || !id("destination")) throw new JobError("form_not_booked needs a submission and a destination", { retry: false });
     const n = await call<NoteInfo | null>(rpc, "form_not_booked_note", { p_submission: id("submission"), p_destination: id("destination"), p_type: id("type"), p_host: id("host") });
     // Gone, paused, or the lead booked since: nothing to say.

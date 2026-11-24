@@ -2,17 +2,17 @@ import { cleanName, sniffFile } from "@/lib/forms/files";
 import { allowed, clientIp, cors, json, loadPublic } from "@/lib/forms/server";
 import { allFields } from "@/lib/forms/schema";
 import { serviceClient } from "@/lib/serviceClient";
+import { isUuid } from "@/lib/uuid";
 
 // A visitor's file for a form's upload field (docs/forms-plan.md 3.1): POST multipart { field, file } → { token }.
 // The file is checked by its bytes against the field's kinds and size, stored in the private form-uploads bucket, and
 // the token is the answer the form sends. Uploads no fill links to are removed after a day (form_uploads_stale).
 
-const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const MB = 1024 * 1024;
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  if (!ID.test(id)) return json({ error: "Form not found." }, 404);
+  if (!isUuid(id)) return json({ error: "Form not found." }, 404);
   const ip = clientIp(request);
   if (!allowed(`upload:${id}:${ip}`, 10) || !allowed(`upload:${id}`, 300)) return json({ error: "Too many uploads. Wait a minute." }, 429, { "Retry-After": "60" });
   if (Number(request.headers.get("content-length") ?? 0) > 20 * MB + 100_000) return json({ error: "That file is too big." }, 413);

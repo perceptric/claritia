@@ -5,9 +5,9 @@
 import { OLD_WHOLE_TEAM, WHOLE_TEAM } from "../words.ts";
 import { BASE_FIELDS, needsValue, opsFor, type FieldDef } from "./conditions.ts";
 import { defaultSla, emptyBody, METHODS, OPS, type Backup, type Cond, type Member, type OwnerKind, type Queue, type Rule, type RouterBody, type Scope, type Segment, type Sla, type Territory, type WhenOut } from "./types.ts";
+import { isUuid } from "../uuid.ts";
 
 const ID = /^[a-z0-9_-]{1,40}$/i;
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const s = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
 const b = (v: unknown, d: boolean) => (typeof v === "boolean" ? v : d);
 const obj = (v: unknown): Record<string, unknown> => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
@@ -40,7 +40,7 @@ function cleanQueue(raw: unknown): Queue | null {
   for (const m of arr(r.members)) {
     const x = obj(m);
     const user = s(x.user, 36);
-    if (!UUID.test(user) || seen.has(user)) continue;
+    if (!isUuid(user) || seen.has(user)) continue;
     seen.add(user);
     const w = typeof x.weight === "number" ? Math.round(x.weight) : 1;
     members.push({ user, weight: Math.min(10, Math.max(1, w)) });
@@ -80,10 +80,10 @@ export function cleanSla(raw: unknown): Sla {
   const nudge = n !== null && n >= 1 && n < minutes ? n : null;
   const next = r.next === "manager" || r.next === "nudge" ? r.next : "route";
   const manager = s(r.manager, 36);
-  return { on: b(r.on, false), minutes, nudge, next, manager: UUID.test(manager) ? manager : null };
+  return { on: b(r.on, false), minutes, nudge, next, manager: isUuid(manager) ? manager : null };
 }
 
-const uuids = (v: unknown, max: number) => [...new Set(arr(v).filter((x): x is string => typeof x === "string" && UUID.test(x)))].slice(0, max);
+const uuids = (v: unknown, max: number) => [...new Set(arr(v).filter((x): x is string => typeof x === "string" && isUuid(x)))].slice(0, max);
 
 function cleanScope(raw: unknown): Scope {
   const r = obj(raw);
@@ -93,7 +93,7 @@ function cleanScope(raw: unknown): Scope {
 function cleanBackup(raw: unknown): Backup {
   const r = obj(raw);
   const id = s(r.id, 40);
-  if (r.kind === "user" && UUID.test(id)) return { kind: "user", id };
+  if (r.kind === "user" && isUuid(id)) return { kind: "user", id };
   if (r.kind === "queue" && ID.test(id)) return { kind: "queue", id };
   if (r.kind === "default") return { kind: "default" };
   return { kind: "review" };
@@ -128,16 +128,16 @@ export function cleanBody(raw: unknown): RouterBody {
       queue: s(o.queue, 40),
       ...(o.on === false ? { on: false } : {}),
       ...(o.then === "owner" || o.then === "hold" || (o.then === "user" && v2) ? { then: o.then } : {}),
-      ...(o.then === "user" && v2 && UUID.test(s(o.user, 36)) ? { user: s(o.user, 36) } : {}),
-      ...(o.then !== "hold" && UUID.test(s(o.meet, 36)) ? { meet: s(o.meet, 36) } : {}),
+      ...(o.then === "user" && v2 && isUuid(s(o.user, 36)) ? { user: s(o.user, 36) } : {}),
+      ...(o.then !== "hold" && isUuid(s(o.meet, 36)) ? { meet: s(o.meet, 36) } : {}),
       ...(o.book === "all" && (!o.then || o.then === "queue") ? { book: "all" as const } : {}),
     });
   }
   const fb = obj(r.fallback);
   const fbId = s(fb.id, 40);
-  const fbMeet = UUID.test(s(fb.meet, 36)) ? { meet: s(fb.meet, 36) } : {};
+  const fbMeet = isUuid(s(fb.meet, 36)) ? { meet: s(fb.meet, 36) } : {};
   const fallback =
-    fb.kind === "user" && UUID.test(fbId)
+    fb.kind === "user" && isUuid(fbId)
       ? ({ kind: "user", id: fbId, ...fbMeet } as const)
       : fb.kind === "queue" && (qids.has(fbId) || (v2 && ID.test(fbId)))
         ? ({ kind: "queue", id: fbId, ...fbMeet } as const)
@@ -178,7 +178,7 @@ export function cleanBody(raw: unknown): RouterBody {
         }
       : {}),
     ...(r.backup !== undefined || v2 ? { backup: cleanBackup(r.backup) } : {}),
-    ...(r.review !== undefined || v2 ? { review: { owner: UUID.test(s(obj(r.review).owner, 36)) ? s(obj(r.review).owner, 36) : null } } : {}),
+    ...(r.review !== undefined || v2 ? { review: { owner: isUuid(s(obj(r.review).owner, 36)) ? s(obj(r.review).owner, 36) : null } } : {}),
   };
 }
 

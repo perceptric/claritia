@@ -2,6 +2,7 @@ import { after } from "next/server";
 import { allowed, clientIp, cors, json } from "@/lib/forms/server";
 import { isBotUa } from "@/lib/reports/bots";
 import { serviceClient } from "@/lib/serviceClient";
+import { isUuid } from "@/lib/uuid";
 
 // Form views and starts (docs/enrich-workflows-reports.md 3.4). <claritia-form> sends one beacon when the form has been
 // half on screen for a second and one at the first answer. Bots are dropped by user agent, each address is held to
@@ -10,13 +11,12 @@ import { serviceClient } from "@/lib/serviceClient";
 // and the time in each, sent when the visitor leaves or sends the form. A later one in the same visit replaces it.
 // The answer goes at once; the write follows it (after()), so the visitor's page never waits on the database.
 
-const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const VID = /^[A-Za-z0-9_-]{8,64}$/;
 const done = () => new Response(null, { status: 204, headers: cors });
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  if (!ID.test(id)) return json({}, 404);
+  if (!isUuid(id)) return json({}, 404);
   if (isBotUa(request.headers.get("user-agent"))) return done();
   if (!allowed(`seen:ip:${clientIp(request)}`, 60)) return done();
   const text = await request.text().catch(() => "");

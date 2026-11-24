@@ -7,6 +7,7 @@ import { templateByKey } from "../../workflows/templates.ts";
 import { kitBooks, kitMeeting, kitWorkflows } from "./kit.ts";
 import { withPages, type PagesMode } from "./pages.ts";
 import type { FormTemplate } from "./types.ts";
+import { isUuid } from "../../uuid.ts";
 
 // Use template on the server (docs/form-templates.md, docs/forms-chat-plan.md Part 8): the template as a Form Studio
 // page in the look picked: a style (the one picked on the website, or the template's own), a workspace brand (its
@@ -51,7 +52,7 @@ export async function makeFromTemplate(o: { sb: SupabaseClient; db: SupabaseClie
 
 /** A brand id from the request, when it's this workspace's. */
 export async function ownKit(db: SupabaseClient, ws: string, raw: unknown): Promise<string | null | "missing"> {
-  if (typeof raw !== "string" || !/^[0-9a-f-]{36}$/.test(raw)) return null;
+  if (typeof raw !== "string" || !isUuid(raw)) return null;
   const { data } = await db.from("brand_kits").select("id").eq("id", raw).eq("workspace_id", ws).maybeSingle();
   return data ? raw : "missing";
 }

@@ -2,12 +2,12 @@ import "server-only";
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
 import { roles } from "./roleCache.ts";
 import { askAuth, verifyJwt, type Claims, type VerifyEnv } from "./verifyJwt.ts";
+import { isUuid } from "./uuid.ts";
 
 export const supabaseUrl = () => process.env.SUPABASE_URL?.trim().replace(/\/+$/, "") ?? "";
 
 export type Auth = { sb: SupabaseClient; user: User; token: string };
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const env = (): VerifyEnv | null => {
   const url = supabaseUrl();
@@ -79,7 +79,7 @@ export async function requireUser(request: Request, o: { fresh?: boolean } = {})
  * has it (the person is already verified), else through the person's own client.
  */
 export async function roleIn(auth: { user: { id: string }; sb: SupabaseClient }, workspaceId: unknown, o: { fresh?: boolean } = {}): Promise<"owner" | "member" | null> {
-  if (typeof workspaceId !== "string" || !UUID.test(workspaceId)) return null;
+  if (typeof workspaceId !== "string" || !isUuid(workspaceId)) return null;
   const read = async () => {
     const { serviceClient } = await import("./serviceClient.ts");
     const db = serviceClient() ?? auth.sb;

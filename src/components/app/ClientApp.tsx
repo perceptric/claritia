@@ -22,6 +22,7 @@ import { setupStep, type SetupStep } from "@/lib/setup";
 import { isMissingFn } from "@/lib/forms/newer";
 import { useRoutingCommands } from "./routing/commands";
 import { useAppCounts } from "./appCounts";
+import { isUuid } from "@/lib/uuid";
 
 // Each section loads its own code when first opened (or when its sidebar item is hovered), so the app starts small.
 const LOADERS = {
@@ -63,7 +64,6 @@ const readLoc = (): Loc => {
   const [, first = "", id = "", rest = ""] = window.location.pathname.split("/");
   const r = resolveRoute(first, rest ? `${id}/${rest}` : id);
   const [a = ""] = r.id.split("/");
-  const uuid = (x: string) => /^[0-9a-f-]{36}$/.test(x);
   // Settings pages: /settings/<page>.
   if (r.route === "settings") return { route: r.route, id: /^[a-z_]{2,30}$/.test(a) ? a : "" };
   if ((r.route === "forms" || r.route === "workflows") && a === "new") return { route: r.route, id: a };
@@ -74,12 +74,12 @@ const readLoc = (): Loc => {
     return { route: r.route, id: /^[a-z0-9-]{3,80}$/.test(t) ? `templates/${t}` : "templates" };
   }
   // Meetings: /meetings/<id>.
-  if (r.route === "meetings") return { route: r.route, id: uuid(a) ? a : "" };
+  if (r.route === "meetings") return { route: r.route, id: isUuid(a) ? a : "" };
   // Pages inside a route (src/lib/nav.ts).
   if (r.route === "routing") return { route: r.route, id: routingPage(r.id).id };
   if (r.route === "scheduling") return { route: r.route, id: schedulingPage(r.id).id };
   if (r.route === "emails") return { route: r.route, id: emailsPage(r.id).id };
-  return { route: r.route, id: WITH_ID.has(r.route) && uuid(a) ? a : "" };
+  return { route: r.route, id: WITH_ID.has(r.route) && isUuid(a) ? a : "" };
 };
 
 // The workspace picked on this computer, for people in more than one.
@@ -87,7 +87,7 @@ const PICK_KEY = "claritia:workspace";
 const readPicked = (): string | null => {
   try {
     const v = localStorage.getItem(PICK_KEY);
-    return v && /^[0-9a-f-]{36}$/.test(v) ? v : null;
+    return v && isUuid(v) ? v : null;
   } catch {
     return null;
   }

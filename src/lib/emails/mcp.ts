@@ -9,6 +9,7 @@ import { APP_URL } from "../site.ts";
 import { campaignGuard, sendAtOf } from "./guard.ts";
 import { warmDays } from "./warm.ts";
 import { buildForSend, emailChatParts, emailChatTurn } from "./server.ts";
+import { isUuid } from "../uuid.ts";
 
 // Emails on the MCP server (docs/email-studio-plan.md Part 9), so ChatGPT, Claude and other agents can write a
 // campaign with Tia, test it, schedule it and read what it led to. The same rules as the app: drafts change, sent
@@ -29,7 +30,7 @@ async function keyPerson(ctx: ApiCaller): Promise<{ user: string; role: string |
 async function findEmail(ctx: ApiCaller, ref: unknown): Promise<Draft> {
   if (typeof ref !== "string" || !ref.trim()) throw new ToolError("Pass email: the email's name or id.");
   const q = ctx.sb.from("emails").select("id, name, subject, status, doc").eq("workspace_id", ctx.workspaceId).eq("kind", "broadcast").neq("status", "archived");
-  const { data, error } = /^[0-9a-f-]{36}$/.test(ref.trim()) ? await q.eq("id", ref.trim()) : await q.ilike("name", ref.trim().replace(/[%_\\]/g, "\\$&"));
+  const { data, error } = isUuid(ref.trim()) ? await q.eq("id", ref.trim()) : await q.ilike("name", ref.trim().replace(/[%_\\]/g, "\\$&"));
   if (error) throw new Error(error.message);
   const rows = (data ?? []) as Draft[];
   if (!rows.length) throw new ToolError(`Email ${ref} not found. Call list_emails to see them.`);
@@ -156,7 +157,7 @@ export const emailTools: Tool<ApiCaller>[] = [
       const named = async (table: "lists" | "topics", ref: unknown) => {
         if (typeof ref !== "string" || !ref.trim()) return null;
         const q = ctx.sb.from(table).select("id, name").eq("workspace_id", ctx.workspaceId);
-        const { data } = /^[0-9a-f-]{36}$/.test(ref.trim()) ? await q.eq("id", ref.trim()) : await q.ilike("name", ref.trim().replace(/[%_\\]/g, "\\$&"));
+        const { data } = isUuid(ref.trim()) ? await q.eq("id", ref.trim()) : await q.ilike("name", ref.trim().replace(/[%_\\]/g, "\\$&"));
         const row = ((data ?? []) as { id: string }[])[0];
         if (!row) throw new ToolError(`${table === "lists" ? "List" : "Topic"} ${ref} not found. Call list_audiences.`);
         return row.id;

@@ -2,6 +2,7 @@ import { isMember } from "@/lib/contacts/server";
 import { fillPdf, loadFill } from "@/lib/forms/pdfServer";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
+import { isUuid } from "@/lib/uuid";
 
 // A fill's PDF copy for the team (Submissions, docs/form-kinds-plan.md step 3): members of its workspace only.
 
@@ -9,7 +10,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ sid:
   const auth = await requireUser(request);
   if ("denied" in auth) return auth.denied;
   const { sid } = await params;
-  if (!/^[0-9a-f-]{36}$/.test(sid)) return Response.json({ error: "Not found." }, { status: 404 });
+  if (!isUuid(sid)) return Response.json({ error: "Not found." }, { status: 404 });
   const db = serviceClient();
   if (!db) return Response.json({ error: "Not set up." }, { status: 503 });
   const s = await loadFill(db, sid);

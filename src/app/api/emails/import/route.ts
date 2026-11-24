@@ -1,6 +1,7 @@
 import { cleanPeople, parsePeople, type Given, type Pasted } from "@/lib/emails/people";
 import { requireUser, roleIn } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
+import { isUuid } from "@/lib/uuid";
 
 // Add people to a list (docs/email-studio-plan.md Parts 4 and 10, and step 2 of the Brew comparison): POST
 // { workspaceId, listId, consent, text } with people pasted one a line, or { ..., rows, fileName } with people from a
@@ -12,7 +13,6 @@ import { serviceClient } from "@/lib/serviceClient";
 // once; anyone else's import waits for an owner (contact_imports, 155), who answers with
 // POST { workspaceId, importId, action: "add" | "discard" }.
 
-const UUID = /^[0-9a-f-]{36}$/;
 const MAX = 5000;
 const BATCH = 1000;
 const bad = (error: string, status = 400) => Response.json({ error }, { status });
@@ -25,7 +25,7 @@ async function addPeople(db: Db, ws: string, list: string | null, rows: Pasted[]
     const part = rows.slice(i, i + BATCH);
     const { data, error } = await db.rpc("contacts_upsert", { p_ws: ws, p_source: "import", p_rows: part.map((r) => (consent ? { ...r, basis: "opt_in" } : r)) });
     if (error) return { error: added ? `Added ${added.toLocaleString("en-US")}, then: ${error.message}` : error.message };
-    const ids = ((data as { ids?: string[] } | null)?.ids ?? []).filter((x) => UUID.test(x));
+    const ids = ((data as { ids?: string[] } | null)?.ids ?? []).filter((x) => isUuid(x));
     if (ids.length && list) {
       const { error: e2 } = await db.from("list_members").upsert(ids.map((contact_id) => ({ list_id: list, contact_id, workspace_id: ws })), { onConflict: "list_id,contact_id", ignoreDuplicates: true });
       if (e2) return { error: e2.message };
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
   const auth = await requireUser(request);
   if ("denied" in auth) return auth.denied;
   const b = (await request.json().catch(() => ({}))) as { workspaceId?: unknown; listId?: unknown; text?: unknown; rows?: unknown; fileName?: unknown; consent?: unknown; importId?: unknown; action?: unknown };
-  const ws = typeof b.workspaceId === "string" && UUID.test(b.workspaceId) ? b.workspaceId : null;
+  const ws = typeof b.workspaceId === "string" && isUuid(b.workspaceId) ? b.workspaceId : null;
   if (!ws) return bad("Workspace not found.", 404);
   const role = await roleIn(auth, ws);
   if (!role) return bad("Workspace not found.", 404);
@@ -55,7 +55,7 @@ export async function POST(request: Request) {
   // An owner answers an import that waits.
   if (typeof b.importId === "string") {
     if (role !== "owner") return bad("Only an owner can add these people.", 403);
-    if (!UUID.test(b.importId) || (b.action !== "add" && b.action !== "discard")) return bad("Import not found.", 404);
+    if (!isUuid(b.importId) || (b.action !== "add" && b.action !== "discard")) return bad("Import not found.", 404);
     const held = await db.from("contact_imports").select("id, list_id, people, file_name").eq("id", b.importId).eq("workspace_id", ws).maybeSingle();
     if (held.error) return bad(held.error.message, 500);
     if (!held.data) return bad("Import not found.", 404);
@@ -73,7 +73,7 @@ export async function POST(request: Request) {
     return Response.json({ added });
   }
 
-  const list = typeof b.listId === "string" && UUID.test(b.listId) ? b.listId : null;
+  const list = typeof b.listId === "string" && isUuid(b.listId) ? b.listId : null;
   // Audiences' Add person (docs/email-unify-plan.md, E2): one person, on a list or on no list at all.
   const one = Array.isArray(b.rows) && b.rows.length === 1;
   if (!list && !one) return bad("List not found.", 404);

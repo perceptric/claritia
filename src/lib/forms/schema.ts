@@ -11,6 +11,7 @@ import { linkProblem, SCHEDULERS, WORK_EMAIL, type MatchRule, type Schedule } fr
 import { cleanCondition } from "../router/check.ts";
 import { checkPage, type Page } from "../studio/page.ts";
 import { cleanKeep, cleanNotify, cleanReply, cleanSites, type Keep, type Notify, type Reply } from "./notify.ts";
+import { isUuid } from "../uuid.ts";
 
 export type FieldType =
   | "text"
@@ -820,7 +821,7 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
       if (crm) {
         const source = str(crm.source, 36) ?? "";
         const property = str(crm.property, 100) ?? "";
-        if (!/^[0-9a-f-]{36}$/.test(source) || !CRM_PROP.test(property)) errors.push(`${name} links to a CRM field that can't be read.`);
+        if (!isUuid(source) || !CRM_PROP.test(property)) errors.push(`${name} links to a CRM field that can't be read.`);
         else {
           f.crm = { source, property, ...(str(crm.label, 120) ? { label: str(crm.label, 120) } : {}), ...(str(crm.type, 40) ? { type: str(crm.type, 40) } : {}) };
           const map = cleanValueMap(crm.map);
@@ -1106,7 +1107,7 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
   const spam = (r.spam && typeof r.spam === "object" ? r.spam : {}) as Record<string, unknown>;
   const after = (r.after && typeof r.after === "object" ? r.after : {}) as { end?: Record<string, unknown> };
   const consentMode = ["off", "by_region", "always", "notice"].includes(consent.mode as string) ? (consent.mode as Form["consent"]["mode"]) : "by_region";
-  const topicId = typeof consent.topicId === "string" && /^[0-9a-f-]{36}$/.test(consent.topicId) && consentMode !== "off" && consentMode !== "notice" ? consent.topicId : undefined;
+  const topicId = typeof consent.topicId === "string" && isUuid(consent.topicId) && consentMode !== "off" && consentMode !== "notice" ? consent.topicId : undefined;
   const consentLabel = str(consent.label, LIMITS.text) || DEFAULT_CONSENT;
   let end: After["end"];
   if (after.end?.kind === "redirect") {
@@ -1122,7 +1123,7 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
   if (sch && typeof sch === "object") {
     const tool = sch.tool === "claritia" ? "claritia" : SCHEDULERS.find((x) => x.value === sch.tool)?.value;
     // Claritia calendar books a meeting type and takes no link; an outside scheduler needs its link (or owners' links).
-    const typeId = tool === "claritia" && typeof sch.meetingTypeId === "string" && /^[0-9a-f-]{36}$/.test(sch.meetingTypeId) ? sch.meetingTypeId : undefined;
+    const typeId = tool === "claritia" && typeof sch.meetingTypeId === "string" && isUuid(sch.meetingTypeId) ? sch.meetingTypeId : undefined;
     const url = tool === "claritia" ? "" : (str(sch.url, 500) ?? "");
     const problem = tool === "claritia" ? (typeId ? null : "Pick a meeting type.") : tool ? linkProblem(tool, url) : "Pick a scheduler.";
     if (problem && !(tool !== "claritia" && sch.perOwner === true && !url)) errors.push(`Booking: ${problem}`);
@@ -1165,7 +1166,7 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
         schedule.routes = sch.routes
           .slice(0, 30)
           .map((x) => (x && typeof x === "object" ? (x as Record<string, unknown>) : {}))
-          .filter((x) => typeof x.id === "string" && /^[\w-]{1,24}$/.test(x.id) && typeof x.meet === "string" && /^[0-9a-f-]{36}$/.test(x.meet))
+          .filter((x) => typeof x.id === "string" && /^[\w-]{1,24}$/.test(x.id) && typeof x.meet === "string" && isUuid(x.meet))
           .map((x) => {
             const w = x.with && typeof x.with === "object" ? (x.with as Record<string, unknown>) : null;
             const withOk = w && (w.kind === "user" || w.kind === "team") && typeof w.id === "string" && /^[\w.:-]{1,80}$/.test(w.id);
@@ -1319,7 +1320,7 @@ function cleanResults(raw: unknown, byId: Map<string, Field>, errors: string[]):
     if (!title) errors.push("Each outcome needs a title.");
     const text = str(o.text, LIMITS.text);
     // A meeting type's id: the outcome books that meeting; who hosts still comes from the meeting's own rules.
-    const meeting = typeof o.meeting === "string" && /^[0-9a-f-]{36}$/.test(o.meeting) ? o.meeting : undefined;
+    const meeting = typeof o.meeting === "string" && isUuid(o.meeting) ? o.meeting : undefined;
     if (o.meeting !== undefined && o.meeting !== null && o.meeting !== "" && !meeting) errors.push(`${title || "An outcome"} books a meeting that's gone.`);
     const w = (o.when && typeof o.when === "object" ? o.when : null) as { logic?: unknown; conds?: unknown } | null;
     let when: Outcome["when"];

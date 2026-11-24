@@ -8,6 +8,7 @@ import { readEmailStyles, readSystem, allVariables, varKinds, type DesignSystem,
 import type { Tokens } from "../../forms/brand.ts";
 import { cleanHtml, safeHref } from "./html.ts";
 import { BLOCK_TYPES, type BlockType } from "./parts.ts";
+import { isUuid } from "../../uuid.ts";
 
 export const EMAIL_LIMITS = { sections: 40, columns: 4, blocks: 200, text: 20_000, html: 50_000 };
 
@@ -70,7 +71,6 @@ export type EmailDoc = {
 // Reading --------------------------------------------------------------------------------------------------------------
 
 const ID = /^[a-z0-9]{1,24}$/;
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const obj = (v: unknown) => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
 const str = (v: unknown, max: number) => (typeof v === "string" ? v.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "").slice(0, max) : "");
 const line = (v: unknown, max: number) => str(v, max).replace(/[\r\n]+/g, " ").trim();
@@ -288,7 +288,7 @@ export function readEmailDoc(raw: unknown, opts: { system?: DesignSystem; tokens
     const clean = readEmailStyles(ps, vars);
     if (Object.keys(clean).length) styles[el] = clean;
   }
-  const kitId = typeof r.kitId === "string" && UUID.test(r.kitId) ? r.kitId : undefined;
+  const kitId = typeof r.kitId === "string" && isUuid(r.kitId) ? r.kitId : undefined;
   return {
     v: 1,
     ...(kitId ? { kitId } : {}),

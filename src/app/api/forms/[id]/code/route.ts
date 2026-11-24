@@ -2,16 +2,16 @@ import { allFields } from "@/lib/forms/schema";
 import { checkSms, codeAsked, e164, emailCode, emailCodeOk, proofFor, sendEmailCode, startSms } from "@/lib/forms/codes";
 import { allowed, clientIp, cors, json, loadPublic } from "@/lib/forms/server";
 import { serviceClient } from "@/lib/serviceClient";
+import { isUuid } from "@/lib/uuid";
 
 // Email and phone codes (docs/fields-plan.md Part 3, src/lib/forms/codes.ts). POST { field, to } sends a code to the
 // email or phone; POST { field, to, code } checks a typed one and answers { proof } for the send to carry.
 
-const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  if (!ID.test(id)) return json({ error: "Form not found." }, 404);
+  if (!isUuid(id)) return json({ error: "Form not found." }, 404);
   const ip = clientIp(request);
   let b: { field?: unknown; to?: unknown; code?: unknown };
   try {

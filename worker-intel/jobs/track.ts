@@ -9,8 +9,8 @@ import { adsDeveloperToken } from "../../src/lib/sources/ads.ts";
 import { deps, type RunOpts } from "../../src/lib/sources/run.ts";
 import { RateLimited } from "../../src/lib/sources/types.ts";
 import { adsConversion, metaEvent, sendAds, sendMeta, type SendOut, type TrackTake } from "../../src/lib/track/server.ts";
+import { isUuid } from "../../src/lib/uuid.ts";
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export type TrackDeps = Pick<RunOpts, "fetcher" | "sleep" | "refresh"> & { clean: RunOpts["clean"]; developerToken?: () => string };
 
@@ -53,7 +53,7 @@ export const trackSend =
   async (job, signal) => {
     const id = String(job.payload.submission ?? "");
     const event = job.payload.event === "booked" ? "booked" : "submit";
-    if (!UUID.test(id)) throw new JobError("track_send needs a submission", { retry: false });
+    if (!isUuid(id)) throw new JobError("track_send needs a submission", { retry: false });
     try {
       await trackOnce(rpc, d, id, event, signal);
     } catch (e) {

@@ -7,6 +7,7 @@ import { cleanBody, problems } from "@/lib/workflows/check";
 import { walk } from "@/lib/workflows/tree";
 import type { Step } from "@/lib/workflows/types";
 import { mergeCopies, withFooter, type EmailCopy } from "@/lib/workflows/stepEmails";
+import { isUuid } from "@/lib/uuid";
 
 // Make live (docs/enrich-workflows-reports.md 2.4): POST { workflowId, note } checks the saved draft, renders each
 // email, and publishes a new version. An email built with blocks is compiled here with its brand kit's published
@@ -21,7 +22,7 @@ export async function POST(request: Request) {
   const auth = await requireUser(request);
   if ("denied" in auth) return auth.denied;
   const b = (await request.json().catch(() => ({}))) as { workflowId?: unknown; note?: unknown };
-  const id = typeof b.workflowId === "string" && /^[0-9a-f-]{36}$/.test(b.workflowId) ? b.workflowId : "";
+  const id = typeof b.workflowId === "string" && isUuid(b.workflowId) ? b.workflowId : "";
   // Read through the person's own client: no row means not their workspace.
   const { data: w } = await auth.sb.from("workflows").select("id, workspace_id, draft").eq("id", id).maybeSingle();
   if (!w) return bad("Workflow not found.", 404);

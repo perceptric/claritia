@@ -8,6 +8,7 @@ import type { Rpc } from "@/lib/jobs";
 import { seal } from "@/lib/seal";
 import { requireUser, roleIn } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
+import { isUuid } from "@/lib/uuid";
 
 // The Routing screens' server side (docs/router-ux.md 7.3): POST { workspaceId, action, ... }. The caller signs in and
 // names a workspace they're in; the work runs with the service client after the role checks in
@@ -17,7 +18,7 @@ export async function POST(request: Request) {
   const auth = await requireUser(request);
   if ("denied" in auth) return auth.denied;
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
-  const ws = typeof body.workspaceId === "string" && /^[0-9a-f-]{36}$/.test(body.workspaceId) ? body.workspaceId : "";
+  const ws = typeof body.workspaceId === "string" && isUuid(body.workspaceId) ? body.workspaceId : "";
   const role = await roleIn(auth, ws);
   if (!role) return Response.json({ error: "Workspace not found." }, { status: 404 });
   const db = serviceClient();
@@ -177,7 +178,7 @@ export async function POST(request: Request) {
 function tryOwners(raw: unknown): { company?: string | null; contact?: string | null } | undefined {
   if (!raw || typeof raw !== "object") return undefined;
   const r = raw as Record<string, unknown>;
-  const one = (v: unknown) => (v === null ? null : typeof v === "string" && /^[0-9a-f-]{36}$/.test(v) ? v : undefined);
+  const one = (v: unknown) => (v === null ? null : typeof v === "string" && isUuid(v) ? v : undefined);
   const out: { company?: string | null; contact?: string | null } = {};
   if (one(r.company) !== undefined) out.company = one(r.company);
   if (one(r.contact) !== undefined) out.contact = one(r.contact);

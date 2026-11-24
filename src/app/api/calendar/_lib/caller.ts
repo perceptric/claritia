@@ -2,6 +2,7 @@ import type { Rpc } from "@/lib/jobs";
 import { CalendarRefused, type Caller } from "@/lib/meetings/providers/connect";
 import { requireUser, roleIn } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
+import { isUuid } from "@/lib/uuid";
 
 // The signed-in routes under /api/calendar: the caller signs in and names a workspace they're in; the work runs with
 // the service client after the checks in src/lib/meetings/providers/connect.ts. Refusals go back with their status.
@@ -10,7 +11,7 @@ export async function asCaller(request: Request, fn: (rpc: Rpc, c: Caller, body:
   const auth = await requireUser(request);
   if ("denied" in auth) return auth.denied;
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
-  const ws = typeof body.workspaceId === "string" && /^[0-9a-f-]{36}$/.test(body.workspaceId) ? body.workspaceId : "";
+  const ws = typeof body.workspaceId === "string" && isUuid(body.workspaceId) ? body.workspaceId : "";
   const role = await roleIn(auth, ws);
   if (!role) return Response.json({ error: "Workspace not found." }, { status: 404 });
   const db = serviceClient();

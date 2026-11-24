@@ -6,6 +6,7 @@ import { claudeChat } from "@/lib/forms/claude";
 import { emailChatParts } from "@/lib/emails/server";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
+import { isUuid } from "@/lib/uuid";
 
 // Many new emails from one prompt (docs/email-canvas-b5.md section 3). POST { workspaceId, step: "plan", message,
 // group, history? } plans a series (names, subjects, one line each, at most 10) or answers with a question;
@@ -13,7 +14,6 @@ import { serviceClient } from "@/lib/serviceClient";
 // chat and sends it back, for the browser to save as a draft in the group. Both go through the step cache.
 
 const bad = (error: string, status = 400) => Response.json({ error }, { status });
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export async function POST(request: Request) {
   const auth = await requireUser(request);
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
       const items: PlanItem[] = readPlan({ emails: b.items });
       const index = typeof b.index === "number" && Number.isInteger(b.index) ? b.index : -1;
       if (!items[index]) return bad("Pick an email of the plan.");
-      const kitId = typeof b.kitId === "string" && UUID.test(b.kitId) ? b.kitId : undefined;
+      const kitId = typeof b.kitId === "string" && isUuid(b.kitId) ? b.kitId : undefined;
       const doc = seriesStartDoc(index, kitId);
       const parts = await emailChatParts(db, ws, doc);
       const ctx: EmailChatCtx = { doc, ...parts, subject: items[index]!.subject, history: [], confirmed: true };

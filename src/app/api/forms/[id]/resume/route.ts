@@ -2,18 +2,18 @@ import { randomBytes } from "node:crypto";
 import { allowed, clientIp, cors, json, loadPublic } from "@/lib/forms/server";
 import { enqueueJob } from "@/lib/jobs";
 import { serviceClient } from "@/lib/serviceClient";
+import { isUuid } from "@/lib/uuid";
 
 // "Save and finish later" (docs/form-kinds-plan.md step 3). POST { email, answers, step, page } saves the fill and
 // emails a link (the form_resume job); GET ?t=<token> gives the answers and step back to the form that opens it. Only
 // a live form that has "Save and finish later" on takes saves. The answers are checked again when the form is sent.
 
-const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_BODY = 64 * 1024;
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  if (!ID.test(id)) return json({ error: "Form not found." }, 404);
+  if (!isUuid(id)) return json({ error: "Form not found." }, 404);
   const ip = clientIp(request);
   if (!allowed(`resume:${id}:${ip}`, 5) || !allowed(`resume:${id}`, 100)) return json({ error: "Too many tries. Wait a minute." }, 429, { "Retry-After": "60" });
   const text = await request.text();
@@ -54,7 +54,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const t = new URL(request.url).searchParams.get("t") ?? "";
-  if (!ID.test(id) || !/^[A-Za-z0-9_-]{24,64}$/.test(t)) return json({ error: "Not found." }, 404);
+  if (!isUuid(id) || !/^[A-Za-z0-9_-]{24,64}$/.test(t)) return json({ error: "Not found." }, 404);
   if (!allowed(`resume-get:${clientIp(request)}`, 30)) return json({ error: "Too many tries." }, 429, { "Retry-After": "60" });
   const db = serviceClient();
   if (!db) return json({ error: "Not set up." }, 503);

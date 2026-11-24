@@ -14,11 +14,11 @@ import type { LiveRouter } from "../router/server.ts";
 import { DEFAULT_SETTINGS, type MeetingType, type Slot } from "../meetings/types.ts";
 import type { AvailabilityFailure } from "../routing/states.ts";
 import type { Booked, Booking } from "./calendar.ts";
+import { isUuid } from "../uuid.ts";
 
 export type { Booked, Booking };
 
 export const BOOK_TTL = 2 * 3_600_000;
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /**
  * What a booking token stands for. `owner` is the contact's owner when the times were shown, or null. `only`: the
@@ -43,7 +43,7 @@ export function readBooking(token: unknown, secret: string | undefined, now = Da
   const [s, t, o, e, sig] = p as [string, string, string, string, string];
   const only = o.startsWith("~");
   const owner = only ? o.slice(1) : o;
-  if (!UUID.test(s) || !UUID.test(t) || (o !== "-" && !UUID.test(owner)) || !/^[0-9a-z]{1,10}$/.test(e)) return null;
+  if (!isUuid(s) || !isUuid(t) || (o !== "-" && !isUuid(owner)) || !/^[0-9a-z]{1,10}$/.test(e)) return null;
   const want = Buffer.from(mac(`${s}.${t}.${o}.${e}`, secret));
   const got = Buffer.from(sig);
   if (!same(want, got)) return null;

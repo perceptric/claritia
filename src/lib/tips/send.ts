@@ -19,11 +19,11 @@ import { planById, planFor } from "../plans.ts";
 import { awayMail, calendarMail, followupMail, formMail, helpMail, limitMail, responsesMail, shareMail, teamMail, welcomeMail, type Foot, type Mail, type Sign } from "./mail.ts";
 import { periodOf, pickStep, sentSteps, TEMPLATE_COUNT, type TipStep } from "./plan.ts";
 import { tipsToken } from "./token.ts";
+import { isUuid } from "../uuid.ts";
 
 const HOUR = 36e5;
 const DAY = 864e5;
 const PER_RUN = 50;
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /** Anything with pg's query: a Pool, a PoolClient, or a fake in tests. */
 export type Db = { query(sql: string, params?: unknown[]): Promise<{ rows: Record<string, unknown>[] }> };
@@ -86,7 +86,7 @@ limit 5000`;
  */
 export async function tipsCover(db: Db, ws: string, env: NodeJS.ProcessEnv = process.env): Promise<boolean> {
   const cfg = tipsConfig(env);
-  if (cfg.off || !UUID.test(ws)) return false;
+  if (cfg.off || !isUuid(ws)) return false;
   try {
     const { rows } = await db.query(whoSql(false), [cfg.start, ws]);
     return rows.length > 0;
@@ -199,13 +199,13 @@ async function builder(db: Db, step: TipStep, who: Who, s: State, base: string, 
       return (f) => formMail({ templates: TEMPLATE_COUNT, url: `${app}/forms/new`, templatesUrl: `${app}/forms/templates` }, f);
     case "share": {
       const form = await latestForm();
-      if (!form || !UUID.test(form.id)) return null;
+      if (!form || !isUuid(form.id)) return null;
       const link = form.slug && s.booking_slug ? `${app}/f/${encodeURIComponent(s.booking_slug)}/${encodeURIComponent(form.slug)}` : `${app}/f/${form.id}`;
       return (f) => shareMail({ form: form.name || "Your form", live: form.status === "live", link, url: `${app}/forms/${form.id}` }, f);
     }
     case "responses": {
       const [rows, form] = await Promise.all([latest(null), latestForm()]);
-      const url = form && UUID.test(form.id) ? `${app}/forms/${form.id}` : `${app}/forms`;
+      const url = form && isUuid(form.id) ? `${app}/forms/${form.id}` : `${app}/forms`;
       return (f) => responsesMail({ responses: s.responses, meetings: s.meetings, live: s.live, latest: rows, url }, f);
     }
     case "calendar":
@@ -269,7 +269,7 @@ export type TipResult = "sent" | "skipped" | "failed" | "unknown";
 /** The next getting-started email for one workspace, if one is due: claimed, built and sent. */
 export async function tipOne(db: Db, who: Who, o: TipsOpts & { cfg: TipsConfig }): Promise<TipResult> {
   const now = o.now?.() ?? new Date();
-  if (!UUID.test(who.id) || !UUID.test(who.user_id) || !validAddress(who.email)) return "skipped";
+  if (!isUuid(who.id) || !isUuid(who.user_id) || !validAddress(who.email)) return "skipped";
   const [{ rows: log }, { rows: st }] = await Promise.all([
     db.query(`select step, period, sent_at from public.tips_log where workspace_id = $1::uuid and user_id = $2::uuid`, [who.id, who.user_id]),
     db.query(STATE_SQL, [who.id, who.user_id]),

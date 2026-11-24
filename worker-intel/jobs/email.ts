@@ -18,6 +18,7 @@ import type { Ses } from "../../src/lib/email/ses.ts";
 import { call, JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
 import { reconnectNote, viaMailbox, type Broken } from "../../src/lib/mailbox/server.ts";
 import { mime } from "../../src/lib/meetings/emails.ts";
+import { isUuid } from "../../src/lib/uuid.ts";
 
 const NOT_SET = "Resend isn't set up on the worker (RESEND_API_KEY).";
 
@@ -196,7 +197,7 @@ export const domainCheck =
   (rpc: Rpc, resend: Pick<Resend, "createDomain" | "getDomain" | "findDomain" | "verifyDomain"> | null, resolver: Resolver = systemResolver, o: { ses?: SesDomains | null; sesNew?: boolean; env?: NodeJS.ProcessEnv } = {}): Handler =>
   async (job) => {
     const id = String(job.payload.domain_id ?? "");
-    if (!/^[0-9a-f-]{36}$/.test(id)) throw new JobError("domain_check needs a domain", { retry: false });
+    if (!isUuid(id)) throw new JobError("domain_check needs a domain", { retry: false });
     const d = await call<DomainRow | null>(rpc, "sending_domain_load", { p_id: id });
     if (!d) return;
     const env = o.env ?? process.env;

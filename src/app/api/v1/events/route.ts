@@ -1,4 +1,4 @@
-import { isUuid } from "@/lib/apiAuth";
+import { isUuid } from "@/lib/uuid";
 import { fillHookBody, isApiEvent, itemOf, sampleItem, type HookBody, type HookFill } from "@/lib/hooks/api";
 import { bad, formsCaller } from "@/lib/hooks/v1";
 

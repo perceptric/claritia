@@ -5,6 +5,7 @@ import { fetchHome, quickFrom } from "@/lib/brand/fetchSite";
 import { hostIsPrivate } from "@/lib/privateNet";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
+import { isUuid } from "@/lib/uuid";
 
 // Read a site's brand into a brand kit: POST { workspaceId, url, kitId?, formId? } (docs/brand-capture.md). The quick
 // read fills the kit within seconds; the deep read and the brand book follow in the background, then the runner's
@@ -29,7 +30,7 @@ export async function POST(request: Request) {
   if (await hostIsPrivate(u.hostname)) return bad("That address is on a private network.");
   const db = serviceClient();
   if (!db) return bad("The server is not set up for this.", 500);
-  const uuid = (v: unknown) => (typeof v === "string" && /^[0-9a-f-]{36}$/.test(v) ? v : null);
+  const uuid = (v: unknown) => (typeof v === "string" && isUuid(v) ? v : null);
   const { data, error } = await db.rpc("brand_scan_start", { p_user: auth.user.id, p_ws: b.workspaceId, p_url: u.href, p_kit: uuid(b.kitId), p_form: uuid(b.formId) });
   if (error) return bad(error.message);
   const kitId = data as string;

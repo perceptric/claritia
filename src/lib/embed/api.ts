@@ -7,13 +7,13 @@
 // A page can call before the script loads: window.Claritia = window.Claritia || { q: [] }; Claritia.q.push(["open",
 // "…"]) runs once it's here.
 import { closeBooking, openBooking } from "../meetings/bookElement.ts";
+import { isUuid } from "../uuid.ts";
 
 export const EVENTS = ["ready", "step", "open", "close", "submitted", "booked"] as const;
 export type EventName = (typeof EVENTS)[number];
 type FormEl = HTMLElement & { open(): void; close(): void; prefill(v: Record<string, unknown>): void };
 type OpenOptions = { prefill?: Record<string, string>; size?: "s" | "m" | "l" };
 
-const FORM_ID = /^[0-9a-f-]{36}$/;
 const OVER = ["popup", "popover", "slider", "side-tab"];
 const forms = (id?: string) => [...document.querySelectorAll<FormEl>(id ? `claritia-form[form-id="${CSS.escape(id)}"]` : "claritia-form")];
 
@@ -21,7 +21,7 @@ export const Claritia = {
   version: 1,
   open(target: string, o: OpenOptions = {}) {
     if (typeof target !== "string") return;
-    if (FORM_ID.test(target)) {
+    if (isUuid(target)) {
       let el = forms(target).find((f) => OVER.some((a) => f.hasAttribute(a)));
       if (!el) {
         // A form in the page has nothing to open over the page: one is made for the call.

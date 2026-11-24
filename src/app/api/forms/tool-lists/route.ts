@@ -2,12 +2,12 @@ import { isMember } from "@/lib/contacts/server";
 import { deps } from "@/lib/sources/run";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
+import { isUuid } from "@/lib/uuid";
 
 // A connected email tool's lists (audiences, forms, groups), for the form's Sync tab (docs/integrations-plan.md step
 // 1): GET ?workspaceId=&sourceId= → { lists: [{ id, name }] } or { error }. Read live from the tool. The caller must
 // be in the workspace and the tool one of its connected email tools.
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const TIMEOUT_MS = 10_000;
 
 export async function GET(request: Request) {
@@ -17,7 +17,7 @@ export async function GET(request: Request) {
   const ws = url.searchParams.get("workspaceId") ?? "";
   const sourceId = url.searchParams.get("sourceId") ?? "";
   if (!(await isMember(auth, ws))) return Response.json({ error: "Workspace not found." }, { status: 404 });
-  if (!UUID.test(sourceId)) return Response.json({ error: "Tool not found." }, { status: 404 });
+  if (!isUuid(sourceId)) return Response.json({ error: "Tool not found." }, { status: 404 });
   const db = serviceClient();
   if (!db) return Response.json({ error: "The server is not set up for this." }, { status: 500 });
   const { data: src } = await db.from("sources").select("id, kind, status").eq("id", sourceId).eq("workspace_id", ws).maybeSingle();

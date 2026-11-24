@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { mcpServer, ToolError, type Tool } from "../mcpProtocol.ts";
 import { APP_URL } from "../site.ts";
 import { findTemplates, GUEST_KEY, guestForm, guestIpHash, guestKeyHash, newGuestKey, STYLE_IDS } from "./guest.ts";
+import { isUuid } from "../uuid.ts";
 
 // The MCP server for someone who hasn't signed in (docs/mcp.md, "Forms before sign-up"): ChatGPT or Claude finds a
 // template or writes the page, and the form goes live at once with a claim link. Signed-in tools are listed too;
@@ -64,7 +65,7 @@ const guestTools: Tool<GuestCtx>[] = [
     async run(ctx, args) {
       const id = typeof args.form_id === "string" ? args.form_id.trim() : "";
       const key = typeof args.key === "string" ? args.key.trim() : "";
-      if (!/^[0-9a-f-]{36}$/.test(id) || !GUEST_KEY.test(key)) throw new ToolError("Pass the form_id and key create_form gave.");
+      if (!isUuid(id) || !GUEST_KEY.test(key)) throw new ToolError("Pass the form_id and key create_form gave.");
       const name = typeof args.name === "string" ? args.name.trim().slice(0, 120) : "";
       const made = guestForm({ name, template: typeof args.template === "string" ? args.template : undefined, html: typeof args.html === "string" ? args.html : undefined, css: typeof args.css === "string" ? args.css : undefined, style: typeof args.style === "string" ? args.style : undefined });
       if ("error" in made) throw new ToolError(made.error);

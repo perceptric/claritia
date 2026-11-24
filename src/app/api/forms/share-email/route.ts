@@ -6,6 +6,7 @@ import { serviceClient } from "@/lib/serviceClient";
 import { addressesOf, MAX_TO, shareEmail } from "@/lib/share/shareEmail";
 import { formLink } from "@/lib/share/formLink";
 import { viaLink } from "@/lib/share/channels";
+import { isUuid } from "@/lib/uuid";
 
 // Share › Email › Send the link (docs/sharing-plan.md): one short email with the form's link, to up to 200 addresses,
 // from the team or from the person sending it (their name on the team's address). POST { workspaceId, formId,
@@ -20,9 +21,9 @@ export async function POST(request: Request) {
   const auth = await requireUser(request);
   if ("denied" in auth) return auth.denied;
   const b = (await request.json().catch(() => ({}))) as { workspaceId?: unknown; formId?: unknown; to?: unknown; message?: unknown; subject?: unknown; from?: unknown };
-  const ws = typeof b.workspaceId === "string" && /^[0-9a-f-]{36}$/.test(b.workspaceId) ? b.workspaceId : null;
+  const ws = typeof b.workspaceId === "string" && isUuid(b.workspaceId) ? b.workspaceId : null;
   if (!ws || !(await roleIn(auth, ws))) return bad("Workspace not found.", 404);
-  if (typeof b.formId !== "string" || !/^[0-9a-f-]{36}$/.test(b.formId)) return bad("Form not found.", 404);
+  if (typeof b.formId !== "string" || !isUuid(b.formId)) return bad("Form not found.", 404);
   const to = addressesOf(b.to);
   if (!to) return bad(`Add up to ${MAX_TO} email addresses.`);
   // A few sends a minute per workspace, so a mistake can't send hundreds.

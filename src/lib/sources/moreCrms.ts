@@ -8,6 +8,7 @@
 import { keyed, signedByComposio } from "./keyed.ts";
 import { refreshRequest } from "./oauth.ts";
 import type { Connector, Ctx, PushChange, PushResult, SourceRow } from "./types.ts";
+import { isUuid } from "../uuid.ts";
 
 const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
 const gone = () => Object.assign(new Error("The record is gone."), { status: 404 });
@@ -164,7 +165,7 @@ export const dynamics: Connector = {
     });
   },
   writable: WRITABLE,
-  link: (s, id) => (DYN.test(s.account ?? "") && /^[0-9a-f-]{36}$/.test(id) ? `${s.account}/main.aspx?etn=lead&pagetype=entityrecord&id=${id}` : undefined),
+  link: (s, id) => (DYN.test(s.account ?? "") && isUuid(id) ? `${s.account}/main.aspx?etn=lead&pagetype=entityrecord&id=${id}` : undefined),
   defaults: { contact: { ...CONTACT } },
 };
 

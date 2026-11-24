@@ -7,6 +7,7 @@ import { serviceClient } from "@/lib/serviceClient";
 import { cleanTags, listOf, NEW_RULES, rulesOf, targetOf } from "@/lib/delivery/rules";
 import { lockFor, planRefusal } from "@/lib/planGate";
 import { destinationFeature } from "@/lib/plans";
+import { isUuid } from "@/lib/uuid";
 
 // Add or change where a form's leads go: POST { workspaceId, formId, id?, kind, sourceId?, name, url?, rules?, list?, tags? }
 // (docs/form-builder.md 7.1). Addresses are sealed; only the host is kept where people can see it. A new webhook
@@ -24,13 +25,13 @@ export async function POST(request: Request) {
   if (!(await isMember(auth, b.workspaceId))) return bad("Workspace not found.", 404);
   const kind = b.kind === "source" || b.kind === "slack" || b.kind === "webhook" ? b.kind : null;
   if (!kind) return bad("Pick where leads go.");
-  if (typeof b.formId !== "string" || !/^[0-9a-f-]{36}$/.test(b.formId)) return bad("Form not found.", 404);
-  const id = typeof b.id === "string" && /^[0-9a-f-]{36}$/.test(b.id) ? b.id : null;
+  if (typeof b.formId !== "string" || !isUuid(b.formId)) return bad("Form not found.", 404);
+  const id = typeof b.id === "string" && isUuid(b.id) ? b.id : null;
   const db = serviceClient();
   if (!db) return bad("The server is not set up for this.", 500);
   const rpc = (fn: string, args: Record<string, unknown>) => db.rpc(fn, args);
   if (kind !== "webhook") {
-    const sourceKind = kind === "source" && typeof b.sourceId === "string" && /^[0-9a-f-]{36}$/.test(b.sourceId) ? (((await db.from("sources").select("kind").eq("id", b.sourceId).eq("workspace_id", b.workspaceId as string).maybeSingle()).data as { kind?: string } | null)?.kind ?? null) : null;
+    const sourceKind = kind === "source" && typeof b.sourceId === "string" && isUuid(b.sourceId) ? (((await db.from("sources").select("kind").eq("id", b.sourceId).eq("workspace_id", b.workspaceId as string).maybeSingle()).data as { kind?: string } | null)?.kind ?? null) : null;
     const locked = await lockFor(rpc, b.workspaceId as string, destinationFeature(kind, sourceKind));
     if (locked) return bad(locked, 402);
   }

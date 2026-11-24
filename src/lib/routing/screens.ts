@@ -15,6 +15,7 @@ import { releaseFingerprint, releaseSources, semanticsChanges, type PolicyRow, t
 import { failure, RoutingFailure, type Outcome } from "./states.ts";
 import { validatePolicy, type Issue } from "./validate.ts";
 import { DENIED, may } from "./access.ts";
+import { isUuid } from "../uuid.ts";
 
 export type Caller = { ws: string; user: string; role: "owner" | "member" };
 
@@ -33,13 +34,12 @@ export class Refusal extends Error {
   }
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 // Section 20 through access.ts: editing, publishing and teams are a workspace owner's.
 const ownerOnly = (c: Caller, cap: "edit_policy" | "publish" | "team" = "edit_policy") => {
   if (!may(c, cap)) throw new Refusal(403, "permission_denied", DENIED[cap]);
 };
 const id = (v: unknown, what = "id"): string => {
-  if (typeof v !== "string" || !UUID.test(v)) throw new Refusal(400, "invalid_configuration", `Bad ${what}.`);
+  if (typeof v !== "string" || !isUuid(v)) throw new Refusal(400, "invalid_configuration", `Bad ${what}.`);
   return v;
 };
 
@@ -186,7 +186,7 @@ export async function stage(rpc: Rpc, c: Caller, o: { policy: unknown; source: u
   ownerOnly(c);
   const policy = id(o.policy, "policy");
   const outcome: Outcome = o.outcome === "assign_and_calendar" ? "assign_and_calendar" : "assign_only";
-  const meeting = typeof o.meeting === "string" && UUID.test(o.meeting) ? o.meeting : null;
+  const meeting = typeof o.meeting === "string" && isUuid(o.meeting) ? o.meeting : null;
   const revision = typeof o.revision === "number" ? o.revision : null;
   const enabled = o.enabled !== false;
   if (enabled && outcome === "assign_and_calendar" && !meeting) throw new Refusal(400, "invalid_configuration", "Pick a meeting type.");
@@ -251,7 +251,7 @@ export async function team(rpc: Rpc, c: Caller, o: { team?: unknown; name: unkno
   // Members as ids, or { user, weight }; anything else is dropped.
   const given = (Array.isArray(o.members) ? o.members : [])
     .map((m) => (typeof m === "string" ? { user: m, weight: NaN } : m && typeof m === "object" ? { user: (m as { user?: unknown }).user, weight: Number((m as { weight?: unknown }).weight) } : null))
-    .filter((m): m is { user: string; weight: number } => !!m && typeof m.user === "string" && UUID.test(m.user))
+    .filter((m): m is { user: string; weight: number } => !!m && typeof m.user === "string" && isUuid(m.user))
     .slice(0, 100);
   // What the request leaves out stays as it was: the team's way of sharing leads and each member's weight. Saving the
   // members alone used to turn every team back to taking turns with equal weights.
@@ -332,7 +332,7 @@ export async function test(
   if (typeof o.source === "string" && !source) throw new Refusal(400, "invalid_configuration", "That source isn't connected to this version.");
 
   const ov = o.overrides ?? {};
-  const user = (u: unknown) => (typeof u === "string" && UUID.test(u) ? u : null);
+  const user = (u: unknown) => (typeof u === "string" && isUuid(u) ? u : null);
   // A looked-up contact keeps the owners the CRM has unless an override says otherwise; a typed lead starts with none.
   const owners = {
     contact: contact && ov.contactOwner === undefined ? undefined : user(ov.contactOwner),

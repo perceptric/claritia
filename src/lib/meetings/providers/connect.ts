@@ -7,6 +7,7 @@ import { oauthExchange, oauthReady, oauthUrl, type State } from "../../sources/o
 import type { HttpOpts } from "./http.ts";
 import { loadAccount, openProvider, openToken, providerFor, sealToken, zoomFor, type AccountRow } from "./index.ts";
 import { planCheck } from "../../planGate.ts";
+import { isUuid } from "../../uuid.ts";
 
 export type Caller = { ws: string; user: string; role: "owner" | "member"; email?: string };
 export type Connectable = "google" | "microsoft" | "zoom";
@@ -21,7 +22,6 @@ export class CalendarRefused extends Error {
 
 const KIND_OF: Record<string, Connectable> = { google_calendar: "google", microsoft_calendar: "microsoft", zoom: "zoom" };
 const NAME: Record<Connectable, string> = { google: "Google Calendar", microsoft: "Outlook Calendar", zoom: "Zoom" };
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /** The fake calendar is for the local stack and tests only. */
 export const fakeAllowed = () => process.env.NODE_ENV !== "production" || process.env.CALENDAR_FAKE === "1";
@@ -88,7 +88,7 @@ export async function finishConnect(rpc: Rpc, o: { state: State; code: string; r
 
 /** The account, when the caller may change it: their own, or (for disconnect) anyone's in a workspace they own. */
 async function accountFor(rpc: Rpc, c: Caller, id: unknown, ownerToo = false): Promise<AccountRow> {
-  const a = typeof id === "string" && UUID.test(id) ? await loadAccount(rpc, id) : null;
+  const a = typeof id === "string" && isUuid(id) ? await loadAccount(rpc, id) : null;
   if (!a || a.workspace_id !== c.ws) throw new CalendarRefused(404, "Calendar not found.");
   if (a.user_id !== c.user && !(ownerToo && c.role === "owner")) throw new CalendarRefused(403, "Only the person who connected this calendar can change it.");
   return a;

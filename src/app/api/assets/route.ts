@@ -2,13 +2,13 @@ import { isMember } from "@/lib/contacts/server";
 import { MAX_ASSET_BYTES, photoWidths, sniffImage, stripImageMeta } from "@/lib/design/assets";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
+import { isUuid } from "@/lib/uuid";
 
 // Images for emails and forms (docs/design-system.md Part 6). POST multipart { workspaceId, file } → { id, url,
 // width, height }: the file is checked by its bytes (PNG, JPEG, GIF or WebP, up to 5 MB), photo metadata is taken
 // out, and it's stored in the public "assets" bucket, with WebP copies at 640, 1280 and 1920 wide for forms' photos
 // (docs/forms-media-plan.md). DELETE ?id= removes one from the list, its file and its copies.
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const bad = (error: string, status = 400) => Response.json({ error }, { status });
 
 export async function POST(request: Request) {
@@ -60,7 +60,7 @@ export async function DELETE(request: Request) {
   const auth = await requireUser(request);
   if ("denied" in auth) return auth.denied;
   const id = new URL(request.url).searchParams.get("id") ?? "";
-  if (!UUID.test(id)) return bad("Image not found.", 404);
+  if (!isUuid(id)) return bad("Image not found.", 404);
   // Through the person's own client: the function checks membership.
   const { data: path, error } = await auth.sb.rpc("design_asset_delete", { p_id: id });
   if (error) return bad("Image not found.", 404);

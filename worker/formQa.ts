@@ -9,6 +9,7 @@ import { sampleAnswers } from "../src/lib/forms/sample.ts";
 import { everyOption, type Form } from "../src/lib/forms/schema.ts";
 import { qaToken, type PublicForm } from "../src/lib/forms/submit.ts";
 import { JobError, type Job } from "../src/lib/jobs.ts";
+import { isUuid } from "../src/lib/uuid.ts";
 
 export type QaOpts = { appUrl: string; secret: string; chromiumPath?: string; loadMs?: number; reachMs?: number; deliverMs?: number; pollMs?: number; log?: (...a: unknown[]) => void };
 type Step = { name: string; ok: boolean; detail?: string };
@@ -54,7 +55,7 @@ async function fillStep(page: pw.Page, form: Form, step: number, answers: Record
 
 export async function handleFormQa(sb: SupabaseClient, job: Job, o: QaOpts): Promise<"passed" | "failed" | "skipped"> {
   const formId = String(job.payload.form_id ?? "");
-  if (!/^[0-9a-f-]{36}$/.test(formId)) throw new JobError("form_qa needs a form", { retry: false });
+  if (!isUuid(formId)) throw new JobError("form_qa needs a form", { retry: false });
   const f = await rpc<PublicForm | null>(sb, "form_public", { p_id: formId });
   if (!f || f.status !== "live" || f.body.capture) return "skipped";
   const start = await rpc<{ id: string; domain: string | null } | null>(sb, "form_check_start", { p_form: formId });

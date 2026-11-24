@@ -1,4 +1,4 @@
-import { isUuid } from "@/lib/apiAuth";
+import { isUuid } from "@/lib/uuid";
 import { bad, formsCaller } from "@/lib/hooks/v1";
 
 /** Unsubscribe a hook. A hook already gone answers 200 too, so an app's retry never fails. */

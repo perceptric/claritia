@@ -10,10 +10,10 @@ import { unseal } from "../../src/lib/seal.ts";
 import type { Creds } from "../../src/lib/sources/types.ts";
 import { sendText, STOPPED, twilioFromEnv, twilioFromKeys, type TwilioAccount } from "../../src/lib/texts/twilio.ts";
 import type { Mailer } from "./meetings.ts";
+import { isUuid } from "../../src/lib/uuid.ts";
 
 const escHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export type Taken = {
   id: string;
@@ -136,7 +136,7 @@ export const textSend =
   (rpc: Rpc, d: TextDeps): Handler =>
   async (job) => {
     const id = String(job.payload.message ?? "");
-    if (!UUID.test(id)) throw new JobError("text_send needs a message", { retry: false });
+    if (!isUuid(id)) throw new JobError("text_send needs a message", { retry: false });
     const r = await textOnce(rpc, d, id);
     if (r.retry) throw new JobError(r.retry.error, { retryAfterS: r.retry.retryAfterS });
   };

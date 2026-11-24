@@ -27,9 +27,9 @@ import { videoClient, type VideoClient, type VideoKind } from "../../src/lib/mee
 import { deps as sourceDeps } from "../../src/lib/sources/run.ts";
 import { AuthError } from "../../src/lib/sources/types.ts";
 import { inviteExtras } from "../../src/lib/meetings/inviteInfo.ts";
+import { isUuid } from "../../src/lib/uuid.ts";
 
 const DAY = 86_400_000;
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 /** meeting_sync retries: about 14 minutes from the first try to the last of five. */
 const RETRY_S = [20, 60, 180, 600];
 
@@ -62,7 +62,7 @@ const zoomOf = (rpc: Rpc, o: CalendarOpts, a: AccountRow, signal?: AbortSignal) 
 
 function accountOf(job: Job) {
   const id = String(job.payload.account ?? "");
-  if (!UUID.test(id)) throw new JobError(`${job.kind} needs an account`, { retry: false });
+  if (!isUuid(id)) throw new JobError(`${job.kind} needs an account`, { retry: false });
   return id;
 }
 
@@ -203,7 +203,7 @@ export const meetingSync =
     let o = base;
     const meeting = String(job.payload.meeting ?? "");
     const action = job.payload.action as keyof typeof EVENT;
-    if (!UUID.test(meeting) || !(action in EVENT)) throw new JobError("meeting_sync needs a meeting and an action", { retry: false });
+    if (!isUuid(meeting) || !(action in EVENT)) throw new JobError("meeting_sync needs a meeting and an action", { retry: false });
 
     // One change at a time per meeting. While another runs, this one goes back in line without using up a try, a
     // little later each time; after BUSY_TRIES it waits like a failed try instead.

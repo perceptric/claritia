@@ -12,6 +12,7 @@
 
 import { createHmac } from "node:crypto";
 import { same } from "./sign.ts";
+import { isUuid } from "./uuid.ts";
 
 export type Claims = {
   sub: string;
@@ -44,7 +45,6 @@ export type VerifyEnv = {
   now?: () => number;
 };
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const JWKS_TTL = 10 * 60_000;
 // A key id we don't hold makes us read the keys again, but not more often than this (a forged kid can't flood Auth).
 const JWKS_RETRY = 30_000;
@@ -151,7 +151,7 @@ export async function verifyJwt(env: VerifyEnv, token: string): Promise<Verified
   // audience) goes to Supabase Auth, which decides as it always did.
   const issOk = !claims.iss || claims.iss === `${env.url}/auth/v1`;
   const audOk = claims.aud === "authenticated" || (Array.isArray(claims.aud) && claims.aud.includes("authenticated"));
-  const sure = typeof claims.sub === "string" && UUID.test(claims.sub) && issOk && audOk && claims.role === "authenticated";
+  const sure = typeof claims.sub === "string" && isUuid(claims.sub) && issOk && audOk && claims.role === "authenticated";
 
   if (header.alg === "HS256") {
     if (!env.jwtSecret || !sure) return askAuth(env, token);

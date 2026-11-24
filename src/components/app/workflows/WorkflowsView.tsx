@@ -10,6 +10,7 @@ import { emptyBody, type Body } from "@/lib/workflows/types";
 import { Branch } from "../../Icons";
 import { ErrorNote, errorText, Loading, Page, type ViewProps } from "../ui";
 import { WorkflowsHome } from "./Home";
+import { isUuid } from "@/lib/uuid";
 
 export function WorkflowsView(p: ViewProps & { describe?: (done: () => void) => React.ReactNode }) {
   if (p.id === "new") return <TemplatePicker {...p} />;
@@ -47,7 +48,7 @@ function TemplatePicker({ sb, ws, navigate }: ViewProps) {
     const t = asked ? templateByKey(asked) : undefined;
     if (!t) return;
     const body = t.body();
-    if (form && /^[0-9a-f-]{36}$/.test(form) && "forms" in body.trigger) body.trigger = { ...body.trigger, forms: [form] };
+    if (form && isUuid(form) && "forms" in body.trigger) body.trigger = { ...body.trigger, forms: [form] };
     make(t.name, body).catch((e) => setError(errorText(e)));
   }, [asked, form, make]);
 

@@ -8,8 +8,8 @@ import { call, enqueueJob, enqueueJobs, JobError, type Handler, type Rpc } from 
 import { sendDelivery, type SendDeps, type Taken } from "../../src/lib/delivery/send.ts";
 import type { RunOpts } from "../../src/lib/sources/run.ts";
 import { ctxFor } from "./ctx.ts";
+import { isUuid } from "../../src/lib/uuid.ts";
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /** One try of one delivery. Returns "retry" (with the error) when the jobs queue should try again. */
 export async function deliverOnce(rpc: Rpc, send: SendDeps, id: string, last: boolean): Promise<{ retry?: { error: string; retryAfterS?: number } }> {
@@ -38,7 +38,7 @@ export const deliver =
   (pool: pg.Pool, rpc: Rpc, extra: Extra = {}): Handler =>
   async (job, signal) => {
     const id = String(job.payload.delivery_id ?? "");
-    if (!UUID.test(id)) throw new JobError("deliver needs a delivery", { retry: false });
+    if (!isUuid(id)) throw new JobError("deliver needs a delivery", { retry: false });
     const r = await deliverOnce(rpc, sendDeps(pool, rpc, signal, extra), id, job.attempts >= job.max_attempts);
     if (r.retry) throw new JobError(r.retry.error, { retryAfterS: r.retry.retryAfterS });
   };
@@ -50,7 +50,7 @@ export const deliverHeld =
   (pool: pg.Pool, rpc: Rpc, extra: Extra & { roundMs?: number } = {}): Handler =>
   async (job, signal) => {
     const dest = String(job.payload.destination_id ?? "");
-    if (!UUID.test(dest)) throw new JobError("deliver_held needs a destination", { retry: false });
+    if (!isUuid(dest)) throw new JobError("deliver_held needs a destination", { retry: false });
     const send = sendDeps(pool, rpc, signal, extra);
     const until = Date.now() + (extra.roundMs ?? HELD_ROUND_MS);
     for (;;) {

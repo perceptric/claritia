@@ -10,6 +10,7 @@ import { TEMPLATES } from "./templates.ts";
 import { DEFAULT_BRAND_CSS } from "../studio/brandDefault.ts";
 import { formToPage } from "../studio/fromForm.ts";
 import { pageForm, type PageAfter } from "../studio/page.ts";
+import { isUuid } from "../uuid.ts";
 
 // Forms on the MCP server (docs/form-builder.md 4.3). Every form is a Form Studio page (docs/forms-chat-plan.md):
 // create_form makes one, set_form_page writes its HTML under the same contract Tia writes to, and edit_form's ops only
@@ -20,7 +21,7 @@ type Row = { id: string; name: string; status: string; version: number; draft: F
 async function findForm(ctx: ApiCaller, ref: unknown): Promise<Row> {
   if (typeof ref !== "string" || !ref.trim()) throw new ToolError("Pass form: the form's name or id.");
   const q = ctx.sb.from("forms").select("id, name, status, version, draft, draft_rev").eq("workspace_id", ctx.workspaceId);
-  const { data, error } = /^[0-9a-f-]{36}$/.test(ref.trim()) ? await q.eq("id", ref.trim()) : await q.ilike("name", ref.trim().replace(/[%_\\]/g, "\\$&"));
+  const { data, error } = isUuid(ref.trim()) ? await q.eq("id", ref.trim()) : await q.ilike("name", ref.trim().replace(/[%_\\]/g, "\\$&"));
   if (error) throw new Error(error.message);
   const rows = (data ?? []) as Row[];
   if (!rows.length) throw new ToolError(`Form ${ref} not found. Call list_forms to see them.`);

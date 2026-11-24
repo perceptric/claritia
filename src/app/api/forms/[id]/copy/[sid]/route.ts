@@ -3,17 +3,17 @@ import { allowed, clientIp } from "@/lib/forms/server";
 import { fillPdf, loadFill } from "@/lib/forms/pdfServer";
 import { copyKey } from "@/lib/forms/submit";
 import { serviceClient } from "@/lib/serviceClient";
+import { isUuid } from "@/lib/uuid";
 
 // A PDF copy of a fill for the person who sent it (docs/form-kinds-plan.md step 3): the link after the send carries a
 // key only that fill's link has (copyKey), so nobody can open another fill's copy by changing the address.
 
-const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string; sid: string }> }) {
   const { id, sid } = await params;
   const k = new URL(request.url).searchParams.get("k") ?? "";
   const secret = process.env.SECRETS_KEY;
-  if (!ID.test(id) || !ID.test(sid) || !secret) return new Response("Not found.", { status: 404 });
+  if (!isUuid(id) || !isUuid(sid) || !secret) return new Response("Not found.", { status: 404 });
   const want = Buffer.from(copyKey(id, sid, secret));
   const got = Buffer.from(k);
   if (!same(want, got)) return new Response("Not found.", { status: 404 });

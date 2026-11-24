@@ -5,6 +5,7 @@ import { loadPublic } from "@/lib/forms/server";
 import { prepareSubmit } from "@/lib/forms/submit";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
+import { isUuid } from "@/lib/uuid";
 
 // The Test button: POST { workspaceId, id }. Sends a fill marked as a test through the live version and every
 // destination (docs/form-builder.md Part 10). The app then watches its deliveries turn green or red.
@@ -16,7 +17,7 @@ export async function POST(request: Request) {
   if ("denied" in auth) return auth.denied;
   const b = (await request.json().catch(() => ({}))) as { workspaceId?: unknown; id?: unknown };
   if (!(await isMember(auth, b.workspaceId))) return bad("Workspace not found.", 404);
-  if (typeof b.id !== "string" || !/^[0-9a-f-]{36}$/.test(b.id)) return bad("Form not found.", 404);
+  if (typeof b.id !== "string" || !isUuid(b.id)) return bad("Form not found.", 404);
   const db = serviceClient();
   if (!db) return bad("The server is not set up for this.", 500);
   // Fresh (the Test button often follows a publish), with the cleaning lists read alongside.

@@ -9,6 +9,7 @@ import { notReady, sendReady } from "@/lib/email/ready";
 import { applyConditions } from "@/lib/design/email/compile";
 import { HTML_FIELDS, isSystemKey, sampleVars } from "@/lib/meetings/systemEmails";
 import { fillFields, type Vars } from "@/lib/meetings/systemSend";
+import { isUuid } from "@/lib/uuid";
 
 type Db = NonNullable<ReturnType<typeof serviceClient>>;
 
@@ -35,7 +36,7 @@ export async function POST(request: Request) {
   const auth = await requireUser(request);
   if ("denied" in auth) return auth.denied;
   const body = (await request.json().catch(() => ({}))) as { workspaceId?: unknown; subject?: unknown; doc?: unknown; system?: unknown };
-  const ws = typeof body.workspaceId === "string" && /^[0-9a-f-]{36}$/.test(body.workspaceId) ? body.workspaceId : null;
+  const ws = typeof body.workspaceId === "string" && isUuid(body.workspaceId) ? body.workspaceId : null;
   if (!ws) return Response.json({ error: "Workspace not found." }, { status: 404 });
   const role = await roleIn(auth, ws);
   if (!role) return Response.json({ error: "Workspace not found." }, { status: 404 });

@@ -10,6 +10,7 @@ import { BRIEF_MODEL, type Brief, type Briefer } from "../src/lib/brand/brief.ts
 import { brandColors, brandDesign } from "../src/lib/brand/design.ts";
 import type { Tokens } from "../src/lib/forms/brand.ts";
 import { JobError, type Job } from "../src/lib/jobs.ts";
+import { isUuid } from "../src/lib/uuid.ts";
 
 export type ScanOpts = { chromiumPath?: string; briefer?: Briefer; allowPrivate?: boolean; scan?: typeof scanSite; log?: (...a: unknown[]) => void };
 
@@ -17,7 +18,7 @@ export async function handleBrandScan(sb: SupabaseClient, job: Job, o: ScanOpts)
   const kit = String(job.payload.kit_id ?? "");
   const url = String(job.payload.url ?? "");
   const ws = job.workspace_id;
-  if (!/^[0-9a-f-]{36}$/.test(kit) || !ws) throw new JobError("brand_scan needs a kit", { retry: false });
+  if (!isUuid(kit) || !ws) throw new JobError("brand_scan needs a kit", { retry: false });
   const finish = async (s: Pick<Scan, "tokens" | "logo" | "notes" | "forms"> | null, error: string | null) => {
     const { error: e } = await sb.rpc("brand_scan_finish", { p_kit: kit, p_tokens: s?.tokens ?? {}, p_logo_url: s?.logo ?? null, p_notes: s?.notes ?? [], p_site_forms: s?.forms ?? [], p_error: error });
     if (e) throw new Error(e.message);

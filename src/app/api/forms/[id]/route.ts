@@ -22,6 +22,7 @@ import { knownFor } from "@/lib/share/known";
 import { readPersonal } from "@/lib/share/personal";
 import { brandPlan } from "@/lib/meetings/brandPage";
 import { formBadge } from "@/lib/plans";
+import { isUuid } from "@/lib/uuid";
 
 // The live version of a form, for <claritia-form> on any site (docs/form-builder.md Part 6). Public: answers only
 // with what the form shows, plus whether the consent box applies to this visitor, and the region lists when a
@@ -31,7 +32,6 @@ import { formBadge } from "@/lib/plans";
 // readable colors, the guard's rewrite and sheet, and no page painted around the card on someone else's site). A personal link (?p=, src/lib/share/personal.ts) also gets the details
 // Claritia knows about its person, for the contact questions the form asks; that answer is never cached.
 
-const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 /** Forms this server is already keeping as pages, so a busy form starts it once. */
 const keeping = new Set<string>();
 
@@ -66,7 +66,7 @@ function served(body: Form): Form {
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  if (!ID.test(id)) return json({ error: "Form not found." }, 404);
+  if (!isUuid(id)) return json({ error: "Form not found." }, 404);
   const db = serviceClient();
   if (!db) return json({ error: "Not set up." }, 503);
   try {

@@ -6,13 +6,14 @@
 
 import { createHash } from "node:crypto";
 import type { AnalyticsEvent, Connector, Ctx } from "./types.ts";
+import { isUuid } from "../uuid.ts";
 
 export type { AnalyticsEvent } from "./types.ts";
 
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 /** A UUID made from any id, the same every time (PostHog dedupes on it). */
 export function uuidOf(id: string): string {
-  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return id.toLowerCase();
+  if (isUuid(id)) return id.toLowerCase();
   const h = sha(id);
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-${((parseInt(h[16]!, 16) & 3) | 8).toString(16)}${h.slice(17, 20)}-${h.slice(20, 32)}`;
 }

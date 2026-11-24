@@ -3,6 +3,7 @@ import { requireUser, roleIn } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { formLink } from "@/lib/share/formLink";
 import { personalLink, personalToken, PERSONAL_DAYS } from "@/lib/share/personal";
+import { isUuid } from "@/lib/uuid";
 
 // Share › Personal link (docs/sharing-plan.md, Personal links): POST { workspaceId, formId, email } answers { url,
 // contact } with the form's link for that one person, good for 90 days. The form fills in what Claritia knows about
@@ -14,9 +15,9 @@ export async function POST(request: Request) {
   const auth = await requireUser(request);
   if ("denied" in auth) return auth.denied;
   const b = (await request.json().catch(() => ({}))) as { workspaceId?: unknown; formId?: unknown; email?: unknown };
-  const ws = typeof b.workspaceId === "string" && /^[0-9a-f-]{36}$/.test(b.workspaceId) ? b.workspaceId : null;
+  const ws = typeof b.workspaceId === "string" && isUuid(b.workspaceId) ? b.workspaceId : null;
   if (!ws || !(await roleIn(auth, ws))) return bad("Workspace not found.", 404);
-  if (typeof b.formId !== "string" || !/^[0-9a-f-]{36}$/.test(b.formId)) return bad("Form not found.", 404);
+  if (typeof b.formId !== "string" || !isUuid(b.formId)) return bad("Form not found.", 404);
   const e = cleanEmail(typeof b.email === "string" ? b.email : "");
   if (isRejected(e)) return bad("Enter a valid email.");
   const secret = process.env.SECRETS_KEY;

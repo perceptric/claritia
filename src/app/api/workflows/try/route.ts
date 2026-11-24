@@ -4,6 +4,7 @@ import { fillMerge, tracePath, waitUntil } from "@/lib/workflows/engine";
 import { compileWithKit, loadKits } from "@/lib/design/email/server";
 import { serviceClient } from "@/lib/serviceClient";
 import { valuesOf, type Facts } from "@/lib/workflows/facts";
+import { isUuid } from "@/lib/uuid";
 
 // Try a contact (docs/enrich-workflows-reports.md 2.4): POST { body, contactId } answers the path that contact would
 // take through the draft, with each email as they'd read it (its design built in the brand kit, merge fields filled)
@@ -16,7 +17,7 @@ export async function POST(request: Request) {
   const auth = await requireUser(request);
   if ("denied" in auth) return auth.denied;
   const b = (await request.json().catch(() => ({}))) as { body?: unknown; contactId?: unknown };
-  const id = typeof b.contactId === "string" && /^[0-9a-f-]{36}$/.test(b.contactId) ? b.contactId : "";
+  const id = typeof b.contactId === "string" && isUuid(b.contactId) ? b.contactId : "";
   if (!id) return bad("Pick a contact.");
   const { data, error } = await auth.sb.rpc("workflow_preview_facts", { p_contact: id });
   if (error || !data) return bad("Contact not found.", 404);

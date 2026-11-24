@@ -6,6 +6,7 @@ import { createSheet, sheetFromLink } from "@/lib/sources/rows";
 import { deps } from "@/lib/sources/run";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
+import { isUuid } from "@/lib/uuid";
 
 // Where a form's rows go (docs/integrations-plan.md step 2), for the form's Sync tab. Read live from the tool.
 //   GET ?workspaceId=&sourceId=                                  → { targets: [{ id, name, url }] }  Airtable, Notion
@@ -15,7 +16,6 @@ import { serviceClient } from "@/lib/serviceClient";
 //   POST { workspaceId, sourceId, action: "link", link }         → { target }  an Excel workbook from its link
 // The caller must be in the workspace and the tool one of its connected sheets and databases.
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const TIMEOUT_MS = 15_000;
 const bad = (error: string, status = 400) => Response.json({ error }, { status });
 
@@ -23,7 +23,7 @@ async function load(request: Request, ws: unknown, sourceId: unknown) {
   const auth = await requireUser(request);
   if ("denied" in auth) return { denied: auth.denied };
   if (!(await isMember(auth, ws))) return { denied: bad("Workspace not found.", 404) };
-  if (typeof sourceId !== "string" || !UUID.test(sourceId)) return { denied: bad("Tool not found.", 404) };
+  if (typeof sourceId !== "string" || !isUuid(sourceId)) return { denied: bad("Tool not found.", 404) };
   const db = serviceClient();
   if (!db) return { denied: bad("The server is not set up for this.", 500) };
   const { data: src } = await db.from("sources").select("id, kind, status").eq("id", sourceId).eq("workspace_id", ws as string).maybeSingle();

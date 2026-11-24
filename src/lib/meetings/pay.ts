@@ -10,6 +10,7 @@
 
 import { enqueueJob, type Rpc } from "../jobs.ts";
 import { guestContact, loadMeeting, type MeetingView } from "./public.ts";
+import { isUuid } from "../uuid.ts";
 
 /** Checkout must stay open at least 30 minutes (Stripe's minimum); the time itself is held for 10. */
 export const CHECKOUT_MINUTES = 30;
@@ -90,13 +91,13 @@ export async function handlePayEvent(rpc: Rpc, stripe: PayStripe, e: PayEvent): 
     const acct = obj.id;
     if (!/^acct_/.test(acct) || e.account !== acct) return { ok: true, did: "skipped" };
     const ws = obj.metadata?.workspace_id;
-    if (!ws || !/^[0-9a-f-]{36}$/.test(ws)) return { ok: true, did: "skipped" };
+    if (!ws || !isUuid(ws)) return { ok: true, did: "skipped" };
     await call(rpc, "payment_account_set", { p_ws: ws, p_account: acct, p_ready: !!obj.charges_enabled });
     return { ok: true, did: "ready" };
   }
   if (!e.type.startsWith("checkout.session.")) return { ok: true, did: "skipped" };
   const meetingId = obj.metadata?.meeting_id;
-  if (!meetingId || !/^[0-9a-f-]{36}$/.test(meetingId)) return { ok: true, did: "skipped" };
+  if (!meetingId || !isUuid(meetingId)) return { ok: true, did: "skipped" };
   const v = await loadMeeting(rpc, { id: meetingId });
   if (!v) return { ok: true, did: "skipped" };
   const own = v.meeting.payment?.session === obj.id ? (v.meeting.payment?.account ?? null) : null;

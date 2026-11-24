@@ -1,10 +1,10 @@
+import { isUuid } from "../uuid.ts";
 // A form on its own page (docs/form-builder.md Part 6), as plain HTML: forms.tryclaritia.com/f/<id> and the Share
 // link. No app framework: the page is the <claritia-form> element and its script (loaded from the head, so it
 // downloads while the page parses), with the little CSS the page itself needs inline. The form draws itself from the
 // live version, in its brand kit. /f/embed.js can frame this page with ?c=<the page around it>; in a frame it sits
 // flush, so its height can follow the form.
 
-const ID = /^[0-9a-f-]{36}$/;
 const FONTS = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap";
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -44,7 +44,7 @@ export function previewTags(p: PagePreview): string {
  * `preview`: the link's preview card, and the page's title.
  */
 export function hostedFormHtml(id: string, o: { framed: boolean; script: string; preview?: PagePreview }): string {
-  const ok = ID.test(id);
+  const ok = isUuid(id);
   const body = ok ? `<claritia-form form-id="${esc(id)}" hosted${o.framed ? " framed" : ""}></claritia-form>` : `<p class="missing">Form not found.</p>`;
   return `<!doctype html>
 <html lang="en"${o.framed ? ' class="framed"' : ""}>

@@ -1,5 +1,6 @@
 import { createHmac } from "node:crypto";
 import { same } from "../sign.ts";
+import { isUuid } from "../uuid.ts";
 
 // Personal links (docs/sharing-plan.md, Personal links): a form link that says who it was sent to, so the form fills in
 // what Claritia already knows about them. The link holds a signed token, never the person's details: the workspace,
@@ -14,14 +15,13 @@ export const PERSONAL_DAYS = 90;
 
 const b64 = (s: string | Buffer) => Buffer.from(s).toString("base64url");
 const sign = (body: string, secret: string) => createHmac("sha256", secret).update(`personal:${body}`).digest("base64url").slice(0, 32);
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,253}\.[^\s@]{2,}$/;
 
 /** A personal link's token for one person in a workspace: their contact, or their email when there's no contact yet. */
 export function personalToken(p: { ws: string; contact?: string | null; email?: string | null }, secret: string, now = Date.now(), days = PERSONAL_DAYS): string {
   if (!secret) throw new Error("Personal links need SECRETS_KEY.");
   const person: Person = { w: p.ws, x: Math.floor(now / 1000) + days * 86_400 };
-  if (p.contact && UUID.test(p.contact)) person.c = p.contact;
+  if (p.contact && isUuid(p.contact)) person.c = p.contact;
   else if (p.email && EMAIL.test(p.email.trim())) person.e = p.email.trim().toLowerCase().slice(0, 254);
   else throw new Error("A personal link needs a contact or an email.");
   const body = b64(JSON.stringify(person));
@@ -39,7 +39,7 @@ export function readPersonal(token: unknown, secret: string | undefined, ws: str
   try {
     const p = JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as Partial<Person>;
     if (p.w !== ws || typeof p.x !== "number" || p.x * 1000 < now) return null;
-    if (p.c !== undefined && !(typeof p.c === "string" && UUID.test(p.c))) return null;
+    if (p.c !== undefined && !(typeof p.c === "string" && isUuid(p.c))) return null;
     if (p.e !== undefined && !(typeof p.e === "string" && EMAIL.test(p.e))) return null;
     if (!p.c && !p.e) return null;
     return { w: p.w, x: p.x, ...(p.c ? { c: p.c } : {}), ...(p.e ? { e: p.e } : {}) };

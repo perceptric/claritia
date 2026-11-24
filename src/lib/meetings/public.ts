@@ -17,6 +17,7 @@ import { dynamicOf } from "./dynamic.ts";
 import { checkSettings } from "./check.ts";
 import { guestLocation, toGuestType, type GuestIn, type GuestSlot, type GuestType, type Profile } from "./guest.ts";
 import { DEFAULT_SETTINGS, type Location, type MeetingSource, type MeetingStatus, type MeetingType, type Slot, type Span } from "./types.ts";
+import { isUuid } from "../uuid.ts";
 
 const MIN = 60_000;
 /** The brand kit a booking page uses; `design` is its published design system (077_book_design.sql). */
@@ -50,7 +51,6 @@ export type Target = {
 };
 
 const SLUG = /^[a-z0-9][a-z0-9-]{0,58}[a-z0-9]$/;
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 const HANDLE = /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/;
 export type Handle = { ws: string; person: string | null; handle: string };
@@ -66,7 +66,7 @@ export async function loadTarget(rpc: Rpc, ws: string, slug: string | null, form
   const w = ws.toLowerCase();
   const s = slug?.toLowerCase() ?? null;
   if (!SLUG.test(w) || (s !== null && !SLUG.test(s))) return null;
-  const p_form = form && UUID.test(form) ? form : null;
+  const p_form = form && isUuid(form) ? form : null;
   const page = await callNewer(rpc, "book_page", { p_ws: w, p_slug: s, p_form, p_handle: null });
   if (page) {
     if (page.error) throw new Error(page.error.message);
@@ -94,7 +94,7 @@ export async function loadHandleTarget(rpc: Rpc, handle: string, type: string | 
   const hh = handle.toLowerCase();
   const ty = type?.toLowerCase() ?? null;
   if (!HANDLE.test(hh) || (ty !== null && !SLUG.test(ty))) return null;
-  const p_form = form && UUID.test(form) ? form : null;
+  const p_form = form && isUuid(form) ? form : null;
   const page = await callNewer(rpc, "book_page", { p_ws: null, p_slug: ty, p_form, p_handle: hh });
   let out: { h: Handle; t: Target } | null;
   if (page) {
@@ -184,7 +184,7 @@ export async function guestSlots(rpc: Rpc, o: { ws: string; type: MeetingType; l
  */
 export function preferHost(t: MeetingType, host: string | null | undefined, profiles: Profile[]): MeetingType | null {
   if (!host || !["one", "round_robin", "owner_first", "group"].includes(t.kind)) return null;
-  const id = UUID.test(host) ? host : profiles.find((p) => p.slug === host)?.user_id;
+  const id = isUuid(host) ? host : profiles.find((p) => p.slug === host)?.user_id;
   const h = t.hosts.find((x) => x.user_id === id);
   if (!h || t.hosts.length < 2) return null;
   return { ...t, hosts: [h], ...(t.kind === "round_robin" && t.settings.rrMode === "strict" ? { settings: { ...t.settings, rrMode: "flexible" as const } } : {}) };
@@ -347,7 +347,7 @@ export type LinkView = {
 
 export async function loadLink(rpc: Rpc, by: { token: string } | { id: string }): Promise<LinkView | null> {
   if ("token" in by && !/^[A-Za-z0-9_-]{20,64}$/.test(by.token)) return null;
-  if ("id" in by && !UUID.test(by.id)) return null;
+  if ("id" in by && !isUuid(by.id)) return null;
   const v = await call<LinkView | null>(rpc, "book_link", "token" in by ? { p_hash: tokenHash(by.token), p_id: null } : { p_hash: null, p_id: by.id });
   if (!v) return null;
   return { ...v, type: v.type ? withDefaults(v.type) : null };
@@ -653,7 +653,7 @@ const viewOf = (data: unknown): MeetingView | null => {
 
 export async function loadMeeting(rpc: Rpc, by: { token: string } | { id: string }): Promise<MeetingView | null> {
   if ("token" in by && !/^[A-Za-z0-9_-]{20,64}$/.test(by.token)) return null;
-  if ("id" in by && !UUID.test(by.id)) return null;
+  if ("id" in by && !isUuid(by.id)) return null;
   const v = await call<MeetingView | null>(rpc, "book_meeting", "token" in by ? { p_hash: tokenHash(by.token), p_id: null } : { p_hash: null, p_id: by.id });
   if (!v) return null;
   return { ...v, type: v.type ? withDefaults(v.type) : null };

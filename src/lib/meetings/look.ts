@@ -6,6 +6,7 @@
 
 import { DESIGNS, isDesign, type DesignId } from "./designs.ts";
 import { cleanWelcome } from "./welcome.ts";
+import { isUuid } from "../uuid.ts";
 
 export type Accent = "ink" | "emerald" | "sky" | "lilac" | "rose" | "butter";
 
@@ -31,19 +32,18 @@ export type PageLook = {
 
 export const DEFAULT_LOOK: PageLook = { accent: "emerald", welcome: "", badge: true, order: [] };
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export function cleanLook(raw: unknown): PageLook {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   return {
     ...(r.look === "claritia" || r.look === "brand" ? { look: r.look } : {}),
-    ...(typeof r.brand === "string" && UUID.test(r.brand) ? { brand: r.brand } : {}),
+    ...(typeof r.brand === "string" && isUuid(r.brand) ? { brand: r.brand } : {}),
     ...(isDesign(r.design) && r.design !== "claritia" ? { design: r.design } : {}),
     accent: typeof r.accent === "string" && r.accent in ACCENTS ? (r.accent as Accent) : DEFAULT_LOOK.accent,
     ...(r.buttons === "round" || r.buttons === "soft" ? { buttons: r.buttons } : {}),
     welcome: cleanWelcome(r.welcome),
     badge: r.badge !== false,
-    order: [...new Set(Array.isArray(r.order) ? r.order.filter((x): x is string => typeof x === "string" && UUID.test(x)) : [])].slice(0, 100),
+    order: [...new Set(Array.isArray(r.order) ? r.order.filter((x): x is string => typeof x === "string" && isUuid(x)) : [])].slice(0, 100),
   };
 }
 

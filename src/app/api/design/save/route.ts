@@ -3,12 +3,12 @@ import { readSystem } from "@/lib/design/model";
 import { cleanTokens } from "@/lib/forms/brand";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
+import { isUuid } from "@/lib/uuid";
 
 // Save a design system's draft (docs/design-system.md Part 8). POST { workspaceId, kitId, design, rev } →
 // { rev, design } with the design as it was saved (checked by readSystem), or 409 { error, rev, design } when someone
 // saved since `rev`, so the editor can show their change instead of overwriting it.
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const MAX = 400_000;
 
 export async function POST(request: Request) {
@@ -18,7 +18,7 @@ export async function POST(request: Request) {
   if (text.length > MAX + 2000) return Response.json({ error: "That design is too big." }, { status: 413 });
   const b = (JSON.parse(text || "{}") ?? {}) as { workspaceId?: unknown; kitId?: unknown; design?: unknown; rev?: unknown };
   if (!(await isMember(auth, b.workspaceId))) return Response.json({ error: "Workspace not found." }, { status: 404 });
-  if (typeof b.kitId !== "string" || !UUID.test(b.kitId) || !Number.isInteger(b.rev)) return Response.json({ error: "Bad request." }, { status: 400 });
+  if (typeof b.kitId !== "string" || !isUuid(b.kitId) || !Number.isInteger(b.rev)) return Response.json({ error: "Bad request." }, { status: 400 });
   const db = serviceClient();
   if (!db) return Response.json({ error: "The server is not set up for this." }, { status: 500 });
   const { data: kit } = await db.from("brand_kits").select("id, tokens, design, design_rev").eq("id", b.kitId).eq("workspace_id", b.workspaceId as string).maybeSingle();
