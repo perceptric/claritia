@@ -3,7 +3,8 @@
 // Nothing is trusted before the signature and the time check pass. svix-id is the same on every retry of an event,
 // so it's the dedupe key.
 
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac } from "node:crypto";
+import { same } from "../sign.ts";
 
 export type EmailEvent = {
   event_id: string;
@@ -35,7 +36,7 @@ export function checkSvix(o: { secret: string; id: string | null; timestamp: str
     const [version, sig] = part.split(",");
     if (version !== "v1" || !sig) continue;
     const got = Buffer.from(sig, "base64");
-    if (got.length === want.length && timingSafeEqual(got, want)) return null;
+    if (same(got, want)) return null;
   }
   return "Bad signature";
 }

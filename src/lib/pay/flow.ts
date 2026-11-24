@@ -4,7 +4,8 @@
 // guest comes back through a signed return address (/api/pay/return), so the page never says what was paid; the
 // webhook does the same check when the guest never comes back. Runs anywhere: the client is passed in.
 
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac } from "node:crypto";
+import { same } from "../sign.ts";
 import { enqueueJob, type Rpc } from "../jobs.ts";
 import { payAmount, type Form } from "../forms/schema.ts";
 import { guestContact, loadMeeting, type MeetingView } from "../meetings/public.ts";
@@ -37,7 +38,7 @@ export function readReturn(raw: string | null, secret?: string): Back | null {
   if (!body || !sig) return null;
   const want = Buffer.from(createHmac("sha256", key(secret)).update(body).digest("base64url"));
   const got = Buffer.from(sig);
-  if (want.length !== got.length || !timingSafeEqual(want, got)) return null;
+  if (!same(want, got)) return null;
   try {
     const b = JSON.parse(Buffer.from(body, "base64url").toString()) as Back;
     return b && typeof b.to === "string" && /^https?:\/\//.test(b.to) && (b.provider === "paypal" || b.provider === "square") ? b : null;

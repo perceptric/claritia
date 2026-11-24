@@ -7,7 +7,8 @@
 //   they get a client id (mcp_...) and no secret, may only return to an address they registered, and must send a
 //   PKCE check (S256).
 
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
+import { same } from "../sign.ts";
 
 export type ClientId = "zapier" | "make" | "activepieces";
 
@@ -95,9 +96,7 @@ export const newCode = () => randomBytes(32).toString("base64url");
 
 /** Two secrets compared in constant time. */
 export function sameSecret(a: string, b: string): boolean {
-  const x = Buffer.from(sha256(a)),
-    y = Buffer.from(sha256(b));
-  return timingSafeEqual(x, y);
+  return same(sha256(a), sha256(b));
 }
 
 /** PKCE (S256 only): the verifier matches the challenge sent with the request. No challenge: nothing to check. */

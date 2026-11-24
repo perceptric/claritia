@@ -10,7 +10,8 @@
 // A token that is expired, or whose signature is wrong for a key we hold, is refused here with no network call.
 // No module imports "server-only" here so the tests can run it directly.
 
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac } from "node:crypto";
+import { same } from "./sign.ts";
 
 export type Claims = {
   sub: string;
@@ -155,7 +156,7 @@ export async function verifyJwt(env: VerifyEnv, token: string): Promise<Verified
   if (header.alg === "HS256") {
     if (!env.jwtSecret || !sure) return askAuth(env, token);
     const want = createHmac("sha256", env.jwtSecret).update(signed).digest();
-    if (want.length !== sig.length || !timingSafeEqual(want, Buffer.from(sig))) return { ok: false, why: "signature" };
+    if (!same(want, Buffer.from(sig))) return { ok: false, why: "signature" };
     return { ok: true, claims, via: "secret" };
   }
 

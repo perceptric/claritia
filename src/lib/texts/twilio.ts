@@ -3,7 +3,8 @@
 // in Settings › Integrations, which WhatsApp needs (its approved templates live there). Twilio takes no idempotency
 // key, so a send with no answer is "unknown" and never sent again; a 429 or 5xx was not taken and is tried again.
 
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac } from "node:crypto";
+import { same } from "../sign.ts";
 
 export type TwilioAccount = { sid: string; token: string; from?: string; messagingSid?: string; whatsappFrom?: string; own: boolean };
 
@@ -84,5 +85,5 @@ export function signatureOk(token: string, url: string, params: Record<string, s
   if (!header) return false;
   const want = Buffer.from(twilioSignature(token, url, params));
   const got = Buffer.from(header);
-  return want.length === got.length && timingSafeEqual(want, got);
+  return same(want, got);
 }

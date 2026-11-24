@@ -8,7 +8,8 @@
 //   payment back.
 // Endpoints and versions are from each tool's docs and are checked against a sandbox account before launch (check).
 
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac } from "node:crypto";
+import { same } from "../sign.ts";
 
 export type PayProvider = "paypal" | "square";
 export const isPayProvider = (v: unknown): v is PayProvider => v === "paypal" || v === "square";
@@ -250,7 +251,7 @@ export function squareSignatureOk(key: string, url: string, body: string, header
   if (!key || !header) return false;
   const want = Buffer.from(createHmac("sha256", key).update(url + body).digest("base64"));
   const got = Buffer.from(header);
-  return want.length === got.length && timingSafeEqual(want, got);
+  return same(want, got);
 }
 
 /** The order a Square payment.updated event is about. */

@@ -1,4 +1,4 @@
-import { timingSafeEqual } from "node:crypto";
+import { same } from "@/lib/sign";
 import { allowed, clientIp } from "@/lib/forms/server";
 import { fillPdf, loadFill } from "@/lib/forms/pdfServer";
 import { copyKey } from "@/lib/forms/submit";
@@ -16,7 +16,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (!ID.test(id) || !ID.test(sid) || !secret) return new Response("Not found.", { status: 404 });
   const want = Buffer.from(copyKey(id, sid, secret));
   const got = Buffer.from(k);
-  if (want.length !== got.length || !timingSafeEqual(want, got)) return new Response("Not found.", { status: 404 });
+  if (!same(want, got)) return new Response("Not found.", { status: 404 });
   if (!allowed(`copy:${clientIp(request)}`, 20)) return new Response("Too many tries.", { status: 429, headers: { "Retry-After": "60" } });
   const db = serviceClient();
   if (!db) return new Response("Not set up.", { status: 503 });

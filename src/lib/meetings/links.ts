@@ -7,7 +7,8 @@
 //   Booking links: the type's page with the lead's name and email filled in, plus a signed ref naming the
 //     submission, so a meeting booked from a "pick a time" email joins the same submission.
 
-import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes } from "node:crypto";
+import { same } from "../sign.ts";
 import type { Rpc } from "../jobs.ts";
 import { seal, unseal } from "../seal.ts";
 import { newToken, tokenHash } from "./server.ts";
@@ -46,7 +47,7 @@ function verify(label: string, token: string, size: number, secret?: string): Bu
   } catch {
     return null;
   }
-  return timingSafeEqual(mac, want) ? body : null;
+  return same(mac, want) ? body : null;
 }
 
 // Outcome links -------------------------------------------------------------------------------------------------

@@ -1,5 +1,6 @@
 import "server-only";
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac } from "node:crypto";
+import { same } from "../sign.ts";
 import { alertsFrom } from "../alertSender.ts";
 import { sesDomains, systemSend } from "../email/senders.ts";
 import { allFields, type Field, type Form } from "./schema.ts";
@@ -43,7 +44,7 @@ export function proofOk(form: string, field: Field, to: string, proof: unknown, 
   if (!Number.isFinite(exp) || exp < at || exp > at + PROOF_MS + 60_000 || !sig) return false;
   const want = hmac(`proof|${form}|${field.id}|${norm(field, to)}|${exp}`);
   const got = Buffer.from(sig, "base64url");
-  return got.length === want.length && timingSafeEqual(got, want);
+  return same(got, want);
 }
 
 /**

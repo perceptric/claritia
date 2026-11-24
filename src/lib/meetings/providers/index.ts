@@ -3,7 +3,8 @@
 // the provider says the sign-in is gone. The 'fake' provider (src/lib/meetings/provider.ts) answers from the cached
 // busy times, so the local stack and the tests book end to end without a real account.
 
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac } from "node:crypto";
+import { same } from "../../sign.ts";
 import type { Rpc } from "../../jobs.ts";
 import { seal, unseal } from "../../seal.ts";
 import { fakeProvider, ReconnectError, type BusySpan } from "../provider.ts";
@@ -134,7 +135,7 @@ export function readChannelToken(token: string | null | undefined): string | nul
   if (!account || !sig || !/^[0-9a-f-]{36}$/.test(account)) return null;
   const want = Buffer.from(channelToken(account).split(".")[1]!);
   const got = Buffer.from(sig);
-  return want.length === got.length && timingSafeEqual(want, got) ? account : null;
+  return same(want, got) ? account : null;
 }
 
 /** Where providers push to; null when the app isn't on a public https address (local runs rely on the refresh). */

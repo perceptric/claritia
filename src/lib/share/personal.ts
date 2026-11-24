@@ -1,4 +1,5 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac } from "node:crypto";
+import { same } from "../sign.ts";
 
 // Personal links (docs/sharing-plan.md, Personal links): a form link that says who it was sent to, so the form fills in
 // what Claritia already knows about them. The link holds a signed token, never the person's details: the workspace,
@@ -34,7 +35,7 @@ export function readPersonal(token: unknown, secret: string | undefined, ws: str
   if (!body || !mac || token.split(".").length !== 2) return null;
   const want = Buffer.from(sign(body, secret));
   const got = Buffer.from(mac);
-  if (want.length !== got.length || !timingSafeEqual(want, got)) return null;
+  if (!same(want, got)) return null;
   try {
     const p = JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as Partial<Person>;
     if (p.w !== ws || typeof p.x !== "number" || p.x * 1000 < now) return null;

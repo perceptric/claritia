@@ -3,7 +3,8 @@
 //   token = base64url(version | kind | message id (16 bytes) | link (2 bytes)) + base64url(HMAC-SHA256, first 16 bytes)
 // The key comes from SECRETS_KEY, which the web app and the worker share.
 
-import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
+import { same } from "../sign.ts";
 
 export type LinkToken = { kind: "click" | "unsub" | "open"; message: string; link: number };
 
@@ -34,7 +35,7 @@ export function readToken(token: string, secret?: string): LinkToken | null {
   const mac = Buffer.from(m, "base64url");
   if (body.length !== 20 || mac.length !== 16 || body[0] !== 1 || body[1] >= KINDS.length) return null;
   const want = createHmac("sha256", linkKey(secret)).update(body).digest().subarray(0, 16);
-  if (!timingSafeEqual(mac, want)) return null;
+  if (!same(mac, want)) return null;
   const hex = body.subarray(2, 18).toString("hex");
   const message = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
   return { kind: KINDS[body[1]], message, link: body.readUInt16BE(18) };

@@ -5,7 +5,8 @@
 // time times are shown, meeting_book_later is queued 10 minutes out (form_booking_shown, once per submission).
 // Server only.
 
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac } from "node:crypto";
+import { same } from "../sign.ts";
 import type { Rpc } from "../jobs.ts";
 import { book, offer } from "../meetings/server.ts";
 import { callNewer } from "./newer.ts";
@@ -45,7 +46,7 @@ export function readBooking(token: unknown, secret: string | undefined, now = Da
   if (!UUID.test(s) || !UUID.test(t) || (o !== "-" && !UUID.test(owner)) || !/^[0-9a-z]{1,10}$/.test(e)) return null;
   const want = Buffer.from(mac(`${s}.${t}.${o}.${e}`, secret));
   const got = Buffer.from(sig);
-  if (want.length !== got.length || !timingSafeEqual(want, got)) return null;
+  if (!same(want, got)) return null;
   const exp = parseInt(e, 36) * 1000;
   if (exp <= now) return "expired";
   return { submission: s, type: t, owner: o === "-" ? null : owner, exp, ...(only ? { only: true } : {}) };

@@ -5,7 +5,8 @@
 // Secrets: SLACK_CLIENT_ID, SLACK_CLIENT_SECRET and SLACK_SIGNING_SECRET. Without them, "Add to Slack" answers that
 // Slack isn't set up, and alerts keep using the channel webhook or email.
 
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac } from "node:crypto";
+import { same } from "../sign.ts";
 import { seal, unseal } from "../seal.ts";
 
 const env = (name: string) => process.env[name]?.trim() ?? "";
@@ -54,7 +55,7 @@ export function slackSigned(o: { body: string; timestamp: string | null; signatu
   if (Math.abs((o.now ?? Date.now()) / 1000 - ts) > 300) return false;
   const want = Buffer.from(`v0=${createHmac("sha256", secret).update(`v0:${o.timestamp}:${o.body}`).digest("hex")}`);
   const got = Buffer.from(o.signature);
-  return want.length === got.length && timingSafeEqual(want, got);
+  return same(want, got);
 }
 
 export type SlackResult = { status: "done" } | { status: "retry"; error: string; retryAfterS?: number } | { status: "failed"; error: string };

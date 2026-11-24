@@ -2,7 +2,8 @@
 // naming the workspace and the person, signed with a key made from SECRETS_KEY, so nobody can turn off someone
 // else's tips by changing the link. Works on claritia-intel (which makes it) and claritia-web (which reads it).
 
-import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
+import { same } from "../sign.ts";
 
 const VERSION = 1;
 const SIZE = 33;
@@ -42,6 +43,6 @@ export function readTipsToken(token: string, secret = process.env.SECRETS_KEY): 
   const mac = Buffer.from(m, "base64url");
   if (body.length !== SIZE || mac.length !== 16 || body[0] !== VERSION) return null;
   const want = createHmac("sha256", k).update(body).digest().subarray(0, 16);
-  if (!timingSafeEqual(mac, want)) return null;
+  if (!same(mac, want)) return null;
   return { workspaceId: uuid(body.subarray(1, 17)), userId: uuid(body.subarray(17, 33)) };
 }
