@@ -3,7 +3,7 @@ import { lockFor, planRefusal } from "@/lib/planGate";
 import { linkFeature } from "@/lib/plans";
 import { checkLink, withDefaults, type LinkIn } from "@/lib/meetings/public";
 import type { MeetingType } from "@/lib/meetings/types";
-import { requireUser } from "@/lib/serverAuth";
+import { requireUser, roleIn } from "@/lib/serverAuth";
 import { seal, unseal } from "@/lib/seal";
 import { serviceClient } from "@/lib/serviceClient";
 import { base } from "../_shared";
@@ -41,8 +41,7 @@ export async function POST(request: Request) {
       }
       return Response.json({ url: `${base()}/book/${link.kind === "poll" ? "p" : "l"}/${token}` });
     }
-    const { data: m } = await db.from("workspace_members").select("role").eq("workspace_id", ws).eq("user_id", auth.user.id).maybeSingle();
-    if (link.owner_user_id !== auth.user.id && (m as { role: string } | null)?.role !== "owner") return bad("Only the link's owner can change it.", 403);
+    if (link.owner_user_id !== auth.user.id && (await roleIn(auth, ws, { fresh: true })) !== "owner") return bad("Only the link's owner can change it.", 403);
     const { error } = body.action === "close" ? await db.from("meeting_links").update({ closed_at: new Date().toISOString() }).eq("id", link.id) : await db.from("meeting_links").delete().eq("id", link.id);
     if (error) return bad(error.message, 500);
     return Response.json({ ok: true });
