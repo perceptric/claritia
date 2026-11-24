@@ -23,7 +23,7 @@ import { AUTOMATION_APPS } from "@/lib/oauth/apps";
 import { CopyButton } from "../CopyButton";
 import { BrandLogo } from "../BrandLogo";
 import { askConfirm } from "../Dialogs";
-import { Badge, Button, ErrorNote, errorText, Field, Input, must, postJson, useLoad, type ViewProps } from "../ui";
+import { Badge, Button, ErrorNote, errorText, Field, getJson, Input, must, postJson, useLoad, type ViewProps } from "../ui";
 import { Select } from "../Select";
 import { Search } from "../../Icons";
 import { StripeButtons, StripeCard, StripeStatus, useStripe } from "../meetings/Payments";
@@ -45,10 +45,7 @@ async function composioOf(session: ViewProps["session"], ws: string): Promise<{ 
 }
 
 async function hookUrlOf(session: ViewProps["session"], id: string): Promise<string> {
-  const res = await fetch(`/api/sources/hook-url?id=${id}`, { headers: { Authorization: `Bearer ${session.access_token}` } });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error ?? "Something went wrong.");
-  return data.url as string;
+  return (await getJson<{ url: string }>(session, `/api/sources/hook-url?id=${id}`)).url;
 }
 
 /** The page's categories, in the order the dropdown lists them. */

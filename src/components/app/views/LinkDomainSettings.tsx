@@ -8,7 +8,7 @@ import { useState } from "react";
 import { CopyButton } from "../CopyButton";
 import { askConfirm } from "../Dialogs";
 import { ago } from "../forms/formModel";
-import { Badge, Button, CardHead, ErrorNote, errorText, Input, Loading, Panel, postJson, useQuery, type Role, type Tone, type ViewProps } from "../ui";
+import { Badge, Button, CardHead, ErrorNote, errorText, getJson, Input, Loading, Panel, postJson, useQuery, type Role, type Tone, type ViewProps } from "../ui";
 
 export type LinkDomainState = {
   subdomain: string | null;
@@ -18,10 +18,7 @@ export type LinkDomainState = {
 };
 
 export async function getLinkDomain(session: ViewProps["session"], ws: string): Promise<LinkDomainState> {
-  const res = await fetch(`/api/link-domain?workspaceId=${ws}`, { headers: { Authorization: `Bearer ${session.access_token}` } });
-  const j = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(j.error ?? "Something went wrong.");
-  return j as LinkDomainState;
+  return getJson<LinkDomainState>(session, `/api/link-domain?workspaceId=${ws}`);
 }
 
 /** The address the workspace's links start with: its live custom domain, else its subdomain, else none. */

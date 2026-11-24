@@ -239,13 +239,17 @@ export function patchRows<R extends { id: string }>(name: string, id: string, pa
   }
 }
 
-/** POST to one of our API routes as the signed-in user. */
-export async function postJson<T = Record<string, unknown>>(session: Session, path: string, body: object): Promise<T> {
-  const res = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify(body) });
+/** Call one of our API routes as the signed-in user, and throw the route's error when it answers one. */
+async function callApi<T>(session: Session, method: "GET" | "POST", path: string, body?: object): Promise<T> {
+  const headers: Record<string, string> = { Authorization: `Bearer ${session.access_token}`, ...(body ? { "Content-Type": "application/json" } : {}) };
+  const res = await fetch(path, { method, headers, body: body ? JSON.stringify(body) : undefined });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error ?? "Something went wrong.");
   return data as T;
 }
+
+export const getJson = <T = Record<string, unknown>,>(session: Session, path: string) => callApi<T>(session, "GET", path);
+export const postJson = <T = Record<string, unknown>,>(session: Session, path: string, body: object) => callApi<T>(session, "POST", path, body);
 
 /** Throw a Supabase error so callers can show it. */
 export function must<T>(res: { data: T | null; error: { message: string } | null }): T {
