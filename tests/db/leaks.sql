@@ -695,8 +695,9 @@ select pg_temp.fails($$select field_order_save('11111111-0000-0000-0000-00000000
 select pg_temp.fails($$select field_delete('22222222-0000-0000-0000-000000000000', 'contact', 'secret')$$, 'Ben deletes Cat''s field');
 select pg_temp.fails($$select records_bulk_set('22222222-0000-0000-0000-000000000000', 'contact', array[(select id from cat_contact)], 'title', '"x"')$$, 'Ben bulk edits Cat''s contacts');
 select pg_temp.fails($$select records_bulk_set('11111111-0000-0000-0000-000000000000', 'contact', array[(select id from cat_contact)], 'title', '"x"')$$, 'Ben bulk edits Cat''s contact through his own workspace');
-select list_add('11111111-0000-0000-0000-000000000000', null, 'Ben list', array[(select id from cat_contact)]);
-select pg_temp.check((select count(*) from segment_members) = 0, 'Ben put Cat''s contact on his list');
+select list_add('11111111-0000-0000-0000-000000000000', list_save('11111111-0000-0000-0000-000000000000', null, 'Ben list'), array[(select id from cat_contact)]);
+select pg_temp.check((select count(*) from list_members where contact_id = (select id from cat_contact)) = 0, 'Ben put Cat''s contact on his list');
+select pg_temp.fails($$select list_add('22222222-0000-0000-0000-000000000000', (select id from lists where name = 'Ben list'), array[(select id from cat_contact)])$$, 'Ben adds to a list in Cat''s workspace');
 select pg_temp.check(workspace_people('22222222-0000-0000-0000-000000000000') is null, 'Ben lists Cat''s teammates');
 select pg_temp.fails($$select merge_values('{}', 'manual', null, '{}', '{}', '{}')$$, 'Ben calls the merge helper');
 select pg_temp.fails($$select field_value('11111111-0000-0000-0000-000000000000', 'text', '[]', 'x', '"y"')$$, 'Ben calls the value checker');
@@ -861,7 +862,7 @@ delete from jobs;
 
 -- Form chat and brand scans (046): the AI cache and chat history stay server-side or in the workspace; only owners
 -- read AI costs; scans start only through the server.
-insert into form_chats (form_id, workspace_id, messages) values ('f0c00000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', '[{"role":"user","text":"cat secret"}]');
+insert into form_chats (form_id, workspace_id, body) values ('f0c00000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', '{"log":[{"role":"user","text":"cat secret"}]}');
 insert into ai_cache (workspace_id, kind, key, output, model) values ('22222222-0000-0000-0000-000000000000', 'form_chat', repeat('a', 64), '{}', 'm');
 insert into ai_calls (workspace_id, kind, model) values ('11111111-0000-0000-0000-000000000000', 'form_chat', 'claude-sonnet-5-5'), ('22222222-0000-0000-0000-000000000000', 'form_chat', 'claude-sonnet-5-5');
 select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');

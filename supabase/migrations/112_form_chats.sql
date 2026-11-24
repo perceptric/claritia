@@ -6,6 +6,16 @@
 
 alter table public.brand_kits add column if not exists studio_css text check (studio_css is null or length(studio_css) <= 200000);
 
+-- 046 made an older form_chats, one row per form with no id. On a database built from scratch it's still that one
+-- here, so it's replaced; one that already has this shape is left alone.
+do $$
+begin
+  if to_regclass('public.form_chats') is not null
+     and not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'form_chats' and column_name = 'id') then
+    drop table public.form_chats;
+  end if;
+end $$;
+
 create table if not exists public.form_chats (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references public.workspaces (id) on delete cascade,
