@@ -23,7 +23,7 @@ import { canSwitch, pagesOf, withPages, type PagesMode } from "@/lib/forms/galle
 import { AiMark } from "../../Ai";
 import { Select } from "../../Select";
 import { Sheet } from "../../Sheet";
-import { ErrorNote, errorText, invalidate, postJson, type ViewProps } from "../../ui";
+import { ErrorNote, errorText, invalidate, postJson, Spinner, type ViewProps } from "../../ui";
 import { Ic } from "../ic";
 import { BTN, CARD, EYEBROW, GHOST } from "../parts";
 import { FormPreview } from "../shared";
@@ -313,6 +313,7 @@ function Describe({ ws, session, navigate, onPick, seed }: Pick<ViewProps, "ws" 
     const t = setTimeout(() => {
       postJson<{ ids: string[] }>(session, "/api/forms/templates/match", { workspaceId: ws.id, text: q })
         .then((r) => live && setFound({ q, ids: r.ids }))
+        // Only suggestions: when the match fails, Build with AI still works.
         .catch(() => undefined);
     }, 600);
     return () => {
@@ -403,6 +404,7 @@ function KitSheet({ k, ws, session, navigate, onClose, onPick }: Pick<ViewProps,
           <ErrorNote message={error} />
           <span className="flex-1" />
           <button type="button" className={BTN} onClick={add} disabled={busy}>
+            {busy ? <Spinner size={12} /> : null}
             {busy ? "Making them…" : `Add all ${list.length}`}
           </button>
         </>
@@ -800,6 +802,7 @@ export function TemplatesPage({ sb, ws, session, navigate, id }: ViewProps) {
               <ErrorNote message={error} />
               <span className="flex-1" />
               <button type="button" className={BTN} onClick={use} disabled={busy}>
+                {busy ? <Spinner size={12} /> : null}
                 {busy ? "Making it…" : "Use form template"}
               </button>
             </>

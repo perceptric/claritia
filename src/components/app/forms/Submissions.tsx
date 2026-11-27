@@ -15,7 +15,8 @@ import { Popover } from "../FilterBar";
 import { BrandLogo } from "../BrandLogo";
 import { askConfirm } from "../Dialogs";
 import { usePeople } from "../meetings/parts";
-import { Badge, ErrorNote, errorText, Loading, must, postJson, useLoad, useQuery, type ViewProps } from "../ui";
+import { Badge, ErrorNote, errorText, Loading, must, postJson, Spinner, useLoad, useQuery, type ViewProps } from "../ui";
+import { toast } from "../Toaster";
 import { allows } from "@/lib/plans";
 import { maskFill } from "@/lib/planHidden";
 import { Eyebrow, PanelFooter, PanelSection } from "../scheduling/panel";
@@ -85,6 +86,9 @@ export function Submissions(props: ViewProps & { form: Form; formId: string; des
   const [open, setOpen] = useState<string | null>(null);
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [error, setError] = useState("");
+  // The list didn't load: shown with Try again, apart from an action's error.
+  const [loadErr, setLoadErr] = useState("");
+  const [moreBusy, setMoreBusy] = useState(false);
   const [tick, setTick] = useState(0);
   const [rangeAt, setRangeAt] = useState<HTMLElement | null>(null);
   const [colsAt, setColsAt] = useState<HTMLElement | null>(null);
@@ -109,7 +113,7 @@ export function Submissions(props: ViewProps & { form: Form; formId: string; des
       sb.rpc("form_fill_count", { p_form: formId, p_filters: { kind: "leads", from: since.toISOString(), booked: true } }),
     ]);
     const d = (daily.data ?? []) as { views: number; starts: number }[];
-    return { views: d.reduce((a, x) => a + x.views, 0), starts: d.reduce((a, x) => a + x.starts, 0), sent: Number(sent.data ?? 0), booked: Number(booked.data ?? 0) };
+    return { views: d.reduce((a, x) => a + x.views, 0), starts: d.reduce((a, x) => a + x.starts, 0), sent: Number(must(sent) ?? 0), booked: Number(must(booked) ?? 0) };
   }, `${formId}:${tick}`);
   const counts = useLoad(async () => {
     const [leads, spam, left] = await Promise.all([
@@ -117,7 +121,7 @@ export function Submissions(props: ViewProps & { form: Form; formId: string; des
       sb.rpc("form_fill_count", { p_form: formId, p_filters: cleanFilters({ kind: "spam", from }) }),
       sb.rpc("form_left_early", { p_form: formId, p_from: from ? from.slice(0, 10) : null, p_limit: 100 }),
     ]);
-    return { leads: Number(leads.data ?? 0), spam: Number(spam.data ?? 0), left: (left.data ?? { count: 0, rows: [] }) as { count: number; rows: Left[] } };
+    return { leads: Number(must(leads) ?? 0), spam: Number(must(spam) ?? 0), left: (left.data ?? { count: 0, rows: [] }) as { count: number; rows: Left[] } };
   }, `${formId}:${from}:${tick}`);
   // Where fills came from (124): fills and booked meetings for each channel, for the filters other than the channel.
   const channels = useLoad(async () => {
@@ -145,10 +149,11 @@ export function Submissions(props: ViewProps & { form: Form; formId: string; des
     loadPage(null)
       .then((r) => {
         if (!live) return;
+        setLoadErr("");
         setRows(r);
         setMore(r.length === PAGE);
       })
-      .catch((e) => live && setError(errorText(e)));
+      .catch((e) => live && setLoadErr(errorText(e)));
     return () => {
       live = false;
     };
@@ -204,7 +209,10 @@ export function Submissions(props: ViewProps & { form: Form; formId: string; des
       setError(errorText(e));
     }
   };
-  const reload = () => setTick((t) => t + 1);
+  const reload = () => {
+    setLoadErr("");
+    setTick((t) => t + 1);
+  };
   /** Rows leave the list at once; the counts are read again; a failure reads the list again. */
   const drop = async (ids: string[], fn: () => Promise<void>) => {
     const was = rows;
@@ -346,7 +354,8 @@ export function Submissions(props: ViewProps & { form: Form; formId: string; des
               ))}
             </div>
           ) : null}
-          <ErrorNote message={error || funnel.error || counts.error} />
+          <ErrorNote message={error} onClose={() => setError("")} />
+          <ErrorNote message={loadErr || funnel.error || counts.error} onRetry={reload} />
           <div className="min-h-0 flex-1 overflow-auto">
             {view === "partial" ? (
               !counts.data ? (
@@ -440,13 +449,21 @@ export function Submissions(props: ViewProps & { form: Form; formId: string; des
                 <button
                   type="button"
                   className={GHOST_SM}
+                  disabled={moreBusy}
                   onClick={() =>
-                    void loadPage(rows[rows.length - 1] ?? null).then((r) => {
-                      setRows([...rows, ...r]);
-                      setMore(r.length === PAGE);
+                    void run(async () => {
+                      setMoreBusy(true);
+                      try {
+                        const r = await loadPage(rows[rows.length - 1] ?? null);
+                        setRows([...rows, ...r]);
+                        setMore(r.length === PAGE);
+                      } finally {
+                        setMoreBusy(false);
+                      }
                     })
                   }
                 >
+                  {moreBusy ? <Spinner size={12} /> : null}
                   Show more
                 </button>
               </div>
@@ -459,9 +476,10 @@ export function Submissions(props: ViewProps & { form: Form; formId: string; des
               void fetch(`/api/forms/uploads/${uid}`, { headers: { Authorization: `Bearer ${session.access_token}` } })
                 .then((r) => r.json() as Promise<{ url?: string }>)
                 .then((j) => {
-                  if (j.url) window.open(j.url, "_blank", "noopener");
+                  if (!j.url) throw new UserError("Couldn't open the file. Try again.");
+                  window.open(j.url, "_blank", "noopener");
                 })
-                .catch(() => undefined)
+                .catch((e) => toast({ text: errorText(e), tone: "error" }))
             }
             onPdf={() =>
               void run(async () => {

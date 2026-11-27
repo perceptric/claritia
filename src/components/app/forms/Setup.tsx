@@ -13,7 +13,7 @@ import { BrandLogo } from "../BrandLogo";
 import { CLOSED } from "@/lib/forms/access";
 import { DatePick } from "../DatePick";
 import { askText } from "../Dialogs";
-import { Badge, ErrorNote, errorText, must, postJson, useLoad, type ViewProps } from "../ui";
+import { Badge, ErrorNote, errorText, must, postJson, Spinner, useLoad, type ViewProps } from "../ui";
 import { Select } from "../Select";
 import { Ic } from "./ic";
 import { AREA, Box, CARD, CROW, CSTACK, GHOST_SM, GHOST_SM_RED, IN, IN_FIT, RowText, Seg, useNote, Tg } from "./parts";
@@ -198,7 +198,7 @@ function Alerts({ form, apply, routing }: Props) {
                   }}
                 />
               </div>
-              {bad ? <span className="text-[12px] text-rose">{bad}</span> : null}
+              {bad ? <span className="text-[12px] text-warning">{bad}</span> : null}
             </div>
             <div className={CSTACK}>
               <Label>Subject</Label>
@@ -346,7 +346,7 @@ function Spam({ sb, form, apply, formId, onReview }: Props) {
   const [site, setSite] = useState("");
   const [bad, setBad] = useState("");
   const sites = s.sites ?? [];
-  const held = useLoad(async () => Number((await sb.rpc("form_fill_count", { p_form: formId, p_filters: { kind: "spam", from: new Date(Date.now() - 30 * 86_400_000).toISOString() } })).data ?? 0), formId);
+  const held = useLoad(async () => Number(must(await sb.rpc("form_fill_count", { p_form: formId, p_filters: { kind: "spam", from: new Date(Date.now() - 30 * 86_400_000).toISOString() } })) ?? 0), formId);
   const speed = s.minSeconds <= 0 ? "0" : s.minSeconds <= 3 ? "3" : "5";
   return (
     <>
@@ -396,7 +396,7 @@ function Spam({ sb, form, apply, formId, onReview }: Props) {
               }}
             />
           </div>
-          {bad ? <span className="text-[12px] text-rose">{bad}</span> : <span className="text-[12px] text-muted">{sites.length ? "The link page always works. Fills from other sites go to Spam." : "Any site can show the form"}</span>}
+          {bad ? <span className="text-[12px] text-warning">{bad}</span> : <span className="text-[12px] text-muted">{sites.length ? "The link page always works. Fills from other sites go to Spam." : "Any site can show the form"}</span>}
         </div>
         <div className={CROW}>
           <RowText title="Most fills in an hour" />
@@ -420,7 +420,7 @@ function Spam({ sb, form, apply, formId, onReview }: Props) {
       <div className={CARD}>
         <div className={CROW}>
           <RowText title="Spam this month" />
-          <Badge tone="amber">{held.data ?? 0}</Badge>
+          {held.data != null ? <Badge tone="amber">{held.data}</Badge> : null}
           <button type="button" className={GHOST_SM} onClick={onReview}>
             Open Spam
           </button>
@@ -436,6 +436,7 @@ function Data({ sb, session, form, apply, formId, subs, name }: Props) {
   const fill = allFields(form).filter((f) => f.type !== "hidden" && f.type !== "heading" && f.type !== "paragraph");
   const prefillOn = fill.length > 0 && fill.every((f) => f.prefill);
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState<"export" | "clear" | null>(null);
   const note = useNote();
   return (
     <>
@@ -455,8 +456,10 @@ function Data({ sb, session, form, apply, formId, subs, name }: Props) {
           <button
             type="button"
             className={GHOST_SM}
+            disabled={busy === "export"}
             onClick={async () => {
               setError("");
+              setBusy("export");
               try {
                 const res = await fetch(`/api/forms/${formId}/export?filters=${encodeURIComponent("{}")}`, { headers: { Authorization: `Bearer ${session.access_token}` } });
                 if (!res.ok) throw new UserError(((await res.json().catch(() => ({}))) as { error?: string }).error ?? "The export didn't finish.");
@@ -467,10 +470,12 @@ function Data({ sb, session, form, apply, formId, subs, name }: Props) {
                 note.show("Export started. It downloads in a moment.");
               } catch (e) {
                 setError(errorText(e));
+              } finally {
+                setBusy(null);
               }
             }}
           >
-            <Ic n="down" />
+            {busy === "export" ? <Spinner size={12} /> : <Ic n="down" />}
             Export CSV
           </button>
         </div>
@@ -482,19 +487,24 @@ function Data({ sb, session, form, apply, formId, subs, name }: Props) {
           <button
             type="button"
             className={GHOST_SM_RED}
+            disabled={busy === "clear"}
             onClick={async () => {
               const typed = await askText(`Delete every submission? All ${subs.toLocaleString("en-US")} go for good. Type the form's name to go ahead.`, { placeholder: name, ok: "Delete all" });
               if (!typed) return;
               if (typed.trim() !== name.trim()) return setError("The name didn't match, so nothing was deleted.");
               setError("");
+              setBusy("clear");
               try {
                 must(await sb.rpc("form_submissions_clear", { p_form: formId }));
                 note.show("Every submission deleted");
               } catch (e) {
                 setError(errorText(e));
+              } finally {
+                setBusy(null);
               }
             }}
           >
+            {busy === "clear" ? <Spinner size={12} /> : null}
             Delete all
           </button>
         </div>
@@ -532,7 +542,7 @@ function IdInput({ label, value, placeholder, ok, onSave, width = "w-[190px]" }:
         onBlur={save}
         onKeyDown={(e) => e.key === "Enter" && save()}
       />
-      {wrong ? <span className="text-[12px] text-rose">Like {placeholder}</span> : null}
+      {wrong ? <span className="text-[12px] text-warning">Like {placeholder}</span> : null}
     </div>
   );
 }
@@ -579,12 +589,16 @@ function Tracking({ sb, session, ws, form, apply, navigate }: Props) {
   const [accounts, setAccounts] = useState<AdsAccount[] | null>(null);
   const [actions, setActions] = useState<{ id: string; name: string }[] | null>(null);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const loadAccounts = async () => {
     setError("");
+    setLoading(true);
     try {
       setAccounts((await postJson<{ accounts: AdsAccount[] }>(session, "/api/forms/ads-actions", { workspaceId: ws.id })).accounts);
     } catch (e) {
       setError(errorText(e));
+    } finally {
+      setLoading(false);
     }
   };
   const loadActions = async (a: AdsAccount) => {
@@ -603,6 +617,7 @@ function Tracking({ sb, session, ws, form, apply, navigate }: Props) {
     <>
       <H3>Tracking</H3>
       <ErrorNote message={error} />
+      <ErrorNote message={tools.error} onRetry={tools.reload} />
       <div className={CARD}>
         <div className={CROW}>
           <RowText title="Google Tag Manager" sub="Events in the page's dataLayer" />
@@ -640,17 +655,21 @@ function Tracking({ sb, session, ws, form, apply, navigate }: Props) {
         <div className={CROW}>
           <RowText title="Offline conversions" sub={!has("google_ads") ? "Not connected" : up ? (up.name ?? "Fills with a Google click ID") : "Fills with a Google click ID"} />
           {has("google_ads") ? (
-            <Tg
-              label="Offline conversions"
-              on={!!up}
-              onChange={(on) => {
-                if (!on) {
-                  set({ upload: undefined });
-                  setAccount(null);
-                  setActions(null);
-                } else void loadAccounts();
-              }}
-            />
+            <span className="inline-flex shrink-0 items-center gap-[8px]">
+              {loading ? <Spinner size={12} className="text-muted" /> : null}
+              <Tg
+                label="Offline conversions"
+                on={!!up}
+                disabled={loading}
+                onChange={(on) => {
+                  if (!on) {
+                    set({ upload: undefined });
+                    setAccount(null);
+                    setActions(null);
+                  } else void loadAccounts();
+                }}
+              />
+            </span>
           ) : (
             <button type="button" className={GHOST_SM} onClick={() => connect("google_ads")}>
               <BrandLogo domain="ads.google.com" name="Google Ads" size={14} />

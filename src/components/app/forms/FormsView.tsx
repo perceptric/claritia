@@ -11,7 +11,7 @@ import { applyOp, type Op } from "@/lib/forms/ops";
 import { checkForm, emptyForm, type Form } from "@/lib/forms/schema";
 import type { CustomField } from "@/lib/records/fields";
 import { askConfirm, tell } from "../Dialogs";
-import { cache, ErrorNote, errorText, invalidate, Loading, must, postJson, setLeaveGuard, useQuery, type ViewProps } from "../ui";
+import { cache, ErrorNote, errorText, invalidate, Loading, must, postJson, setLeaveGuard, Spinner, useQuery, type ViewProps } from "../ui";
 import { useLiveBody } from "../routing/screenParts";
 import { FormHome } from "./FormHome";
 import { confirmPause } from "./pause";
@@ -91,7 +91,7 @@ function StudioPage(props: ViewProps & { fresh?: boolean }) {
     if (r === "blocked") setCheckAt(actionRef.current);
   };
   const action: HeaderAction = st?.publishing
-    ? { label: "Publishing", onClick: () => undefined, disabled: true }
+    ? { label: "Publishing", onClick: () => undefined, disabled: true, busy: true }
     : pill === "live"
       ? { label: "Share", onClick: () => go("share") }
       : { label: pill === "changed" ? "Publish changes" : "Publish", onClick: () => void run(), disabled: !st?.canPublish, problems: st?.issues.filter((i) => i.level === "error").length };
@@ -148,7 +148,7 @@ function FormPage(props: ViewProps) {
       chatState: ((chat.data ?? []) as { state: string }[])[0]?.state ?? null,
     };
   });
-  if (data.error && !data.data) return <div className="p-[16px]"><ErrorNote message={data.error} /></div>;
+  if (data.error && !data.data) return <div className="p-[16px]"><ErrorNote message={data.error} onRetry={data.reload} /></div>;
   if (!data.data) return <Loading />;
   if ("none" in data.data) return <div className="p-[24px] text-muted">Form not found</div>;
   // An older form moves into the Studio the first time it opens; a form that reads the site's own form has no page.
@@ -173,6 +173,7 @@ function FormPage(props: ViewProps) {
 /** An older form's draft, turned into a studio page on the server (docs/forms-chat-plan.md Part 8). */
 function MoveToStudio({ session, ws, id, onDone }: ViewProps & { onDone: (lost: string[]) => void }) {
   const [error, setError] = useState("");
+  const [tries, setTries] = useState(0);
   const done = useRef(onDone);
   useEffect(() => {
     done.current = onDone;
@@ -186,8 +187,8 @@ function MoveToStudio({ session, ws, id, onDone }: ViewProps & { onDone: (lost: 
     return () => {
       live = false;
     };
-  }, [session, ws.id, id]);
-  return error ? <div className="p-[16px]"><ErrorNote message={error} /></div> : <Loading />;
+  }, [session, ws.id, id, tries]);
+  return error ? <div className="p-[16px]"><ErrorNote message={error} onRetry={() => (setError(""), setTries((n) => n + 1))} /></div> : <Loading />;
 }
 
 export type Tab = FormTab;
@@ -506,7 +507,7 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
   const problems = isStudio ? (studio?.issues.filter((i) => i.level === "error").length ?? 0) : checks.filter((c) => c.blocks).length;
   const action: HeaderAction =
     isStudio && studio?.publishing
-      ? { label: "Publishing", onClick: () => undefined, disabled: true }
+      ? { label: "Publishing", onClick: () => undefined, disabled: true, busy: true }
       : pill === "live"
         ? { label: "Share", onClick: () => setTab("share") }
         : { label: pill === "changed" ? "Publish changes" : "Publish", onClick: onPublish, problems };
@@ -550,13 +551,12 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
         />
       ) : null}
       {saving === "offline" ? (
-        <div className="flex h-[44px] shrink-0 items-center gap-[10px] border-b border-line bg-paper pr-[12px] pl-[16px] text-[12.5px]">
+        <div className="flex min-h-[44px] shrink-0 flex-wrap items-center gap-[10px] border-b border-line bg-paper py-[6px] pr-[12px] pl-[16px] text-[12.5px]">
           <span className="inline-flex size-[24px] shrink-0 items-center justify-center rounded-[7px] bg-butter-wash text-butter">
             <Ic n="warn" s={13} />
           </span>
           <b className="font-semibold text-ink">Not saved</b>
-          <span className="min-w-0 truncate text-body">{error || "Your changes are kept here and save when the connection comes back"}</span>
-          <span className="flex-1" />
+          <span className="min-w-0 flex-1 text-body">{error || "Your changes are kept here and save when the connection comes back"}</span>
           <button type="button" className={GHOST_SM} onClick={() => void save()}>
             Try now
           </button>
@@ -628,6 +628,7 @@ function PublishDialog({ checks, live, onClose, onPublish, onGo, error }: { chec
             setBusy(false);
           }}
         >
+          {busy ? <Spinner size={12} /> : null}
           {bad.length && !blocks ? "Publish anyway" : live ? "Publish changes" : "Publish"}
         </button>
       </div>

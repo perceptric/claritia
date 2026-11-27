@@ -238,10 +238,12 @@ export function Studio({ sb, session, ws, navigate, formId = "", chatId = "", fr
       confirmDeleteThread: (title) => askConfirm(`Delete "${title}"?`, { body: "The form stays as it is.", ok: "Delete", danger: true }),
       keepProfile: (id, profile) => {
         write(profileKey(id), profile);
+        // Kept in this browser too, so a failed copy to the server is read from here next time.
         void post({ mode: "brand-profile", kitId: id, profile }).catch(() => undefined);
       },
       keepCss: (id, css) => {
         write(cssKey(id), css);
+        // As above: the browser copy stands in when the server's doesn't save.
         void post({ mode: "brand-css", kitId: id, css }).catch(() => undefined);
       },
       publish: async (p) => {

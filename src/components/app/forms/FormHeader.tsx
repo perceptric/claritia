@@ -7,13 +7,13 @@
 import { useEffect, useRef, useState } from "react";
 import type { StudioIssue } from "./studio/studio";
 import { Popover } from "../FilterBar";
-import { Badge, Tabs, type ViewProps } from "../ui";
+import { Badge, Spinner, Tabs, type ViewProps } from "../ui";
 import { Ic } from "./ic";
 import { BTN, EYEBROW, GHOST_SM } from "./parts";
 
 export type FormTab = "build" | "submissions" | "share" | "sync" | "settings";
 export type HeaderState = "draft" | "live" | "changed" | "offline";
-export type HeaderAction = { label: string; onClick: () => void; disabled?: boolean; problems?: number };
+export type HeaderAction = { label: string; onClick: () => void; disabled?: boolean; problems?: number; /** Working: a spinner before the label. */ busy?: boolean };
 
 export function StatePill({ state }: { state: HeaderState }) {
   if (state === "live")
@@ -100,6 +100,7 @@ export function FormHeader({
       {tools}
       {more}
       <button ref={actionRef} type="button" data-form-action className={BTN} disabled={action.disabled} onClick={action.onClick} aria-label={action.problems ? `${action.label}, ${action.problems} ${action.problems === 1 ? "problem" : "problems"} to fix` : undefined}>
+        {action.busy ? <Spinner size={12} /> : null}
         {action.label}
         {action.problems ? <span className="-mr-[4px] inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-rose px-[5px] text-[11px] font-semibold text-card">{action.problems}</span> : null}
       </button>

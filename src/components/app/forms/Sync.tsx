@@ -17,7 +17,7 @@ import { toolFeature } from "@/lib/plans";
 import { PlanLock, planHas, usePlan } from "../PlanLock";
 import { BrandLogo } from "../BrandLogo";
 import { askConfirm, askText, tell } from "../Dialogs";
-import { attempt, Badge, ErrorNote, errorText, must, postJson, useQuery, type ViewProps } from "../ui";
+import { attempt, Badge, ErrorNote, errorText, must, postJson, Spinner, useQuery, type ViewProps } from "../ui";
 import { daysAgo, issuesOf } from "./formModel";
 import { Ic } from "./ic";
 import { BTN, CARD, CROW, GHOST_SM, GHOST_SM_RED, RowText, Seg, useNote, Tg } from "./parts";
@@ -154,6 +154,7 @@ function Start({ logo, name, kind = null, button, onClick, busy = false }: { log
       </div>
       <p className="m-0 text-[12.5px] text-muted">{`Send every lead from this form to ${name}.`}</p>
       <button type="button" className={`${BTN} self-start`} onClick={onClick} disabled={busy}>
+        {busy ? <Spinner size={12} /> : null}
         {button}
       </button>
       <About kind={kind} />
@@ -207,9 +208,9 @@ function CrmPane({ sb, session, ws, form, formId, dests, failed, reload, patchDe
         {d.paused ? <Badge tone="amber">Paused</Badge> : <Badge tone="green" dot>{d.config.host ? `Connected to ${d.config.host}` : "Connected"}</Badge>}
       </div>
       {list.length ? (
-        <div className="flex w-full items-center gap-[10px] rounded-lg bg-rose-wash px-[12px] py-[10px] text-[12.5px]">
-          <span className="min-w-0 flex-1 text-rose">
-            <b className="font-semibold">{`${week || list.length} ${(week || list.length) === 1 ? "lead didn't" : "leads didn't"} reach ${source.name}${week ? " this week" : ""}.`}</b> {list[0]!.error ?? ""}
+        <div className="flex w-full flex-wrap items-center gap-[10px] rounded-lg bg-warning-soft px-[12px] py-[10px] text-[12.5px]">
+          <span className="min-w-0 flex-1 text-body [overflow-wrap:anywhere]">
+            <b className="font-semibold text-ink">{`${week || list.length} ${(week || list.length) === 1 ? "lead didn't" : "leads didn't"} reach ${source.name}${week ? " this week" : ""}.`}</b> {list[0]!.error ?? ""}
           </span>
           <button type="button" className={GHOST_SM} disabled={busy} onClick={() => void run(async () => must(await sb.rpc("deliveries_replay", { p_ids: list.filter((x) => !x.error?.startsWith(DUPLICATE)).map((x) => x.id) })), "Sent again")}>
             Send again
@@ -221,7 +222,7 @@ function CrmPane({ sb, session, ws, form, formId, dests, failed, reload, patchDe
           ) : null}
         </div>
       ) : null}
-      <ErrorNote message={error || fails.error} />
+      <ErrorNote message={error || fails.error} onRetry={!error && fails.error ? fails.reload : undefined} />
       <div className={CARD}>
         {source.kind === "salesforce" ? (
           <div className={CROW}>
@@ -368,8 +369,9 @@ function ListPane({ sb, session, ws, formId, dests, failed, reload, source, logo
             {listPicker(pickNew?.id ?? "", setPickNew)}
           </div>
         </div>
-        <ErrorNote message={error || lists.error} />
+        <ErrorNote message={error || lists.error} onRetry={!error && lists.error ? lists.reload : undefined} />
         <button type="button" className={`${BTN} self-start`} disabled={!pickNew || busy} onClick={() => void run(() => save({ list: pickNew }), `Leads join ${pickNew?.name ?? source.name} now`)}>
+          {busy ? <Spinner size={12} /> : null}
           {`Add leads to ${source.name}`}
         </button>
       </>
@@ -394,16 +396,16 @@ function ListPane({ sb, session, ws, formId, dests, failed, reload, source, logo
         {d.paused ? <Badge tone="amber">Paused</Badge> : <Badge tone="green" dot>Connected</Badge>}
       </div>
       {list.length ? (
-        <div className="flex w-full flex-wrap items-center gap-[10px] rounded-lg bg-rose-wash px-[12px] py-[10px] text-[12.5px]">
-          <span className="min-w-0 flex-1 text-rose [overflow-wrap:anywhere]">
-            <b className="font-semibold">{`${week || list.length} ${(week || list.length) === 1 ? "lead didn't" : "leads didn't"} reach ${source.name}${week ? " this week" : ""}.`}</b> {list[0]!.error ?? ""}
+        <div className="flex w-full flex-wrap items-center gap-[10px] rounded-lg bg-warning-soft px-[12px] py-[10px] text-[12.5px]">
+          <span className="min-w-0 flex-1 text-body [overflow-wrap:anywhere]">
+            <b className="font-semibold text-ink">{`${week || list.length} ${(week || list.length) === 1 ? "lead didn't" : "leads didn't"} reach ${source.name}${week ? " this week" : ""}.`}</b> {list[0]!.error ?? ""}
           </span>
           <button type="button" className={GHOST_SM} disabled={busy || !pick.list} onClick={() => void run(async () => must(await sb.rpc("deliveries_replay", { p_ids: list.map((x) => x.id) })), "Sent again")}>
             Send again
           </button>
         </div>
       ) : null}
-      <ErrorNote message={error || lists.error} />
+      <ErrorNote message={error || lists.error} onRetry={!error && lists.error ? lists.reload : undefined} />
       <div className={CARD}>
         <div className={CROW}>
           <RowText title={word} />
@@ -509,7 +511,7 @@ function DocPane({ sb, session, ws, formId, dests, failed, reload, patchDests, s
         <H3>{source.name}</H3>
         {d ? <Badge tone={d.paused ? "gray" : "green"} dot>{d.paused ? "Paused" : "On"}</Badge> : null}
       </div>
-      <ErrorNote message={error || templates.error} />
+      <ErrorNote message={error || templates.error} onRetry={!error && templates.error ? templates.reload : undefined} />
       <div className={CARD}>
         {byLink ? (
           <div className={CROW}>
@@ -559,7 +561,15 @@ function DocPane({ sb, session, ws, formId, dests, failed, reload, patchDests, s
               on={!d.paused}
               onChange={(on) => {
                 patchDests?.((ds) => ds.map((x) => (x.id === d.id ? { ...x, paused: !on } : x)));
-                void run(async () => must(await sb.rpc("form_destination_pause", { p_id: d.id, p_paused: !on })));
+                void run(async () => {
+                  try {
+                    must(await sb.rpc("form_destination_pause", { p_id: d.id, p_paused: !on }));
+                  } catch (e) {
+                    // The switch goes back with the error.
+                    patchDests?.(() => dests);
+                    throw e;
+                  }
+                });
               }}
             />
           </div>
@@ -569,6 +579,7 @@ function DocPane({ sb, session, ws, formId, dests, failed, reload, patchDests, s
         <button
           type="button"
           className={`${GHOST_SM_RED} self-start`}
+          disabled={busy}
           onClick={async () => {
             if (!(await askConfirm(`Stop making documents in ${source.name}?`, { ok: "Remove", danger: true }))) return;
             await run(async () => must(await sb.rpc("form_destination_delete", { p_id: d.id })));
@@ -624,7 +635,7 @@ function FilesPane({ sb, session, ws, form, formId, dests, failed, reload, patch
         <H3>{source.name}</H3>
         {d && (target || s3) ? <Badge tone={d.paused ? "gray" : "green"} dot>{d.paused ? "Paused" : "On"}</Badge> : null}
       </div>
-      <ErrorNote message={error || folders.error} />
+      <ErrorNote message={error || folders.error} onRetry={!error && folders.error ? folders.reload : undefined} />
       <div className={CARD}>
         {!s3 ? (
           <div className={CROW}>
@@ -658,7 +669,15 @@ function FilesPane({ sb, session, ws, form, formId, dests, failed, reload, patch
               on={!d.paused}
               onChange={(on) => {
                 patchDests?.((ds) => ds.map((x) => (x.id === d.id ? { ...x, paused: !on } : x)));
-                void run(async () => must(await sb.rpc("form_destination_pause", { p_id: d.id, p_paused: !on })));
+                void run(async () => {
+                  try {
+                    must(await sb.rpc("form_destination_pause", { p_id: d.id, p_paused: !on }));
+                  } catch (e) {
+                    // The switch goes back with the error.
+                    patchDests?.(() => dests);
+                    throw e;
+                  }
+                });
               }}
             />
           </div>
@@ -666,6 +685,7 @@ function FilesPane({ sb, session, ws, form, formId, dests, failed, reload, patch
       </div>
       {s3 && !d ? (
         <button type="button" className={`${BTN} self-start`} disabled={busy} onClick={() => void run(() => save(), `Files go to ${source.name} now`)}>
+          {busy ? <Spinner size={12} /> : null}
           {`Copy files to ${source.name}`}
         </button>
       ) : null}
@@ -673,6 +693,7 @@ function FilesPane({ sb, session, ws, form, formId, dests, failed, reload, patch
         <button
           type="button"
           className={`${GHOST_SM_RED} self-start`}
+          disabled={busy}
           onClick={async () => {
             if (!(await askConfirm(`Stop copying files to ${source.name}?`, { ok: "Remove", danger: true }))) return;
             await run(async () => must(await sb.rpc("form_destination_delete", { p_id: d.id })));
@@ -717,7 +738,15 @@ function EventPane({ sb, session, ws, formId, dests, failed, reload, patchDests,
               on={!d.paused}
               onChange={(on) => {
                 patchDests?.((ds) => ds.map((x) => (x.id === d.id ? { ...x, paused: !on } : x)));
-                void run(async () => must(await sb.rpc("form_destination_pause", { p_id: d.id, p_paused: !on })));
+                void run(async () => {
+                  try {
+                    must(await sb.rpc("form_destination_pause", { p_id: d.id, p_paused: !on }));
+                  } catch (e) {
+                    // The switch goes back with the error.
+                    patchDests?.(() => dests);
+                    throw e;
+                  }
+                });
               }}
             />
           </div>
@@ -729,6 +758,7 @@ function EventPane({ sb, session, ws, formId, dests, failed, reload, patchDests,
           disabled={busy}
           onClick={() => void run(() => postJson(session, "/api/forms/destination", { workspaceId: ws.id, formId, kind: "source", sourceId: source.id, name: source.name }), `Fills go to ${source.name} now`)}
         >
+          {busy ? <Spinner size={12} /> : null}
           {`Send fills to ${source.name}`}
         </button>
       )}
@@ -736,6 +766,7 @@ function EventPane({ sb, session, ws, formId, dests, failed, reload, patchDests,
         <button
           type="button"
           className={`${GHOST_SM_RED} self-start`}
+          disabled={busy}
           onClick={async () => {
             if (!(await askConfirm(`Stop sending fills to ${source.name}?`, { ok: "Remove", danger: true }))) return;
             await run(async () => must(await sb.rpc("form_destination_delete", { p_id: d.id })));
@@ -778,7 +809,7 @@ function AlertPane({ sb, session, ws, formId, dests, failed, reload, patchDests,
         <H3>{source.name}</H3>
         {d ? <Badge tone={d.paused ? "gray" : "green"} dot>{d.paused ? "Paused" : "On"}</Badge> : null}
       </div>
-      <ErrorNote message={error || channels.error} />
+      <ErrorNote message={error || channels.error} onRetry={!error && channels.error ? channels.reload : undefined} />
       <div className={CARD}>
         {pick ? (
           <div className={CROW}>
@@ -805,7 +836,15 @@ function AlertPane({ sb, session, ws, formId, dests, failed, reload, patchDests,
               on={!d.paused}
               onChange={(on) => {
                 patchDests?.((ds) => ds.map((x) => (x.id === d.id ? { ...x, paused: !on } : x)));
-                void run(async () => must(await sb.rpc("form_destination_pause", { p_id: d.id, p_paused: !on })));
+                void run(async () => {
+                  try {
+                    must(await sb.rpc("form_destination_pause", { p_id: d.id, p_paused: !on }));
+                  } catch (e) {
+                    // The switch goes back with the error.
+                    patchDests?.(() => dests);
+                    throw e;
+                  }
+                });
               }}
             />
           </div>
@@ -813,6 +852,7 @@ function AlertPane({ sb, session, ws, formId, dests, failed, reload, patchDests,
       </div>
       {!d && !pick ? (
         <button type="button" className={`${BTN} self-start`} disabled={busy} onClick={() => void run(() => save(), `Alerts go to ${source.name} now`)}>
+          {busy ? <Spinner size={12} /> : null}
           {`Alert ${source.name} on each fill`}
         </button>
       ) : null}
@@ -820,6 +860,7 @@ function AlertPane({ sb, session, ws, formId, dests, failed, reload, patchDests,
         <button
           type="button"
           className={`${GHOST_SM_RED} self-start`}
+          disabled={busy}
           onClick={async () => {
             if (!(await askConfirm(`Stop alerts in ${source.name}?`, { ok: "Remove", danger: true }))) return;
             await run(async () => must(await sb.rpc("form_destination_delete", { p_id: d.id })));
@@ -968,7 +1009,7 @@ function RowsPane({ sb, session, ws, form, formId, dests, failed, reload, source
           {logo}
           <H3>{source.name}</H3>
         </div>
-        <ErrorNote message={error || targets.error} />
+        <ErrorNote message={error || targets.error} onRetry={!error && targets.error ? targets.reload : undefined} />
         {sql ? (
           <>
             <div className={CARD}>
@@ -978,12 +1019,14 @@ function RowsPane({ sb, session, ws, form, formId, dests, failed, reload, source
               </div>
             </div>
             <button type="button" className={`${BTN} self-start`} disabled={busy || !table.trim()} onClick={takeTable}>
+              {busy ? <Spinner size={12} /> : null}
               {`Send rows to ${source.name}`}
             </button>
           </>
         ) : google ? (
           <>
             <button type="button" className={`${BTN} self-start`} disabled={busy} onClick={makeNew}>
+              {busy ? <Spinner size={12} /> : null}
               Send rows to a new sheet
             </button>
             <div className={CARD}>{linkRow}</div>
@@ -1011,16 +1054,16 @@ function RowsPane({ sb, session, ws, form, formId, dests, failed, reload, source
         {d.paused ? <Badge tone="amber">Paused</Badge> : <Badge tone="green" dot>Connected</Badge>}
       </div>
       {list.length ? (
-        <div className="flex w-full flex-wrap items-center gap-[10px] rounded-lg bg-rose-wash px-[12px] py-[10px] text-[12.5px]">
-          <span className="min-w-0 flex-1 text-rose [overflow-wrap:anywhere]">
-            <b className="font-semibold">{`${week || list.length} ${(week || list.length) === 1 ? "fill didn't" : "fills didn't"} reach ${source.name}${week ? " this week" : ""}.`}</b> {list[0]!.error ?? ""}
+        <div className="flex w-full flex-wrap items-center gap-[10px] rounded-lg bg-warning-soft px-[12px] py-[10px] text-[12.5px]">
+          <span className="min-w-0 flex-1 text-body [overflow-wrap:anywhere]">
+            <b className="font-semibold text-ink">{`${week || list.length} ${(week || list.length) === 1 ? "fill didn't" : "fills didn't"} reach ${source.name}${week ? " this week" : ""}.`}</b> {list[0]!.error ?? ""}
           </span>
           <button type="button" className={GHOST_SM} disabled={busy} onClick={() => void run(async () => must(await sb.rpc("deliveries_replay", { p_ids: list.map((x) => x.id) })), "Sent again")}>
             Send again
           </button>
         </div>
       ) : null}
-      <ErrorNote message={error || targets.error} />
+      <ErrorNote message={error || targets.error} onRetry={!error && targets.error ? targets.reload : undefined} />
       <div className={CARD}>
         <div className={CROW}>
           <RowText title={word} />

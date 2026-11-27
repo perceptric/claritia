@@ -9,7 +9,8 @@ import type { Form } from "@/lib/forms/schema";
 import { emailsIn, formFillers, meetingGuests, meetingTypes, SEND_STATUS, shareSends, suggestPeople, type Person, type SendStatus } from "@/lib/share/people";
 import { MAX_TO } from "@/lib/share/shareEmail";
 import { askLines } from "../Dialogs";
-import { Badge, ErrorNote, errorText, postJson, useQuery, type Tone, type ViewProps } from "../ui";
+import { Badge, ErrorNote, errorText, postJson, Spinner, useQuery, type Tone, type ViewProps } from "../ui";
+import { toast } from "../Toaster";
 import { Ic } from "./ic";
 import { Menu, type MenuItem } from "./Menu";
 import { BTN, CARD, CROW, CSTACK, GHOST_SM, IN, Seg, useNote } from "./parts";
@@ -69,7 +70,7 @@ export function SendEmail({ sb, session, ws, form, row }: Props) {
       add(list);
       note.show(list.length === 1 ? "Added 1 person" : `Added ${list.length} people`);
     } catch (e) {
-      note.show(errorText(e));
+      toast({ text: errorText(e), tone: "error" });
     }
   };
   const take = () => {
@@ -111,7 +112,7 @@ export function SendEmail({ sb, session, ws, form, row }: Props) {
                 if (!types.length) return note.show("No meeting types yet");
                 setMenu({ el: addBtn.current!, items: types.map((t) => ({ icon: "cal", label: t.name, run: () => void addAll(`has booked ${t.name}`, () => meetingGuests(sb, ws.id, t.id)) })) });
               })
-              .catch((e) => note.show(errorText(e))),
+              .catch((e) => toast({ text: errorText(e), tone: "error" })),
         },
         { icon: "data", label: "Upload a CSV", run: () => file.current?.click() },
         {
@@ -149,7 +150,7 @@ export function SendEmail({ sb, session, ws, form, row }: Props) {
           <div className="relative">
             <div data-share-to="" onClick={() => input.current?.focus()} className="flex min-h-[40px] w-full min-w-0 cursor-text flex-wrap items-center gap-[6px] rounded-md bg-card px-[8px] py-[6px] shadow-input">
               {to.map((p) => (
-                <span key={p.email} title={OK.test(p.email) ? p.email : "This isn't an email"} data-chip={p.email} className={`inline-flex h-[26px] max-w-full min-w-0 items-center gap-[6px] rounded-full pr-[4px] pl-[4px] text-[12.5px] ${OK.test(p.email) ? "bg-chip text-ink" : "bg-rose-wash text-rose"}`}>
+                <span key={p.email} title={OK.test(p.email) ? p.email : "This isn't an email"} data-chip={p.email} className={`inline-flex h-[26px] max-w-full min-w-0 items-center gap-[6px] rounded-full pr-[4px] pl-[4px] text-[12.5px] ${OK.test(p.email) ? "bg-chip text-ink" : "bg-warning-soft text-warning"}`}>
                   <span aria-hidden="true" className="inline-flex size-[18px] shrink-0 items-center justify-center rounded-full bg-card text-[9.5px] font-medium text-muted">
                     {initials(p)}
                   </span>
@@ -258,10 +259,11 @@ export function SendEmail({ sb, session, ws, form, row }: Props) {
           <textarea id="share-note" value={message} onChange={(e) => setMessage(e.target.value)} rows={3} maxLength={1000} className={`${IN} h-auto py-[8px]`} />
         </div>
         <div className={CROW}>
-          <span data-share-count="" className={`flex-1 text-[12.5px] ${bad || good.length > MAX_TO ? "text-rose" : "text-muted"}`}>
+          <span data-share-count="" className={`flex-1 text-[12.5px] ${bad || good.length > MAX_TO ? "text-warning" : "text-muted"}`}>
             {bad ? (bad === 1 ? "1 isn't an email" : `${bad} aren't emails`) : good.length > MAX_TO ? `${good.length} people, ${MAX_TO} at most` : good.length ? (good.length === 1 ? "1 person" : `${good.length} people`) : "No one yet"}
           </span>
           <button type="button" className={BTN} disabled={busy || !good.length || !!bad || good.length > MAX_TO || !row.version} onClick={() => void send()}>
+            {busy ? <Spinner size={12} /> : null}
             {busy ? "Sending" : "Send"}
           </button>
         </div>
@@ -295,12 +297,15 @@ export function SendEmail({ sb, session, ws, form, row }: Props) {
           e.target.value = "";
           if (!f) return;
           if (f.size > 5_000_000) return note.show("That file is over 5 MB");
-          void f.text().then((text) => {
-            const found = emailsIn(text);
-            if (!found.length) return note.show(`No emails in ${f.name}`);
-            add(found.map((email) => ({ email, name: "" })));
-            note.show(found.length === 1 ? "Added 1 person" : `Added ${found.length} people`);
-          });
+          void f.text().then(
+            (text) => {
+              const found = emailsIn(text);
+              if (!found.length) return note.show(`No emails in ${f.name}`);
+              add(found.map((email) => ({ email, name: "" })));
+              note.show(found.length === 1 ? "Added 1 person" : `Added ${found.length} people`);
+            },
+            () => toast({ text: `Couldn't read ${f.name}. Try another file.`, tone: "error" }),
+          );
         }}
       />
       {menu ? <Menu anchor={menu.el} items={menu.items} onClose={() => setMenu(null)} width={260} /> : null}

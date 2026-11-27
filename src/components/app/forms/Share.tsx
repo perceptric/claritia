@@ -15,7 +15,7 @@ import { QrCode } from "../meetings/Share";
 import { BuilderPick, CodeBox, EmbedSteps, SitePreview, useCopied } from "../SharePieces";
 import { SendEmail } from "./SendEmail";
 import { useLinkBase } from "../views/LinkDomainSettings";
-import { ErrorNote, errorText, must, useQuery, type ViewProps } from "../ui";
+import { ErrorNote, errorText, must, Spinner, useQuery, type ViewProps } from "../ui";
 import { Ic } from "./ic";
 import { Menu } from "./Menu";
 import { Box, BTN, CARD, copyText, CROW, GHOST_SM, IB, IB_SM, RowText, Seg, Tg, useNote } from "./parts";
@@ -168,6 +168,7 @@ function LinkPane({ sb, session, ws, role, navigate, form, row, apply }: Props) 
         {dirty || (editing && !cur) ? (
           <>
             <button type="button" className={BTN} disabled={busy || !dirty} onClick={() => void saveEnding()}>
+              {busy ? <Spinner size={12} /> : null}
               {busy ? "Saving" : "Save"}
             </button>
             <button type="button" className={GHOST_SM} disabled={busy} onClick={stop}>
@@ -192,7 +193,7 @@ function LinkPane({ sb, session, ws, role, navigate, form, row, apply }: Props) 
           </button>
         ) : null}
       </div>
-      <ErrorNote message={endErr || (parts.error ?? "")} />
+      <ErrorNote message={endErr || (parts.error ?? "")} onRetry={!endErr && parts.error ? parts.reload : undefined} />
       {menu ? <Menu anchor={menu} onClose={() => setMenu(null)} width={220} items={items} /> : null}
       <H3>Link preview</H3>
       <PreviewCard session={session} ws={ws} form={form} row={row} apply={apply} host={(link.replace(/^https?:\/\//, "").split("/")[0] ?? host).toLowerCase()} />
@@ -221,7 +222,7 @@ function PreviewCard({ session, ws, form, row, apply, host }: Pick<Props, "sessi
       body.append("file", f, f.name || "preview.png");
       const res = await fetch("/api/assets", { method: "POST", headers: { Authorization: `Bearer ${session.access_token}` }, body });
       const out = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
-      if (!res.ok || !out.url) throw new UserError(out.error ?? "Try again in a moment.");
+      if (!res.ok || !out.url) throw new UserError(out.error ?? "Couldn't upload the picture. Try again in a moment.");
       apply({ op: "set_share", share: { image: out.url } }, "Changed the link's picture");
     } catch (e) {
       setErr(errorText(e));
@@ -256,7 +257,7 @@ function PreviewCard({ session, ws, form, row, apply, host }: Pick<Props, "sessi
             <span className="flex size-full items-center justify-center px-[24px] text-center text-[17px] font-semibold tracking-[-0.01em] text-ink">{shownTitle}</span>
           )}
           <span className={`absolute inset-0 flex items-center justify-center gap-[6px] text-[12.5px] font-medium text-card transition-[opacity,background-color] duration-[120ms] ${busy || over ? "bg-ink/45 opacity-100" : "bg-ink/0 opacity-0 group-hover:bg-ink/45 group-hover:opacity-100 group-focus-visible:bg-ink/45 group-focus-visible:opacity-100"}`}>
-            <Ic n="plus" />
+            {busy ? <Spinner size={12} /> : <Ic n="plus" />}
             {busy ? "Uploading" : share.image ? "Change picture" : "Add a picture"}
           </span>
         </button>

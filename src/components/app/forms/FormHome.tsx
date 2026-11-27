@@ -10,7 +10,7 @@ import type { Tokens } from "@/lib/forms/brand";
 import type { Form } from "@/lib/forms/schema";
 import { Studio } from "./studio/Studio";
 import { askConfirm, askLines, tell } from "../Dialogs";
-import { Badge, ErrorNote, errorText, invalidate, Loading, must, postJson, useKept, useQuery, type ViewProps } from "../ui";
+import { Badge, ErrorNote, errorText, invalidate, Loading, must, postJson, Spinner, useKept, useQuery, type ViewProps } from "../ui";
 import { ago, whereWords } from "./formModel";
 import { Ic } from "./ic";
 import { BTN, copyText, GHOST, IB, Seg, SegN, Thumb, useNote } from "./parts";
@@ -173,7 +173,7 @@ export function FormHome(props: ViewProps & { studio?: React.ReactNode }) {
       <span className="flex-1" />
       {rows?.length ? (
         <button type="button" className={GHOST} disabled={importing} onClick={() => void importGoogle()}>
-          <Ic n="down" />
+          {importing ? <Spinner size={12} /> : <Ic n="down" />}
           {importing ? "Importing" : "Import a form"}
         </button>
       ) : null}
@@ -198,7 +198,7 @@ export function FormHome(props: ViewProps & { studio?: React.ReactNode }) {
   const body = !list.data ? (
     list.error ? (
       <div className="p-[16px]">
-        <ErrorNote message={list.error} />
+        <ErrorNote message={list.error} onRetry={list.reload} />
       </div>
     ) : (
       <Loading />
