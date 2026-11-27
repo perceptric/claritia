@@ -7,10 +7,10 @@
 // button that starts it. Tools are on Starter and up and Salesforce on Business (docs/pricing.md): on a lower plan a
 // tool's pane shows the line and Upgrade instead; webhooks stay on every plan.
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { DUPLICATE, listOf, NEW_RULES, rulesOf, targetOf, type SyncRules } from "@/lib/delivery/rules";
 import { allFields, type Form } from "@/lib/forms/schema";
-import { CATALOG, entryOf } from "@/lib/sources/catalog";
+import { CATALOG, entryOf, GROUPS } from "@/lib/sources/catalog";
 import { toolFeature } from "@/lib/plans";
 import { PlanLock, planHas, usePlan } from "../PlanLock";
 import { BrandLogo } from "../BrandLogo";
@@ -26,8 +26,9 @@ import type { useCrm } from "./useCrm";
 import { UserError } from "@/lib/errors";
 
 const PUSHES = new Set(CATALOG.filter((e) => e.twoWay || e.pushes).map((e) => e.kind));
-/** CRMs offered to connect when they aren't yet. */
-const OFFER = ["hubspot", "salesforce", "pipedrive"];
+/** Every tool a form can send to, offered to connect when it isn't yet, in Settings › Integrations' group order. */
+const OFFER = GROUPS.flatMap((g) => CATALOG.filter((e) => PUSHES.has(e.kind) && e.group === g.id));
+const groupLabel = (kind: string) => GROUPS.find((g) => g.id === entryOf(kind)?.group)?.label ?? "";
 /** What a destination made before sync rules does: answers overwrite, the owner is written, consent is not sent. */
 const BEFORE: SyncRules = { exists: "always", match: "email", owner: "route", assign: "claritia", consent: false, create: "Lead" };
 
@@ -54,7 +55,7 @@ export function Sync(props: Props) {
   const sent = useQuery(`form:${formId}:sent:${crmDests.map((d) => d.id).join()}`, async () =>
     crmDests.length ? ((must(await sb.rpc("form_deliveries_by_dest", { p_form: formId, p_status: "done", p_since: daysAgo(30) })) ?? {}) as Record<string, number>) : ({} as Record<string, number>),
   );
-  const items: { key: string; logo: React.ReactNode; title: string; sub: string; bad?: boolean; on?: boolean }[] = [
+  const items: { key: string; logo: React.ReactNode; title: string; sub: string; bad?: boolean; on?: boolean; group?: string }[] = [
     ...tools.map((s) => {
       const d = crmDests.find((x) => x.source_id === s.id);
       const n = d ? (failed[d.id] ?? 0) : 0;
@@ -67,8 +68,8 @@ export function Sync(props: Props) {
         on: !!d && !d.paused,
       };
     }),
-    ...OFFER.filter((k) => !tools.some((s) => s.kind === k)).map((k) => ({ key: `connect:${k}`, logo: <BrandLogo domain={entryOf(k)?.domain ?? ""} name={entryOf(k)?.label ?? k} size={28} />, title: entryOf(k)?.label ?? k, sub: "Not connected" })),
     { key: "webhook", logo: <span className="inline-flex size-[28px] items-center justify-center rounded-lg bg-paper-deep text-body"><Ic n="code" /></span>, title: "Webhook", sub: hooks.length ? `${hooks.filter((h) => !h.paused).length} on` : "Off", on: hooks.some((h) => !h.paused) },
+    ...OFFER.filter((e) => !tools.some((s) => s.kind === e.kind)).map((e) => ({ key: `connect:${e.kind}`, logo: <BrandLogo domain={e.domain} name={e.label} size={28} />, title: e.label, sub: "Not connected", group: groupLabel(e.kind) })),
   ];
   const [pick, setPick] = useState<string>(() => crmDests[0]?.source_id ?? items[0]!.key);
   const cur = items.find((i) => i.key === pick) ?? items[0]!;
@@ -78,17 +79,19 @@ export function Sync(props: Props) {
   return (
     <div className="grid min-h-0 flex-1 grid-cols-[260px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] max-[860px]:grid-cols-1 max-[860px]:grid-rows-[auto_minmax(0,1fr)]">
       <div className="flex flex-col gap-[2px] overflow-y-auto border-r border-line px-[8px] py-[12px] max-[860px]:flex-row max-[860px]:overflow-x-auto max-[860px]:border-r-0 max-[860px]:border-b max-[860px]:p-[8px]">
-        {items.map((i) => (
-          <LeftItem
-            key={i.key}
-            on={pick === i.key}
-            onClick={() => setPick(i.key)}
-            icon={i.logo}
-            title={i.title}
-            sub={i.sub}
-            subTone={i.bad ? "bad" : undefined}
-            right={i.on ? <span className="max-[860px]:hidden"><Badge tone="green" dot>On</Badge></span> : null}
-          />
+        {items.map((i, n) => (
+          <Fragment key={i.key}>
+            {i.group && i.group !== items[n - 1]?.group ? <span className="px-[10px] pt-[14px] pb-[4px] text-[11.5px] font-medium text-muted max-[860px]:hidden">{i.group}</span> : null}
+            <LeftItem
+              on={pick === i.key}
+              onClick={() => setPick(i.key)}
+              icon={i.logo}
+              title={i.title}
+              sub={i.sub}
+              subTone={i.bad ? "bad" : undefined}
+              right={i.on ? <span className="max-[860px]:hidden"><Badge tone="green" dot>On</Badge></span> : null}
+            />
+          </Fragment>
         ))}
       </div>
       <div className="min-w-0 overflow-y-auto px-[16px] pt-[20px] pb-[32px] sm:px-[clamp(16px,3vw,32px)]">
@@ -104,7 +107,7 @@ export function Sync(props: Props) {
               <PlanLock feature={lockedBy} owner={props.role === "owner"} onUpgrade={() => props.navigate("settings", "billing")} />
             </>
           ) : cur.key.startsWith("connect:") ? (
-            <Start logo={cur.logo} name={cur.title} button={`Connect ${cur.title}`} onClick={() => props.navigate("settings", "sources")} />
+            <Start logo={cur.logo} name={cur.title} button={`Connect ${cur.title}`} onClick={() => props.navigate("settings", "sources", `connect=${curKind}`)} />
           ) : entryOf(tools.find((s) => s.id === cur.key)!.kind)?.lists ? (
             <ListPane {...props} source={tools.find((s) => s.id === cur.key)!} logo={cur.logo} />
           ) : entryOf(tools.find((s) => s.id === cur.key)!.kind)?.docs ? (
