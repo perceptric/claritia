@@ -10,6 +10,7 @@ import { useRef, useState } from "react";
 import { FIELD_LABEL, guessFields, MAX_ROWS, parseCsv, peopleFrom, type Csv, type Field } from "@/lib/emails/csv";
 import { Upload } from "../../Icons";
 import { tell } from "../Dialogs";
+import { toast } from "../Toaster";
 import { Select } from "../Select";
 import { Sheet } from "../Sheet";
 import { Button, Checkbox, ErrorNote, errorText, postJson } from "../ui";
@@ -65,6 +66,7 @@ export function ImportSheet({ session, ws, list, onClose, onDone }: { session: S
         r.shared ? `${n(r.shared)} ${r.shared === 1 ? "is a shared inbox" : "are shared inboxes"}, like info@.` : "",
       ].filter(Boolean);
       if (notes.length) await tell(r.held ? "Waiting for an owner" : `Added ${n(r.added)}`, notes.join(" "));
+      else toast(`Added ${n(r.added)}`);
       onDone();
     } catch (e) {
       setError(errorText(e));
@@ -86,7 +88,7 @@ export function ImportSheet({ session, ws, list, onClose, onDone }: { session: S
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={() => void go()} disabled={busy || !ready}>
+          <Button onClick={() => void go()} busy={busy} disabled={!ready}>
             {busy ? "Importing…" : file && mode === "file" ? `Import ${n(file.csv.rows.length)}` : "Import"}
           </Button>
         </div>

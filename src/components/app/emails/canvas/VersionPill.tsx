@@ -10,7 +10,7 @@ import { useState } from "react";
 import { History } from "../../../Icons";
 import { AiTag } from "../../Ai";
 import { Popover } from "../../FilterBar";
-import { timeAgo, useQuery } from "../../ui";
+import { ErrorNote, must, timeAgo, useQuery } from "../../ui";
 
 export type Version = { id: string; doc: unknown; subject: string; note: string; by_ai: boolean; created_at: string };
 
@@ -18,7 +18,7 @@ export const versionTime = (iso: string) => new Date(iso).toLocaleString("en-US"
 
 export function VersionPill({ sb, ws, email, viewing, onHover, onPick }: { sb: SupabaseClient; ws: string; email: string; viewing: Version | null; onHover: (v: Version | null) => void; onPick: (v: Version) => void }) {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
-  const list = useQuery(anchor ? `email_versions:${ws}:em:${email}` : null, async () => ((await sb.from("email_versions").select("id, doc, subject, note, by_ai, created_at").eq("workspace_id", ws).eq("ref", `em:${email}`).order("created_at", { ascending: false }).limit(50)).data ?? []) as Version[], { staleMs: 3000 });
+  const list = useQuery(anchor ? `email_versions:${ws}:em:${email}` : null, async () => (must(await sb.from("email_versions").select("id, doc, subject, note, by_ai, created_at").eq("workspace_id", ws).eq("ref", `em:${email}`).order("created_at", { ascending: false }).limit(50)) ?? []) as Version[], { staleMs: 3000 });
   return (
     <>
       <button
@@ -44,6 +44,7 @@ export function VersionPill({ sb, ws, email, viewing, onHover, onPick }: { sb: S
           width={280}
         >
           <div role="menu" data-canvas-ui="" aria-label="Versions" className="flex flex-col p-1" onPointerLeave={() => onHover(null)}>
+            {list.error ? <ErrorNote message={list.error} onRetry={list.reload} /> : null}
             {list.data && !list.data.length ? <p className="px-2.5 py-3 text-[12.5px] text-muted">No versions yet</p> : null}
             {(list.data ?? []).map((v) => (
               <button

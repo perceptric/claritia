@@ -31,7 +31,8 @@ import { askConfirm, askText } from "../../Dialogs";
 import { Popover } from "../../FilterBar";
 import { Sketch } from "../../../sketches/Sketch";
 import { CodeView } from "../../email/CodeView";
-import { Badge, Button, ErrorNote, errorText, invalidate, Loading, must, Page, postJson, useQuery, type Tone, type ViewProps } from "../../ui";
+import { Badge, Button, ErrorBoundary, ErrorNote, errorText, invalidate, Loading, must, Page, postJson, useQuery, type Tone, type ViewProps } from "../../ui";
+import { toast } from "../../Toaster";
 import type { Kit } from "../../forms/shared";
 import { Artboard } from "./Artboard";
 import { CanvasSend } from "./CanvasSend";
@@ -184,6 +185,7 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
   const [classic, setClassic] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const [publishing, setPublishing] = useState(false);
   const [tbw, setTbw] = useState(260);
   // Which emails load their frame: near the view, and kept until three screens away. Before the camera is placed,
   // the first few (and the one asked for) load so the first view can measure them.
@@ -1067,12 +1069,15 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
   });
   const openCount = (email: string) => threads.filter((t) => t[0]!.email_id === email && !t[0]!.resolved_at).length;
   const pins = boxes.pins;
+  /** False when it failed (the error shows as a toast), so a comment box keeps its words. */
   const commentCall = async (fn: string, args: Record<string, unknown>) => {
     try {
       must(await sb.rpc(fn, { p_ws: ws.id, ...args }));
       await comments.reload();
+      return true;
     } catch (e) {
-      say(errorText(e));
+      toast({ text: errorText(e), tone: "error" });
+      return false;
     }
   };
 
@@ -1096,12 +1101,14 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
     editor.change({ emails: { [email]: { doc: viewingDoc, subject: v.subject } } }, { label: "Restore version" });
     setViewing(null);
     setAnnounce("Version restored");
+    toast("Restored");
+    // The saved point for the restore; the restore itself saves like any change (and shows if it can't).
     void (async () => {
       await draftRef.current.flush();
       versionDirty.current.delete(email);
       await sb.rpc("email_version_save", { p_ws: ws.id, p_email: email, p_note: `Restored from ${versionTime(v.created_at)}` });
       invalidate(`email_versions:${ws.id}:em:${email}`);
-    })();
+    })().catch(() => undefined);
   };
   /** A saved point for an email changed by hand: after its changes save, if any came since the last version. */
   const savePoint = useCallback(
@@ -1365,7 +1372,17 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
     if (w && Math.abs(w - tbw) > 2) setTbw(w);
   });
 
-  if (group.error || rows.error) return <ErrorNote message={group.error || rows.error} />;
+  if (group.error || rows.error || kits.error)
+    return (
+      <ErrorNote
+        message={group.error || rows.error || kits.error}
+        onRetry={() => {
+          group.reload();
+          rows.reload();
+          kits.reload();
+        }}
+      />
+    );
   if (!group.loaded || !rows.data || !kits.data) return <Loading />;
   if (!group.data)
     return (
@@ -1593,7 +1610,7 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
               <AiMark size={13} /> Add to chat
             </Button>
             {r!.id === editId ? (
-              <button type="button" aria-label={`Check${checks.length ? `, ${checks.length} to fix` : ""}`} title="Check" onClick={(e) => checkMenu(e.currentTarget)} className={`flex h-7 items-center gap-1 rounded-full px-2 text-[12.5px] font-medium hover:bg-hover ${checks.length ? "text-rose" : "text-muted hover:text-ink"}`}>
+              <button type="button" aria-label={`Check${checks.length ? `, ${checks.length} to fix` : ""}`} title="Check" onClick={(e) => checkMenu(e.currentTarget)} className={`flex h-7 items-center gap-1 rounded-full px-2 text-[12.5px] font-medium hover:bg-hover ${checks.length ? "text-warning" : "text-muted hover:text-ink"}`}>
                 {checks.length ? <Warn size={13} /> : <Check size={13} />}
                 {checks.length ? checks.length : null}
               </button>
@@ -1698,7 +1715,7 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
         <span className="flex min-w-0 flex-wrap items-center gap-2">
           {editor.saving ? <span className="text-[12.5px] text-muted">Saving…</span> : null}
           {editor.failed.length ? (
-            <span role="alert" className="flex min-w-0 flex-wrap items-center gap-1.5 text-[12.5px] text-rose">
+            <span role="alert" className="flex min-w-0 flex-wrap items-center gap-1.5 text-[12.5px] text-warning">
               <span className="min-w-0 break-words">{editor.failed.length === 1 ? `${editor.failed[0]!.name} wasn't saved` : `${editor.failed.length} emails weren't saved`}</span>
               <button type="button" onClick={editor.retry} className="font-medium text-ink underline underline-offset-2">
                 Try again
@@ -1714,7 +1731,18 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
             </button>
           </span>
           {editor.stylesChanged() ? (
-            <Button variant="ghost" onClick={() => void editor.publishAll().then(() => kits.reload())}>
+            <Button
+              variant="ghost"
+              busy={publishing}
+              onClick={() => {
+                setPublishing(true);
+                void run(async () => {
+                  const ok = await editor.publishAll();
+                  kits.reload();
+                  if (ok) toast("Styles published");
+                }).finally(() => setPublishing(false));
+              }}
+            >
               Publish styles
             </Button>
           ) : null}
@@ -1793,9 +1821,10 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
         <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
         {error ? (
           <div className="absolute top-3 left-1/2 z-[5] -translate-x-1/2 rounded-lg bg-card p-1 shadow-float">
-            <ErrorNote message={error} />
+            <ErrorNote message={error} onClose={() => setError("")} />
           </div>
         ) : null}
+        <ErrorBoundary className="min-h-0 flex-1 p-4">
         <Surface
           ref={surface}
           storageKey={`claritia:canvas:${groupId}`}
@@ -1866,9 +1895,11 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
             </div>
           ) : null}
         </Surface>
+        </ErrorBoundary>
         </div>
         {panel && editId && editDoc ? (
           <div data-canvas-panel="" className="contents">
+            <ErrorBoundary className="w-[400px] max-w-full shrink-0 bg-card p-4">
             <Inspector
               draft={draft}
               kits={kitList.map((k) => ({ id: k.id, name: k.name }))}
@@ -1907,6 +1938,7 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
                 />
               }
             />
+            </ErrorBoundary>
           </div>
         ) : null}
       </div>
@@ -1917,7 +1949,7 @@ export function EmailCanvasPage({ sb, session, ws, role, navigate, groupId, pick
           <Composer
             onCancel={() => setComposer(null)}
             onSubmit={async (body) => {
-              await commentCall("email_comment_add", { p_email: composer.email, p_element: composer.element, p_thread: null, p_body: body });
+              if (!(await commentCall("email_comment_add", { p_email: composer.email, p_element: composer.element, p_thread: null, p_body: body }))) return false;
               setComposer(null);
             }}
           />

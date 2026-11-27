@@ -197,7 +197,7 @@ export function SendPanel({
             <div className="flex flex-col gap-1.5">
               <span className={label}>Domain</span>
               {sender.error ? (
-                <ErrorNote message={sender.error} />
+                <ErrorNote message={sender.error} onRetry={sender.reload} />
               ) : (
                 <Select<string>
                   ariaLabel="Domain"
@@ -311,9 +311,16 @@ export function SendPanel({
                 className="h-9 w-full rounded-md bg-card px-3 text-[13px] text-ink shadow-input"
               />
             </label>
+            <ErrorNote
+              message={lists.error || topics.error}
+              onRetry={() => {
+                lists.reload();
+                topics.reload();
+              }}
+            />
             <div className="flex flex-col gap-1 rounded-[10px] bg-card px-4 py-3 shadow-rest">
               {preview.error ? (
-                <ErrorNote message={preview.error} />
+                <ErrorNote message={preview.error} onRetry={preview.reload} />
               ) : !p ? (
                 <span className="text-[13px] text-muted">Counting…</span>
               ) : (
@@ -343,7 +350,7 @@ export function SendPanel({
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={() => void send()} disabled={busy || !p || !p.ready || !!problem}>
+          <Button onClick={() => void send()} busy={busy} disabled={!p || !p.ready || !!problem}>
             {busy ? "Sending…" : when === "later" ? "Schedule" : when === "gradual" ? "Start Gradual Send" : when === "smart" ? "Start Intelligent Send" : "Send now"}
           </Button>
         </div>

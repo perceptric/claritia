@@ -47,7 +47,8 @@ export type EmailDraft = {
   flush: () => Promise<boolean>;
   /** The brand's styles changed and aren't published yet. */
   stylesChanged: boolean;
-  publishStyles: () => Promise<void>;
+  /** Throws when publishing fails; false when a failed save stopped it. */
+  publishStyles: () => Promise<boolean>;
 };
 
 type EmailState = { id: string; doc: EmailDoc; subject: string; name: string; readOnly: boolean; savedDoc: EmailDoc; savedSubject: string };
@@ -401,13 +402,15 @@ export function useCanvasEditor({ sb, session, ws, rows, kits, onSaved, onNotice
     };
   }, [flush]);
 
-  const publishStyles = async (kitId: string | null) => {
-    if (!kitId) return;
+  /** Publishes a kit's styles; false when they couldn't be (a failed save shows its own Try again). Throws on errors. */
+  const publishStyles = async (kitId: string | null): Promise<boolean> => {
+    if (!kitId) return false;
     await flush();
-    if (s.current.failed[`kit:${kitId}`]) return;
+    if (s.current.failed[`kit:${kitId}`]) return false;
     const { error } = await sb.rpc("brand_kit_design_publish", { p_id: kitId });
-    if (error) return note(errorText(dbError(error)));
+    if (error) throw dbError(error);
     commit((x) => (x.kits[kitId] ? { ...x, kits: { ...x.kits, [kitId]: { ...x.kits[kitId]!, live: x.kits[kitId]!.system } } } : x));
+    return true;
   };
 
   // Reading, for rendering ------------------------------------------------------------------------------------------
@@ -502,8 +505,11 @@ export function useCanvasEditor({ sb, session, ws, rows, kits, onSaved, onNotice
     saving: busy,
     failed: failedList,
     stylesChanged,
+    /** True when every changed kit's styles went live. */
     publishAll: async () => {
-      for (const k of Object.values(s.current.kits)) if (!sameJson(k.system, k.live)) await publishStyles(k.id);
+      let ok = true;
+      for (const k of Object.values(s.current.kits)) if (!sameJson(k.system, k.live)) ok = (await publishStyles(k.id)) && ok;
+      return ok;
     },
   };
 }

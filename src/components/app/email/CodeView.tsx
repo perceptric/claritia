@@ -7,7 +7,7 @@ import { useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { X } from "../../Icons";
 import { copyText } from "../CopyButton";
-import { tell } from "../Dialogs";
+import { toast } from "../Toaster";
 import { Button, IconButton } from "../ui";
 
 export function CodeView({
@@ -71,9 +71,9 @@ export function CodeView({
           </a>
           <Button
             onClick={async () =>
-              void ((await copyText(html))
-                ? tell("Copied", "The HTML is on your clipboard.")
-                : tell("Couldn't copy", "Select the code and copy it."))
+              (await copyText(html))
+                ? toast("HTML copied")
+                : toast({ text: "Couldn't copy. Select the code and copy it.", tone: "error" })
             }
           >
             Copy HTML

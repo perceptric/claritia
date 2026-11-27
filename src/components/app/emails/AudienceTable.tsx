@@ -313,7 +313,7 @@ export function PersonSheet({
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={() => void go()} disabled={busy}>
+          <Button onClick={() => void go()} busy={busy}>
             {person ? "Save" : "Add person"}
           </Button>
         </div>

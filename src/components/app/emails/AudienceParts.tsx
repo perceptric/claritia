@@ -27,6 +27,17 @@ export function FillsFrom({ sb, ws, list }: { sb: SupabaseClient; ws: string; li
       setError(errorText(e));
     }
   };
+  if (forms.error || linked.error)
+    return (
+      <ErrorNote
+        message={forms.error || linked.error}
+        onRetry={() => {
+          forms.reload();
+          linked.reload();
+        }}
+        className="mb-3"
+      />
+    );
   if (!forms.data || !linked.data) return null;
   const on = forms.data.filter((f) => linked.data!.includes(f.id));
   const off = forms.data.filter((f) => !linked.data!.includes(f.id));
@@ -65,7 +76,7 @@ type Logged = { id: string; list_name: string; file_name: string; rows_in: numbe
 /** What came in, newest first. */
 export function ImportHistory({ sb, ws }: { sb: SupabaseClient; ws: string }) {
   const log = useQuery(`contact_import_log:${ws}`, async () => (must(await sb.from("contact_import_log").select("id, list_name, file_name, rows_in, added, skipped, disposable, shared, held, created_at").eq("workspace_id", ws).order("created_at", { ascending: false }).limit(20)) ?? []) as Logged[]);
-  if (log.error) return <ErrorNote message={log.error} />;
+  if (log.error) return <ErrorNote message={log.error} onRetry={log.reload} className="mt-6" />;
   if (!log.data?.length) return null;
   return (
     <section aria-label="Imports" className="mt-6 flex flex-col gap-2">

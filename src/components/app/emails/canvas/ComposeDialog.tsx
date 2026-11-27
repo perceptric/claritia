@@ -5,7 +5,7 @@
 
 import { useState } from "react";
 import { AiMark } from "../../Ai";
-import { Button } from "../../ui";
+import { Button, ErrorNote } from "../../ui";
 
 export function ComposeDialog({ busy, error, onWrite, onBlank, onClose }: { busy: boolean; error: string | null; onWrite: (about: string) => void; onBlank: () => void; onClose: () => void }) {
   const [about, setAbout] = useState("");
@@ -42,7 +42,7 @@ export function ComposeDialog({ busy, error, onWrite, onBlank, onClose }: { busy
             aria-label="What the email is about"
             className="w-full resize-none rounded-md bg-card px-3 py-2 text-[14px] leading-relaxed shadow-input outline-none disabled:opacity-60"
           />
-          {error ? <p className="text-[13px] text-rose">{error}</p> : null}
+          <ErrorNote message={error ?? ""} />
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2 px-6 pb-5">
           <Button type="button" variant="plain" disabled={busy} onClick={onBlank}>
@@ -52,7 +52,7 @@ export function ComposeDialog({ busy, error, onWrite, onBlank, onClose }: { busy
             <Button type="button" variant="plain" disabled={busy} onClick={close}>
               Cancel
             </Button>
-            <Button type="submit" disabled={busy || !about.trim()}>
+            <Button type="submit" busy={busy} disabled={!about.trim()}>
               {busy ? "Tia is writing…" : "Write it"}
             </Button>
           </div>

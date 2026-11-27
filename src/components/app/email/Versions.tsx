@@ -8,7 +8,8 @@ import { useRef, useState } from "react";
 import { readEmailDoc, type EmailDoc } from "@/lib/design/email/doc";
 import { History } from "../../Icons";
 import { AiTag } from "../Ai";
-import { IconButton, timeAgo, useQuery } from "../ui";
+import { ErrorNote, IconButton, must, Spinner, timeAgo, useQuery } from "../ui";
+import { toast } from "../Toaster";
 import { Popover } from "../forms/controls";
 
 type Version = { id: string; doc: unknown; note: string; by_ai: boolean; created_at: string };
@@ -19,7 +20,7 @@ export function Versions({ sb, workspaceId, versionRef, onRestore }: { sb: Supab
   // Read when opened; opened again within seconds, it shows at once.
   const versions = useQuery(
     open ? `email_versions:${workspaceId}:${versionRef}` : null,
-    async () => ((await sb.from("email_versions").select("id, doc, note, by_ai, created_at").eq("workspace_id", workspaceId).eq("ref", versionRef).order("created_at", { ascending: false }).limit(50)).data ?? []) as Version[],
+    async () => (must(await sb.from("email_versions").select("id, doc, note, by_ai, created_at").eq("workspace_id", workspaceId).eq("ref", versionRef).order("created_at", { ascending: false }).limit(50)) ?? []) as Version[],
     { staleMs: 5_000 },
   );
   const list = versions.data ?? [];
@@ -31,7 +32,9 @@ export function Versions({ sb, workspaceId, versionRef, onRestore }: { sb: Supab
         </IconButton>
       </span>
       <Popover anchor={btn} open={open} onClose={() => setOpen(false)} label="Versions" width={280}>
-        {list.length ? (
+        {versions.error ? (
+          <ErrorNote message={versions.error} onRetry={versions.reload} className="m-2" />
+        ) : list.length ? (
           <ul className="flex max-h-[320px] flex-col overflow-y-auto py-1">
             {list.map((v) => (
               <li key={v.id}>
@@ -40,6 +43,7 @@ export function Versions({ sb, workspaceId, versionRef, onRestore }: { sb: Supab
                   onClick={() => {
                     onRestore(readEmailDoc(v.doc, { allowHtml: true }));
                     setOpen(false);
+                    toast("Restored");
                   }}
                   className="flex w-full flex-col gap-0.5 rounded-sm px-2 py-1.5 text-left hover:bg-hover"
                 >
@@ -52,8 +56,12 @@ export function Versions({ sb, workspaceId, versionRef, onRestore }: { sb: Supab
               </li>
             ))}
           </ul>
-        ) : (
+        ) : versions.loaded ? (
           <p className="px-3 py-6 text-center text-[12.5px] text-muted">No versions yet</p>
+        ) : (
+          <p className="flex justify-center px-3 py-6 text-muted" aria-label="Loading">
+            <Spinner size={14} />
+          </p>
         )}
       </Popover>
     </>

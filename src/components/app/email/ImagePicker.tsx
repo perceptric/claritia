@@ -7,7 +7,7 @@ import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { useRef, useState } from "react";
 import { Trash, Upload } from "../../Icons";
 import { askConfirm } from "../Dialogs";
-import { errorText, useQuery } from "../ui";
+import { ErrorNote, errorText, must, Spinner, useQuery } from "../ui";
 import { Popover, Row, TextIn } from "../forms/controls";
 import { UserError } from "@/lib/errors";
 
@@ -34,7 +34,7 @@ export function ImagePicker({ label, value, onChange, ctx, placeholder }: { labe
   const [error, setError] = useState("");
   // The library, from the cache when opened again.
   const assets = useQuery(open && ctx ? `design_assets:${ctx.workspaceId}` : null, async () =>
-    ((await ctx!.sb.from("design_assets").select("id, url, name, width, height").eq("workspace_id", ctx!.workspaceId).order("created_at", { ascending: false }).limit(60)).data ?? []) as Asset[],
+    (must(await ctx!.sb.from("design_assets").select("id, url, name, width, height").eq("workspace_id", ctx!.workspaceId).order("created_at", { ascending: false }).limit(60)) ?? []) as Asset[],
   );
   const list = assets.data ?? [];
 
@@ -48,7 +48,7 @@ export function ImagePicker({ label, value, onChange, ctx, placeholder }: { labe
       body.set("file", f);
       const res = await fetch("/api/assets", { method: "POST", headers: { Authorization: `Bearer ${ctx.session.access_token}` }, body });
       const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
-      if (!res.ok || !data.url) throw new UserError(data.error ?? "Try again in a moment.");
+      if (!res.ok || !data.url) throw data.error ? new UserError(data.error) : new Error(`assets upload ${res.status}`);
       onChange(data.url);
       assets.reload();
     } catch (e) {
@@ -59,8 +59,14 @@ export function ImagePicker({ label, value, onChange, ctx, placeholder }: { labe
   };
   const remove = async (a: Asset) => {
     if (!ctx || !(await askConfirm(`Delete ${a.name || "this image"}?`, { body: "Emails already sent with it stop showing it.", ok: "Delete", danger: true }))) return;
-    const res = await fetch(`/api/assets?id=${a.id}`, { method: "DELETE", headers: { Authorization: `Bearer ${ctx.session.access_token}` } });
-    if (!res.ok) setError("Try again in a moment.");
+    setError("");
+    try {
+      const res = await fetch(`/api/assets?id=${a.id}`, { method: "DELETE", headers: { Authorization: `Bearer ${ctx.session.access_token}` } });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw data.error ? new UserError(data.error) : new Error(`assets delete ${res.status}`);
+    } catch (e) {
+      setError(errorText(e));
+    }
     assets.reload();
   };
 
@@ -87,14 +93,16 @@ export function ImagePicker({ label, value, onChange, ctx, placeholder }: { labe
             }}
           />
           <button type="button" disabled={busy} onClick={() => file.current?.click()} className="press inline-flex h-7 items-center gap-1 rounded-full border border-line-strong px-2.5 text-[12px] text-ink hover:border-ink disabled:opacity-50">
-            <Upload size={11} />
+            {busy ? <Spinner size={11} /> : <Upload size={11} />}
             {busy ? "Uploading…" : "Upload"}
           </button>
           <button ref={lib} type="button" aria-haspopup="dialog" onClick={() => setOpen((o) => !o)} className="press inline-flex h-7 items-center rounded-full border border-line-strong px-2.5 text-[12px] text-ink hover:border-ink">
             Library
           </button>
           <Popover anchor={lib} open={open} onClose={() => setOpen(false)} label="Images" width={288}>
-            {list.length ? (
+            {assets.error ? (
+              <ErrorNote message={assets.error} onRetry={assets.reload} className="m-1" />
+            ) : list.length ? (
               <div className="grid max-h-[300px] grid-cols-3 gap-1.5 overflow-y-auto p-1">
                 {list.map((a) => (
                   <div key={a.id} className="group relative">
@@ -122,7 +130,7 @@ export function ImagePicker({ label, value, onChange, ctx, placeholder }: { labe
           </Popover>
         </div>
       ) : null}
-      {error ? <p className="pl-[84px] text-[11.5px] text-rose">{error}</p> : null}
+      <ErrorNote message={error} onClose={() => setError("")} className="ml-[84px]" />
     </div>
   );
 }

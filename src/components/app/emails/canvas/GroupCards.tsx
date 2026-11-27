@@ -8,7 +8,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useMemo } from "react";
-import { Badge, must, timeAgo, useQuery } from "../../ui";
+import { Badge, ErrorNote, must, timeAgo, useQuery } from "../../ui";
 import { cleanBody } from "@/lib/workflows/check";
 import { emailSteps, ensurePayload, type EmailCopy } from "@/lib/workflows/stepEmails";
 import { flowKeys } from "@/lib/workflows/meetingFlows";
@@ -63,6 +63,7 @@ export function GroupCards({ sb, ws, me, onOpen, show = "all" }: { sb: SupabaseC
     }
     return out;
   });
+  if (cards.error && !cards.data) return <ErrorNote message={cards.error} onRetry={cards.reload} className="mb-5" />;
   if (!cards.data) return null;
   return (
     <ul aria-label="Groups" className="mb-5 grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-3">

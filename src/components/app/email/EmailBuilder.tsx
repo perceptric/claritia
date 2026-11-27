@@ -23,7 +23,8 @@ import { ArrowDown, ArrowUp, Code, Copy, Monitor, Moon, Phone, Redo, Send, Sun, 
 import { CodeView } from "./CodeView";
 import { askLines, tell } from "../Dialogs";
 import { importAny } from "@/lib/design/email/import";
-import { Button, ErrorNote, IconButton, postJson, errorText } from "../ui";
+import { Button, ErrorBoundary, ErrorNote, IconButton, postJson, errorText } from "../ui";
+import { toast } from "../Toaster";
 import { designFonts, fontUrl } from "@/lib/design/fonts";
 import { ElementIcon, Layers, PlusSquare } from "../forms/icons";
 import type { Kit } from "../forms/shared";
@@ -99,14 +100,23 @@ export function EmailBuilder({
   const [kits, setKits] = useState<Kit[]>([]);
   const [error, setError] = useState("");
   const [kitTick, setKitTick] = useState(0);
+  const [kitsFailed, setKitsFailed] = useState(false);
   const loadKits = useCallback(() => setKitTick((t) => t + 1), []);
   useEffect(() => {
     let live = true;
-    void kitsBrandFirst<Kit>(sb, workspaceId, "id, name, tokens, logo_url, notes, source_url, scan_status, scan_error, scanned_at, design, design_live, design_rev, social").then(({ data, error: e }) => {
+    const failed = (e: unknown) => {
+      if (!live) return;
+      setError(errorText(e));
+      setKitsFailed(true);
+    };
+    kitsBrandFirst<Kit>(sb, workspaceId, "id, name, tokens, logo_url, notes, source_url, scan_status, scan_error, scanned_at, design, design_live, design_rev, social")
+      .then(({ data, error: e }) => {
         if (!live) return;
-        if (e) setError(errorText(dbError(e)));
-        else setKits((data ?? []) as Kit[]);
-      });
+        if (e) return failed(dbError(e));
+        setKitsFailed(false);
+        setKits((data ?? []) as Kit[]);
+      })
+      .catch(failed);
     return () => {
       live = false;
     };
@@ -263,6 +273,7 @@ export function EmailBuilder({
     try {
       if (!(await draft.flush())) return;
       await postJson(session, "/api/email/test", { workspaceId, subject, doc: latest.current });
+      toast("Test email sent");
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -270,15 +281,21 @@ export function EmailBuilder({
     }
   };
   const stylesChanged = !!kit && JSON.stringify(system) !== JSON.stringify(readSystem(kit.design_live, tokens));
+  const [publishing, setPublishing] = useState(false);
   const publishStyles = async () => {
     if (!kit) return;
+    setPublishing(true);
+    setError("");
     try {
       if (!(await draft.flush())) return;
       const { error: e } = await sb.rpc("brand_kit_design_publish", { p_id: kit.id });
       if (e) throw dbError(e);
       loadKits();
+      toast("Styles published");
     } catch (e) {
       setError(errorText(e));
+    } finally {
+      setPublishing(false);
     }
   };
 
@@ -355,7 +372,7 @@ export function EmailBuilder({
           />
         </span>
         {stylesChanged ? (
-          <Button variant="ghost" onClick={() => void publishStyles()}>
+          <Button variant="ghost" busy={publishing} onClick={() => void publishStyles()}>
             Publish styles
           </Button>
         ) : null}
@@ -376,8 +393,8 @@ export function EmailBuilder({
         <IconButton label="HTML code" onClick={() => setCode(true)}>
           <Code size={14} />
         </IconButton>
-        <Button variant="ghost" disabled={sending} onClick={() => void test()}>
-          <Send size={13} />
+        <Button variant="ghost" busy={sending} onClick={() => void test()}>
+          {sending ? null : <Send size={13} />}
           {sending ? "Sending…" : "Test"}
         </Button>
         {actions}
@@ -388,7 +405,18 @@ export function EmailBuilder({
       {code ? <CodeView html={sourceHtml()} name={subject || title} onClose={() => setCode(false)} /> : null}
       {error || draft.error || notes.length ? (
         <div className="border-b border-line bg-card px-4 py-2">
-          <ErrorNote message={error || draft.error || notes[0]!.text} />
+          <ErrorNote
+            message={error || draft.error || notes[0]!.text}
+            onRetry={
+              error && kitsFailed
+                ? () => {
+                    setError("");
+                    loadKits();
+                  }
+                : undefined
+            }
+            onClose={error && !kitsFailed ? () => setError("") : undefined}
+          />
         </div>
       ) : null}
       <div className="grid min-h-0 flex-1 grid-cols-[44px_248px_minmax(0,1fr)_300px]">
@@ -446,6 +474,7 @@ export function EmailBuilder({
             {rail === "layers" ? <LayerList doc={doc} selected={sel} onSelect={(id) => (setSelected(id), setPart(null))} onNudge={nudge} onDuplicate={duplicate} onRemove={remove} /> : null}
           </div>
         </aside>
+        <ErrorBoundary className="min-h-0 bg-paper-deep p-4">
         <EmailCanvas
           html={compiled.html}
           width={width}
@@ -459,6 +488,7 @@ export function EmailBuilder({
             setPart(null);
           }}
         />
+        </ErrorBoundary>
         <aside aria-label="Inspector" className="flex min-h-0 flex-col border-l border-line bg-card">
           <div role="tablist" aria-label="Inspector" className="flex h-11 shrink-0 items-center gap-1 border-b border-line px-2">
             {(["settings", "style", "ai"] as const).map((k) => (

@@ -10,7 +10,8 @@ import { useState } from "react";
 import { newBlock, newSection, readEmailDoc, type EmailDoc } from "@/lib/design/email/doc";
 import { emailsPage, EMAILS_TABS } from "@/lib/nav";
 import { Branch, Plus, Trash } from "../../Icons";
-import { askConfirm, askText, tell } from "../Dialogs";
+import { askConfirm, askText } from "../Dialogs";
+import { toast } from "../Toaster";
 import { Select } from "../Select";
 import { Sheet } from "../Sheet";
 import { StatCards } from "../StatCards";
@@ -124,8 +125,12 @@ function Campaigns({ sb, session, ws, navigate }: ViewProps) {
   const act = async (fn: "pause" | "resume" | "cancel", c: Campaign) => {
     if (fn === "cancel" && !(await askConfirm(`Cancel ${c.name}?`, { body: "It goes back to a draft and nobody gets it.", ok: "Cancel sending", danger: true }))) return;
     setError("");
-    const r = fn === "cancel" ? await sb.rpc("email_campaign_cancel", { p_ws: ws.id, p_email: c.id }) : await sb.rpc("email_campaign_pause", { p_ws: ws.id, p_email: c.id, p_pause: fn === "pause" });
-    if (r.error) setError(errorText(dbError(r.error)));
+    try {
+      const r = fn === "cancel" ? await sb.rpc("email_campaign_cancel", { p_ws: ws.id, p_email: c.id }) : await sb.rpc("email_campaign_pause", { p_ws: ws.id, p_email: c.id, p_pause: fn === "pause" });
+      if (r.error) setError(errorText(dbError(r.error)));
+    } catch (e) {
+      setError(errorText(e));
+    }
     void list.reload();
   };
   const newGroup = async () => {
@@ -157,12 +162,12 @@ function Campaigns({ sb, session, ws, navigate }: ViewProps) {
       <Button variant="ghost" onClick={() => void newGroup()}>
         New group
       </Button>
-      <Button onClick={() => void create()} disabled={busy}>
-        <Plus size={14} /> New email
+      <Button onClick={() => void create()} busy={busy}>
+        {busy ? null : <Plus size={14} />} New email
       </Button>
     </span>
   );
-  if (list.error) return <ErrorNote message={list.error} />;
+  if (list.error) return <ErrorNote message={list.error} onRetry={list.reload} />;
   if (!list.data) return <Loading />;
   // No first screen: every workspace has its System emails and its automations' emails, so the groups always show
   // (docs/system-emails.md).
@@ -224,7 +229,7 @@ function Campaigns({ sb, session, ws, navigate }: ViewProps) {
                     {c.subject ? <span className="text-[12px] break-words text-muted">{c.subject}</span> : null}
                   </span>
                 </Td>
-                <Td className="text-muted">{placed.data?.[c.id] || "Ungrouped"}</Td>
+                <Td className="text-muted">{placed.data?.[c.id] || (placed.data ? "Ungrouped" : "")}</Td>
                 <Td>
                   <span className="flex flex-col gap-0.5">
                     <Badge tone={CAMPAIGN_TONE[c.status] ?? "gray"} dot>
@@ -276,7 +281,7 @@ type Draft = { id: string; name: string; subject: string; preheader: string | nu
 function CampaignStudio(props: ViewProps & { emailId: string }) {
   const { sb, ws, navigate, emailId } = props;
   const row = useQuery(`email_draft:${emailId}`, async () => must(await sb.from("emails").select("id, name, subject, preheader, doc, status, group_id").eq("id", emailId).eq("workspace_id", ws.id).maybeSingle()) as Draft | null, { staleMs: 0 });
-  if (row.error) return <ErrorNote message={row.error} />;
+  if (row.error) return <ErrorNote message={row.error} onRetry={row.reload} />;
   if (!row.loaded) return <Loading />;
   const d = row.data;
   if (d && d.status !== "draft") return <Results {...props} />;
@@ -299,7 +304,7 @@ type ResultData = { counts: Campaign | null; booked: ResultPerson[]; filled: Res
 function Results({ sb, ws, navigate, emailId }: ViewProps & { emailId: string }) {
   const r = useQuery(`email_results:${emailId}`, async () => must(await sb.rpc("email_campaign_results", { p_ws: ws.id, p_email: emailId })) as ResultData, { staleMs: 30_000 });
   const back = { label: "Emails", onClick: () => navigate("emails") };
-  if (r.error) return <ErrorNote message={r.error} />;
+  if (r.error) return <ErrorNote message={r.error} onRetry={r.reload} />;
   if (!r.loaded) return <Loading />;
   const d = r.data;
   const c = d?.counts;
@@ -431,7 +436,7 @@ function Describe({ sb, session, ws, navigate, onDone }: Pick<ViewProps, "sb" | 
       />
       <ErrorNote message={error} />
       <div className="flex flex-wrap justify-end gap-2">
-        <Button onClick={() => void build()} disabled={busy || words.trim().length < 8}>
+        <Button onClick={() => void build()} busy={busy} disabled={words.trim().length < 8}>
           {busy ? "Building…" : "Build it"}
         </Button>
       </div>
@@ -459,7 +464,6 @@ function Audiences({ sb, session, ws, role }: ViewProps) {
   const [sort, setSort] = useState<{ key: SortKey; desc: boolean }>({ key: "added", desc: true });
   const [cols, toggleCol] = useColumns();
   const [sheet, setSheet] = useState<{ person: Person | null } | null>(null);
-  const [flash, setFlash] = useState("");
   const term = q.trim();
   const listId = view === "everyone" ? null : view;
   const total = useQuery(`audience_count:${ws.id}`, async () => must(await sb.rpc("audience_count", { p_ws: ws.id })) as number);
@@ -537,7 +541,17 @@ function Audiences({ sb, session, ws, role }: ViewProps) {
       refresh();
     });
 
-  if (total.error || people.error || lists.error) return <ErrorNote message={total.error || people.error || lists.error} />;
+  if (total.error || people.error || lists.error)
+    return (
+      <ErrorNote
+        message={total.error || people.error || lists.error}
+        onRetry={() => {
+          total.reload();
+          people.reload();
+          lists.reload();
+        }}
+      />
+    );
   if (total.data === null || !people.data || !lists.data) return <Loading />;
   if (!total.data && !lists.data.length)
     return (
@@ -635,11 +649,6 @@ function Audiences({ sb, session, ws, role }: ViewProps) {
       }
     >
       <ErrorNote message={error} />
-      {flash ? (
-        <p role="status" className="mb-3 rounded-lg bg-signal-pale px-3.5 py-2 text-[13px] text-signal-text">
-          {flash}
-        </p>
-      ) : null}
       {role === "owner" && held.data?.length ? (
         <ul aria-label="Imports waiting for an owner" className="mb-3 flex flex-col gap-2">
           {held.data.map((h) => (
@@ -784,8 +793,7 @@ function Audiences({ sb, session, ws, role }: ViewProps) {
           onClose={() => setSheet(null)}
           onSaved={(msg) => {
             setSheet(null);
-            setFlash(msg);
-            setTimeout(() => setFlash(""), 2400);
+            toast(msg);
             refresh();
             void held.reload();
           }}
@@ -825,16 +833,18 @@ function Voice({ sb, ws }: ViewProps) {
   const [state, setState] = useState<"" | "saving" | "saved">("");
   const [error, setError] = useState("");
   const k = kit.data;
-  if (kit.error) return <ErrorNote message={kit.error} />;
+  if (kit.error) return <ErrorNote message={kit.error} onRetry={kit.reload} />;
   if (!k) return null;
   const value = text ?? k.brief ?? "";
   const save = async () => {
     if (text === null || text === (k.brief ?? "")) return;
     setState("saving");
     setError("");
-    const { error: e } = await sb.rpc("brand_brief_save", { p_ws: ws.id, p_kit: k.id, p_brief: text });
-    if (e) {
-      setError(errorText(dbError(e)));
+    try {
+      const { error: e } = await sb.rpc("brand_brief_save", { p_ws: ws.id, p_kit: k.id, p_brief: text });
+      if (e) throw dbError(e);
+    } catch (e) {
+      setError(errorText(e));
       setState("");
       return;
     }

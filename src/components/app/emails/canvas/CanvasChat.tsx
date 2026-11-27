@@ -13,7 +13,7 @@ import type { DesignSystem } from "@/lib/design/model";
 import { changedMeanwhile, turnTargets, type Chip, type Target } from "@/lib/design/email/turn";
 import { X } from "../../../Icons";
 import { AiAvatar, AiMark, AiTag, Dots } from "../../Ai";
-import { Button } from "../../ui";
+import { Button, ErrorNote } from "../../ui";
 import type { CanvasEditor } from "./useCanvasEditor";
 import { UserError } from "@/lib/errors";
 import { errorText } from "@/lib/attempt";
@@ -31,7 +31,7 @@ const EXAMPLES = ["Write a 3-email welcome series for new students", "Make every
 async function post<T>(session: Session, url: string, body: unknown, signal?: AbortSignal): Promise<T> {
   const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify(body), signal });
   const data = (await res.json().catch(() => ({}))) as T & { error?: string };
-  if (!res.ok) throw new UserError(data.error ?? "Try again in a moment.");
+  if (!res.ok) throw data.error ? new UserError(data.error) : new Error(`${url} ${res.status}`);
   return data;
 }
 
@@ -220,12 +220,7 @@ export function CanvasChat({
               </div>
             </div>
           ) : l.kind === "error" ? (
-            <p key={i} role="alert" className="flex flex-wrap items-center gap-1.5 text-[12.5px] text-rose">
-              <span className="min-w-0 break-words">{l.name ? `${l.name}: ` : ""}{l.text}</span>
-              <button type="button" onClick={l.retry} className="font-medium text-ink underline underline-offset-2">
-                Try again
-              </button>
-            </p>
+            <ErrorNote key={i} message={`${l.name ? `${l.name}: ` : ""}${l.text}`} onRetry={l.retry} />
           ) : l.kind === "conflict" ? (
             <div key={i} className="flex flex-col gap-2 rounded-lg bg-card p-2.5 shadow-rest">
               {l.items.map((it) => (

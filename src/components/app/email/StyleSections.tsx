@@ -287,7 +287,7 @@ function TextValue({ ctx, prop, props, label }: { ctx: Ctx; prop: Prop; props: P
           if (next && ctx.write(props, next, true)) setDraft(null);
         }
       }}
-      className={`${INPUT} min-w-0 flex-1 tabular-nums ${bad ? "border-rose" : ""}`}
+      className={`${INPUT} min-w-0 flex-1 tabular-nums ${bad ? "border-warning" : ""}`}
     />
   );
 }
@@ -464,7 +464,7 @@ function BoxCell({ ctx, kind, side }: { ctx: Ctx; kind: "margin" | "padding"; si
           if (next && ctx.write([prop], next, true)) setDraft(null);
         }
       }}
-      className={`h-5 w-10 cursor-ns-resize rounded-[3px] bg-transparent text-center text-[11.5px] tabular-nums outline-none hover:bg-hover focus:cursor-text focus:bg-card ${ORIGIN_CLASS[origin]} ${bad ? "ring-1 ring-rose" : ""}`}
+      className={`h-5 w-10 cursor-ns-resize rounded-[3px] bg-transparent text-center text-[11.5px] tabular-nums outline-none hover:bg-hover focus:cursor-text focus:bg-card ${ORIGIN_CLASS[origin]} ${bad ? "ring-1 ring-warning" : ""}`}
     />
   );
 }

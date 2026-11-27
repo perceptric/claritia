@@ -110,7 +110,7 @@ export function AiPanel({
             <p className="text-[12.5px] font-medium text-ink">{ask.question}</p>
           </div>
         ) : null}
-        {error ? <ErrorNote message={error} /> : null}
+        <ErrorNote message={error} onClose={() => setError("")} />
       </div>
       <form
         className="sticky bottom-0 flex flex-col gap-2 border-t border-line bg-card px-3 py-3"
@@ -134,11 +134,11 @@ export function AiPanel({
           className="w-full resize-none rounded-md bg-card shadow-input px-2 py-1.5 text-[12.5px] text-ink outline-none placeholder:text-faint"
         />
         <div className="flex flex-wrap items-center gap-1.5">
-          <Button type="submit" disabled={!!busy || !text.trim()}>
-            <AiMark size={13} />
+          <Button type="submit" busy={busy === "one"} disabled={!!busy || !text.trim()}>
+            {busy === "one" ? null : <AiMark size={13} />}
             Change
           </Button>
-          <Button type="button" variant="ghost" disabled={!!busy || !text.trim()} onClick={() => void send(text, { three: true })}>
+          <Button type="button" variant="ghost" busy={busy === "three"} disabled={!!busy || !text.trim()} onClick={() => void send(text, { three: true })}>
             3 versions
           </Button>
           <input
@@ -151,9 +151,13 @@ export function AiPanel({
               e.target.value = "";
               if (!f) return;
               if (f.size > 5 * 1024 * 1024) return setError("Use a picture up to 5 MB.");
-              const bytes = new Uint8Array(await f.arrayBuffer());
               let bin = "";
-              for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+              try {
+                const bytes = new Uint8Array(await f.arrayBuffer());
+                for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+              } catch {
+                return setError("That picture couldn't be read.");
+              }
               void send(text.trim() || "Build this email from the screenshot.", { image: btoa(bin) });
             }}
           />

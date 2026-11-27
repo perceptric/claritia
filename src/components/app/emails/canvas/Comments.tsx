@@ -28,15 +28,19 @@ export function Pin({ x, y, count, resolved, onOpen }: { x: number; y: number; c
   );
 }
 
-function CommentBox({ placeholder, submit, onSubmit, onCancel }: { placeholder: string; submit: string; onSubmit: (body: string) => Promise<void>; onCancel?: () => void }) {
+/** `onSubmit` answers false when it didn't go through (the page shows why); the words stay to try again. */
+type Submit = (body: string) => Promise<boolean | void>;
+
+function CommentBox({ placeholder, submit, onSubmit, onCancel }: { placeholder: string; submit: string; onSubmit: Submit; onCancel?: () => void }) {
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
   const go = async () => {
     if (!body.trim() || busy) return;
     setBusy(true);
     try {
-      await onSubmit(body.trim());
-      setBody("");
+      if ((await onSubmit(body.trim())) !== false) setBody("");
+    } catch {
+      // The page shows the error; the words stay.
     } finally {
       setBusy(false);
     }
@@ -69,7 +73,7 @@ function CommentBox({ placeholder, submit, onSubmit, onCancel }: { placeholder: 
             Cancel
           </Button>
         ) : null}
-        <Button size="sm" disabled={!body.trim() || busy} onClick={() => void go()}>
+        <Button size="sm" busy={busy} disabled={!body.trim()} onClick={() => void go()}>
           {submit}
         </Button>
       </div>
@@ -78,7 +82,7 @@ function CommentBox({ placeholder, submit, onSubmit, onCancel }: { placeholder: 
 }
 
 /** A new comment at a spot. */
-export function Composer({ onSubmit, onCancel }: { onSubmit: (body: string) => Promise<void>; onCancel: () => void }) {
+export function Composer({ onSubmit, onCancel }: { onSubmit: Submit; onCancel: () => void }) {
   return (
     <div data-canvas-ui="" data-comment-composer="" className="p-2.5">
       <CommentBox placeholder="Add a comment" submit="Comment" onSubmit={onSubmit} onCancel={onCancel} />
@@ -87,7 +91,7 @@ export function Composer({ onSubmit, onCancel }: { onSubmit: (body: string) => P
 }
 
 /** A thread: its comments, a reply, Resolve, and Delete for your own (or any, for owners). */
-export function ThreadCard({ comments, me, owner, onReply, onResolve, onDelete }: { comments: CommentRow[]; me: string; owner: boolean; onReply: (body: string) => Promise<void>; onResolve: (on: boolean) => void; onDelete: (c: CommentRow) => void }) {
+export function ThreadCard({ comments, me, owner, onReply, onResolve, onDelete }: { comments: CommentRow[]; me: string; owner: boolean; onReply: Submit; onResolve: (on: boolean) => void; onDelete: (c: CommentRow) => void }) {
   const resolved = !!comments[0]?.resolved_at;
   return (
     <div data-canvas-ui="" data-comment-thread="" className="flex flex-col gap-2.5 p-2.5">
