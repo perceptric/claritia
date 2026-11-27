@@ -43,14 +43,24 @@ export function PoliciesList({ session, ws, navigate, screen }: ViewProps & { sc
             <MoreMenu
               label="More"
               items={[
-                { label: "Alerts", run: () => void routingApi<Loaded>(session, ws.id, "load", { slim: true }).then(setAlerts) },
+                {
+                  label: "Alerts",
+                  run: () =>
+                    void routingApi<Loaded>(session, ws.id, "load", { slim: true })
+                      .then(setAlerts)
+                      .catch((e) => toast({ text: errorText(e), tone: "error" })),
+                },
                 {
                   label: d.paused ? "Turn routing on" : "Pause routing",
                   run: () =>
                     void (async () => {
                       const paused = !d.paused;
                       if (paused && !(await askConfirm("Pause routing?", { body: "New leads keep the owner they come with until you turn it back on.", ok: "Pause" }))) return;
-                      await routingApi(session, ws.id, "pause", { paused });
+                      try {
+                        await routingApi(session, ws.id, "pause", { paused });
+                      } catch (e) {
+                        return void toast({ text: errorText(e), tone: "error" });
+                      }
                       invalidate(`routing_screen:${ws.id}`);
                       toast({ text: paused ? "Routing paused" : "Routing is on" });
                     })(),
@@ -191,7 +201,7 @@ export function CreateDialog({ start, onClose, onCreate }: { start: Start; onClo
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={() => void submit()} disabled={busy}>
+          <Button onClick={() => void submit()} busy={busy}>
             Create draft
           </Button>
         </>
@@ -211,13 +221,13 @@ export function CreateDialog({ start, onClose, onCreate }: { start: Start; onClo
             value={name}
             maxLength={NAME_MAX}
             aria-invalid={!!nameErr}
-            className={`h-8 ${nameErr ? "border-rose" : ""}`}
+            className={`h-8 ${nameErr ? "border-warning" : ""}`}
             onChange={(e) => {
               setName(e.target.value);
               if (nameErr) setNameErr("");
             }}
           />
-          {nameErr ? <span className="text-[12px] text-rose">{nameErr}</span> : <span className="text-[12px] text-muted">Up to 80 characters</span>}
+          {nameErr ? <span className="text-[12px] text-warning">{nameErr}</span> : <span className="text-[12px] text-muted">Up to 80 characters</span>}
         </label>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <StartCard title="Send everything to me" line="No team needed" on={pick === "solo"} onClick={() => setPick("solo")} />

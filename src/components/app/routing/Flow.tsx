@@ -255,8 +255,8 @@ function StepCard({
           {onToggle ? <Toggle label={`${title} on`} on={!off} onChange={onToggle} /> : null}
         </div>
         {problem ? (
-          <button type="button" onClick={onClick} className="-mt-1 flex w-full items-center gap-2 px-4 pb-3 text-left text-[12px] text-rose">
-            <span className="size-1.5 shrink-0 rounded-full bg-rose" />
+          <button type="button" onClick={onClick} className="-mt-1 flex w-full items-center gap-2 px-4 pb-3 text-left text-[12px] text-warning">
+            <span className="size-1.5 shrink-0 rounded-full bg-warning" />
             {problem}
           </button>
         ) : null}
@@ -404,7 +404,7 @@ function RuleRow({
         <button type="button" onClick={onSelect} aria-pressed={selected} className={`min-w-0 flex-1 truncate text-left text-[13px] outline-none focus-visible:underline ${off ? "text-muted" : "text-ink"}`}>
           {title}
         </button>
-        {problem ? <span className="size-1.5 shrink-0 rounded-full bg-rose" aria-label={problem} title={problem} /> : null}
+        {problem ? <span className="size-1.5 shrink-0 rounded-full bg-warning" aria-label={problem} title={problem} /> : null}
         {off ? <Badge>Off</Badge> : unused ? <Badge>Unused</Badge> : null}
         <span className={`max-w-[120px] truncate text-[12px] text-muted`}>{rule.then === "hold" ? "Held" : rule.then === "owner" ? "Their owner" : (queue ?? "No team yet")}</span>
         {count ? <span className="w-9 text-right text-[12px] text-muted tabular-nums">{fmt(count)}</span> : null}
@@ -484,7 +484,7 @@ function Queues({ body, sel, onSelect, edit, path, problemFor }: FlowProps & { p
             onClick={() => onSelect({ kind: "queue", id: q.id })}
             className={`press inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[12.5px] font-medium transition-colors duration-[140ms] ${on ? "border-ink bg-ink text-paper" : path?.queue === q.id ? "border-sage bg-sage-wash text-ink" : "border-line-strong bg-card text-ink hover:bg-paper"}`}
           >
-            {problem ? <span className="size-1.5 rounded-full bg-rose" aria-label={problem.text} /> : null}
+            {problem ? <span className="size-1.5 rounded-full bg-warning" aria-label={problem.text} /> : null}
             {q.name}
             <span className={`tabular-nums ${on ? "text-paper/70" : "text-muted"}`}>{q.members.length}</span>
           </button>

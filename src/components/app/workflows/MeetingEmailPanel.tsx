@@ -15,6 +15,7 @@ import { Fit, Trash } from "../../Icons";
 import { Badge, ErrorNote, IconButton, Input } from "../ui";
 import { InsertData } from "./Inspector";
 import { EmailInPanel } from "./EmailInPanel";
+import { toast } from "../Toaster";
 
 export type SystemRow = { id: string; name: string; system_key: string; subject: string; preheader: string | null; doc: unknown };
 
@@ -36,7 +37,12 @@ export function MeetingEmailPanel({ sb, ws, keyName, row, kits, readOnly, onRemo
   useEffect(
     () => () => {
       const { subject: sub, doc: d, row: r } = latest.current;
-      if (unsaved.current && r && d) void sb.rpc("email_draft_save", { p_ws: ws, p_id: r.id, p_name: r.name, p_subject: sub, p_preheader: d.settings.preheader ?? "", p_doc: d });
+      if (unsaved.current && r && d)
+        void sb
+          .rpc("email_draft_save", { p_ws: ws, p_id: r.id, p_name: r.name, p_subject: sub, p_preheader: d.settings.preheader ?? "", p_doc: d })
+          .then(({ error }) => {
+            if (error) toast({ text: "The email's last change didn't save. Open it and try again.", tone: "error" });
+          });
     },
     [sb, ws],
   );

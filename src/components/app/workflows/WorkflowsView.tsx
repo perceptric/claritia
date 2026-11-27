@@ -8,7 +8,7 @@ import { useCallback, useEffect, useState } from "react";
 import { TEMPLATES, templateByKey } from "@/lib/workflows/templates";
 import { emptyBody, type Body } from "@/lib/workflows/types";
 import { Branch } from "../../Icons";
-import { ErrorNote, errorText, Loading, Page, type ViewProps } from "../ui";
+import { ErrorNote, errorText, Loading, Page, Spinner, type ViewProps } from "../ui";
 import { WorkflowsHome } from "./Home";
 import { isUuid } from "@/lib/uuid";
 import { dbError } from "@/lib/errors";
@@ -19,7 +19,7 @@ export function WorkflowsView(p: ViewProps & { describe?: (done: () => void) => 
 }
 
 function TemplatePicker({ sb, ws, navigate }: ViewProps) {
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
   const make = useCallback(
     async (name: string, body: Body) => {
@@ -33,12 +33,12 @@ function TemplatePicker({ sb, ws, navigate }: ViewProps) {
     },
     [sb, ws.id, navigate],
   );
-  const create = (name: string, body: Body) => {
-    setBusy(true);
+  const create = (key: string, name: string, body: Body) => {
+    setBusy(key);
     setError("");
     make(name, body).catch((e) => {
       setError(errorText(e));
-      setBusy(false);
+      setBusy(null);
     });
   };
   // ?template=<key> makes that one at once; ?form=<id> (Form Studio's New follow-up)
@@ -61,26 +61,30 @@ function TemplatePicker({ sb, ws, navigate }: ViewProps) {
     );
   return (
     <Page icon={<Branch size={16} />} title="New workflow" back={{ label: "Workflows", onClick: () => navigate("workflows") }}>
-      <ErrorNote message={error} />
+      <ErrorNote message={error} className="mb-3" />
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <Card name="Start blank" line="A trigger and nothing else" disabled={busy} onClick={() => create("Untitled workflow", emptyBody())} />
+        <Card name="Start blank" line="A trigger and nothing else" disabled={!!busy} busy={busy === "blank"} onClick={() => create("blank", "Untitled workflow", emptyBody())} />
         {TEMPLATES.map((t) => (
-          <Card key={t.key} name={t.name} line={t.line} disabled={busy} onClick={() => create(t.name, t.body())} />
+          <Card key={t.key} name={t.name} line={t.line} disabled={!!busy} busy={busy === t.key} onClick={() => create(t.key, t.name, t.body())} />
         ))}
       </div>
     </Page>
   );
 }
 
-function Card({ name, line, onClick, disabled }: { name: string; line: string; onClick: () => void; disabled: boolean }) {
+function Card({ name, line, onClick, disabled, busy }: { name: string; line: string; onClick: () => void; disabled: boolean; busy: boolean }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="lift anim-rise flex flex-col gap-1 rounded-2xl bg-card shadow-rest p-5 text-left disabled:opacity-60"
+      aria-busy={busy || undefined}
+      className={`lift anim-rise flex flex-col gap-1 rounded-2xl bg-card shadow-rest p-5 text-left ${busy ? "cursor-progress" : "disabled:opacity-60"}`}
     >
-      <span className="text-[14px] font-semibold tracking-[-0.01em] text-ink">{name}</span>
+      <span className="flex items-center gap-2 text-[14px] font-semibold tracking-[-0.01em] text-ink">
+        {busy ? <Spinner size={12} /> : null}
+        {name}
+      </span>
       <span className="text-[12.5px] text-muted">{line}</span>
     </button>
   );

@@ -10,6 +10,7 @@ import type { Command } from "../CommandBar";
 import { tell } from "../Dialogs";
 import { errorText, invalidate, useQuery, type ViewProps } from "../ui";
 import { routingApi } from "./api";
+import { toast } from "./Toast";
 import { ROUTING } from "./screenParts";
 import { pausedMs } from "./screensModel";
 
@@ -32,6 +33,7 @@ export function useRoutingCommands({ sb, session, ws, navigate }: { sb: Supabase
         () => routingApi(session, ws, "rep", { user: me, patch: { paused_until: paused ? "" : "infinity" } }),
       );
       invalidate("routing_reps");
+      toast(paused ? "Your new leads are back on" : "Your new leads are paused");
     } catch (e) {
       await tell("Couldn't change it", errorText(e));
     }

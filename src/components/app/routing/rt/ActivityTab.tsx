@@ -7,7 +7,7 @@
 
 import { useState } from "react";
 import { assignmentBadge, bookingBadge, firstName, reasonWords, REVIEW_WORDS } from "@/lib/routing/screenModel";
-import { Badge, Button, ErrorNote, Loading, Page, useQuery, type ViewProps } from "../../ui";
+import { Badge, Button, ErrorNote, errorText, Loading, Page, useQuery, type ViewProps } from "../../ui";
 import { rt, type RunRow, type Screen } from "./api";
 import { Initials, namesOf, Pills, when } from "./parts";
 import { RunDrawer } from "./RunDrawer";
@@ -25,12 +25,22 @@ export function ActivityTab({ session, ws, navigate, screen, sub }: ViewProps & 
   const list = useQuery(`routing_activity:${ws.id}:${filter}`, () => rt<{ runs: RunRow[] }>(session, ws.id, "rt_activity", { filter }), { staleMs: 5_000 });
   const rows = [...(list.data?.runs ?? []), ...more];
   const who = (u: string | null) => (u ? (names.people[u] ?? "Former teammate") : "");
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [moreError, setMoreError] = useState("");
   const loadMore = async () => {
     const last = rows[rows.length - 1];
     if (!last) return;
-    const r = await rt<{ runs: RunRow[] }>(session, ws.id, "rt_activity", { filter, before: last.at });
-    setMore((m) => [...m, ...r.runs]);
-    if (r.runs.length < 50) setEnd(true);
+    setLoadingMore(true);
+    setMoreError("");
+    try {
+      const r = await rt<{ runs: RunRow[] }>(session, ws.id, "rt_activity", { filter, before: last.at });
+      setMore((m) => [...m, ...r.runs]);
+      if (r.runs.length < 50) setEnd(true);
+    } catch (e) {
+      setMoreError(errorText(e));
+    } finally {
+      setLoadingMore(false);
+    }
   };
 
   return (
@@ -50,9 +60,9 @@ export function ActivityTab({ session, ws, navigate, screen, sub }: ViewProps & 
             navigate("routing", v === "all" ? "activity" : `activity/${v}`);
           }}
         />
-        <ErrorNote message={list.error} />
-        {!list.data && !list.error ? (
-          <Loading />
+        <ErrorNote message={list.error} onRetry={list.reload} />
+        {!list.data ? (
+          list.error ? null : <Loading />
         ) : (
           <div className="overflow-x-auto rounded-[10px] bg-card shadow-rest">
             <table className="w-full border-collapse">
@@ -122,9 +132,10 @@ export function ActivityTab({ session, ws, navigate, screen, sub }: ViewProps & 
             </table>
           </div>
         )}
-        {rows.length >= 50 && !end ? (
+        <ErrorNote message={moreError} onRetry={() => void loadMore()} />
+        {rows.length >= 50 && !end && !moreError ? (
           <div className="flex justify-center">
-            <Button variant="ghost" size="sm" onClick={() => void loadMore()}>
+            <Button variant="ghost" size="sm" busy={loadingMore} onClick={() => void loadMore()}>
               Show more
             </Button>
           </div>

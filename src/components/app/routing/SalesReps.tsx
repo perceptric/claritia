@@ -13,7 +13,7 @@ import { Popover } from "../FilterBar";
 import { PROVIDERS } from "../meetings/MyCalendar";
 import { copyText, meetingsApi, ownZone, usePeople, type Person } from "../meetings/parts";
 import { connectCalendar } from "../scheduling/ConnectCalendar";
-import { Badge, Button, ErrorNote, errorText, invalidate, Loading, must, useQuery, type ViewProps } from "../ui";
+import { Badge, Button, ErrorNote, errorText, invalidate, Loading, must, Spinner, useQuery, type ViewProps } from "../ui";
 import { Alert, Card, Choice, TD, TH, Who } from "../inbound/parts";
 import { calendarWords, capOptions, capWords, HOUR_PRESETS, hoursWords, repState, stateBadge, STATE_WORDS, withoutToday, type RepState } from "../reps/model";
 import { routingApi } from "./api";
@@ -121,7 +121,7 @@ export function SalesReps({ sb, session, ws, role, navigate, assigned }: Pick<Vi
   const err = people.error || data.error;
   return (
     <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-3 px-4 pt-5 pb-12 text-[13px] md:px-6">
-      <ErrorNote message={error || err} />
+      <ErrorNote message={error || err} onRetry={error ? undefined : people.error ? people.reload : data.reload} onClose={error ? () => setError("") : undefined} />
       {noCal.length ? (
         <Alert>
           {noCal.map((p) => p.name).join(", ")} {noCal.length === 1 ? "has" : "have"} no calendar connected
@@ -327,11 +327,11 @@ export function ConnectButton({ session, ws, onError, again, look = "button" }: 
           onClick={(e) => setAnchor(anchor ? null : e.currentTarget)}
           className="press inline-flex h-5 items-center gap-1.5 rounded-full bg-butter-wash px-2 text-[11px] font-medium whitespace-nowrap text-butter"
         >
-          <span className="size-[5px] rounded-full bg-butter" />
+          {busy ? <Spinner size={9} /> : <span className="size-[5px] rounded-full bg-butter" />}
           {words}
         </button>
       ) : (
-        <Button size="sm" aria-haspopup="menu" aria-expanded={!!anchor} disabled={busy} onClick={(e) => setAnchor(anchor ? null : e.currentTarget)}>
+        <Button size="sm" aria-haspopup="menu" aria-expanded={!!anchor} busy={busy} onClick={(e) => setAnchor(anchor ? null : e.currentTarget)}>
           {words}
         </Button>
       )}

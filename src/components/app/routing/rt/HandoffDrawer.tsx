@@ -26,7 +26,19 @@ export function HandoffDrawer({ session, ws, sb, contactId, d: given, onClose, o
   const [contact, setContact] = useState<string | null>(contactId ?? null);
   return (
     <Sheet title="Route & book" onClose={onClose} width={620} footer={undefined}>
-      {!contact ? <ContactPick sb={sb} ws={ws.id} onPick={setContact} /> : !d ? <Loading /> : <Handoff key={contact} session={session} ws={ws} d={d} contact={contact} onClose={onClose} onDone={onDone} />}
+      {!contact ? (
+        <ContactPick sb={sb} ws={ws.id} onPick={setContact} />
+      ) : !d ? (
+        q.error ? (
+          <div className="p-4">
+            <ErrorNote message={q.error} onRetry={q.reload} />
+          </div>
+        ) : (
+          <Loading />
+        )
+      ) : (
+        <Handoff key={contact} session={session} ws={ws} d={d} contact={contact} onClose={onClose} onDone={onDone} />
+      )}
     </Sheet>
   );
 }
@@ -70,6 +82,8 @@ function Handoff({ session, ws, d, contact, onClose, onDone }: Pick<ViewProps, "
   const [slot, setSlot] = useState<number | null>(null);
   const [changed, setChanged] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [doing, setDoing] = useState<"assign" | "book" | null>(null);
+  const [tries, setTries] = useState(0);
   const [error, setError] = useState("");
   const [done, setDone] = useState<{ run: string; owner: string; start: number | null } | null>(null);
   const [slots, setSlots] = useState<number[] | null>(null);
@@ -90,7 +104,7 @@ function Handoff({ session, ws, d, contact, onClose, onDone }: Pick<ViewProps, "
       })
       .catch((e) => setError(errorText(e)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contact, session, ws.id]);
+  }, [contact, session, ws.id, tries]);
 
   const who = (u: string | null | undefined) => (u ? (names.people[u] ?? "Former teammate") : "Nobody");
   const local = () => {
@@ -119,6 +133,7 @@ function Handoff({ session, ws, d, contact, onClose, onDone }: Pick<ViewProps, "
   const poll = async (run: string) => {
     for (let i = 0; i < 10; i++) {
       await new Promise((r) => setTimeout(r, 2000));
+      // A status read that fails is asked again on the next turn; the run itself is already saved.
       const s = await rt<{ state: string }>(session, ws.id, "rt_handoff_status", { run }).catch(() => null);
       if (s?.state === "confirmed") return setStep("booked");
       if (s?.state === "failed") return setStep("failed");
@@ -127,6 +142,7 @@ function Handoff({ session, ws, d, contact, onClose, onDone }: Pick<ViewProps, "
   const confirm = async (book: boolean) => {
     if (!res) return;
     setBusy(true);
+    setDoing(book ? "book" : "assign");
     setError("");
     try {
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -160,6 +176,7 @@ function Handoff({ session, ws, d, contact, onClose, onDone }: Pick<ViewProps, "
       setError(errorText(e));
     } finally {
       setBusy(false);
+      setDoing(null);
     }
   };
   const rebook = async () => {
@@ -184,7 +201,7 @@ function Handoff({ session, ws, d, contact, onClose, onDone }: Pick<ViewProps, "
     }
   };
 
-  if (!base) return <div className="p-4">{error ? <ErrorNote message={error} /> : <Loading />}</div>;
+  if (!base) return <div className="p-4">{error ? <ErrorNote message={error} onRetry={() => (setError(""), setTries((n) => n + 1))} /> : <Loading />}</div>;
   const p = res ?? base;
   const owner = base.contact.owner;
   const recipient = res?.state === "assigned" ? res.recipient : null;
@@ -254,7 +271,7 @@ function Handoff({ session, ws, d, contact, onClose, onDone }: Pick<ViewProps, "
         ) : null}
         {step === "start" ? (
           <div>
-            <Button size="sm" disabled={busy} onClick={() => void find()}>
+            <Button size="sm" busy={busy} onClick={() => void find()}>
               Find recipient
             </Button>
           </div>
@@ -355,11 +372,11 @@ function Handoff({ session, ws, d, contact, onClose, onDone }: Pick<ViewProps, "
       <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-line bg-paper px-5 py-3">
         {step === "found" && recipient ? (
           <>
-            <Button variant="ghost" disabled={busy || blocked || (!!other && !reason.trim())} onClick={() => void confirm(false)}>
+            <Button variant="ghost" disabled={busy || blocked || (!!other && !reason.trim())} busy={doing === "assign"} onClick={() => void confirm(false)}>
               Assign without booking
             </Button>
             {res?.meetingType ? (
-              <Button disabled={busy || blocked || !slot || !canBook || !!other} onClick={() => void confirm(true)}>
+              <Button disabled={busy || blocked || !slot || !canBook || !!other} busy={doing === "book"} onClick={() => void confirm(true)}>
                 Confirm handoff &amp; book
               </Button>
             ) : null}
@@ -369,7 +386,7 @@ function Handoff({ session, ws, d, contact, onClose, onDone }: Pick<ViewProps, "
             <Button variant="ghost" onClick={onClose}>
               Close
             </Button>
-            <Button disabled={busy || !slot} onClick={() => void rebook()}>
+            <Button disabled={busy || !slot} busy={busy} onClick={() => void rebook()}>
               Book this time
             </Button>
           </>

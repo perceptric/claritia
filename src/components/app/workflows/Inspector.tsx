@@ -23,6 +23,7 @@ import { timeOptions, uses12h } from "@/lib/workflows/times";
 import type { Names } from "./model";
 import { EmailInPanel } from "./EmailInPanel";
 import type { CanvasKit } from "../emails/canvas/preview";
+import { toast } from "../Toaster";
 
 const label = "text-[12px] font-medium text-muted";
 const area = "min-h-24 w-full rounded-md bg-card shadow-input px-3 py-2 text-[13.5px] leading-relaxed text-ink outline-none";
@@ -449,6 +450,7 @@ function ChatStep(p: { step: Extract<Step, { kind: "chat" }>; names: Names; sess
   const [read, setRead] = useState<{ for: string; channels: { id: string; name: string }[] | null; error: string }>({ for: "", channels: null, error: "" });
   const teamsId = tool?.kind === "teams" ? tool.id : "";
   const token = p.session.access_token;
+  const [tries, setTries] = useState(0);
   useEffect(() => {
     if (!teamsId) return;
     let live = true;
@@ -459,7 +461,7 @@ function ChatStep(p: { step: Extract<Step, { kind: "chat" }>; names: Names; sess
     return () => {
       live = false;
     };
-  }, [teamsId, p.ws, token]);
+  }, [teamsId, p.ws, token, tries]);
   const channels = read.for === teamsId ? read.channels : null;
   const error = read.for === teamsId ? read.error : "";
   return (
@@ -497,7 +499,7 @@ function ChatStep(p: { step: Extract<Step, { kind: "chat" }>; names: Names; sess
           <InsertData disabled={p.readOnly} onInsert={(t) => p.onPatch({ text: withTag(s.text, t) } as Partial<Step>)} />
         </div>
       </Group>
-      <ErrorNote message={error} />
+      <ErrorNote message={error} onRetry={() => (setRead({ for: "", channels: null, error: "" }), setTries((n) => n + 1))} />
     </>
   );
 }
@@ -542,13 +544,19 @@ export function StepPanel(p: {
       setBusy(false);
     }
   };
+  const [copying, setCopying] = useState(false);
   const secret = async () => {
     if (!p.workflowId) return;
+    setError("");
+    setCopying(true);
     try {
       const r = await postJson<{ secret: string }>(p.session, "/api/workflows/secret", { workflowId: p.workflowId });
       await navigator.clipboard.writeText(r.secret);
+      toast("Signing secret copied");
     } catch (e) {
       setError(errorText(e));
+    } finally {
+      setCopying(false);
     }
   };
 
@@ -615,7 +623,7 @@ export function StepPanel(p: {
           </div>
           {!p.readOnly ? (
             <div className="flex flex-wrap items-center gap-2">
-              <Button variant="ghost" onClick={() => void draft()} disabled={busy}>
+              <Button variant="ghost" onClick={() => void draft()} busy={busy}>
                 <AiMark size={13} /> Rewrite with Tia
               </Button>
             </div>
@@ -782,8 +790,8 @@ export function StepPanel(p: {
             <Input value={s.url} onChange={(e) => p.onPatch({ url: e.target.value } as Partial<Step>, "url")} placeholder="https://" className="h-9" disabled={p.readOnly} />
           </Row>
           {p.workflowId ? (
-            <Button variant="ghost" onClick={() => void secret()}>
-              <Copy size={13} /> Copy signing secret
+            <Button variant="ghost" busy={copying} onClick={() => void secret()}>
+              {copying ? null : <Copy size={13} />} Copy signing secret
             </Button>
           ) : null}
         </>

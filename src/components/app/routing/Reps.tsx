@@ -35,8 +35,12 @@ export function StatusPopover({ anchor, rep, onClose, onSave }: { anchor: HTMLEl
   const dates = rep?.out_dates ?? [];
   const run = async (p: Patch) => {
     setBusy(true);
-    await onSave(p);
-    setBusy(false);
+    // onSave shows its own error; the buttons come back either way.
+    try {
+      await onSave(p);
+    } finally {
+      setBusy(false);
+    }
   };
   const pause = (c: PauseChoice) => run({ paused_until: pauseUntil(c) });
   const row = "flex h-9 w-full items-center rounded-sm px-2.5 text-left hover:bg-hover disabled:opacity-45";

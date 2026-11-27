@@ -11,7 +11,7 @@ import { newStep, type Body, type Step, type StepKind } from "@/lib/workflows/ty
 import { History, ListIcon, Play, Redo, Trash, Undo } from "../../Icons";
 import { askConfirm } from "../Dialogs";
 import { toast } from "../routing/Toast";
-import { Badge, Button, ErrorNote, IconButton, invalidate, Page, Segmented, setLeaveGuard, useQuery, type Tone, type ViewProps } from "../ui";
+import { Badge, Button, ErrorBoundary, ErrorNote, IconButton, invalidate, Page, Segmented, setLeaveGuard, useQuery, type Tone, type ViewProps } from "../ui";
 import type { Loaded, Version } from "./data";
 import { Flow, type Sel } from "./Flow";
 import { StepPanel, TriggerPanel } from "./Inspector";
@@ -295,6 +295,7 @@ export function WorkflowEditor({
     const { error: e } = await sb.rpc("workflow_delete", { p_id: id });
     if (e) return setError(errorText(dbError(e)));
     savedRef.current = latest.current.n;
+    toast(`Deleted ${name || "the workflow"}`);
     goHome();
   };
   const openPublish = async () => {
@@ -353,7 +354,7 @@ export function WorkflowEditor({
         </Badge>
       ) : null}
       {saveState === "retry" ? (
-        <span role="status" className="text-[12.5px] text-rose">
+        <span role="status" className="text-[12.5px] text-warning">
           Not saved. Retrying…
         </span>
       ) : saveState === "saved" && !dirty ? (
@@ -444,19 +445,15 @@ export function WorkflowEditor({
             </Button>
           </Bar>
         ) : null}
-        {error ? (
-          <div className="flex items-center gap-2 px-4 pt-3 md:px-6">
-            <div className="flex-1">
-              <ErrorNote message={error || mail.error} />
-            </div>
-            <Button variant="plain" size="sm" onClick={() => setError("")}>
-              Dismiss
-            </Button>
+        {error || mail.error ? (
+          <div className="px-4 pt-3 md:px-6">
+            <ErrorNote message={error || mail.error} onRetry={error ? undefined : mail.relink} onClose={error ? () => setError("") : undefined} />
           </div>
         ) : null}
 
         <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_400px]">
           <div className="relative flex min-h-[480px] min-w-0 flex-col lg:min-h-0">
+            <ErrorBoundary>
             <FlowCanvas storageKey={`claritia:flow-canvas:${id}`} onKey={canvasKey}>
             <Flow
               body={shown}
@@ -477,8 +474,10 @@ export function WorkflowEditor({
               thumbs={thumbs}
             />
             </FlowCanvas>
+            </ErrorBoundary>
           </div>
           <aside className="min-h-[480px] overflow-y-auto border-t border-line p-5 lg:min-h-0 lg:border-t-0 lg:border-l">
+            <ErrorBoundary className="">
             {viewing ? null : (
               <div className="mb-4 flex flex-wrap items-center gap-2">
                 <Segmented<"settings" | "test">
@@ -530,6 +529,7 @@ export function WorkflowEditor({
             ) : (
               <TriggerPanel body={body} names={data.names} problems={gone.map((x) => x.text)} onChange={(b, key) => edit(b, key ? `trigger:${key}` : undefined)} readOnly={false} />
             )}
+            </ErrorBoundary>
           </aside>
         </div>
 
@@ -549,7 +549,7 @@ export function WorkflowEditor({
           />
         ) : null}
         {panel === "publish" ? (
-          <PublishDialog session={session} id={id} live={live} draft={body} names={data.words} next={next} thumbs={thumbs} onDone={(v) => void onPublished(v)} onFailed={() => void mail.resync().catch(() => undefined)} onClose={() => setPanel(null)} />
+          <PublishDialog session={session} id={id} live={live} draft={body} names={data.words} next={next} thumbs={thumbs} onDone={(v) => void onPublished(v)} onFailed={() => void mail.resync().catch(() => undefined) /* a background re-read; the email's own error shows above */} onClose={() => setPanel(null)} />
         ) : null}
       </div>
     </Page>

@@ -38,14 +38,16 @@ export function RunDrawer({ session, ws, run, d, onClose, onOpen }: Pick<ViewPro
   const r = q.data?.run;
   const [mode, setMode] = useState<Mode>(null);
   const [busy, setBusy] = useState(false);
+  const [doing, setDoing] = useState<Recovery | null>(null);
   const [error, setError] = useState("");
   const who = (u: string | null | undefined) => (u ? (names[u] ?? "Former teammate") : "Nobody");
   const refresh = () => {
     q.reload();
     invalidate((k) => k.startsWith(`routing_activity:${ws}`) || k === `routing_screen:${ws}`);
   };
-  const act = async (fn: () => Promise<unknown>, done?: string) => {
+  const act = async (fn: () => Promise<unknown>, done?: string, x?: Recovery) => {
     setBusy(true);
+    setDoing(x ?? null);
     setError("");
     try {
       await fn();
@@ -55,13 +57,14 @@ export function RunDrawer({ session, ws, run, d, onClose, onOpen }: Pick<ViewPro
       setError(errorText(e));
     } finally {
       setBusy(false);
+      setDoing(null);
     }
   };
 
   if (!r)
     return (
       <Sheet title="Run" onClose={onClose} width={620}>
-        <div className="p-4">{q.error ? <ErrorNote message={q.error} /> : <Loading />}</div>
+        <div className="p-4">{q.error ? <ErrorNote message={q.error} onRetry={q.reload} /> : <Loading />}</div>
       </Sheet>
     );
 
@@ -75,10 +78,10 @@ export function RunDrawer({ session, ws, run, d, onClose, onOpen }: Pick<ViewPro
   const dismiss = async () => {
     const reason = await askText("Dismiss this item?", { placeholder: "Reason", ok: "Dismiss" });
     if (!reason?.trim()) return;
-    await act(() => rt(session, ws, "rt_review_act", { run: r.id, op: "dismiss", reason: reason.trim(), revision: review?.revision }), "Dismissed");
+    await act(() => rt(session, ws, "rt_review_act", { run: r.id, op: "dismiss", reason: reason.trim(), revision: review?.revision }), "Dismissed", "dismiss");
   };
   const approve = async () => {
-    if (review?.state === "open") await act(() => rt(session, ws, "rt_review_act", { run: r.id, op: "approve", revision: review.revision }));
+    if (review?.state === "open") await act(() => rt(session, ws, "rt_review_act", { run: r.id, op: "approve", revision: review.revision }), undefined, "approve");
     setMode("child");
   };
   const run1 = (x: Recovery) => {
@@ -92,15 +95,15 @@ export function RunDrawer({ session, ws, run, d, onClose, onOpen }: Pick<ViewPro
       case "dismiss":
         return void dismiss();
       case "reopen":
-        return void act(() => rt(session, ws, "rt_review_act", { run: r.id, op: "reopen", revision: review?.revision }), "Reopened");
+        return void act(() => rt(session, ws, "rt_review_act", { run: r.id, op: "reopen", revision: review?.revision }), "Reopened", x);
       case "reconnect":
         return void askToConnect({ name: who(r.owner) });
       case "reconcile":
-        return void act(() => rt(session, ws, "rt_reconcile", { run: r.id }), "Checking the calendar");
+        return void act(() => rt(session, ws, "rt_reconcile", { run: r.id }), "Checking the calendar", x);
       case "resume_booking":
-        return void act(() => rt(session, ws, "rt_resume_booking", { run: r.id }), `${firstName(who(r.owner))}'s times are on their way to the lead`);
+        return void act(() => rt(session, ws, "rt_resume_booking", { run: r.id }), `${firstName(who(r.owner))}'s times are on their way to the lead`, x);
       case "retry_sync":
-        return void act(() => rt(session, ws, "rt_sync_retry", { run: r.id }), "Sync started again");
+        return void act(() => rt(session, ws, "rt_sync_retry", { run: r.id }), "Sync started again", x);
     }
   };
   const LABEL: Record<Recovery, string> = {
@@ -135,12 +138,12 @@ export function RunDrawer({ session, ws, run, d, onClose, onOpen }: Pick<ViewPro
         mode ? null : (
           <>
             {ghosts.map((x) => (
-              <Button key={x} variant="ghost" disabled={busy} onClick={() => run1(x)}>
+              <Button key={x} variant="ghost" disabled={busy} busy={doing === x} onClick={() => run1(x)}>
                 {LABEL[x]}
               </Button>
             ))}
             {primary ? (
-              <Button disabled={busy} onClick={() => run1(primary)}>
+              <Button disabled={busy} busy={doing === primary} onClick={() => run1(primary)}>
                 {LABEL[primary]}
               </Button>
             ) : (
@@ -270,7 +273,7 @@ function timeline(r: RunDetail, who: (u: string | null | undefined) => string) {
   else if (r.kind === "owner") lines.push({ tone: "", text: "No meeting requested", at: t });
   for (const h of r.history ?? []) lines.push({ tone: "", text: h.kind === "lead.booking_abandoned" ? "Booking left unfinished" : "Booking resumed", at: timeOf(h.at) });
   for (const k of r.tasks ?? []) lines.push({ tone: "", text: `Follow-up task ${k.done ? "done" : "created"} for ${who(k.assignee)}`, at: timeOf(k.at) });
-  if (r.sync_state === "failed") lines.push({ tone: "warn", text: `CRM sync failed${r.sync?.error ? `: ${r.sync.error}` : ""}`, at: t });
+  if (r.sync_state === "failed") lines.push({ tone: "warn", text: "CRM sync failed", at: t });
   else if (r.sync_state === "complete") lines.push({ tone: "ok", text: "CRM synced", at: t });
   return lines;
 }
@@ -285,6 +288,7 @@ function ChildPanel({ session, ws, r, d, who, onDone, onCancel }: Pick<ViewProps
   const [pv, setPv] = useState<ChildPreview | null>(null);
   const [stale, setStale] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState("");
   const [changed, setChanged] = useState(false);
   const corrections = () => Object.fromEntries(Object.entries(fix).filter(([, v]) => v !== undefined));
@@ -315,6 +319,7 @@ function ChildPanel({ session, ws, r, d, who, onDone, onCancel }: Pick<ViewProps
   const confirm = async () => {
     if (!pv?.ref) return;
     setBusy(true);
+    setConfirming(true);
     setError("");
     try {
       const out = await rt<ChildResult>(session, ws, "rt_child_run", { run: r.id, op: op.current, choice: { policy: pv.ref.policy, version: pv.ref.version }, corrections: corrections(), clearHold, ref: pv.ref });
@@ -329,6 +334,7 @@ function ChildPanel({ session, ws, r, d, who, onDone, onCancel }: Pick<ViewProps
       setError(e instanceof ApiError && e.lost ? "No answer yet. Confirm again to resume the same attempt." : errorText(e));
     } finally {
       setBusy(false);
+      setConfirming(false);
     }
   };
   const chosen = pv?.chosen;
@@ -423,11 +429,11 @@ function ChildPanel({ session, ws, r, d, who, onDone, onCancel }: Pick<ViewProps
           Back
         </Button>
         {stale ? (
-          <Button variant="ghost" size="sm" disabled={busy} onClick={() => void preview()}>
+          <Button variant="ghost" size="sm" disabled={busy} busy={busy && !confirming} onClick={() => void preview()}>
             Preview
           </Button>
         ) : null}
-        <Button size="sm" disabled={busy || stale || !pv?.ref || pv.state !== "assigned"} onClick={() => (setChanged(false), void confirm())}>
+        <Button size="sm" disabled={busy || stale || !pv?.ref || pv.state !== "assigned"} busy={confirming} onClick={() => (setChanged(false), void confirm())}>
           Confirm and route
         </Button>
       </div>
@@ -487,7 +493,7 @@ function AssignPanel({ session, ws, r, d, who, review, onDone, onCancel }: Pick<
               Yes{pv.cap ? ` · ${pv.today} of ${pv.cap} today` : ""}
             </Badge>
           ) : (
-            <span className="text-right text-rose">{pv.why}</span>
+            <span className="text-right text-warning">{pv.why}</span>
           )}
         </Line>
       ) : null}
@@ -508,7 +514,7 @@ function AssignPanel({ session, ws, r, d, who, review, onDone, onCancel }: Pick<
         <Button variant="ghost" size="sm" disabled={busy} onClick={onCancel}>
           Back
         </Button>
-        <Button size="sm" disabled={busy || !pv?.eligible || !reason.trim() || user === pv?.contact.owner} onClick={() => void confirm()}>
+        <Button size="sm" disabled={busy || !pv?.eligible || !reason.trim() || user === pv?.contact.owner} busy={busy} onClick={() => void confirm()}>
           {review ? "Assign" : "Reassign"}
         </Button>
       </div>

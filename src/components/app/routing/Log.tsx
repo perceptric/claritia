@@ -12,6 +12,7 @@ import { Sheet } from "../Sheet";
 import { Badge, Button, ErrorNote, errorText, invalidate, Loading, must, useQuery, type ViewProps } from "../ui";
 import { useFormNames } from "../shared";
 import { routingApi } from "./api";
+import { toast } from "./Toast";
 import { RunLines, type LinkTo } from "./Lines";
 import { ROUTING, useLiveBody } from "./screenParts";
 import { decisionOf, factsOf, fromWords, leadOf, routedBy, type RunRow } from "./screensModel";
@@ -80,7 +81,7 @@ export function RoutedBy({ sb, session, ws, role, navigate, contact }: Pick<View
       {t?.status === "open" ? (
         <span className="flex basis-full items-center gap-2 pt-1">
           <Badge tone={t.soon ? "amber" : "gray"}>Reply by {t.words}</Badge>
-          <Button size="sm" variant="plain" disabled={marking} onClick={() => void mark()}>
+          <Button size="sm" variant="plain" busy={marking} onClick={() => void mark()}>
             Mark contacted
           </Button>
         </span>
@@ -89,7 +90,7 @@ export function RoutedBy({ sb, session, ws, role, navigate, contact }: Pick<View
           <Badge tone="red">Response time missed</Badge>
         </span>
       ) : null}
-      {markError ? <span className="basis-full text-rose">{markError}</span> : null}
+      {markError ? <ErrorNote message={markError} onClose={() => setMarkError("")} className="basis-full" /> : null}
       {open ? (
         <RunPanel
           sb={sb}
@@ -177,6 +178,7 @@ export function RunPanel({ sb, session, ws, role, navigate, runId, onClose, onRo
       const out = await routingApi<{ moved?: number; kept?: number }>(session, ws.id, "held", { op: "assign", contacts: [r.contact_id], user, moveMeetings });
       const name = people.data?.byId.get(user)?.name ?? "them";
       if (moveMeetings && out.kept) setError(`${name} isn't free at that time. The meeting stays where it is.`);
+      else toast(`Given to ${name}`);
       invalidateRouted(ws.id);
       run.reload();
       onRouted?.(id);
@@ -209,15 +211,15 @@ export function RunPanel({ sb, session, ws, role, navigate, runId, onClose, onRo
                 className="h-8 rounded-full border border-line px-3 text-[12.5px]"
               />
             ) : null}
-            <Button size="sm" onClick={again} disabled={busy}>
-              {busy ? "Routing…" : "Route again"}
+            <Button size="sm" onClick={again} busy={busy}>
+              Route again
             </Button>
           </>
         ) : undefined
       }
     >
       <div className="flex flex-col gap-4 p-5" aria-live="polite">
-        <ErrorNote message={error || run.error || people.error} />
+        <ErrorNote message={error || run.error || people.error} onRetry={error ? undefined : run.error ? run.reload : people.error ? people.reload : undefined} />
         {!r ? (
           run.error ? null : <Loading />
         ) : (

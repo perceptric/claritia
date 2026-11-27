@@ -90,7 +90,7 @@ export function SourcesDrawer({ session, ws, d, policyId, ro, onClose, onStaged 
   return (
     <Sheet title="Where leads come from" onClose={onClose} width={620}>
       <div className="flex flex-col gap-3 p-4 text-[13px]">
-        <ErrorNote message={error} />
+        <ErrorNote message={error} onClose={() => setError("")} />
         {mine.map(({ s, eff }) => {
           const form = d.forms.find((f) => f.id === s.form_id);
           const calendar = eff.outcome === "assign_and_calendar";

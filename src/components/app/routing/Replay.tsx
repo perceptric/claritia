@@ -10,7 +10,7 @@ import type { RouterBody } from "@/lib/router/types";
 import { ArrowLeft, ChevronRight } from "../../Icons";
 import { Modal } from "../meetings/parts";
 import { Select } from "../Select";
-import { Button, errorText } from "../ui";
+import { Button, ErrorNote, errorText } from "../ui";
 import { routingApi, type ReplayOut } from "./api";
 import { differing, RunLines } from "./Lines";
 import { CountUp } from "./parts";
@@ -96,7 +96,7 @@ export function ReplayPanel({
               className="h-9 w-full rounded-md bg-card shadow-input px-3 text-[13px] text-ink hover:shadow-input-hover"
             />
           </span>
-          <Button variant="ghost" onClick={() => void run()} disabled={busy}>
+          <Button variant="ghost" onClick={() => void run()} busy={busy}>
             {out ? "Run again" : "Run"}
           </Button>
         </div>
@@ -107,14 +107,7 @@ export function ReplayPanel({
           </div>
         ) : null}
 
-        {error ? (
-          <div role="alert" className="flex items-center gap-3 rounded-lg bg-rose-wash px-3.5 py-2.5 text-[13px] text-rose">
-            <span className="flex-1">Preview stopped. {error}</span>
-            <button type="button" onClick={() => void run()} className="font-medium underline underline-offset-2">
-              Resume
-            </button>
-          </div>
-        ) : null}
+        <ErrorNote message={error} onRetry={() => void run()} />
 
         {out && !busy ? (
           out.total === 0 ? (

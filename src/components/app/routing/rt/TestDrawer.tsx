@@ -223,7 +223,7 @@ export function TestDrawer({ session, ws, d, row, body, flush, onClose }: Pick<V
           </div>
         </div>
         <div>
-          <Button size="sm" disabled={busy} onClick={() => void run()}>
+          <Button size="sm" busy={busy} onClick={() => void run()}>
             <Play size={11} />
             Run test
           </Button>
@@ -294,6 +294,7 @@ function ContactLookup({ session, ws, value, onChange }: Pick<ViewProps, "sessio
     const t = setTimeout(() => {
       rt<{ contacts: Found[] }>(session, ws, "rt_contacts", { q: text.trim() })
         .then((r) => setRows(r.contacts))
+        // Search as you type: a failed lookup shows no matches, and the next keystroke asks again.
         .catch(() => setRows([]));
     }, 200);
     return () => clearTimeout(t);

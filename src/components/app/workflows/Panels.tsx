@@ -13,9 +13,10 @@ import { Search } from "../../Icons";
 import { askConfirm } from "../Dialogs";
 import { Modal } from "../meetings/parts";
 import { Sheet } from "../Sheet";
-import { Badge, Button, ErrorNote, errorText, Input, must, postJson, Tabs, timeAgo, type Tone, useQuery } from "../ui";
+import { Badge, Button, ErrorNote, errorText, Input, must, postJson, Spinner, Tabs, timeAgo, type Tone, useQuery } from "../ui";
 import type { Version } from "./data";
 import { dbError } from "@/lib/errors";
+import { toast } from "../Toaster";
 
 /** A sheet from the right, over the editor. */
 function Drawer({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
@@ -57,6 +58,7 @@ export function TryPanel({ sb, session, ws, body, names, onPath, onClose }: { sb
   }, [q, who, sb, ws]);
 
   // The path follows every edit, a moment after the last one.
+  const [tries, setTries] = useState(0);
   const key = JSON.stringify(body);
   useEffect(() => {
     if (!who) return;
@@ -76,7 +78,7 @@ export function TryPanel({ sb, session, ws, body, names, onPath, onClose }: { sb
       live = false;
       clearTimeout(t);
     };
-  }, [who, key, session, onPath]);
+  }, [who, key, session, onPath, tries]);
 
   const close = () => {
     onPath(null);
@@ -120,7 +122,8 @@ export function TryPanel({ sb, session, ws, body, names, onPath, onClose }: { sb
         )}
       </div>
       <div className="flex-1 overflow-y-auto p-5">
-        <ErrorNote message={error} />
+        <ErrorNote message={error} onRetry={who ? () => (setError(""), setTries((n) => n + 1)) : undefined} />
+        {who && !out && !error ? <Spinner size={14} className="text-muted" /> : null}
         {out ? (
           !out.entered ? (
             <p className="text-[13.5px] text-muted">They wouldn&apos;t enter: the entry conditions don&apos;t match.</p>
@@ -192,11 +195,23 @@ export function HistoryDrawer({ sb, id, versions, live, names, onClose }: { sb: 
   const steps = useQuery(`workflow_runs:${id}:steps:${open}:${tick}`, async () => (open ? ((must(await sb.from("workflow_steps_done").select("run_id, step_id, visit, status, result, at").eq("run_id", open).order("at")) ?? []) as Done[]) : []));
   const bodies = useMemo(() => new Map(versions.map((v) => [v.version, cleanBody(v.body)])), [versions]);
 
+  const [retrying, setRetrying] = useState<string | null>(null);
   const retry = async (run: string) => {
     if (!(await askConfirm("Try the failed step again?", { ok: "Try again" }))) return;
-    const { error: e } = await sb.rpc("workflow_retry", { p_run: run });
-    if (e) setError(errorText(dbError(e)));
-    else setTick((t) => t + 1);
+    setError("");
+    setRetrying(run);
+    try {
+      const { error: e } = await sb.rpc("workflow_retry", { p_run: run });
+      if (e) setError(errorText(dbError(e)));
+      else {
+        setTick((t) => t + 1);
+        toast("Trying the step again");
+      }
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setRetrying(null);
+    }
   };
 
   return (
@@ -216,7 +231,7 @@ export function HistoryDrawer({ sb, id, versions, live, names, onClose }: { sb: 
         />
       </div>
       <div className="flex-1 overflow-y-auto p-2">
-        <ErrorNote message={error || runs.error} />
+        <ErrorNote message={error || runs.error || steps.error} onRetry={error ? undefined : runs.error ? runs.reload : steps.error ? steps.reload : undefined} onClose={error ? () => setError("") : undefined} />
         {!runs.data ? null : !runs.data.length ? (
           <p className="px-3 py-6 text-center text-[13px] text-muted">No runs</p>
         ) : (
@@ -245,14 +260,15 @@ export function HistoryDrawer({ sb, id, versions, live, names, onClose }: { sb: 
                         return (
                           <div key={`${d.step_id}-${d.visit}`} className="flex gap-3 text-[12.5px]">
                             <span className="w-16 shrink-0 text-faint tabular-nums">{new Date(d.at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</span>
-                            <span className={d.status === "failed" ? "text-rose" : "text-body"}>{d.status === "running" ? `${s ? stepWords(s, names) : "A step"}: working on it` : resultWords(s, d.status, d.result, names)}</span>
+                            <span className={d.status === "failed" ? "text-rose" : "text-body"}>{d.status === "running" ? `${s ? stepWords(s, names) : "A step"}: working on it` : resultWords(s, d.status, d.status === "failed" && d.result ? { ...d.result, error: undefined } : d.result, names)}</span>
                           </div>
                         );
                       })}
                       {r.status === "waiting" ? <span className="text-[12.5px] text-muted">Next {timeAgo(r.next_at).replace(" ago", "")}</span> : null}
-                      {r.error ? <span className="text-[12.5px] text-rose">{r.error}</span> : null}
+                      {/* The stored error is the worker's own words, never shown as they are. */}
+                      {r.error ? <span className="text-[12.5px] text-rose">A step couldn&apos;t finish.</span> : null}
                       {r.status === "failed" ? (
-                        <Button variant="ghost" size="sm" className="self-start" onClick={() => void retry(r.id)}>
+                        <Button variant="ghost" size="sm" className="self-start" busy={retrying === r.id} disabled={!!retrying} onClick={() => void retry(r.id)}>
                           Try again
                         </Button>
                       ) : null}
@@ -337,7 +353,7 @@ export function PublishDialog({ session, id, live, draft, names, next, thumbs = 
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={() => void go()} disabled={busy}>
+          <Button onClick={() => void go()} busy={busy}>
             Publish
           </Button>
         </>

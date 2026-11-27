@@ -10,7 +10,7 @@ import type { RouterBody } from "@/lib/router/types";
 import { changesBetween, effectiveSource, type PolicyRow, type SourceChange } from "@/lib/routing/screenModel";
 import { Check, Warn } from "../../../Icons";
 import { Modal } from "../../meetings/parts";
-import { Button, Loading, type ViewProps } from "../../ui";
+import { Button, ErrorNote, Loading, type ViewProps } from "../../ui";
 import { ApiError, newKey, rt, type ReviewOut, type Screen } from "./api";
 import { namesOf } from "./parts";
 import { errorText } from "@/lib/attempt";
@@ -34,6 +34,9 @@ export function PublishDialog({
   const key = useRef(newKey("pub"));
   const flushRef = useRef(flush);
 
+  const [tries, setTries] = useState(0);
+  const [checking, setChecking] = useState(false);
+
   useEffect(() => {
     let live = true;
     (async () => {
@@ -48,7 +51,7 @@ export function PublishDialog({
     return () => {
       live = false;
     };
-  }, [row.id, session, ws.id]);
+  }, [row.id, session, ws.id, tries]);
 
   const sourceChanges: SourceChange[] = d.sources
     .map((s) => ({ s, eff: effectiveSource(s, row.id) }))
@@ -83,6 +86,7 @@ export function PublishDialog({
   };
   const check = async () => {
     setError("");
+    setChecking(true);
     try {
       const out = await rt<{ version: number | null }>(session, ws.id, "rt_publish_status", { policy: row.id, key: key.current });
       if (out.version) return onPublished(out.version);
@@ -90,6 +94,8 @@ export function PublishDialog({
       setError("It wasn't published. You can publish again.");
     } catch (e) {
       setError(errorText(e));
+    } finally {
+      setChecking(false);
     }
   };
 
@@ -110,10 +116,12 @@ export function PublishDialog({
             </Button>
           ) : null}
           {phase === "unknown" ? (
-            <Button onClick={() => void check()}>Check status</Button>
+            <Button busy={checking} onClick={() => void check()}>
+              Check status
+            </Button>
           ) : (
-            <Button disabled={!can} onClick={() => void publish()}>
-              {phase === "publishing" ? "Publishing…" : `Publish v${rev?.version ?? (row.active_version ?? 0) + 1}`}
+            <Button disabled={!can} busy={phase === "publishing"} onClick={() => void publish()}>
+              {`Publish v${rev?.version ?? (row.active_version ?? 0) + 1}`}
             </Button>
           )}
         </>
@@ -138,11 +146,11 @@ export function PublishDialog({
           <span className="text-[12px] font-medium text-muted">Checks</span>
           <div>
             {rev.errors.map((e, i) => (
-              <Line key={`e${i}`} icon={<Warn size={13} />} className="text-rose">
+              <Line key={`e${i}`} icon={<Warn size={13} />} className="text-warning">
                 {e.text}
               </Line>
             ))}
-            <Line icon={tested ? <Check size={13} /> : <Warn size={13} />} className={tested ? "text-signal-text" : "text-rose"}>
+            <Line icon={tested ? <Check size={13} /> : <Warn size={13} />} className={tested ? "text-signal-text" : "text-warning"}>
               {tested ? `Tested this draft: ${evidenceWords}` : "Run Test lead on this draft before publishing"}
             </Line>
             {rev.warnings.map((w, i) => (
@@ -155,11 +163,7 @@ export function PublishDialog({
           {phase === "unknown" ? <p className="text-[12.5px] text-butter">No answer yet. It may have published. Check before trying again.</p> : null}
         </div>
       ) : null}
-      {error ? (
-        <p role="alert" className="mt-2 text-[12.5px] text-rose">
-          {error}
-        </p>
-      ) : null}
+      <ErrorNote message={error} className="mt-2" onRetry={rev ? undefined : () => (setError(""), setTries((n) => n + 1))} />
     </Modal>
   );
 }

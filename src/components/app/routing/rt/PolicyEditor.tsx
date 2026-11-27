@@ -65,7 +65,7 @@ export function PolicyEditor(props: ViewProps & { policyId: string; screen: Q; b
       <Page title="Policy" back={{ label: "Routing", onClick: back }} flush>
         {screen.error ? (
           <div className="mx-auto max-w-[860px] p-6">
-            <ErrorNote message={screen.error} />
+            <ErrorNote message={screen.error} onRetry={screen.reload} />
           </div>
         ) : screen.data ? (
           <div className="mx-auto max-w-[860px] p-6">
@@ -327,7 +327,7 @@ function Editor({ sb, session, ws, navigate, d, policyId, back, screen }: ViewPr
       badge={
         <span className="flex items-center gap-2.5">
           <State label={state.label} t={state.tone} />
-          {owner ? <span className={`text-[12px] max-sm:hidden ${save === "error" || save === "conflict" ? "text-rose" : "text-muted"}`}>{saved}</span> : null}
+          {owner ? <span className={`text-[12px] max-sm:hidden ${save === "error" || save === "conflict" ? "text-warning" : "text-muted"}`}>{saved}</span> : null}
         </span>
       }
       flush
@@ -388,11 +388,9 @@ function Editor({ sb, session, ws, navigate, d, policyId, back, screen }: ViewPr
         </div>
       ) : null}
       {save === "error" ? (
-        <div role="alert" className="flex flex-wrap items-center gap-2 border-b border-line bg-rose-wash px-4 py-2.5 text-[13px] text-rose md:px-6">
-          <span className="flex-1">Couldn&apos;t save. {saveErr}</span>
-          <Button variant="ghost" size="sm" onClick={() => void send().catch(() => undefined)}>
-            Try again
-          </Button>
+        <div className="border-b border-line px-4 py-2.5 md:px-6">
+          {/* send() shows its own error again when the retry fails too. */}
+          <ErrorNote message={`Couldn't save. ${saveErr}`} onRetry={() => void send().catch(() => undefined)} />
         </div>
       ) : null}
       <div className="mx-auto flex w-full max-w-[860px] flex-col gap-3 px-4 pt-5 pb-16 md:px-6">
@@ -632,7 +630,7 @@ function RuleRow({
             {dest?.kind === "team" ? " · round robin" : ""}
             {r.on === false ? " · off" : ""}
           </span>
-          {err && !open ? <span className="text-[12.5px] text-rose">{err}</span> : null}
+          {err && !open ? <span className="text-[12.5px] text-warning">{err}</span> : null}
         </span>
         {!ro ? (
           <span className="flex items-center gap-2.5 max-sm:w-full max-sm:justify-end">
@@ -664,7 +662,7 @@ function RuleRow({
                 const v = e.target.value;
                 onChange((x) => ({ ...x, name: v }));
               }}
-              className={`h-[30px] rounded-sm border bg-card px-2.5 text-[13px] font-normal text-ink outline-none ${!r.name.trim() ? "border-rose" : "border-line-strong"}`}
+              className={`h-[30px] rounded-sm border bg-card px-2.5 text-[13px] font-normal text-ink outline-none ${!r.name.trim() ? "border-warning" : "border-line-strong"}`}
             />
           </label>
           <div className="flex flex-wrap items-center gap-2">
@@ -711,7 +709,7 @@ function RuleRow({
                       value={String(list[0] ?? "")}
                       placeholder="Select"
                       menuWidth={220}
-                      className={bad ? "!border-rose" : ""}
+                      className={bad ? "!border-warning" : ""}
                       shown={list.length > 1 ? list.map((v) => (f.type === "country" ? countryName(String(v)) : String(v))).join(", ") : undefined}
                       options={f.type === "country" ? COUNTRIES : (f.options ?? []).map((o) => ({ value: o, label: o }))}
                       onChange={(v) => setCond(j, (x) => ({ ...x, value: x.op === "one_of" || x.op === "not_one_of" ? [v] : v }))}
@@ -724,7 +722,7 @@ function RuleRow({
                         const v = e.target.value;
                         setCond(j, (x) => ({ ...x, value: x.op === "one_of" || x.op === "not_one_of" ? (v ? [v] : []) : v }));
                       }}
-                      className={`h-7 w-[140px] rounded-sm border bg-card px-2 text-[13px] text-ink outline-none ${bad ? "border-rose" : "border-line-strong"}`}
+                      className={`h-7 w-[140px] rounded-sm border bg-card px-2 text-[13px] text-ink outline-none ${bad ? "border-warning" : "border-line-strong"}`}
                     />
                   )
                 ) : null}
@@ -748,7 +746,7 @@ function RuleRow({
             <span className="text-muted">Destination</span>
             <DestChoice label="Destination" value={dest} review reviewer={reviewer} people={d.people} teams={d.teams} names={names} onChange={(x) => onChange((y) => withRuleDest(y, x))} />
           </div>
-          {err ? <span className="text-[12px] text-rose">{err}</span> : null}
+          {err ? <span className="text-[12px] text-warning">{err}</span> : null}
         </div>
       ) : null}
     </>
@@ -770,7 +768,7 @@ function NumberBox({ value, bad, onChange }: { value: unknown; bad: boolean; onC
         const n = t.trim().replace(/,/g, "");
         onChange(/^\d+(\.\d+)?$/.test(n) ? Number(n) : t.trim());
       }}
-      className={`h-7 w-[90px] rounded-sm border bg-card px-2 text-[13px] text-ink tabular-nums outline-none ${bad ? "border-rose" : "border-line-strong"}`}
+      className={`h-7 w-[90px] rounded-sm border bg-card px-2 text-[13px] text-ink tabular-nums outline-none ${bad ? "border-warning" : "border-line-strong"}`}
     />
   );
 }
@@ -780,15 +778,18 @@ function NumberBox({ value, bad, onChange }: { value: unknown; bad: boolean; onC
 function VersionsSheet({ session, ws, policyId, names, canRestore, onClose, onRestore }: { session: ViewProps["session"]; ws: string; policyId: string; names: Record<string, string>; canRestore: boolean; onClose: () => void; onRestore: (v: Version) => Promise<void> }) {
   const [list, setList] = useState<Version[] | null>(null);
   const [error, setError] = useState("");
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [tries, setTries] = useState(0);
+  const [restoring, setRestoring] = useState<number | null>(null);
   useEffect(() => {
     rt<{ versions: Version[] }>(session, ws, "rt_versions", { policy: policyId })
-      .then((r) => setList(r.versions))
-      .catch((e) => setError(errorText(e)));
-  }, [session, ws, policyId]);
+      .then((r) => (setList(r.versions), setLoadFailed(false)))
+      .catch((e) => (setError(errorText(e)), setLoadFailed(true)));
+  }, [session, ws, policyId, tries]);
   return (
     <Sheet title="Versions" onClose={onClose} width={620}>
       <div className="flex flex-col p-4 text-[13px]">
-        <ErrorNote message={error} />
+        <ErrorNote message={error} onRetry={loadFailed ? () => (setError(""), setTries((n) => n + 1)) : undefined} />
         {!list && !error ? <Loading /> : null}
         {list && !list.length ? <p className="py-10 text-center text-muted">Nothing published yet</p> : null}
         {list?.map((v) => (
@@ -805,10 +806,16 @@ function VersionsSheet({ session, ws, policyId, names, canRestore, onClose, onRe
               <Button
                 variant="ghost"
                 size="sm"
+                busy={restoring === v.version}
+                disabled={restoring !== null}
                 onClick={() =>
                   void (async () => {
                     if (!(await askConfirm(`Restore v${v.version} as the draft?`, { body: "Publishing it makes a new version. Existing assignments and meetings stay as they are.", ok: "Restore" }))) return;
+                    setError("");
+                    setLoadFailed(false);
+                    setRestoring(v.version);
                     await onRestore(v).catch((e) => setError(errorText(e)));
+                    setRestoring(null);
                   })()
                 }
               >

@@ -76,8 +76,12 @@ export function WorkflowsHome(props: ViewProps & { describe?: (done: () => void)
   const act = useCallback(
     async (fn: () => PromiseLike<{ error: { message: string } | null }>) => {
       setError("");
-      const { error: e } = await fn();
-      if (e) setError(errorText(dbError(e)));
+      try {
+        const { error: e } = await fn();
+        if (e) setError(errorText(dbError(e)));
+      } catch (e) {
+        setError(errorText(e));
+      }
       reload();
     },
     [reload],
@@ -92,7 +96,7 @@ export function WorkflowsHome(props: ViewProps & { describe?: (done: () => void)
   if (!data.data)
     return (
       <Page title="Workflows">
-        <ErrorNote message={data.error} />
+        <ErrorNote message={data.error} onRetry={data.reload} />
         {data.error ? null : <Loading />}
       </Page>
     );
@@ -138,7 +142,7 @@ export function WorkflowsHome(props: ViewProps & { describe?: (done: () => void)
     return (
       <Page title={folder?.name ?? "No folder"} back={{ label: "Workflows", onClick: () => navigate("workflows") }} actions={newMenu(folder?.id ?? null)}>
         {describeModal}
-        <ErrorNote message={error} />
+        <ErrorNote message={error} onClose={() => setError("")} />
         <ul aria-label="Workflows" className="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-3.5">
           {list.map((r) => {
             const body = cleanBody(r.draft);
@@ -204,7 +208,7 @@ export function WorkflowsHome(props: ViewProps & { describe?: (done: () => void)
       }
     >
       {describeModal}
-      <ErrorNote message={error} />
+      <ErrorNote message={error} onClose={() => setError("")} />
       <ul aria-label="Folders" className="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-3.5">
         {groups.map((g, gi) => {
           const inside = rows.filter((r) => (g.folder ? r.folder_id === g.folder.id : !folders.some((f) => f.id === r.folder_id)));
@@ -310,7 +314,7 @@ function OpenWorkflow({ sb, session, ws, navigate, id, back }: ViewProps & { id:
   if (!res.data)
     return (
       <Page title="Workflow" back={{ label: back.label, onClick: back.go }}>
-        <ErrorNote message={res.error} />
+        <ErrorNote message={res.error} onRetry={reload} />
         {res.error ? null : <Loading />}
       </Page>
     );

@@ -25,6 +25,8 @@ function withDesigns(b: Body): Body {
   return { ...b, steps: fix(b.steps) };
 }
 
+const LINK_FAILED = "The emails couldn't be linked to the Emails page.";
+
 export function useEmailCopies({ sb, ws, id, body, sync, readOnly }: { sb: SupabaseClient; ws: string; id: string; body: Body; sync: Sync; readOnly: boolean }) {
   const [copies, setCopies] = useState<Map<string, EmailCopy>>(new Map());
   const [error, setError] = useState("");
@@ -57,11 +59,16 @@ export function useEmailCopies({ sb, ws, id, body, sync, readOnly }: { sb: Supab
     let live = true;
     ensure()
       .then(() => live && setError(""))
-      .catch(() => live && setError("The emails couldn't be linked to the Emails page. Reload to try again."));
+      .catch(() => live && setError(LINK_FAILED));
     return () => {
       live = false;
     };
   }, [stepKey, ensure, readOnly]);
+  /** Try the link again after it failed (the error's Try again). */
+  const relink = useCallback(() => {
+    setError("");
+    ensure().catch(() => setError(LINK_FAILED));
+  }, [ensure]);
 
   /** Send edits made here to the copies. */
   const push = useCallback(async () => {
@@ -103,5 +110,5 @@ export function useEmailCopies({ sb, ws, id, body, sync, readOnly }: { sb: Supab
     await push();
   }, [push]);
 
-  return { copies, error: error || (tries > 2 ? "An email's changes haven't reached the Emails page yet. Retrying." : ""), flush, resync: ensure };
+  return { copies, error: error || (tries > 2 ? "An email's changes haven't reached the Emails page yet. Retrying." : ""), relink: error ? relink : undefined, flush, resync: ensure };
 }

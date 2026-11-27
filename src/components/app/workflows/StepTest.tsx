@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 import { stepDetail, type Names as WordNames } from "@/lib/workflows/explain";
 import { find } from "@/lib/workflows/tree";
 import type { Body } from "@/lib/workflows/types";
-import { Button, ErrorNote, errorText, postJson } from "../ui";
+import { Button, ErrorNote, errorText, postJson, Spinner } from "../ui";
 
 type Found = { id: string; label: string; email: string | null };
 type Line = { step: string; path: string | null; note: string | null; at: string | null; email: { subject: string; paragraphs: string[]; cta: string | null; suppressed: boolean; html: string | null } | null };
@@ -38,6 +38,7 @@ export function StepTest({ sb, session, ws, body, sel, names }: { sb: SupabaseCl
     };
   }, [q, who, sb, ws]);
 
+  const [tries, setTries] = useState(0);
   const key = JSON.stringify(body);
   useEffect(() => {
     if (!who) return;
@@ -54,7 +55,7 @@ export function StepTest({ sb, session, ws, body, sel, names }: { sb: SupabaseCl
       live = false;
       clearTimeout(t);
     };
-  }, [who, key, session]);
+  }, [who, key, session, tries]);
 
   const name = who?.label ?? "";
   const line = out?.lines.find((l) => l.step === sel) ?? null;
@@ -93,7 +94,8 @@ export function StepTest({ sb, session, ws, body, sel, names }: { sb: SupabaseCl
           ))}
         </div>
       )}
-      <ErrorNote message={error} />
+      <ErrorNote message={error} onRetry={who ? () => (setError(""), setTries((n) => n + 1)) : undefined} />
+      {who && !out && !error ? <Spinner size={14} className="text-muted" /> : null}
       {who && out ? (
         <div className="anim-rise-sm flex flex-col gap-3 rounded-[10px] bg-paper p-3.5 text-[13px] text-body shadow-rest" data-test-result="">
           {!out.entered ? (

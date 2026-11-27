@@ -13,6 +13,7 @@ import { Modal } from "../meetings/parts";
 import { Button, ErrorNote, errorText, Field, Input } from "../ui";
 import { routingApi, type ChangesOut } from "./api";
 import type { ReplaySummary } from "./Replay";
+import { toast } from "./Toast";
 
 /** Changes as signed sentences: + added, − removed, ~ changed. */
 export function ChangeList({ changes }: { changes: Change[] | null }) {
@@ -96,7 +97,7 @@ export function PublishDialog({
           <Button variant="plain" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={() => void publish()} disabled={busy}>
+          <Button onClick={() => void publish()} busy={busy}>
             Publish
           </Button>
         </>
@@ -164,6 +165,7 @@ export function AlertsDialog({
     setError("");
     try {
       await routingApi(session, ws, "alert", { url: u, label: name.trim() || null });
+      toast(u ? "Alerts saved" : "Alerts removed");
       onSaved();
       onClose();
     } catch (e) {
@@ -178,14 +180,14 @@ export function AlertsDialog({
       footer={
         <>
           {label ? (
-            <Button variant="danger" className="mr-auto" disabled={busy} onClick={() => void save("")}>
+            <Button variant="danger" className="mr-auto" busy={busy && !url.trim()} disabled={busy} onClick={() => void save("")}>
               Remove
             </Button>
           ) : null}
           <Button variant="plain" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={() => void save(url.trim())} disabled={busy || !url.trim()}>
+          <Button onClick={() => void save(url.trim())} busy={busy && !!url.trim()} disabled={busy || !url.trim()}>
             Save
           </Button>
         </>
@@ -252,11 +254,11 @@ function SlackApp({ session, ws, slack, onSaved }: { session: Session; ws: strin
         <BrandLogo domain="slack.com" name="Slack" size={22} />
         <span className="flex-1 text-[13px] text-ink">{slack.team ?? "Slack"}</span>
         {slack.team ? (
-          <Button variant="plain" size="sm" disabled={busy} onClick={() => void remove()}>
+          <Button variant="plain" size="sm" busy={busy} onClick={() => void remove()}>
             Remove
           </Button>
         ) : (
-          <Button size="sm" disabled={busy} onClick={() => void add()}>
+          <Button size="sm" busy={busy} onClick={() => void add()}>
             Add to Slack
           </Button>
         )}

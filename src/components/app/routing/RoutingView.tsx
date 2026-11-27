@@ -51,7 +51,7 @@ export function RoutingView(props: ViewProps) {
         <Page title="Routing" flush>
           {screen.error ? (
             <div className="mx-auto max-w-[1120px] p-6">
-              <ErrorNote message={screen.error} />
+              <ErrorNote message={screen.error} onRetry={screen.reload} />
             </div>
           ) : (
             <Loading />
