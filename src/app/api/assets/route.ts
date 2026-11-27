@@ -3,7 +3,8 @@ import { MAX_ASSET_BYTES, photoWidths, sniffImage, stripImageMeta } from "@/lib/
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { isUuid } from "@/lib/uuid";
-import { bad } from "@/lib/http";
+import { bad, fail } from "@/lib/http";
+import { dbError } from "@/lib/errors";
 
 // Images for emails and forms (docs/design-system.md Part 6). POST multipart { workspaceId, file } → { id, url,
 // width, height }: the file is checked by its bytes (PNG, JPEG, GIF or WebP, up to 5 MB), photo metadata is taken
@@ -49,7 +50,8 @@ export async function POST(request: Request) {
   const { data, error } = await db.rpc("design_asset_add", { p_ws: ws, p_user: auth.user.id, p_path: path, p_url: url, p_name: name, p_type: kind.type, p_width: kind.width, p_height: kind.height, p_bytes: bytes.length });
   if (error) {
     await db.storage.from("assets").remove([path, ...sizes.map((w) => `${ws}/${id}-${w}.webp`)]);
-    return bad(error.message.includes("Up to") ? error.message : "Try again in a moment.", 400);
+    // Our own limit ("Up to …") reads as it is; anything else is the plain line with a ref.
+    return fail(dbError(error));
   }
   if (sizes.length) await db.from("design_assets").update({ sizes }).eq("id", data);
   return Response.json({ id: data, url, width: kind.width, height: kind.height, sizes });

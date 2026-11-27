@@ -1,5 +1,7 @@
 import { checkSvix, parseResendEvent } from "@/lib/email/webhook";
 import { serviceClient } from "@/lib/serviceClient";
+import { dbError } from "@/lib/errors";
+import { publicMessage } from "@/lib/http";
 
 // Resend's email events (docs/enrich-workflows-reports.md Part 0). The signature and its age are checked before
 // anything changes. Resend retries anything that isn't 2xx, and email_event_apply counts each event once.
@@ -17,7 +19,8 @@ export async function POST(request: Request) {
   const event = parseResendEvent(id!, raw);
   if (!event) return Response.json({ ok: true, ignored: true });
   const { data, error } = await db.rpc("email_event_apply", { p_event: event });
-  if (error) return Response.json({ error: error.message }, { status: 500 });
+  // A 500, so the sender tries the event again; the details go to the log under the answer's ref.
+  if (error) return Response.json({ error: publicMessage(dbError(error)) }, { status: 500 });
   // Not a campaign message: maybe a meeting or routing email (meeting_mails).
   if (data === "unknown_message") {
     const meeting = await db.rpc("meeting_mail_event", { p_event: event });

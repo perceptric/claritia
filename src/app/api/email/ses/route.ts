@@ -1,5 +1,7 @@
 import { checkSns, parseSesEvent, SUBSCRIBE_HOST, type SnsMessage } from "@/lib/email/sns";
 import { serviceClient } from "@/lib/serviceClient";
+import { dbError } from "@/lib/errors";
+import { publicMessage } from "@/lib/http";
 
 // Amazon SES's email events through SNS (docs/ses-plan.md). Each message is checked against Amazon's certificate and
 // our topic (SES_SNS_TOPIC_ARN) before anything changes; a subscription is confirmed only for that topic. SNS retries
@@ -30,7 +32,8 @@ export async function POST(request: Request) {
   const event = parseSesEvent(m);
   if (!event) return Response.json({ ok: true, ignored: true });
   const { data, error } = await db.rpc("email_event_apply", { p_event: event });
-  if (error) return Response.json({ error: error.message }, { status: 500 });
+  // A 500, so the sender tries the event again; the details go to the log under the answer's ref.
+  if (error) return Response.json({ error: publicMessage(dbError(error)) }, { status: 500 });
   // Not a campaign message: maybe a meeting or routing email (meeting_mails).
   if (data === "unknown_message") {
     const meeting = await db.rpc("meeting_mail_event", { p_event: event });
