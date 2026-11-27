@@ -75,6 +75,7 @@ export function WebhooksPage({ session, ws }: Pick<ViewProps, "session" | "ws">)
   const [secret, setSecret] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [testing, setTesting] = useState<string | null>(null);
   const [note, setNote] = useState<{
     id: string;
     text: string;
@@ -121,7 +122,7 @@ export function WebhooksPage({ session, ws }: Pick<ViewProps, "session" | "ws">)
   if (!d)
     return (
       <Shell title="Webhooks">
-        <ErrorNote message={data.error} />
+        <ErrorNote message={data.error} onRetry={data.reload} />
         {data.error ? null : <Loading />}
       </Shell>
     );
@@ -152,7 +153,7 @@ export function WebhooksPage({ session, ws }: Pick<ViewProps, "session" | "ws">)
           const st = state(e);
           return (
             <section key={e.id} className="anim-rise-sm rounded-[10px] bg-card shadow-rest" style={i < 8 ? { animationDelay: `${i * 30}ms` } : undefined}>
-              <div className="flex items-center gap-3 px-4 py-3">
+              <div className="flex flex-wrap items-center gap-3 px-4 py-3">
                 <button type="button" onClick={() => setOpen(open === e.id ? null : e.id)} className="flex min-w-0 flex-1 items-center gap-3 text-left" aria-expanded={open === e.id}>
                   <ChevronRight size={14} className={`shrink-0 text-faint transition-transform duration-[180ms] ${open === e.id ? "rotate-90" : ""}`} />
                   <span className="flex min-w-0 flex-col">
@@ -167,13 +168,16 @@ export function WebhooksPage({ session, ws }: Pick<ViewProps, "session" | "ws">)
                     </span>
                   </span>
                 </button>
-                {note?.id === e.id ? <span className={`shrink-0 text-[12px] ${note.ok ? "text-signal-text" : "text-danger"}`}>{note.text}</span> : null}
+                {note?.id === e.id ? <span className={`min-w-0 text-[12px] [overflow-wrap:anywhere] ${note.ok ? "text-signal-text" : "text-warning"}`}>{note.text}</span> : null}
                 <Button
                   variant="ghost"
                   size="sm"
+                  busy={testing === e.id}
+                  disabled={!!testing}
                   onClick={() =>
                     void act(async () => {
                       setNote(null);
+                      setTesting(e.id);
                       const r = await api<{
                         status: string;
                         code: number | null;
@@ -185,7 +189,7 @@ export function WebhooksPage({ session, ws }: Pick<ViewProps, "session" | "ws">)
                         text: r.status === "done" ? `Sent, ${r.code}` : (r.error ?? "Failed"),
                       });
                       data.reload();
-                    })
+                    }).finally(() => setTesting(null))
                   }
                 >
                   Send test
@@ -261,13 +265,14 @@ function Sends({ cacheKey, load, resend, hint }: { cacheKey: string; load: () =>
   const data = useQuery(cacheKey, load);
   const [open, setOpen] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [resending, setResending] = useState<string | null>(null);
   return (
     <div className="anim-rise-sm border-t border-line">
       <div className="flex items-center justify-between px-4 py-2 text-[12px] text-muted">
         <span>Last 50 sends</span>
         <span className="font-mono">whsec_…{hint}</span>
       </div>
-      <ErrorNote message={error || data.error} />
+      <ErrorNote message={error || data.error} onRetry={!error && data.error ? data.reload : undefined} className="mx-4 mb-3" />
       {!data.data ? (
         <div className="px-4 pb-3">
           <Loading />
@@ -291,13 +296,18 @@ function Sends({ cacheKey, load, resend, hint }: { cacheKey: string; load: () =>
                     <Button
                       variant="plain"
                       size="sm"
+                      busy={resending === s.id}
+                      disabled={!!resending}
                       onClick={async () => {
                         setError("");
+                        setResending(s.id);
                         try {
                           await resend(s.id);
                           data.reload();
                         } catch (e) {
                           setError(errorText(e));
+                        } finally {
+                          setResending(null);
                         }
                       }}
                     >
@@ -347,7 +357,8 @@ function EndpointDialog({
             Cancel
           </Button>
           <Button
-            disabled={!ready || busy}
+            disabled={!ready}
+            busy={busy}
             onClick={async () => {
               setBusy(true);
               setError("");

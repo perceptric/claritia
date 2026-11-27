@@ -249,7 +249,7 @@ export function MeetingsCalendar(props: ViewProps) {
           </span>
         </TabBar>
 
-        <ErrorNote message={error || list.error || allTypes.error} />
+        <ErrorNote message={error || list.error || allTypes.error} onRetry={!error && (list.error || allTypes.error) ? () => (list.reload(), allTypes.reload()) : undefined} />
         {!ready ? (
           <Loading />
         ) : view === "week" ? (

@@ -86,7 +86,7 @@ export function TeamCalendars({ sb, session, ws, role, onFix }: Pick<ViewProps, 
       ) : null}
       {data.error || people.error ? (
         <div className="p-4">
-          <ErrorNote message={data.error || people.error} />
+          <ErrorNote message={data.error || people.error} onRetry={() => (data.reload(), people.reload())} />
         </div>
       ) : !data.data || !people.data ? (
         <Loading />
@@ -205,7 +205,7 @@ export function EditHours({ session, ws, person, saved, onClose, onSaved }: { se
             Cancel
           </Button>
           <Button
-            disabled={busy}
+            busy={busy}
             onClick={async () => {
               await attempt(async () => {
                 await meetingsApi(session, ws, "availability", { userId: person.id, availability: draft });

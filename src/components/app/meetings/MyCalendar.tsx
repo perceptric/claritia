@@ -15,6 +15,7 @@ import { HoursEditor } from "./HoursEditor";
 import { slugify } from "./model";
 import { CopyButton, meetingsApi, ownZone, PersonAvatar, useWorkspaceSlug } from "./parts";
 import { bookingBase } from "@/lib/meetings/handles";
+import { toast } from "../Toaster";
 
 type Provider = "google" | "microsoft" | "zoom" | "fake";
 export type Account = { id: string; user_id: string; provider: Provider; account_email: string; status: "ok" | "reconnect"; refreshed_at: string | null };
@@ -76,9 +77,11 @@ export function MyCalendar({ sb, session, ws, parts = ["calendars", "hours", "pr
       mine.reload();
     },
   };
-  // Back from a provider's sign-in: /scheduling/availability/calendars?connected=google or ?error=...
+  // Back from a provider's sign-in: /scheduling/availability/calendars?connected=google or ?error=... The address's
+  // own words aren't shown (a provider's text, or anything typed into the link): one plain line instead.
   const [back] = useState(() => new URLSearchParams(typeof window === "undefined" ? "" : window.location.search));
-  const [error, setError] = useState(() => back.get("error")?.slice(0, 200) ?? "");
+  const [error, setError] = useState(() => (back.get("error") ? "Your calendar didn't connect. Try again." : ""));
+  const [going, setGoing] = useState("");
   const note = back.get("connected") ? `${providerOf(back.get("connected") as Provider).name} connected` : "";
   useEffect(() => {
     if (back.has("error") || back.has("connected") || back.has("mailbox")) history.replaceState(null, "", window.location.pathname);
@@ -92,14 +95,21 @@ export function MyCalendar({ sb, session, ws, parts = ["calendars", "hours", "pr
       setError(errorText(e));
     }
   };
-  const connect = (provider: string) =>
-    act(async () => {
+  const connect = async (provider: string) => {
+    setGoing(provider);
+    let leaving = false;
+    await act(async () => {
       const r = await postJson<{ url?: string; id?: string }>(session, "/api/calendar/connect", { workspaceId: ws.id, provider });
-      if (r.url) window.location.assign(r.url);
-      else data.reload();
+      if (r.url) {
+        leaving = true;
+        window.location.assign(r.url);
+      } else data.reload();
     });
+    // On the way to the provider's sign-in, the spinner stays until the page goes.
+    if (!leaving) setGoing("");
+  };
 
-  if (!data.data) return <Panel>{data.error ? <div className="p-5"><ErrorNote message={data.error} /></div> : <Loading />}</Panel>;
+  if (!data.data) return <Panel>{data.error ? <div className="p-5"><ErrorNote message={data.error} onRetry={data.reload} /></div> : <Loading />}</Panel>;
   const { accounts, lists } = data.data;
 
   return (
@@ -122,7 +132,13 @@ export function MyCalendar({ sb, session, ws, parts = ["calendars", "hours", "pr
                 a={a}
                 lists={lists.filter((l) => l.account_id === a.id)}
                 onReconnect={() => connect(a.provider)}
-                onRefresh={() => act(() => postJson(session, "/api/calendar/refresh", { workspaceId: ws.id, accountId: a.id }))}
+                onRefresh={() =>
+                  act(async () => {
+                    await postJson(session, "/api/calendar/refresh", { workspaceId: ws.id, accountId: a.id });
+                    cals.reload();
+                    toast("Calendar read");
+                  })
+                }
                 onDisconnect={() =>
                   act(async () => {
                     if (!(await askConfirm(`Disconnect ${a.account_email}?`, { ok: "Disconnect", danger: true }))) return;
@@ -144,7 +160,7 @@ export function MyCalendar({ sb, session, ws, parts = ["calendars", "hours", "pr
         ) : null}
         <div className={`flex flex-wrap gap-2 px-5 py-4 ${accounts.length ? "border-t border-line" : ""}`}>
           {PROVIDERS.filter((p) => p.id !== "zoom" || !accounts.some((a) => a.provider === "zoom")).map((p) => (
-            <Button key={p.id} variant="ghost" onClick={() => void connect(p.id)}>
+            <Button key={p.id} variant="ghost" busy={going === p.id} disabled={!!going} onClick={() => void connect(p.id)}>
               <BrandLogo domain={p.domain} name={p.name} size={15} />
               {p.connect}
             </Button>
@@ -244,11 +260,13 @@ function HoursPanel({ session, ws, saved, onSaved, userId }: { session: ViewProp
       <CardHead label="Working hours">
         <Button
           size="sm"
-          disabled={!dirty || busy}
+          disabled={!dirty}
+          busy={busy}
           onClick={async () => {
             await attempt(async () => {
               await meetingsApi(session, ws, "availability", { availability: draft, ...(userId ? { userId } : {}) });
               onSaved();
+              toast("Hours saved");
             }, { setError, setBusy });
           }}
         >
@@ -286,11 +304,13 @@ function ProfilePanel({ session, ws, email, saved, onSaved }: { session: ViewPro
       <CardHead label="Booking page">
         <Button
           size="sm"
-          disabled={!dirty || busy}
+          disabled={!dirty}
+          busy={busy}
           onClick={async () => {
             await attempt(async () => {
               await meetingsApi(session, ws, "profile", { profile: draft });
               onSaved();
+              toast("Booking page saved");
             }, { setError, setBusy });
           }}
         >
@@ -359,26 +379,29 @@ function MailboxPanel({ sb, session, ws, back }: { sb: ViewProps["sb"]; session:
     return must(r) as Mailbox | null;
   });
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState("");
   const connect = async (provider: string) => {
     setError("");
-    setBusy(true);
+    setBusy(provider);
     try {
       const r = await postJson<{ url: string }>(session, "/api/mailbox/connect", { workspaceId: ws, provider });
       window.location.assign(r.url);
     } catch (e) {
       setError(errorText(e));
-      setBusy(false);
+      setBusy("");
     }
   };
   const disconnect = async (b: Mailbox) => {
     if (!(await askConfirm(`Stop sending from ${b.email}?`, { body: "Your emails go from your team's address again.", ok: "Disconnect", danger: true }))) return;
     setError("");
+    setBusy("disconnect");
     try {
       await postJson(session, "/api/mailbox/disconnect", { workspaceId: ws });
       box.reload();
     } catch (e) {
       setError(errorText(e));
+    } finally {
+      setBusy("");
     }
   };
   const b = box.data;
@@ -392,7 +415,7 @@ function MailboxPanel({ sb, session, ws, back }: { sb: ViewProps["sb"]; session:
           </Badge>
         ) : null}
       </CardHead>
-      <ErrorNote message={error || box.error} />
+      <ErrorNote message={error || box.error} onRetry={!error && box.error ? box.reload : undefined} className="mx-5 mt-4" />
       {b && p ? (
         <div className="flex min-w-0 flex-wrap items-center gap-3 px-5 py-4">
           <BrandLogo domain={p.domain} name={p.name} size={20} />
@@ -400,11 +423,11 @@ function MailboxPanel({ sb, session, ws, back }: { sb: ViewProps["sb"]; session:
           {b.status === "reconnect" ? <Badge tone="amber">Reconnect</Badge> : <Badge tone="green" dot>Sending</Badge>}
           <div className="flex flex-wrap gap-2">
             {b.status === "reconnect" ? (
-              <Button variant="ghost" size="sm" disabled={busy} onClick={() => void connect(b.provider)}>
+              <Button variant="ghost" size="sm" busy={busy === b.provider} disabled={!!busy} onClick={() => void connect(b.provider)}>
                 Reconnect
               </Button>
             ) : null}
-            <Button variant="ghost" size="sm" onClick={() => void disconnect(b)}>
+            <Button variant="ghost" size="sm" busy={busy === "disconnect"} disabled={!!busy} onClick={() => void disconnect(b)}>
               Disconnect
             </Button>
           </div>
@@ -412,7 +435,7 @@ function MailboxPanel({ sb, session, ws, back }: { sb: ViewProps["sb"]; session:
       ) : box.data === null ? (
         <div className="flex flex-wrap gap-2 px-5 py-4">
           {MAILBOXES.map((m) => (
-            <Button key={m.id} variant="ghost" disabled={busy} onClick={() => void connect(m.id)}>
+            <Button key={m.id} variant="ghost" busy={busy === m.id} disabled={!!busy} onClick={() => void connect(m.id)}>
               <BrandLogo domain={m.domain} name={m.name} size={15} />
               {`Connect ${m.name}`}
             </Button>

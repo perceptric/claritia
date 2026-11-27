@@ -53,10 +53,9 @@ export function TypesList(props: ViewProps) {
     act(async () => {
       const r = await meetingsApi<{ text: string }>(session, ws.id, "times", { typeId: t.id, tz: ownZone() });
       if (!r.text) throw new UserError(`${t.name} has no free times in its window.`);
-      if (await copyText(r.text)) {
-        setCopied(t.id);
-        setTimeout(() => setCopied((c) => (c === t.id ? null : c)), 1600);
-      }
+      if (!(await copyText(r.text))) throw new UserError("Couldn't copy the times. Try again.");
+      setCopied(t.id);
+      setTimeout(() => setCopied((c) => (c === t.id ? null : c)), 1600);
     });
 
   if (list.data && !list.data.length)
@@ -92,7 +91,7 @@ export function TypesList(props: ViewProps) {
     >
       {linkFor ? <LinkDialog sb={sb} session={session} ws={ws} types={(list.data ?? []).map((t) => ({ ...t, lengths: t.settings.lengths }))} initialType={linkFor} onClose={() => setLinkFor(null)} /> : null}
       <div className="flex flex-col gap-4">
-        <ErrorNote message={error || list.error || slug.error} />
+        <ErrorNote message={error || list.error || slug.error} onRetry={!error && (list.error || slug.error) ? () => (list.reload(), slug.reload()) : undefined} />
         {!list.data ? (
           <Loading />
         ) : (

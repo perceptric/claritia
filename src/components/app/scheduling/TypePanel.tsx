@@ -33,6 +33,7 @@ import { useRoutingFacts } from "../forms/formRouting";
 import { Arrow } from "../forms/parts";
 import { bookingBase } from "@/lib/meetings/handles";
 import { ShareMeeting, type Pane as SharePane } from "./ShareMeeting";
+import { toast } from "../Toaster";
 
 export type HostStatus = { cal: boolean; out: { from: string; to: string }[] };
 export type Named = { user_id: string; name: string } & Availability;
@@ -289,7 +290,7 @@ export function TypePanel({
                 title={copied ? "Copied" : "Copy link"}
                 onClick={() =>
                   void copyText(url).then((ok) => {
-                    if (!ok) return;
+                    if (!ok) return toast({ text: "Couldn't copy the link. Try again.", tone: "error" });
                     setCopied(true);
                     setTimeout(() => setCopied(false), 1400);
                   })
@@ -620,13 +621,13 @@ export function TypePanel({
       </div>
 
       <PanelFooter>
-        {error && dirty ? <span className="text-[12px] text-rose">Not saved</span> : busy ? <span className="text-[12px] text-muted">Saving</span> : !dirty && !isNew ? <span className="text-[12px] text-muted">Saved</span> : null}
+        {error && dirty ? <span className="text-[12px] text-warning">Not saved</span> : busy ? <span className="text-[12px] text-muted">Saving</span> : !dirty && !isNew ? <span className="text-[12px] text-muted">Saved</span> : null}
         <span className="flex-1" />
         <Button variant="ghost" size="sm" disabled={!url || isNew} onClick={() => window.open(url, "_blank", "noopener")}>
           <Eye size={14} />
           Preview
         </Button>
-        <Button size="sm" disabled={!dirty || busy} onClick={() => void save()}>
+        <Button size="sm" busy={busy} disabled={!dirty} onClick={() => void save()}>
           Save changes
         </Button>
       </PanelFooter>
@@ -715,7 +716,7 @@ function InlineHours({ session, ws, hours, onSaved }: { session: ViewProps["sess
         <Button
           size="sm"
           className="self-start"
-          disabled={busy}
+          busy={busy}
           onClick={async () => {
             setBusy(true);
             setError("");

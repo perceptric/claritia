@@ -9,6 +9,7 @@ import { Download, Link as LinkIcon } from "../../Icons";
 import { copyText } from "../CopyButton";
 import { Popover } from "../FilterBar";
 import { Button, ErrorNote, errorText, IconButton } from "../ui";
+import { toast } from "../Toaster";
 import { Modal } from "./parts";
 
 /** The signature line: "Book time with Dana" as a plain link, in HTML and as text. */
@@ -21,19 +22,19 @@ export function ShareMenu({ get, name, onError }: { get: () => Promise<string>; 
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const [copied, setCopied] = useState(false);
   const [open, setOpen] = useState<null | { kind: "qr" | "sig"; url: string }>(null);
+  const fail = (m: string) => (onError ? onError(m) : toast({ text: m, tone: "error" }));
   const run = async (kind: "copy" | "qr" | "sig") => {
     setAnchor(null);
     try {
       const url = await get();
       if (!url) return;
       if (kind === "copy") {
-        if (await copyText(url)) {
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1400);
-        }
+        if (!(await copyText(url))) return fail("Couldn't copy the link. Try again.");
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1400);
       } else setOpen({ kind, url });
     } catch (e) {
-      onError?.(errorText(e));
+      fail(errorText(e));
     }
   };
   return (
@@ -109,7 +110,7 @@ export function QrCode({ url, name, center = false }: { url: string; name: strin
       <ErrorNote message={q.error} />
       <QrImage svg={q.svg} url={url} big={center} />
       <code className="max-w-full truncate font-mono text-[11.5px] text-muted">{url.replace(/^https?:\/\//, "")}</code>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <Button variant="ghost" size="sm" disabled={!q.svg} onClick={() => void q.png().catch((e) => q.setError(errorText(e)))}>
           <Download size={14} />
           PNG
@@ -154,13 +155,15 @@ function QrDialog({ url, name, onClose }: { url: string; name: string; onClose: 
 function SignatureDialog({ url, name, onClose }: { url: string; name: string; onClose: () => void }) {
   const [text, setText] = useState(name);
   const [done, setDone] = useState(false);
+  const [error, setError] = useState("");
   const html = signatureHtml(text.trim() || name, url);
   const copy = async () => {
+    setError("");
     // Rich text for email apps, with the plain link for the rest.
     try {
       await navigator.clipboard.write([new ClipboardItem({ "text/html": new Blob([html], { type: "text/html" }), "text/plain": new Blob([`${text.trim() || name}: ${url}`], { type: "text/plain" }) })]);
     } catch {
-      await copyText(`${text.trim() || name}: ${url}`);
+      if (!(await copyText(`${text.trim() || name}: ${url}`))) return setError("Couldn't copy the signature. Try again.");
     }
     setDone(true);
     setTimeout(() => setDone(false), 1400);
@@ -174,6 +177,7 @@ function SignatureDialog({ url, name, onClose }: { url: string; name: string; on
       }
     >
       <div className="flex flex-col gap-3">
+        <ErrorNote message={error} />
         <input value={text} maxLength={80} onChange={(e) => setText(e.target.value)} aria-label="Link words" className="h-9 rounded-md bg-card shadow-input px-3 text-[13.5px] text-ink outline-none" />
         <div className="rounded-lg shadow-rest bg-paper px-4 py-3 text-[13.5px]" dangerouslySetInnerHTML={{ __html: html }} />
       </div>

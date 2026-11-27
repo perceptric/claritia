@@ -137,7 +137,7 @@ export function BookingPage(props: ViewProps) {
   if (!data.data || !draft || !start)
     return (
       <Page title="Booking page">
-        <ErrorNote message={data.error} />
+        <ErrorNote message={data.error} onRetry={() => (page.reload(), allTypes.reload())} />
         {data.error ? null : <Loading />}
       </Page>
     );
@@ -443,7 +443,7 @@ export function BookingPage(props: ViewProps) {
               <span className="text-[12px] text-muted">Saved</span>
             )}
             <span className="flex-1" />
-            <Button size="sm" disabled={!dirty || busy || blocked || !draft.name.trim()} onClick={() => void save()}>
+            <Button size="sm" busy={busy} disabled={!dirty || blocked || !draft.name.trim()} onClick={() => void save()}>
               Save changes
             </Button>
           </PanelFooter>
@@ -512,7 +512,7 @@ function Photo({ session, ws, name, value, onChange, onError }: { session: ViewP
       body.append("file", small, "photo.jpg");
       const res = await fetch("/api/assets", { method: "POST", headers: { Authorization: `Bearer ${session.access_token}` }, body });
       const out = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
-      if (!res.ok || !out.url) throw new UserError(out.error ?? "Try again in a moment.");
+      if (!res.ok || !out.url) throw new UserError(out.error ?? "The photo didn't upload. Try again.");
       onChange(out.url);
     } catch (e) {
       onError(errorText(e));
@@ -542,7 +542,7 @@ function Photo({ session, ws, name, value, onChange, onError }: { session: ViewP
         {value ? <img src={value} alt="" width={64} height={64} decoding="async" className="size-full object-cover" /> : initials(name)}
       </button>
       <span className="flex flex-col items-start gap-1">
-        <Button variant="ghost" size="sm" className="h-[30px] !border-line" disabled={busy} onClick={() => input.current?.click()}>
+        <Button variant="ghost" size="sm" className="h-[30px] !border-line" busy={busy} onClick={() => input.current?.click()}>
           <Upload size={13} />
           {busy ? "Uploading" : "Upload photo"}
         </Button>
@@ -721,6 +721,7 @@ function useHandleCheck(session: ViewProps["session"], ws: string, handle: strin
     const t = setTimeout(() => {
       void meetingsApi<{ handle: string; free: boolean; problem: string | null }>(session, ws, "booking", { action: "check", handle, team })
         .then((r) => live && setSeen(r))
+        // A check that fails only leaves the field unmarked; Save checks again on the server.
         .catch(() => undefined);
     }, 400);
     return () => {
@@ -740,18 +741,18 @@ function HandleField({ host, value, onChange, check, saved, disabled = false }: 
   const taken = bad && !handleProblem(value);
   return (
     <div className="flex flex-col gap-1.5">
-      <span className={`flex h-9 min-w-0 items-center rounded-sm border bg-card pr-1 pl-2.5 font-mono text-[12px] ${bad ? "border-rose" : "border-line-strong"}`}>
+      <span className={`flex h-9 min-w-0 items-center rounded-sm border bg-card pr-1 pl-2.5 font-mono text-[12px] ${bad ? "border-warning" : "border-line-strong"}`}>
         <span className="max-w-[60%] shrink-0 truncate text-faint">{host}/booking/</span>
         <input aria-label="Handle" value={value} maxLength={40} disabled={disabled} onChange={(e) => onChange(cleanHandle(e.target.value))} className="h-full min-w-10 flex-1 bg-transparent text-ink outline-none disabled:text-muted" />
         {taken ? (
-          <span className="px-1.5 font-sans text-[12px] text-rose">Taken</span>
+          <span className="px-1.5 font-sans text-[12px] text-warning">Taken</span>
         ) : check.free ? (
           <span className="px-1.5 text-signal-text" aria-label="Free">
             <Check size={14} />
           </span>
         ) : null}
       </span>
-      {bad && !taken && check.problem ? <span className="text-[12px] text-rose">{check.problem}</span> : null}
+      {bad && !taken && check.problem ? <span className="text-[12px] text-warning">{check.problem}</span> : null}
     </div>
   );
 }

@@ -121,7 +121,8 @@ export function TeamPeople(props: ViewProps & { onFix: () => void }) {
   };
   const nameOf = (u: string) => people.data?.byId.get(u)?.name ?? rtPeople.get(u)?.name ?? "them";
 
-  if (screen.error || people.error || cal.error) return <ErrorNote message={screen.error || people.error || cal.error} />;
+  if (screen.error || people.error || cal.error || types.error)
+    return <ErrorNote message={screen.error || people.error || cal.error || types.error} onRetry={() => (screen.reload(), people.reload(), cal.reload(), types.reload())} />;
   if (!d || !people.data || !cal.data || !types.data) return <Loading />;
 
   const everyone = people.data.list;

@@ -29,20 +29,21 @@ export function ShareMeeting({ session, ws, type, wsSlug, onClose, onSingleUse, 
   const [plat, setPlat] = useState<Plat>("webflow");
   const [copied, setCopied] = useState("");
   const [error, setError] = useState("");
+  const [fetching, setFetching] = useState(false);
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   // On the workspace's own domain or subdomain (Settings › Link domain): /book/<type> there.
   const base = useLinkBase(session, ws.id);
   const url = base ? `${base}/book/${type.slug}` : `${bookingBase(origin)}/book/${wsSlug}/${type.slug}`;
   const code = meetingEmbedCode(origin, `${wsSlug}/${type.slug}`, o);
   const copy = async (what: string, text: string) => {
-    if (await copyText(text)) {
-      setCopied(what);
-      setTimeout(() => setCopied((c) => (c === what ? "" : c)), 1600);
-    }
+    if (!(await copyText(text))) return setError("Couldn't copy. Try again.");
+    setCopied(what);
+    setTimeout(() => setCopied((c) => (c === what ? "" : c)), 1600);
   };
   // Rich text for email apps, the plain link for the rest.
   const signature = async () => {
     const text = `Book a time: ${type.name}`;
+    setError("");
     try {
       await navigator.clipboard.write([new ClipboardItem({ "text/html": new Blob([signatureHtml(text, url)], { type: "text/html" }), "text/plain": new Blob([`${text}: ${url}`], { type: "text/plain" }) })]);
       setCopied("sig");
@@ -53,12 +54,15 @@ export function ShareMeeting({ session, ws, type, wsSlug, onClose, onSingleUse, 
   };
   const times = async () => {
     setError("");
+    setFetching(true);
     try {
       const r = await meetingsApi<{ text: string }>(session, ws.id, "times", { typeId: type.id, tz: ownZone() });
       if (!r.text) throw new UserError(`${type.name} has no free times in its window.`);
       await copy("times", r.text);
     } catch (e) {
       setError(errorText(e));
+    } finally {
+      setFetching(false);
     }
   };
 
@@ -121,21 +125,21 @@ export function ShareMeeting({ session, ws, type, wsSlug, onClose, onSingleUse, 
         ) : null}
         {pane === "email" ? (
           <div className="flex flex-col divide-y divide-line rounded-[10px] shadow-rest">
-            <div className="flex items-center justify-between gap-3 px-4 py-3 text-[13px] text-ink">
+            <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-[13px] text-ink">
               Your next free times, each with its own link
-              <Button variant="ghost" size="sm" onClick={() => void times()}>
+              <Button variant="ghost" size="sm" busy={fetching} onClick={() => void times()}>
                 <Copy size={13} />
                 {copied === "times" ? "Copied" : "Copy times"}
               </Button>
             </div>
-            <div className="flex items-center justify-between gap-3 px-4 py-3 text-[13px] text-ink">
+            <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-[13px] text-ink">
               Your email signature
               <Button variant="ghost" size="sm" onClick={() => void signature()}>
                 <Copy size={13} />
                 {copied === "sig" ? "Copied" : "Copy signature"}
               </Button>
             </div>
-            <div className="flex items-center justify-between gap-3 px-4 py-3 text-[13px] text-ink">
+            <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-[13px] text-ink">
               A link that books once
               <Button variant="ghost" size="sm" onClick={onSingleUse}>
                 New single-use link

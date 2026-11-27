@@ -24,6 +24,7 @@ import { CLOCKS, DAY_LABEL, nextRange } from "../meetings/model";
 import { PROVIDERS, providerOf, useMyCalendars, type Account, type CalList } from "../meetings/MyCalendar";
 import { meetingsApi, Modal, ownZone } from "../meetings/parts";
 import { routingApi } from "../routing/api";
+import { toast } from "../Toaster";
 
 type ScheduleRow = Availability & { id: string; name: string };
 type Whose = "you" | "team";
@@ -142,7 +143,7 @@ export function AvailabilityPage(props: ViewProps & { tab: string; back?: { labe
               New schedule
             </button>
           </div>
-          <ErrorNote message={error || data.error} />
+          <ErrorNote message={error || data.error} onRetry={!error && data.error ? data.reload : undefined} />
         </div>
 
         <div className="flex flex-col border-line p-4 max-md:border-t md:min-h-0 md:overflow-y-auto md:border-l">
@@ -280,13 +281,13 @@ function WeekColumn({
       <div className="mb-1.5 flex min-h-8 items-center gap-2">
         <h2 className="min-w-0 truncate text-[13.5px] font-semibold text-ink">{name}</h2>
         {menu(draft)}
-        <span role="status" className={`text-[12px] ${error ? "text-rose" : "text-muted"}`}>
+        <span role="status" className={`text-[12px] ${error ? "text-warning" : "text-muted"}`}>
           {error ? "Not saved" : state === "saving" ? "Saving" : state === "saved" ? "Saved" : ""}
         </span>
         <span className="flex-1" />
         <ZonePicker value={draft.tz} onChange={(tz) => setDraft((a) => ({ ...a, tz }))} />
       </div>
-      {error ? <ErrorNote message={error} /> : null}
+      {error ? <ErrorNote message={error} onRetry={() => setFailed("")} /> : null}
       <div className="mb-2">
         <Segmented<"paint" | "times">
           size="sm"
@@ -454,11 +455,11 @@ function DaysOffDialog({ sb, session, ws, onClose, onSaved }: ViewProps & { onCl
             <span className="text-[12px] text-muted">To</span>
             <DatePick label="To" value={to} min={from} onChange={setTo} />
           </span>
-          <Button onClick={() => void add()} disabled={busy || !from || !to}>
+          <Button onClick={() => void add()} busy={busy} disabled={!from || !to}>
             Add
           </Button>
         </div>
-        <ErrorNote message={error || data.error} />
+        <ErrorNote message={error || data.error} onRetry={!error && data.error ? () => (mine.reload(), rep.reload()) : undefined} />
         {!data.data ? (
           <Loading />
         ) : list.length ? (
@@ -484,9 +485,11 @@ function DaysOffDialog({ sb, session, ws, onClose, onSaved }: ViewProps & { onCl
 function Calendars({ sb, session, ws }: ViewProps) {
   // Shared with the Connect your calendar line, in one query with the calendars.
   const data = useMyCalendars({ sb, session, ws });
-  // Back from a provider's sign-in: /scheduling/availability/calendars?connected=google or ?error=...
+  // Back from a provider's sign-in: /scheduling/availability/calendars?connected=google or ?error=... The address's
+  // own words aren't shown (a provider's text, or anything typed into the link): one plain line instead.
   const [back] = useState(() => new URLSearchParams(typeof window === "undefined" ? "" : window.location.search));
-  const [error, setError] = useState(() => back.get("error")?.slice(0, 200) ?? "");
+  const [error, setError] = useState(() => (back.get("error") ? "Your calendar didn't connect. Try again." : ""));
+  const [going, setGoing] = useState("");
   const note = back.get("connected") ? `${providerOf(back.get("connected") as Account["provider"]).name} connected` : "";
   useEffect(() => {
     if (back.has("error") || back.has("connected")) history.replaceState(null, "", window.location.pathname);
@@ -499,12 +502,19 @@ function Calendars({ sb, session, ws }: ViewProps) {
       setError(errorText(e));
     }
   };
-  const connect = (provider: string) =>
-    act(async () => {
+  const connect = async (provider: string) => {
+    setGoing(provider);
+    let leaving = false;
+    await act(async () => {
       const r = await postJson<{ url?: string }>(session, "/api/calendar/connect", { workspaceId: ws.id, provider });
-      if (r.url) window.location.assign(r.url);
-      else data.reload();
+      if (r.url) {
+        leaving = true;
+        window.location.assign(r.url);
+      } else data.reload();
     });
+    // On the way to the provider's sign-in, the spinner stays until the page goes.
+    if (!leaving) setGoing("");
+  };
   // A box or the calendar for new bookings changes on click; it goes back, with the error, if the save fails.
   const saveLists = (a: Account, lists: CalList[], id: string, patch: { busy?: boolean; write?: boolean }) =>
     act(async () => {
@@ -529,7 +539,7 @@ function Calendars({ sb, session, ws }: ViewProps) {
           </Badge>
         ) : null}
       </div>
-      <ErrorNote message={error || data.error} />
+      <ErrorNote message={error || data.error} onRetry={!error && data.error ? data.reload : undefined} />
       {!data.data ? (
         <Loading />
       ) : (
@@ -548,13 +558,13 @@ function Calendars({ sb, session, ws }: ViewProps) {
                     <span className="text-[12px] text-muted">{p.name}</span>
                   </span>
                   {a.status === "reconnect" ? (
-                    <Button size="sm" onClick={() => void connect(a.provider)}>
+                    <Button size="sm" busy={going === a.provider} disabled={!!going} onClick={() => void connect(a.provider)}>
                       Reconnect
                     </Button>
                   ) : null}
                   <MoreMenu
                     items={[
-                      a.provider !== "zoom" ? { label: "Read now", run: () => void act(async () => (await postJson(session, "/api/calendar/refresh", { workspaceId: ws.id, accountId: a.id }), data.reload())) } : null,
+                      a.provider !== "zoom" ? { label: "Read now", run: () => void act(async () => (await postJson(session, "/api/calendar/refresh", { workspaceId: ws.id, accountId: a.id }), data.reload(), toast("Calendar read"))) } : null,
                       {
                         label: "Disconnect",
                         danger: true,
@@ -604,7 +614,7 @@ function Calendars({ sb, session, ws }: ViewProps) {
           {missing.length ? (
             <div className="flex flex-col items-start gap-2">
               {missing.map((p) => (
-                <Button key={p.id} variant="ghost" size="sm" className="!border-line" onClick={() => void connect(p.id)}>
+                <Button key={p.id} variant="ghost" size="sm" className="!border-line" busy={going === p.id} disabled={!!going} onClick={() => void connect(p.id)}>
                   <BrandLogo domain={p.domain} name={p.name} size={15} />
                   {p.id === "google" ? "Google Calendar" : p.id === "microsoft" ? "Outlook" : "Zoom"}
                 </Button>

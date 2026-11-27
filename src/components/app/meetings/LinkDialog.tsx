@@ -78,7 +78,7 @@ export function LinkDialog({ sb, session, ws, types, initialType, initialKind = 
             <Button variant="plain" onClick={onClose}>
               Cancel
             </Button>
-            <Button onClick={create} disabled={busy}>
+            <Button onClick={create} busy={busy}>
               Create link
             </Button>
           </>
@@ -155,7 +155,7 @@ export function TimePicker({ session, ws, typeId, length, picked, onChange, max 
   const open = days.find(([d]) => d === day) ?? days[0];
   const toggle = (s: number) => onChange(picked.includes(s) ? picked.filter((x) => x !== s) : picked.length >= max ? picked : [...picked, s]);
 
-  if (free.error) return <TimesError message={free.error} session={session} ws={ws} />;
+  if (free.error) return <TimesError message={free.error} session={session} ws={ws} onRetry={free.reload} />;
   if (!free.data) return <Loading />;
   if (!days.length) return <p className="py-6 text-center text-[13.5px] text-muted">No free times in the next two weeks</p>;
   return (

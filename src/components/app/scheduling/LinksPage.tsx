@@ -125,7 +125,7 @@ export function LinksPage(props: ViewProps) {
             <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search links" aria-label="Search links" className="h-9 rounded-full pl-8" />
           </label>
         </TabBar>
-        <ErrorNote message={error || data.error} />
+        <ErrorNote message={error || data.error} onRetry={!error && data.error ? () => (links.reload(), typeRows.reload()) : undefined} />
         {!data.data ? (
           <Loading />
         ) : !rows.length ? (
@@ -282,7 +282,9 @@ function Times({ link }: { link: LinkRow }) {
  * A poll's results: a row a voter, a column a time, a shaded cell for each yes. The time with the most votes is
  * marked, and Book this time sits under it (and under every time, for the owner).
  */
-export function PollGrid({ link, votes, canBook, onBook }: { link: LinkRow; votes: Vote[]; canBook: boolean; onBook: (start: string) => void }) {
+export function PollGrid({ link, votes, canBook, onBook }: { link: LinkRow; votes: Vote[]; canBook: boolean; onBook: (start: string) => void | Promise<unknown> }) {
+  // The time being booked, for its button's spinner.
+  const [going, setGoing] = useState("");
   const tally = link.offered.map((o) => votes.filter((v) => v.picks.includes(o.start)).length);
   const max = Math.max(0, ...tally);
   return (
@@ -334,7 +336,20 @@ export function PollGrid({ link, votes, canBook, onBook }: { link: LinkRow; vote
               <td />
               {link.offered.map((o, i) => (
                 <td key={o.start} className="pt-1 text-center">
-                  <Button size="sm" variant={tally[i] === max && max > 0 ? "primary" : "ghost"} onClick={() => onBook(o.start)}>
+                  <Button
+                    size="sm"
+                    variant={tally[i] === max && max > 0 ? "primary" : "ghost"}
+                    busy={going === o.start}
+                    disabled={!!going}
+                    onClick={async () => {
+                      setGoing(o.start);
+                      try {
+                        await onBook(o.start);
+                      } finally {
+                        setGoing("");
+                      }
+                    }}
+                  >
                     Book this time
                   </Button>
                 </td>

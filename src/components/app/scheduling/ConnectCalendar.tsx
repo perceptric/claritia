@@ -70,7 +70,7 @@ export function ConnectCalendar(props: Pick<ViewProps, "sb" | "session" | "ws">)
       </span>
       <span className="min-w-0 shrink-0 truncate text-[13px] font-semibold text-ink">{stale ? `Reconnect ${SHORT[stale.provider] ?? "your calendar"}` : "Connect your calendar"}</span>
       {error ? (
-        <span role="alert" className="min-w-0 truncate text-[13px] text-rose">
+        <span role="alert" title={error} className="min-w-0 truncate text-[13px] text-warning">
           {error}
         </span>
       ) : (
@@ -78,7 +78,7 @@ export function ConnectCalendar(props: Pick<ViewProps, "sb" | "session" | "ws">)
       )}
       <span className="flex-1" />
       {shown.map((p) => (
-        <Button key={p.id} variant="ghost" size="sm" className="h-[30px] shrink-0 !border-line px-2 sm:px-3" disabled={!!busy} onClick={() => void go(p.id)} aria-label={stale ? `Reconnect ${p.name}` : p.name}>
+        <Button key={p.id} variant="ghost" size="sm" className="h-[30px] shrink-0 !border-line px-2 sm:px-3" busy={busy === p.id} disabled={!!busy} onClick={() => void go(p.id)} aria-label={stale ? `Reconnect ${p.name}` : p.name}>
           <BrandLogo domain={p.domain} name={p.name} size={16} />
           <span className="hidden sm:inline">{busy === p.id ? "Opening" : stale ? "Reconnect" : SHORT[p.id]}</span>
         </Button>
@@ -88,17 +88,22 @@ export function ConnectCalendar(props: Pick<ViewProps, "sb" | "session" | "ws">)
 }
 
 /** An error from the times; "Connect your calendar first" and "Reconnect" come with the buttons that fix them. */
-export function TimesError({ message, session, ws }: { message: string; session: ViewProps["session"]; ws: string }) {
+export function TimesError({ message, session, ws, onRetry }: { message: string; session: ViewProps["session"]; ws: string; onRetry?: () => void }) {
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState("");
   const needs = /connect your calendar first/i.test(message);
-  if (!needs) return <ErrorNote message={message} />;
-  const go = (provider: string) => void connectCalendar(session, ws, provider).catch((e) => setError(errorText(e)));
+  if (!needs) return <ErrorNote message={message} onRetry={onRetry} />;
+  const go = (provider: string) => {
+    setError("");
+    setBusy(provider);
+    void connectCalendar(session, ws, provider).catch((e) => (setError(errorText(e)), setBusy("")));
+  };
   return (
     <div className="flex flex-col items-center gap-3 rounded-[10px] shadow-rest px-4 py-6 text-center">
       <p className="text-[13.5px] font-medium text-ink">{/^reconnect/i.test(message) ? "Reconnect your calendar" : "Connect your calendar"}</p>
       <div className="flex flex-wrap justify-center gap-2">
         {CALENDARS.map((p) => (
-          <Button key={p.id} variant="ghost" onClick={() => go(p.id)}>
+          <Button key={p.id} variant="ghost" busy={busy === p.id} disabled={!!busy} onClick={() => go(p.id)}>
             <BrandLogo domain={p.domain} name={p.name} size={16} />
             {p.name}
           </Button>

@@ -32,6 +32,7 @@ import { newDraft, placeIcon, TypePanel, type HostStatus, type Named, type Panel
 import { KindTip } from "../meetings/KindTip";
 import { bookingBase } from "@/lib/meetings/handles";
 import { UserError, dbError } from "@/lib/errors";
+import { toast } from "../Toaster";
 
 /** A new meeting from a template (src/lib/meetings/templates.ts), or blank with no id, opened in the new panel to check and save. */
 export function starterDraft(id: string | null, me: string, team: string[]) {
@@ -113,10 +114,13 @@ export function TypesPage(props: ViewProps & { open: string }) {
   const queues = useMemo(() => live.data?.body.queues ?? [], [live.data]);
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   const typeUrl = (s: string) => (slug.data ? `${bookingBase(origin)}/book/${slug.data}/${s}` : "");
-  const flash = (id: string) => {
+  // Copied from a menu that has closed: the toast says so.
+  const flash = (id: string, words: string) => {
     setCopied(id);
     setTimeout(() => setCopied((c) => (c === id ? null : c)), 1600);
+    toast(words);
   };
+  const noCopy = () => toast({ text: "Couldn't copy. Try again.", tone: "error" });
   // The switch moves on click; it goes back, with the error, if the save fails.
   const setActive = (t: TypeRow, active: boolean) =>
     act(async () => {
@@ -216,7 +220,7 @@ export function TypesPage(props: ViewProps & { open: string }) {
       <div className="relative h-full min-h-0 overflow-hidden">
         <div className={`h-full overflow-y-auto transition-[padding] duration-[320ms] ease-out ${panel ? "md:pr-[400px]" : ""}`}>
           <div className={`flex w-full min-w-0 flex-col gap-3 ${TAB_X} pt-4 pb-8`}>
-            <ErrorNote message={error || data.error || slug.error} />
+            <ErrorNote message={error || data.error || slug.error} onRetry={!error && (data.error || slug.error) ? () => (list.reload(), extra.reload(), slug.reload()) : undefined} />
             {!data.data ? (
               <Loading />
             ) : (
@@ -242,7 +246,7 @@ export function TypesPage(props: ViewProps & { open: string }) {
                             items={[
                               url ? { label: "Share", run: () => (setSharePane("link"), setShareFor(t.id)) } : null,
                               url ? { label: "Embed on a website", run: () => (setSharePane("site"), setShareFor(t.id)) } : null,
-                              url ? { label: copied === t.id ? "Copied" : "Copy link", run: () => void copyText(url).then((ok) => ok && flash(t.id)) } : null,
+                              url ? { label: copied === t.id ? "Copied" : "Copy link", run: () => void copyText(url).then((ok) => (ok ? flash(t.id, "Link copied") : noCopy())) } : null,
                               url ? { label: "Open booking page", run: () => window.open(url, "_blank", "noopener") } : null,
                               { label: "New single-use link", run: () => setLinkFor(t.id) },
                               {
@@ -251,7 +255,8 @@ export function TypesPage(props: ViewProps & { open: string }) {
                                   void act(async () => {
                                     const r = await meetingsApi<{ text: string }>(session, ws.id, "times", { typeId: t.id, tz: ownZone() });
                                     if (!r.text) throw new UserError(`${t.name} has no free times in its window.`);
-                                    if (await copyText(r.text)) flash(t.id);
+                                    if (await copyText(r.text)) flash(t.id, "Times copied");
+                                    else noCopy();
                                   }),
                               },
                               { label: t.active ? "Turn off" : "Turn on", run: () => void setActive(t, !t.active) },

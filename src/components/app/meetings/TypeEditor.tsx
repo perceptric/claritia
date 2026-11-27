@@ -25,6 +25,7 @@ import { TYPE_COLS, type TypeRow } from "./TypesList";
 import { bookingBase } from "@/lib/meetings/handles";
 import { hasOptions, QUESTION_TYPES } from "@/lib/meetings/questions";
 import { UserError } from "@/lib/errors";
+import { toast } from "../Toaster";
 
 export type Draft = Pick<MeetingType, "name" | "slug" | "kind" | "hosts" | "settings" | "secret" | "active" | "locked" | "owner_user_id">;
 type LockKey = MeetingType["locked"][number];
@@ -144,7 +145,7 @@ export function TypeEditor(props: ViewProps) {
   if (data.error && !data.data)
     return (
       <Page title="Meeting type" back={back}>
-        <ErrorNote message={data.error} />
+        <ErrorNote message={data.error} onRetry={data.reload} />
       </Page>
     );
   if (!isNew && data.data && !row)
@@ -217,7 +218,7 @@ export function TypeEditor(props: ViewProps) {
       actions={
         <>
           {!isNew ? (
-            <span role="status" key={savedAt} className={`text-[12.5px] ${errors.length && dirty ? "text-rose" : "anim-fade text-muted"}`}>
+            <span role="status" key={savedAt} className={`text-[12.5px] ${errors.length && dirty ? "text-warning" : "anim-fade text-muted"}`}>
               {errors.length && dirty ? "Not saved" : busy ? "Saving…" : savedAt && !dirty ? "Saved" : ""}
             </span>
           ) : null}
@@ -235,7 +236,7 @@ export function TypeEditor(props: ViewProps) {
             </>
           ) : null}
           {isNew ? (
-            <Button onClick={() => void save()} disabled={busy}>
+            <Button onClick={() => void save()} busy={busy}>
               Create
             </Button>
           ) : null}
@@ -243,7 +244,7 @@ export function TypeEditor(props: ViewProps) {
       }
     >
       {linking && row ? <LinkDialog sb={sb} session={session} ws={ws} types={[{ id: row.id, name: row.name, slug: row.slug, kind: row.kind, lengths: row.settings.lengths }]} initialType={row.id} onClose={() => setLinking(false)} /> : null}
-      {giving && row ? <GiveDialog people={people_} copies={data.data.copies} onClose={() => setGiving(false)} onGive={async (users) => (await meetingsApi(session, ws.id, "types", { action: "push", id: row.id, users }), data.reload(), setGiving(false))} /> : null}
+      {giving && row ? <GiveDialog people={people_} copies={data.data.copies} onClose={() => setGiving(false)} onGive={async (users) => (await meetingsApi(session, ws.id, "types", { action: "push", id: row.id, users }), data.reload(), setGiving(false), toast("Copies saved"))} /> : null}
       <div className="grid lg:h-full lg:min-h-0 lg:grid-cols-[minmax(360px,420px)_minmax(0,1fr)]">
         <LabelWidth.Provider value={104}>
           <div className="border-line lg:min-h-0 lg:overflow-y-auto lg:border-r">
@@ -794,7 +795,7 @@ function GiveDialog({ people, copies, onClose, onGive }: { people: Person[]; cop
             Cancel
           </Button>
           <Button
-            disabled={busy}
+            busy={busy}
             className={dropping ? "!bg-rose" : ""}
             onClick={async () => {
               setBusy(true);

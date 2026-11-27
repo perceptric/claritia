@@ -70,12 +70,15 @@ export function useMeetingScreen(props: ViewProps, id: string, layout: "page" | 
   });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  // Which action is on its way, for its button's spinner.
+  const [pending, setPending] = useState("");
   const [canceling, setCanceling] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const act = async (body: Record<string, unknown>) => {
     setError("");
     setBusy(true);
+    setPending(String(body.action ?? ""));
     // Held and No-show show at once; anything else waits for the server.
     const before = data.data;
     const quick = body.action === "held" || body.action === "no_show" ? (body.action as "held" | "no_show") : null;
@@ -93,10 +96,11 @@ export function useMeetingScreen(props: ViewProps, id: string, layout: "page" | 
       return null;
     } finally {
       setBusy(false);
+      setPending("");
     }
   };
 
-  if (!data.data) return { state: "loading" as const, error: data.error };
+  if (!data.data) return { state: "loading" as const, error: data.error, reload: data.reload };
   const m = data.data.meeting;
   if (!m) return { state: "missing" as const, error: "" };
   const host = people.data?.byId;
@@ -133,12 +137,13 @@ export function useMeetingScreen(props: ViewProps, id: string, layout: "page" | 
           size={sheet ? "sm" : "md"}
           variant="ghost"
           disabled={busy}
+          busy={pending === "link"}
           onClick={async () => {
             const r = await act({ action: "link" });
-            if (r?.url && (await copyText(r.url))) {
-              setCopied(true);
-              setTimeout(() => setCopied(false), 1600);
-            }
+            if (!r?.url) return;
+            if (!(await copyText(r.url))) return setError("Couldn't copy the link. Try again.");
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1600);
           }}
         >
           <LinkIcon size={13} />
@@ -146,7 +151,7 @@ export function useMeetingScreen(props: ViewProps, id: string, layout: "page" | 
         </Button>
       ) : null}
       {canCancel(m, now) ? (
-        <Button size={sheet ? "sm" : "md"} variant="danger" disabled={busy} onClick={() => setCanceling(true)}>
+        <Button size={sheet ? "sm" : "md"} variant="danger" disabled={busy} onClick={() => (setError(""), setCanceling(true))}>
           Cancel meeting
         </Button>
       ) : null}
@@ -274,7 +279,7 @@ export function useMeetingScreen(props: ViewProps, id: string, layout: "page" | 
     <div className={`flex flex-col gap-4 ${sheet ? "" : "mx-auto max-w-5xl gap-5"}`}>
       <ErrorNote message={error} />
       <MeetingMailNotice session={props.session} ws={props.ws} meeting={m.id} />
-      {canceling ? <CancelDialog paid={!!m.payment?.amount} busy={busy} onClose={() => setCanceling(false)} onCancel={async (reason) => (await act({ action: "cancel", reason })) && setCanceling(false)} /> : null}
+      {canceling ? <CancelDialog paid={!!m.payment?.amount} busy={pending === "cancel"} error={error} onClose={() => setCanceling(false)} onCancel={async (reason) => (await act({ action: "cancel", reason })) && setCanceling(false)} /> : null}
       {sheet ? (
         <>
           {facts}
@@ -302,7 +307,7 @@ export function MeetingPage(props: ViewProps) {
   if (s.state === "loading")
     return (
       <Page title="Meeting" back={back}>
-        {s.error ? <ErrorNote message={s.error} /> : <Loading />}
+        {s.error ? <ErrorNote message={s.error} onRetry={s.reload} /> : <Loading />}
       </Page>
     );
   if (s.state === "missing")
@@ -332,12 +337,12 @@ export function MeetingSheet(props: ViewProps & { onClose: () => void }) {
       }
       footer={s.state === "ready" ? <div className="flex flex-wrap items-center justify-end gap-2">{s.actions}</div> : undefined}
     >
-      <div className="p-4">{s.state === "loading" ? s.error ? <ErrorNote message={s.error} /> : <Loading /> : s.state === "missing" ? <Empty icon={<CalendarIcon size={18} />} title="Meeting not found" /> : s.body}</div>
+      <div className="p-4">{s.state === "loading" ? s.error ? <ErrorNote message={s.error} onRetry={s.reload} /> : <Loading /> : s.state === "missing" ? <Empty icon={<CalendarIcon size={18} />} title="Meeting not found" /> : s.body}</div>
     </Sheet>
   );
 }
 
-function CancelDialog({ paid, busy, onClose, onCancel }: { paid: boolean; busy: boolean; onClose: () => void; onCancel: (reason: string) => void }) {
+function CancelDialog({ paid, busy, error, onClose, onCancel }: { paid: boolean; busy: boolean; error: string; onClose: () => void; onCancel: (reason: string) => void }) {
   const [reason, setReason] = useState("");
   return (
     <Modal
@@ -348,12 +353,13 @@ function CancelDialog({ paid, busy, onClose, onCancel }: { paid: boolean; busy: 
           <Button variant="plain" onClick={onClose}>
             Keep it
           </Button>
-          <Button className="!bg-rose" disabled={busy} onClick={() => onCancel(reason)}>
+          <Button className="!bg-rose" busy={busy} onClick={() => onCancel(reason)}>
             {paid ? "Cancel and refund" : "Cancel meeting"}
           </Button>
         </>
       }
     >
+      <ErrorNote message={error} className="mb-3" />
       <label className="flex flex-col gap-1.5">
         <span className="text-[12px] font-medium text-muted">Reason for the guest</span>
         <textarea

@@ -80,7 +80,7 @@ export function useStripe({ sb, session, ws, role }: Props) {
       setDropping(false);
     }
   };
-  return { loaded: !!acct.data, a: acct.data?.a ?? null, busy, dropping, error: acct.error || error, failed, connect, disconnect, owner: role === "owner" };
+  return { loaded: !!acct.data, a: acct.data?.a ?? null, busy, dropping, error: acct.error || error, reload: acct.error ? acct.reload : undefined, failed, connect, disconnect, owner: role === "owner" };
 }
 
 export type StripeState = ReturnType<typeof useStripe>;
@@ -96,12 +96,12 @@ export function StripeButtons({ pay }: { pay: StripeState }) {
   return (
     <>
       {!pay.a?.ready ? (
-        <Button variant="ghost" size="sm" onClick={() => void pay.connect()} disabled={pay.busy || pay.dropping}>
+        <Button variant="ghost" size="sm" onClick={() => void pay.connect()} busy={pay.busy} disabled={pay.dropping}>
           {pay.busy ? "Opening Stripe…" : pay.a ? "Continue on Stripe" : "Connect"}
         </Button>
       ) : null}
       {pay.a ? (
-        <Button variant="ghost" size="sm" onClick={() => void pay.disconnect(pay.failed)} disabled={pay.busy || pay.dropping}>
+        <Button variant="ghost" size="sm" onClick={() => void pay.disconnect(pay.failed)} busy={pay.dropping} disabled={pay.busy}>
           {pay.dropping ? "Disconnecting…" : pay.failed ? "Retry" : "Disconnect"}
         </Button>
       ) : null}
@@ -116,7 +116,7 @@ export function StripeCard({ pay, onOpen }: { pay: StripeState; onOpen?: () => v
   return (
     <ToolCard logo={<BrandLogo domain="stripe.com" name="Stripe" size={40} />} name="Stripe" blurb={STRIPE_BLURB} account={pay.a?.stripe_account ?? null} status={<StripeStatus pay={pay} />} onOpen={onOpen}>
       <StripeButtons pay={pay} />
-      <ErrorNote message={pay.error} />
+      <ErrorNote message={pay.error} onRetry={pay.reload} />
     </ToolCard>
   );
 }
