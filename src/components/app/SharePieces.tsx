@@ -10,13 +10,17 @@ import { Check, Copy, ExternalLink } from "../Icons";
 import { BrandLogo } from "./BrandLogo";
 import { copyText } from "./CopyButton";
 import { Select } from "./Select";
+import { toast } from "./Toaster";
 import { Button } from "./ui";
 
-/** Copy with a check for a moment after. */
+/** Copy with a check for a moment after; a copy the browser refused says so. */
 export function useCopied() {
   const [done, setDone] = useState("");
   const copy = async (what: string, text: string) => {
-    if (!(await copyText(text))) return false;
+    if (!(await copyText(text))) {
+      toast({ text: "Couldn't copy. Select it and copy it yourself.", tone: "error" });
+      return false;
+    }
     setDone(what);
     setTimeout(() => setDone((d) => (d === what ? "" : d)), 1600);
     return true;

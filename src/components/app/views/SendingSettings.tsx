@@ -8,8 +8,9 @@ import { Plus, Refresh, Trash } from "../../Icons";
 import { askConfirm, askText } from "../Dialogs";
 import { Select } from "../Select";
 import { SampleTags, ToolIntro } from "../ToolIntro";
-import { Badge, Button, CardHead, ErrorNote, errorText, Field, IconButton, Input, Loading, must, Panel, postJson, Td, Th, timeAgo, type Tone, useLoad, usePoll, type ViewProps } from "../ui";
+import { Badge, Button, CardHead, ErrorNote, errorText, Field, IconButton, Input, Loading, must, Panel, postJson, Spinner, Td, Th, timeAgo, type Tone, useLoad, usePoll, type ViewProps } from "../ui";
 import { CopyButton } from "../CopyButton";
+import { toast } from "../Toaster";
 
 type DnsRecord = { key: string; type: string; name: string; value: string; status: "verified" | "waiting" | "wrong"; seen?: string };
 type Domain = {
@@ -59,12 +60,26 @@ const SKIP: Record<string, string> = {
   paused: "Paused",
   no_settings: "Not set up",
 };
+/**
+ * The worker's note on a domain (worker-intel/jobs/email.ts) in plain words: its own sentences name the email
+ * service and the rest is the service's raw answer, so each becomes one calm line.
+ */
+const domainNote = (e: string | null | undefined) => {
+  if (!e) return "";
+  if (/belongs to Claritia/i.test(e)) return e;
+  if (/couldn't find the (dkim )?records/i.test(e)) return "The records aren't showing yet. Check them, then check again.";
+  if (/couldn't reach your DNS/i.test(e)) return "Your DNS couldn't be reached just now. It will look again.";
+  return "This domain couldn't be checked just now. It will look again.";
+};
+/** A send's state in plain words: the email service's raw answer isn't for people. */
+const SEND_NOTE: Record<string, string> = { failed: "Not sent", unknown: "May have gone out" };
 const HOURS = Array.from({ length: 24 }, (_, h) => ({ value: h, label: `${String(h).padStart(2, "0")}:00` }));
 
 export function SendingSettings({ sb, session, ws, role , part = "domains" }: Pick<ViewProps, "sb" | "session" | "ws" | "role"> & { part?: "domains" | "sender" }) {
   const owner = role === "owner";
   const domains = useLoad(async () => must(await sb.from("sending_domains").select("*").eq("workspace_id", ws.id).order("created_at")) as Domain[], `${ws.id}:domains`);
-  // Whether the server offers the move to Amazon SES (on with SES set up, unless EMAIL_SES_MOVE=off).
+  // Whether the server offers the move to Amazon SES (on with SES set up, unless EMAIL_SES_MOVE=off). A failed read
+  // only hides the move.
   const sesMove = useLoad(async () => ((await fetch("/api/email/ses-move").then((r) => r.json()).catch(() => null)) as { on?: boolean } | null)?.on === true, "ses-move");
   const settings = useLoad(
     async () => must(await sb.from("send_settings").select("from_name, from_email, reply_to, address, cap_count, cap_days, quiet_start, quiet_end, timezone, paused, paused_reason").eq("workspace_id", ws.id).maybeSingle()) as Settings | null,
@@ -87,12 +102,12 @@ export function SendingSettings({ sb, session, ws, role , part = "domains" }: Pi
     }
   };
 
-  if (!domains.data || settings.data === undefined) return <Loading />;
+  if (!domains.data) return domains.error ? <ErrorNote message={domains.error} onRetry={reloadDomains} /> : <Loading />;
   const s = settings.data;
 
   return (
     <div className="flex flex-col gap-5">
-      <ErrorNote message={error || domains.error || settings.error} />
+      <ErrorNote message={error || settings.error} onRetry={!error && settings.error ? settings.reload : undefined} />
       {s?.paused ? (
         <Panel>
           <div className="flex flex-wrap items-center gap-3 px-5 py-3.5">
@@ -183,8 +198,8 @@ function AddDomain({ sb, ws, onAdded, onError }: Pick<ViewProps, "sb" | "ws"> & 
       <div className="w-64">
         <Input value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="mail.yourcompany.com" aria-label="Sending domain" />
       </div>
-      <Button type="submit" disabled={busy || !domain.trim()}>
-        <Plus size={14} /> {busy ? "Adding…" : "Add domain"}
+      <Button type="submit" disabled={busy || !domain.trim()} busy={busy}>
+        {busy ? null : <Plus size={14} />} {busy ? "Adding…" : "Add domain"}
       </Button>
     </form>
   );
@@ -195,6 +210,7 @@ function DomainCard({ d, owner, canMove, sb, onChange, onError }: { d: Domain; o
   // On Resend and moving to SES: the new records beside the current ones, until SES verifies them.
   const moving = !!d.provider_id && d.provider !== "ses" && !!d.ses_status;
   const onSes = d.provider === "ses" && d.ses_status === "verified";
+  const [checking, setChecking] = useState(false);
   const act = async (fn: () => Promise<unknown>) => {
     onError("");
     try {
@@ -212,8 +228,15 @@ function DomainCard({ d, owner, canMove, sb, onChange, onError }: { d: Domain; o
         {onSes && d.provider_id ? <Badge tone="brand">New sending</Badge> : null}
         <span className="ml-auto flex flex-wrap items-center gap-2">
           {d.checked_at ? <span className="text-[12px] text-faint">{timeAgo(d.checked_at)}</span> : null}
-          <IconButton label="Check now" onClick={() => act(async () => must(await sb.rpc("sending_domain_check_now", { p_id: d.id })))}>
-            <Refresh size={14} />
+          <IconButton
+            label="Check now"
+            disabled={checking}
+            onClick={() => {
+              setChecking(true);
+              void act(async () => must(await sb.rpc("sending_domain_check_now", { p_id: d.id }))).finally(() => setChecking(false));
+            }}
+          >
+            {checking ? <Spinner size={13} /> : <Refresh size={14} />}
           </IconButton>
           {owner && canMove && d.status === "verified" && d.provider_id && d.provider !== "ses" && !d.ses_status ? (
             <Button
@@ -244,14 +267,14 @@ function DomainCard({ d, owner, canMove, sb, onChange, onError }: { d: Domain; o
           ) : null}
         </span>
       </div>
-      <ErrorNote message={d.error ?? ""} />
+      <ErrorNote message={domainNote(d.error)} />
       {moving ? (
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[13px] font-medium">New sending</span>
             <Badge tone={DOMAIN[d.ses_status!][1]}>{DOMAIN[d.ses_status!][0]}</Badge>
           </div>
-          <ErrorNote message={d.ses_error ?? ""} />
+          <ErrorNote message={domainNote(d.ses_error)} />
           {d.ses_records?.length ? <Records records={d.ses_records} /> : d.ses_error ? null : <Loading />}
         </div>
       ) : null}
@@ -329,6 +352,7 @@ function SenderForm({ sb, ws, owner, saved, onSaved }: Pick<ViewProps, "sb" | "w
     setError("");
     try {
       must(await sb.rpc("send_settings_save", { p_ws: ws.id, p_values: { ...v, cap_count: Number(v.cap_count) || 3, cap_days: Number(v.cap_days) || 7 } }));
+      toast("Saved");
       onSaved();
     } catch (e) {
       setError(errorText(e));
@@ -372,11 +396,11 @@ function SenderForm({ sb, ws, owner, saved, onSaved }: Pick<ViewProps, "sb" | "w
         </Field>
       </div>
       {owner ? (
-        <div className="flex items-center gap-3 border-t border-line px-5 py-3.5">
-          <Button onClick={save} disabled={busy}>
+        <div className="flex flex-wrap items-center gap-3 border-t border-line px-5 py-3.5">
+          <Button onClick={save} disabled={busy} busy={busy}>
             {busy ? "Saving…" : "Save"}
           </Button>
-          <ErrorNote message={error} />
+          <ErrorNote message={error} className="min-w-0 flex-1" />
         </div>
       ) : null}
     </Panel>
@@ -416,7 +440,13 @@ function Topics({ sb, ws, owner, onError }: Pick<ViewProps, "sb" | "ws"> & { own
         ) : null}
       </CardHead>
       {!list.data ? (
-        <Loading />
+        list.error ? (
+          <div className="p-4">
+            <ErrorNote message={list.error} onRetry={list.reload} />
+          </div>
+        ) : (
+          <Loading />
+        )
       ) : (
         <ul className="divide-y divide-line">
           {list.data.map((t) => (
@@ -480,6 +510,7 @@ function Recent({ sb, session, ws, canTest }: Pick<ViewProps, "sb" | "session" |
     setError("");
     try {
       await postJson(session, "/api/email/test", { workspaceId: ws.id });
+      toast("Test email sent");
       reload();
     } catch (e) {
       setError(errorText(e));
@@ -491,13 +522,13 @@ function Recent({ sb, session, ws, canTest }: Pick<ViewProps, "sb" | "session" |
   return (
     <Panel className="overflow-hidden">
       <CardHead label="Recent sends" count={list.data?.length}>
-        <Button variant="ghost" size="sm" onClick={test} disabled={busy || !canTest}>
+        <Button variant="ghost" size="sm" onClick={test} disabled={busy || !canTest} busy={busy}>
           {busy ? "Sending…" : "Send test"}
         </Button>
       </CardHead>
       {error || list.error ? (
         <div className="px-5 pt-4">
-          <ErrorNote message={error || list.error} />
+          <ErrorNote message={error || list.error} onRetry={!error && list.error ? reload : undefined} />
         </div>
       ) : null}
       {!list.data ? (
@@ -524,11 +555,7 @@ function Recent({ sb, session, ws, canTest }: Pick<ViewProps, "sb" | "session" |
                       <span className="flex items-center gap-2">
                         <Badge tone={tone}>{label}</Badge>
                         {m.skip_reason ? <span className="text-[12px] text-muted">{SKIP[m.skip_reason] ?? m.skip_reason}</span> : null}
-                        {m.error && (m.status === "failed" || m.status === "unknown") ? (
-                          <span className="max-w-[180px] truncate text-[12px] text-rose" title={m.error}>
-                            {m.error}
-                          </span>
-                        ) : null}
+                        {m.error && SEND_NOTE[m.status] ? <span className="text-[12px] text-muted">{SEND_NOTE[m.status]}</span> : null}
                       </span>
                     </Td>
                     <Td className="text-faint">{timeAgo(m.sent_at ?? m.created_at)}</Td>

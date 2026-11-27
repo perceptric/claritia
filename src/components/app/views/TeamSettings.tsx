@@ -6,6 +6,7 @@
 import { useState } from "react";
 import { Plus, Trash } from "../../Icons";
 import { askConfirm, askText } from "../Dialogs";
+import { toast } from "../Toaster";
 import { Avatar, Badge, Button, CardHead, ErrorNote, errorText, invalidate, Loading, must, Panel, type Role, Td, Th, timeAgo, useQuery, type ViewProps } from "../ui";
 
 type Member = {
@@ -40,7 +41,9 @@ export function TeamPanel({ sb, ws, role, session }: Pick<ViewProps, "sb" | "ws"
         placeholder: "name@company.com",
         ok: "Invite",
       });
-      if (email) must(await sb.rpc("invite_member", { p_ws: ws.id, p_email: email }));
+      if (!email) return;
+      must(await sb.rpc("invite_member", { p_ws: ws.id, p_email: email }));
+      toast("Invite sent");
     });
   const remove = (m: Member) =>
     act(async () => {
@@ -70,7 +73,7 @@ export function TeamPanel({ sb, ws, role, session }: Pick<ViewProps, "sb" | "ws"
       </CardHead>
       {error || team.error ? (
         <div className="px-5 pt-4">
-          <ErrorNote message={error || team.error} />
+          <ErrorNote message={error || team.error} onRetry={!error && team.error ? team.reload : undefined} />
         </div>
       ) : null}
       {!team.data ? (

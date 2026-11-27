@@ -7,6 +7,7 @@
 import { useEffect, useState } from "react";
 import { amount, monthlyTotal, PLANS, planById, type Interval, type PlanId } from "@/lib/plans";
 import { askConfirm } from "../Dialogs";
+import { toast } from "../Toaster";
 import { Badge, Button, CardHead, ErrorNote, errorText, invalidate, Loading, must, Panel, postJson, Segmented, useQuery, type Role, type ViewProps } from "../ui";
 
 export type PlanStatus = {
@@ -98,9 +99,10 @@ export function BillingSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
       if (!ok) return;
       await postJson(session, "/api/billing/change", { workspaceId: ws.id, plan: id, interval });
       invalidate(planStatusKey(ws.id));
+      toast(`Moved to ${next.name}`);
     });
 
-  if (q.error) return <ErrorNote message={errorText(q.error)} />;
+  if (q.error) return <ErrorNote message={q.error} onRetry={q.reload} />;
   if (!s) return <Loading />;
   const current = planById(s.plan);
   const hostsShown = Math.max(1, s.hosts);
@@ -111,7 +113,7 @@ export function BillingSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
       <Panel>
         <CardHead label="Plan">
           {owner && s.customer ? (
-            <Button variant="plain" className="h-7 px-2" disabled={!!busy} onClick={() => go("portal", () => openUrl("/api/billing/portal", { workspaceId: ws.id }))}>
+            <Button variant="plain" className="h-7 px-2" disabled={!!busy} busy={busy === "portal"} onClick={() => go("portal", () => openUrl("/api/billing/portal", { workspaceId: ws.id }))}>
               Manage billing
             </Button>
           ) : null}
@@ -176,7 +178,7 @@ export function BillingSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
                   ) : null}
                 </div>
                 {owner ? (
-                  <Button className="mt-auto w-full" variant={on ? "ghost" : p.id === "free" ? "ghost" : "primary"} disabled={on || !!busy || (p.id === "free" && !s.customer)} onClick={() => pick(p.id)}>
+                  <Button className="mt-auto w-full" variant={on ? "ghost" : p.id === "free" ? "ghost" : "primary"} disabled={on || !!busy || (p.id === "free" && !s.customer)} busy={busy === p.id} onClick={() => pick(p.id)}>
                     {on ? "Current plan" : busy === p.id ? "Opening" : p.id === "free" ? "Move to Free" : s.plan === "free" ? `Choose ${p.name}` : `Move to ${p.name}`}
                   </Button>
                 ) : null}

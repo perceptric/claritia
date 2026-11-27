@@ -6,11 +6,14 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { allows, lockLine, planFor, type Feature } from "@/lib/plans";
-import { Badge, Button, useQuery } from "./ui";
+import { Badge, Button, must, useQuery } from "./ui";
 
-/** The workspace's plan id; "free" when there's no billing row. */
+/**
+ * The workspace's plan id; "free" when there's no billing row. A failed read stays unread (null), so nothing shows as
+ * locked by mistake; the server holds every lock anyway.
+ */
 export function usePlan(sb: SupabaseClient, ws: string) {
-  return useQuery(`workspace_plan:${ws}`, async () => ((await sb.from("workspace_billing").select("plan").eq("workspace_id", ws).maybeSingle()).data as { plan?: string } | null)?.plan ?? "free", { staleMs: 60_000 });
+  return useQuery(`workspace_plan:${ws}`, async () => (must(await sb.from("workspace_billing").select("plan").eq("workspace_id", ws).maybeSingle()) as { plan?: string } | null)?.plan ?? "free", { staleMs: 60_000 });
 }
 
 /** Whether the plan has the feature. Until the plan is read it does: nothing locks by mistake while it loads. */

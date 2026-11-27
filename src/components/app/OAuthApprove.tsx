@@ -59,10 +59,10 @@ export function OAuthApprove({ session, ws }: { session: Session; ws: Workspace 
         ) : null}
         {error ? <ErrorNote message={error} /> : null}
         <div className="flex flex-wrap justify-end gap-2">
-          <Button variant="ghost" disabled={!client || !!busy} onClick={() => void go("deny")}>
+          <Button variant="ghost" disabled={!client || !!busy} busy={busy === "deny"} onClick={() => void go("deny")}>
             Cancel
           </Button>
-          <Button disabled={!client || !!busy} onClick={() => void go("allow")}>
+          <Button disabled={!client || !!busy} busy={busy === "allow"} onClick={() => void go("allow")}>
             {busy === "allow" ? "Connecting" : "Allow"}
           </Button>
         </div>

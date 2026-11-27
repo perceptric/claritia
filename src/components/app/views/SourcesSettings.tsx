@@ -159,6 +159,16 @@ function blurbOf(e: Entry): string {
   return ABOUT[e.kind] ?? `${e.label} connects to your forms and meetings.`;
 }
 
+/**
+ * The note a sign-in page sent back (?error=, src/app/api/sources/callback): our own sentences read as they are; a
+ * tool's raw answer ("invalid_grant", "AADSTS65004: …") or anything else in the address becomes one plain line.
+ */
+function backError(raw: string | null): string {
+  const t = (raw ?? "").trim();
+  if (!t) return "";
+  return t.length <= 200 && /^[A-Z][^{}<>[\]_=:;|\\]*[.!)]$/.test(t) ? t : "Couldn't connect. Try again.";
+}
+
 const search = () => (typeof window === "undefined" ? new URLSearchParams() : new URLSearchParams(window.location.search));
 
 /**
@@ -174,7 +184,7 @@ export function SourcesSettings({ sb, session, ws, role, onBilling }: Pick<ViewP
     const k = search().get("connect") ?? "";
     return entryOf(k) && SENDS.some((e) => e.kind === k) ? { kind: k, form: true } : null;
   });
-  const [error, setError] = useState(() => search().get("error") ?? "");
+  const [error, setError] = useState(() => backError(search().get("error")));
   // A sign-in that isn't set up on this server sends its tool to the key form, with why.
   const [formNote, setFormNote] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -308,12 +318,12 @@ export function SourcesSettings({ sb, session, ws, role, onBilling }: Pick<ViewP
     return (
       <>
         {!on ? (
-          <Button variant="ghost" size="sm" disabled={!viaKnown || !!busy} onClick={() => void connectNow(e)}>
+          <Button variant="ghost" size="sm" disabled={!viaKnown || !!busy} busy={busy === e.kind} onClick={() => void connectNow(e)}>
             {busy === e.kind ? (e.hook ? "Connecting…" : "Opening…") : "Connect"}
           </Button>
         ) : null}
         {on && reconnectable.has(on.id) ? (
-          <Button variant="ghost" size="sm" disabled={!!busy} onClick={() => void reconnect(on)}>
+          <Button variant="ghost" size="sm" disabled={!!busy} busy={busy === e.kind} onClick={() => void reconnect(on)}>
             {busy === e.kind ? "Opening…" : "Reconnect"}
           </Button>
         ) : null}
@@ -427,7 +437,18 @@ export function SourcesSettings({ sb, session, ws, role, onBilling }: Pick<ViewP
 
   return (
     <div className="flex flex-col gap-5">
-      <ErrorNote message={error} />
+      {/* A failed read of what's connected would show every tool as not connected: say so instead. */}
+      <ErrorNote
+        message={error || sources.error || appKeys.error}
+        onRetry={
+          !error && (sources.error || appKeys.error)
+            ? () => {
+                sources.reload();
+                appKeys.reload();
+              }
+            : undefined
+        }
+      />
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <label className="relative flex min-w-0 flex-1 basis-56 items-center">
           <Search size={14} className="pointer-events-none absolute left-3 text-faint" />
@@ -537,7 +558,7 @@ function ConnectForm({ session, wsId, entry, note, signIn, onDone }: { session: 
           </Field>
         ) : null}
         <div>
-          <Button type="submit" disabled={busy}>
+          <Button type="submit" disabled={busy} busy={busy}>
             {busy ? "Connecting…" : "Get the webhook URL"}
           </Button>
         </div>
@@ -575,7 +596,7 @@ function ConnectForm({ session, wsId, entry, note, signIn, onDone }: { session: 
         </Field>
       ) : null}
       <div className="flex min-w-0 flex-wrap items-center gap-3">
-        <Button type="submit" disabled={busy || (entry.keys ?? []).some((k) => !k.optional && !keys[k.key]?.trim())}>
+        <Button type="submit" disabled={busy || (entry.keys ?? []).some((k) => !k.optional && !keys[k.key]?.trim())} busy={busy}>
           {busy ? "Checking…" : "Connect"}
         </Button>
         {signIn ? (

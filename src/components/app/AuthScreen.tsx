@@ -8,7 +8,7 @@ import { suggestEmail } from "@/lib/emailTypos";
 import { Logo } from "../Logo";
 import { FlowDemo } from "./FlowDemo";
 import { Turnstile } from "./Turnstile";
-import { Badge, Button, ErrorNote, errorText } from "./ui";
+import { Badge, Button, ErrorNote, errorText, Spinner } from "./ui";
 import { UserError } from "@/lib/errors";
 
 // Signed out, the screen has its own address: /signin, or /signup from "Start free". The page someone first opened is
@@ -82,7 +82,15 @@ function go(to: "signin" | "signup") {
   window.dispatchEvent(new PopStateEvent("popstate"));
 }
 
-const message = (e: unknown) => authMessage(errorText(e));
+/** The sign-in service's error as one plain line: the ones authMessage knows, else the app's safe words with a ref. */
+const message = (e: unknown) => {
+  // The service's words are only read to pick one of authMessage's plain lines; they're never shown as they are.
+  const said = (e as { message?: unknown } | null)?.message;
+  const plain = typeof said === "string" ? authMessage(said) : "";
+  return typeof said === "string" && plain !== said ? plain : authMessage(errorText(e));
+};
+/** What a sign-in link left on the address: our own lines as they are, and the sign-in service's raw words as one plain line. */
+const linkError = (m: string) => (/^That sign-in link /.test(m) ? m : authMessage(m) !== m ? authMessage(m) : "That sign-in link didn't work. Send a new one.");
 
 /**
  * Asks the server whether this address and IP may get another sign-in email (src/app/api/auth/link). The wait to show
@@ -236,13 +244,14 @@ export function AuthScreen({ sb, config, turnstileSiteKey = null }: { sb: Supaba
       .then((j: { external?: Record<string, boolean> } | null) => {
         if (j?.external) setOn({ google: !!j.external.google, azure: !!j.external.azure });
       })
+      // Unread, the buttons stay as they are (Google on).
       .catch(() => undefined);
   }, [config]);
   // What's waiting: one sign-in option, or the email link. Each button says what it's doing; the rest wait.
   const [pending, setPending] = useState<null | Provider | "email" | "code">(null);
   const busy = pending !== null;
   const [link] = useState(readLinkLine);
-  const [error, setError] = useState(link?.tone === "error" ? link.message : "");
+  const [error, setError] = useState(link?.tone === "error" ? linkError(link.message) : "");
   // A link opened in another browser: one line on how to get in here, until they send a new one.
   const [note, setNote] = useState(link?.tone === "note" ? link.message : "");
   const [sentTo, setSentTo] = useState("");
@@ -361,7 +370,7 @@ export function AuthScreen({ sb, config, turnstileSiteKey = null }: { sb: Supaba
             aria-label="Sign-in code"
             className="h-11 min-w-0 flex-1 rounded-md bg-card px-3 text-center text-[16px] tracking-[0.3em] tabular-nums shadow-input outline-none placeholder:tracking-normal"
           />
-          <Button type="submit" className="h-11 shrink-0" disabled={busy || code.length < 6}>
+          <Button type="submit" className="h-11 shrink-0" disabled={busy || code.length < 6} busy={pending === "code"}>
             {pending === "code" ? "Checking…" : "Sign in"}
           </Button>
         </form>
@@ -422,14 +431,14 @@ export function AuthScreen({ sb, config, turnstileSiteKey = null }: { sb: Supaba
       <div className="space-y-2.5">
         {on.google ? (
           <button type="button" onClick={() => oauth("google")} disabled={busy} className={`relative ${ssoClass}`}>
-            <GoogleLogo />
+            {pending === "google" ? <Spinner /> : <GoogleLogo />}
             {pending === "google" ? "Opening Google…" : "Continue with Google"}
             {lastTag("google")}
           </button>
         ) : null}
         {on.azure ? (
           <button type="button" onClick={() => oauth("azure")} disabled={busy} className={`relative ${ssoClass}`}>
-            <MicrosoftLogo />
+            {pending === "azure" ? <Spinner /> : <MicrosoftLogo />}
             {pending === "azure" ? "Opening Microsoft…" : "Continue with Microsoft"}
             {lastTag("azure")}
           </button>
@@ -466,7 +475,7 @@ export function AuthScreen({ sb, config, turnstileSiteKey = null }: { sb: Supaba
             ?
           </p>
         ) : null}
-        <Button type="submit" className="relative h-11 w-full" disabled={busy}>
+        <Button type="submit" className="relative h-11 w-full" disabled={busy} busy={pending === "email"}>
           {pending === "email" ? "Sending…" : "Continue with email"}
           {lastTag("email")}
         </Button>

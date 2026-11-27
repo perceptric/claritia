@@ -101,7 +101,7 @@ export function BrandSettings({ sb, session, ws, intro = false }: Pick<ViewProps
     }
   };
 
-  if (!data.data) return data.error ? <ErrorNote message={data.error} /> : <Loading />;
+  if (!data.data) return data.error ? <ErrorNote message={data.error} onRetry={data.reload} /> : <Loading />;
   const siteForm = (o: { autoFocus?: boolean; label: string }) => (
     <form
       className="flex w-full min-w-0 flex-wrap items-center gap-2"
@@ -111,7 +111,9 @@ export function BrandSettings({ sb, session, ws, intro = false }: Pick<ViewProps
       }}
     >
       <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="yourcompany.com" aria-label="Website" inputMode="url" autoCapitalize="none" spellCheck={false} autoFocus={o.autoFocus} className="min-w-[200px] flex-1" />
-      <Button disabled={!url.trim() || busy}>{busy ? "Reading…" : o.label}</Button>
+      <Button disabled={!url.trim() || busy} busy={busy}>
+        {busy ? "Reading…" : o.label}
+      </Button>
     </form>
   );
   if (!brand)
@@ -260,7 +262,8 @@ export function BrandSettings({ sb, session, ws, intro = false }: Pick<ViewProps
                 ) : null}
               </section>
             ) : null}
-            {brand.scan_error && !reading && !book ? <p className="text-[12px] text-muted">{brand.scan_error}</p> : null}
+            {/* The scanner's own error isn't for people: one plain line instead. */}
+            {brand.scan_error && !reading && !book ? <p className="text-[12px] text-muted">Couldn&apos;t read this site. Check the address and read it again.</p> : null}
           </div>
         ) : null}
       </Panel>

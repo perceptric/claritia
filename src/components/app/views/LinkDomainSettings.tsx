@@ -34,6 +34,9 @@ const checkedWords = (iso: string) => {
   return /^(Yesterday|Just now)$/.test(w) ? w.toLowerCase() : w;
 };
 
+/** The check's note, with the certificate service's own words (not for people) swapped for a plain line. */
+const lastErrorWords = (e: string) => (e.startsWith("Certificate:") ? "The certificate isn't ready yet. Check again in a few minutes." : e);
+
 const STATE: Record<string, [string, Tone]> = { pending: ["Waiting", "amber"], active: ["Live", "green"], failed: ["Not pointing", "red"] };
 
 export function LinkDomainSettings({ session, ws, role }: Pick<ViewProps, "session" | "ws"> & { role: Role }) {
@@ -55,7 +58,7 @@ export function LinkDomainSettings({ session, ws, role }: Pick<ViewProps, "sessi
       setBusy("");
     }
   };
-  if (!q.data) return q.error ? <ErrorNote message={q.error} /> : <Loading />;
+  if (!q.data) return q.error ? <ErrorNote message={q.error} onRetry={q.reload} /> : <Loading />;
   const { subdomain, domain, target, paid } = q.data;
   const [label, tone] = domain ? (STATE[domain.status] ?? STATE.pending!) : ["", "gray" as Tone];
   const name = domain?.hostname.split(".")[0] ?? "forms";
@@ -88,7 +91,7 @@ export function LinkDomainSettings({ session, ws, role }: Pick<ViewProps, "sessi
             <div className="flex flex-wrap items-center gap-2">
               <code className="min-w-0 flex-1 truncate font-mono text-[13px] text-ink">https://{domain.hostname}</code>
               {domain.status === "active" ? <CopyButton text={`https://${domain.hostname}`} label="Copy" /> : null}
-              <Button variant="ghost" size="sm" disabled={!!busy} onClick={() => void act("check")}>
+              <Button variant="ghost" size="sm" disabled={!!busy} busy={busy === "check"} onClick={() => void act("check")}>
                 {busy === "check" ? "Checking" : "Check now"}
               </Button>
               {owner ? (
@@ -96,6 +99,7 @@ export function LinkDomainSettings({ session, ws, role }: Pick<ViewProps, "sessi
                   variant="ghost"
                   size="sm"
                   disabled={!!busy}
+                  busy={busy === "remove"}
                   onClick={async () => {
                     if (await askConfirm(`Remove ${domain.hostname}?`, { body: "Links on it stop working. Links on Claritia's address keep working.", ok: "Remove", danger: true })) void act("remove");
                   }}
@@ -134,7 +138,7 @@ export function LinkDomainSettings({ session, ws, role }: Pick<ViewProps, "sessi
                 </table>
               </div>
             ) : null}
-            {domain.last_error && domain.status !== "active" ? <p className="text-[12.5px] text-muted">{domain.last_error}</p> : null}
+            {domain.last_error && domain.status !== "active" ? <p className="text-[12.5px] text-muted">{lastErrorWords(domain.last_error)}</p> : null}
           </div>
         ) : !paid ? (
           <p className="px-5 py-4 text-[13px] text-muted">Your own domain is on Business.</p>
@@ -149,7 +153,7 @@ export function LinkDomainSettings({ session, ws, role }: Pick<ViewProps, "sessi
             <div className="min-w-0 flex-1">
               <Input value={host} onChange={(e) => setHost(e.target.value)} placeholder="forms.acme.com" aria-label="Domain" autoComplete="off" />
             </div>
-            <Button type="submit" disabled={!host.trim() || !!busy}>
+            <Button type="submit" disabled={!host.trim() || !!busy} busy={busy === "add"}>
               {busy === "add" ? "Adding" : "Add domain"}
             </Button>
           </form>

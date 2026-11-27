@@ -10,7 +10,7 @@ import { cleanFilters, describe, needsValue, OP_LABEL, OPS, type Filter, type Fi
 import { Check, Plus, X } from "../Icons";
 import { askConfirm, askText } from "./Dialogs";
 import { Select } from "./Select";
-import { Button, errorText, Input, must, Segmented, useLoad } from "./ui";
+import { Button, ErrorNote, errorText, Input, must, Segmented, useLoad } from "./ui";
 
 export type Screen = "contacts";
 export type View = { id: string; name: string; filters: Filter[] };
@@ -285,7 +285,7 @@ export function FilterBar({
           Delete view
         </Button>
       ) : null}
-      {error || stored.error ? <span className="text-[12.5px] text-rose">{error || stored.error}</span> : null}
+      {error || stored.error ? <ErrorNote className="order-last basis-full" message={error || stored.error} onRetry={!error ? stored.reload : undefined} onClose={error ? () => setError("") : undefined} /> : null}
       {right ? <div className="ml-auto flex items-center gap-2">{right}</div> : null}
       {editing ? (
         <Popover anchor={editing.anchor} onClose={() => setEditing(null)}>

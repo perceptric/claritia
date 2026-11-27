@@ -15,7 +15,7 @@ import { BrandLogo } from "./BrandLogo";
 import { meetingsApi } from "./meetings/parts";
 import { PROVIDERS } from "./meetings/MyCalendar";
 import { connectCalendar, useCalendarAccounts } from "./scheduling/ConnectCalendar";
-import { Badge, Button, ErrorNote, errorText, Field, Input, must, postJson, type Route, type ViewProps } from "./ui";
+import { Badge, Button, ErrorNote, errorText, Field, Input, must, postJson, Spinner, type Route, type ViewProps } from "./ui";
 
 const CALENDARS = PROVIDERS.filter((p) => p.id !== "zoom");
 
@@ -45,6 +45,16 @@ async function retry<T>(fn: () => Promise<T>, tries = 3): Promise<T> {
       await new Promise((r) => setTimeout(r, 600 * (i + 1)));
     }
   }
+}
+
+/**
+ * The note the calendar's sign-in sent back (?error=, src/app/api/calendar/callback): our own sentences read as they
+ * are; the calendar's raw answer, or anything else in the address, becomes one plain line.
+ */
+function backError(raw: string | null): string {
+  const t = (raw ?? "").trim();
+  if (!t) return "";
+  return t.length <= 200 && /^[A-Z][^{}<>[\]_=:;|\\]*[.!)]$/.test(t) ? t : "Couldn't connect the calendar. Try again.";
 }
 
 const big = "font-semibold tracking-[-0.02em] text-[28px] leading-tight text-ink";
@@ -171,7 +181,7 @@ function TeamStep({ sb, session, ws, onNamed, next }: StepProps) {
         <Input className="h-11" value={site} onChange={(e) => setSite(e.target.value)} placeholder="acme.com" inputMode="url" autoCapitalize="none" spellCheck={false} />
       </Field>
       <ErrorNote message={error} />
-      <Button type="submit" className="h-11 w-full" disabled={!!busy}>
+      <Button type="submit" className="h-11 w-full" disabled={!!busy} busy={!!busy}>
         {busy === "site" ? "Reading your site…" : busy ? "Saving…" : "Continue"}
       </Button>
     </form>
@@ -182,7 +192,7 @@ function TeamStep({ sb, session, ws, onNamed, next }: StepProps) {
 function CalendarStep({ sb, session, ws, next }: StepProps) {
   const accounts = useCalendarAccounts({ sb, session, ws });
   const [busy, setBusy] = useState("");
-  const [error, setError] = useState(() => (typeof window === "undefined" ? "" : (new URLSearchParams(window.location.search).get("error") ?? "")));
+  const [error, setError] = useState(() => (typeof window === "undefined" ? "" : backError(new URLSearchParams(window.location.search).get("error"))));
   const connected = (accounts.data ?? []).filter((a) => a.provider !== "zoom" && a.status === "ok");
 
   async function connect(provider: string) {
@@ -222,7 +232,7 @@ function CalendarStep({ sb, session, ws, next }: StepProps) {
         <div className="space-y-2.5">
           {CALENDARS.map((p) => (
             <button key={p.id} type="button" className={`${pick} justify-center`} disabled={!!busy || accounts.data === null} onClick={() => void connect(p.id)}>
-              <BrandLogo domain={p.domain} name={p.name} size={18} />
+              {busy === p.id ? <Spinner /> : <BrandLogo domain={p.domain} name={p.name} size={18} />}
               {busy === p.id ? `Opening ${p.name}…` : p.connect}
             </button>
           ))}
@@ -275,6 +285,7 @@ function FormStep({ sb, session, ws, next, finish }: StepProps & { finish: (to?:
       <div className="space-y-2.5">
         {FIRST_FORMS.map((f) => (
           <button key={f.id} type="button" className={pick} disabled={!!busy} onClick={() => void make(f)}>
+            {busy === f.id ? <Spinner /> : null}
             <span className="min-w-0 flex-1">{busy === f.id ? "Making your form…" : f.label}</span>
           </button>
         ))}
@@ -305,18 +316,20 @@ function InviteStep({ sb, session, ws, next }: StepProps) {
     setBusy(true);
     setError("");
     const failed: string[] = [];
+    let why: unknown = null;
     for (const email of emails) {
       try {
         await retry(async () => must(await sb.rpc("invite_member", { p_ws: ws.id, p_email: email })));
         setSent((s) => [...s, email]);
-      } catch {
+      } catch (e) {
         failed.push(email);
+        why = e;
       }
     }
     setBusy(false);
     if (failed.length) {
       setText(failed.join(", "));
-      return setError(`Couldn't invite ${failed.join(", ")}. Try again.`);
+      return setError(`Couldn't invite ${failed.join(", ")}. ${errorText(why)}`);
     }
     next();
   }
@@ -343,7 +356,7 @@ function InviteStep({ sb, session, ws, next }: StepProps) {
         </p>
       ) : null}
       <ErrorNote message={error} />
-      <Button type="submit" className="h-11 w-full" disabled={busy}>
+      <Button type="submit" className="h-11 w-full" disabled={busy} busy={busy}>
         {busy ? "Sending…" : "Send invites"}
       </Button>
       <button type="button" className={quiet} disabled={busy} onClick={() => next(true)}>

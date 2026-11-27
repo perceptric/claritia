@@ -87,9 +87,9 @@ function TipsPanel({ sb, ws }: Pick<ViewProps, "sb" | "ws">) {
         if (attempt >= 2) throw e;
         await new Promise((r) => setTimeout(r, 400 * 2 ** attempt));
       }
-    } catch {
+    } catch (e) {
       setOn(!next);
-      setError("That didn't save. Try again.");
+      setError(errorText(e));
     } finally {
       setBusy(false);
     }
@@ -216,7 +216,7 @@ function KeysPanel({
       ) : null}
       {keys.error ? (
         <div className="p-4">
-          <ErrorNote message={keys.error} />
+          <ErrorNote message={keys.error} onRetry={keys.reload} />
         </div>
       ) : !keys.data ? (
         <Loading />
@@ -312,7 +312,9 @@ export function SettingsView({
     setTab(t);
     try {
       history.replaceState(null, "", `/settings/${t}`);
-    } catch {}
+    } catch {
+      // The address bar is a convenience; the tab already changed.
+    }
   };
 
   const pages: Record<SettingsTab, React.ReactNode> = {
@@ -401,7 +403,15 @@ export function SettingsView({
             <span className="min-w-0 flex-1 truncate text-[13.5px]">
               {session.user.email}
             </span>
-            <Button variant="ghost" onClick={() => sb.auth.signOut()}>
+            <Button
+              variant="ghost"
+              onClick={() =>
+                act(async () => {
+                  const { error: e } = await sb.auth.signOut();
+                  if (e) throw e;
+                })
+              }
+            >
               <LogOut size={13} />
               Sign out
             </Button>
