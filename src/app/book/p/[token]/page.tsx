@@ -3,7 +3,9 @@ import { BookShell, Notice } from "@/components/book/BookShell";
 import { PollView } from "@/components/book/PollView";
 import { loadLink, pollView } from "@/lib/meetings/public";
 import { linkLocked } from "@/lib/planGate";
+import { DOWN, pageRead } from "@/lib/meetings/pageRead";
 import { linkShell, options, pageRpc, turnstileFor, type Search } from "../../load";
+import { Down } from "../../views";
 
 // A meeting poll (docs/meetings-scheduler.md 1.8b): guests pick the times that work; the host books the winner. A poll
 // whose workspace moved to Free shows as closed.
@@ -17,7 +19,8 @@ export default async function PollPage({ params, searchParams }: Props) {
   const { token } = await params;
   const o = await options(searchParams);
   const rpc = pageRpc();
-  const v = rpc ? await loadLink(rpc, { token }).catch(() => null) : null;
+  const v = await pageRead(rpc ? () => loadLink(rpc, { token }) : null);
+  if (v === DOWN) return <Down embed={o.embed} />;
   if (!v || v.link.kind !== "poll")
     return (
       <BookShell tokens={null} embed={o.embed} narrow>

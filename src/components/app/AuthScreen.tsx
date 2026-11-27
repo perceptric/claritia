@@ -2,14 +2,18 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { SupaConfig } from "@/lib/supa";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { authMessage, linkLine } from "@/lib/authLimits";
 import { suggestEmail } from "@/lib/emailTypos";
 import { Logo } from "../Logo";
 import { FlowDemo } from "./FlowDemo";
-import { Turnstile } from "./Turnstile";
+import { tokenSoon } from "@/lib/tokenSoon";
+import { Turnstile, type CheckState } from "./Turnstile";
 import { Badge, Button, ErrorNote, errorText, Spinner } from "./ui";
 import { UserError } from "@/lib/errors";
+
+/** The security check didn't load (blocked, a strict network, or Cloudflare had a problem). */
+const CHECK_FAILED = "The security check didn't load. Check your connection or turn off a blocker for this page, then try again.";
 
 // Signed out, the screen has its own address: /signin, or /signup from "Start free". The page someone first opened is
 // kept for after signing in; an app's sign-in (/oauth/authorize) keeps its own address and request.
@@ -261,8 +265,28 @@ export function AuthScreen({ sb, config, turnstileSiteKey = null }: { sb: Supaba
   // The bot check's one-time token. Each email sent spends it, so the next round fetches a new one.
   const [captcha, setCaptcha] = useState("");
   const [round, setRound] = useState(0);
-  const onToken = useCallback((t: string) => setCaptcha(t), []);
-  const check = turnstileSiteKey ? <Turnstile siteKey={turnstileSiteKey} round={round} onToken={onToken} /> : null;
+  const [checkState, setCheckState] = useState<CheckState>("loading");
+  // The latest token and state, for a send that waits on the check.
+  const captchaNow = useRef("");
+  const checkNow = useRef<CheckState>("loading");
+  const onToken = useCallback((t: string) => {
+    captchaNow.current = t;
+    setCaptcha(t);
+  }, []);
+  const onCheckState = useCallback((s: CheckState) => {
+    checkNow.current = s;
+    setCheckState(s);
+  }, []);
+  const retryCheck = () => {
+    setError("");
+    setRound((r) => r + 1);
+  };
+  const check = turnstileSiteKey ? (
+    <>
+      <Turnstile siteKey={turnstileSiteKey} round={round} onToken={onToken} onState={onCheckState} />
+      {checkState === "failed" ? <ErrorNote message={CHECK_FAILED} onRetry={retryCheck} /> : null}
+    </>
+  ) : null;
 
   // Back from Google or Microsoft without signing in: the browser shows this page as it was left, still waiting.
   // Coming back unlocks it; so does a sign-in page that never opened.
@@ -304,15 +328,22 @@ export function AuthScreen({ sb, config, turnstileSiteKey = null }: { sb: Supaba
   async function sendLink(raw: string) {
     const to = raw.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return setError("Enter your email address.");
-    if (turnstileSiteKey && !captcha) return setError("Wait for the security check to finish, then try again.");
+    if (turnstileSiteKey && checkNow.current === "failed") return; // The check's own note says what to do, with Try again.
     setPending("email");
     setError("");
     setNote("");
     try {
+      // The check is usually done by now; if not, the button waits on it for a few seconds instead of refusing.
+      const token = turnstileSiteKey ? captcha || (await tokenSoon(() => captchaNow.current, () => checkNow.current === "failed")) : "";
+      if (turnstileSiteKey && !token) {
+        if (checkNow.current !== "failed") onCheckState("failed");
+        return;
+      }
       const limited = await linkWait(to);
       if (limited) return setError(limited);
-      const { error } = await withTimeout(sb.auth.signInWithOtp({ email: to, options: { emailRedirectTo: appUrl(), captchaToken: captcha || undefined } }));
+      const { error } = await withTimeout(sb.auth.signInWithOtp({ email: to, options: { emailRedirectTo: appUrl(), captchaToken: token || undefined } }));
       if (turnstileSiteKey) {
+        captchaNow.current = "";
         setCaptcha("");
         setRound((r) => r + 1);
       }

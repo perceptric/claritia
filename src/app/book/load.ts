@@ -4,6 +4,7 @@ import { turnstileSiteKey } from "@/lib/forms/server";
 import type { Rpc } from "@/lib/jobs";
 import { loadBookBrand } from "@/lib/meetings/brandServer";
 import { loadTargetCached, type Kit, type Target } from "@/lib/meetings/public";
+import { DOWN, pageRead } from "@/lib/meetings/pageRead";
 import { serviceClient } from "@/lib/serviceClient";
 
 // What the booking pages share on the server: the service client as an Rpc and the address's options.
@@ -15,13 +16,14 @@ export function pageRpc(): Rpc | null {
 
 /**
  * /book/<ws> and /book/<ws>/<slug>: the page's target in one read (book_page), shared by the page and its metadata
- * (React cache within the request, the short target cache across requests). Null when nothing is there.
+ * (React cache within the request, the short target cache across requests). Null when nothing is there, DOWN when the
+ * read failed (src/lib/meetings/pageRead.ts).
  */
 export const pageTarget = cache(async (ws: string, slug: string | null, form: string | null) => {
   const rpc = pageRpc();
-  if (!rpc) return null;
-  const t = await loadTargetCached(rpc, ws, slug, form).catch(() => null);
-  return t ? { rpc, t: await withBrand(t, form) } : null;
+  const t = await pageRead(rpc ? () => loadTargetCached(rpc, ws, slug, form) : null);
+  if (t === DOWN || !t) return t;
+  return { rpc: rpc!, t: await withBrand(t, form) };
 });
 
 /** The page with its plan check and the brand's stylesheet (branded booking pages are on paid plans). */

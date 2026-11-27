@@ -6,7 +6,8 @@ import { claimSlots, pageType } from "@/lib/forms/bookPage";
 import { guestTypeOf, loadTargetCached } from "@/lib/meetings/public";
 import { fillKnown } from "@/lib/meetings/knownServer";
 import { options, pageRpc, withBrand, type Search } from "../../load";
-import { Missing, shellOf } from "../../views";
+import { DOWN, pageRead } from "@/lib/meetings/pageRead";
+import { Down, Missing, shellOf } from "../../views";
 
 // /book/f/<token> (docs/ending-plan.md Part 4): the meeting's own booking page inside a form, after the send. The
 // token is the form's signed booking token: Routing's rep, the fill and its contact (src/lib/forms/bookPage.ts).
@@ -21,14 +22,16 @@ export default async function FormBookPage({ params, searchParams }: Props) {
   const o = await options(searchParams);
   const rpc = pageRpc();
   const c = readBooking(token, process.env.SECRETS_KEY);
-  if (!rpc || !c) return <Missing embed={o.embed} />;
+  if (!c) return <Missing embed={o.embed} />;
+  if (!rpc) return <Down embed={o.embed} />;
   if (c === "expired")
     return (
       <BookShell tokens={null} embed={o.embed} narrow>
         <Notice title="These times have expired" />
       </BookShell>
     );
-  const ctx = await fillCtx(rpc, c.submission, c.type).catch(() => null);
+  const ctx = await pageRead(() => fillCtx(rpc, c.submission, c.type));
+  if (ctx === DOWN) return <Down embed={o.embed} />;
   if (!ctx?.type || !ctx.contact_id || !ctx.email) return <Missing embed={o.embed} />;
   if (ctx.meeting)
     return (
@@ -36,8 +39,10 @@ export default async function FormBookPage({ params, searchParams }: Props) {
         <Notice title="You're booked" />
       </BookShell>
     );
-  const { data: wsSlug } = await rpc("booking_slug_ensure", { p_ws: ctx.workspace_id });
-  const found = typeof wsSlug === "string" ? await loadTargetCached(rpc, wsSlug, ctx.type.slug, null).catch(() => null) : null;
+  const { data: wsSlug, error: slugError } = await rpc("booking_slug_ensure", { p_ws: ctx.workspace_id });
+  if (slugError) return <Down embed={o.embed} />;
+  const found = typeof wsSlug === "string" ? await pageRead(() => loadTargetCached(rpc, wsSlug, ctx.type!.slug, null)) : null;
+  if (found === DOWN) return <Down embed={o.embed} />;
   if (!found?.type || found.type.id !== c.type) return <Missing embed={o.embed} />;
   const t = await withBrand(found, null);
   // The form's own calendar takes no payment, so neither does this page: the price stays off.

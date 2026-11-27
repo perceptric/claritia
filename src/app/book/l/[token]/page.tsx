@@ -3,7 +3,9 @@ import { BookFlow } from "@/components/book/BookFlow";
 import { BookShell, Notice } from "@/components/book/BookShell";
 import { guestSlots, linkGuestType, loadLink, oneOffSlots } from "@/lib/meetings/public";
 import { linkLocked } from "@/lib/planGate";
+import { DOWN, pageRead } from "@/lib/meetings/pageRead";
 import { keep, linkShell, options, pageRpc, turnstileFor, type Search } from "../../load";
+import { Down } from "../../views";
 
 // A one-off meeting or a single-use link (docs/meetings-scheduler.md 1.8b). Either books once; a second visit says
 // it's used and points to the host's page. A link whose workspace moved to Free is closed.
@@ -17,7 +19,8 @@ export default async function LinkPage({ params, searchParams }: Props) {
   const { token } = await params;
   const o = await options(searchParams);
   const rpc = pageRpc();
-  const v = rpc ? await loadLink(rpc, { token }).catch(() => null) : null;
+  const v = await pageRead(rpc ? () => loadLink(rpc, { token }) : null);
+  if (v === DOWN) return <Down embed={o.embed} />;
   if (!rpc || !v || v.link.kind === "poll" || (v.link.kind === "single_use" && !v.type))
     return (
       <BookShell tokens={null} embed={o.embed} narrow>

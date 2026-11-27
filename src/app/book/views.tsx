@@ -1,5 +1,6 @@
 import { BookShell, Notice } from "@/components/book/BookShell";
 import { PageHead, TypeCards } from "@/components/book/TypeCards";
+import { TryAgain } from "@/components/book/TryAgain";
 import { pageShell } from "@/lib/meetings/brandPage";
 import { guestTypeOf, type Target } from "@/lib/meetings/public";
 import { keep, options } from "./load";
@@ -14,6 +15,18 @@ export function Missing({ embed }: { embed: boolean }) {
   return (
     <BookShell tokens={null} embed={embed} narrow>
       <Notice title="This page isn't here" />
+    </BookShell>
+  );
+}
+
+/** A page whose data didn't load (src/lib/meetings/pageRead.ts): never "isn't here", and Try again reloads it. */
+export function Down({ embed }: { embed: boolean }) {
+  return (
+    <BookShell tokens={null} embed={embed} narrow>
+      <Notice title="This page didn't load">
+        <p className="cb-muted">Something went wrong on our side. Try again in a moment.</p>
+        <TryAgain />
+      </Notice>
     </BookShell>
   );
 }
