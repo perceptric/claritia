@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { mailHealth } from "../src/lib/meetings/mailHealth.ts";
+import { mailHealth, plainReason } from "../src/lib/meetings/mailHealth.ts";
 
 type Row = Record<string, unknown>;
 const NOW = Date.UTC(2026, 10, 3, 12);
@@ -44,15 +44,15 @@ const mail = (minAgo: number, o: Row = {}): Row => ({ workspace_id: WS, meeting_
 
 test("a failed email job warns with the worker's reason and shows on its meeting", async () => {
   const h = await mailHealth(fakeDb({ jobs: [job(5)] }), WS, NOW);
-  assert.equal(h.problem?.error, "Resend isn't set up on the worker (RESEND_API_KEY).");
+  assert.equal(h.problem?.error, "Email sending isn't set up on Claritia's side yet.");
   assert.equal(h.problem?.count, 1);
   assert.deepEqual(h.meetings[M1]?.map((f) => f.what), ["Confirmation and host note"]);
 });
 
 test("an email the provider refused shows who it was to", async () => {
   const h = await mailHealth(fakeDb({ meeting_mails: [mail(3)] }), WS, NOW);
-  assert.equal(h.problem?.error, "Domain not verified");
-  assert.deepEqual(h.meetings[M1], [{ what: "Confirmation", to: "dana@acme.com", error: "Domain not verified", at: iso(3) }]);
+  assert.equal(h.problem?.error, "The sending domain isn't verified yet. Finish its records in Settings › Sending.");
+  assert.deepEqual(h.meetings[M1], [{ what: "Confirmation", to: "dana@acme.com", error: "The sending domain isn't verified yet. Finish its records in Settings › Sending.", at: iso(3) }]);
 });
 
 test("flaky: a failure older than the last email that went out is over: no warning, the meeting still shows it", async () => {
@@ -73,7 +73,14 @@ test("another workspace's failures, other job kinds, done jobs and week-old ones
 
 test("several failures: the newest reason, the count since the last sent email", async () => {
   const h = await mailHealth(fakeDb({ jobs: [job(30), job(4, { kind: "meeting_remind", error: "Rate limited" })], meeting_mails: [mail(50, { status: "sent", error: null })] }), WS, NOW);
-  assert.equal(h.problem?.error, "Rate limited");
+  assert.equal(h.problem?.error, "Sending hit its limit for now. Emails go out again once it resets.");
   assert.equal(h.problem?.count, 2);
   assert.deepEqual(h.meetings[M1]?.map((f) => f.what), ["Reminder", "Confirmation and host note"]);
+});
+
+test("a reason the worker wrote for machines never reaches the screen as it is", () => {
+  assert.equal(plainReason("SES SendEmail 400: MessageRejected: Email address is not verified."), "The sending domain isn't verified yet. Finish its records in Settings › Sending.");
+  assert.equal(plainReason("connect ETIMEDOUT 52.3.1.9:465"), "The email service didn't answer in time.");
+  assert.equal(plainReason('{"statusCode":500,"name":"internal_server_error"}'), "It didn't go out.");
+  assert.equal(plainReason(null), "It didn't go out.");
 });

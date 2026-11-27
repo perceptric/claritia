@@ -1,8 +1,8 @@
 "use client";
 
 // Meeting emails that didn't go out (src/lib/meetings/mailHealth.ts): one calm line across Meetings while they're
-// failing, and a notice on the meeting each one was for. The worker's own reason stays in the logs (it names vendors
-// and settings), so the screen says what didn't go out, to whom and when. Nothing shows while emails go out.
+// failing, and a notice on the meeting each one was for, each with the reason in plain words (plainReason; the worker's
+// own text stays in the logs). Nothing shows while emails go out.
 
 import type { MailHealth } from "@/lib/meetings/mailHealth";
 import { Badge, timeAgo, useQuery, type ViewProps } from "../ui";
@@ -28,6 +28,7 @@ export function MailLine({ session, ws }: Pick<ViewProps, "session" | "ws">) {
         Emails not sent
       </Badge>
       <b className="font-semibold text-ink">Meeting emails aren&apos;t going out</b>
+      <span className="text-body [overflow-wrap:anywhere]">{p.error}</span>
       <span className="text-muted">
         {p.count === 1 ? "1 email" : `${p.count} emails`}, last {timeAgo(p.at)}
       </span>
@@ -45,6 +46,7 @@ export function MeetingMailNotice({ session, ws, meeting }: Pick<ViewProps, "ses
         <div key={`${f.what}${f.at}${i}`} className="flex flex-wrap items-baseline gap-x-2">
           <b className="font-semibold text-ink">{f.what} not sent</b>
           {f.to ? <span className="text-body [overflow-wrap:anywhere]">to {f.to}</span> : null}
+          <span className="text-body [overflow-wrap:anywhere]">{f.error}</span>
           <span className="text-muted">{timeAgo(f.at)}</span>
         </div>
       ))}
