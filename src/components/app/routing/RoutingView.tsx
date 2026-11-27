@@ -12,7 +12,6 @@
 import { routingPage, ROUTING_TABS, teamsPage } from "@/lib/nav";
 import { AvailabilityPage } from "../scheduling/AvailabilityPage";
 import { ErrorNote, Loading, Page, Section, type ViewProps } from "../ui";
-import { ToastHost } from "./Toast";
 import { ActivityTab } from "./rt/ActivityTab";
 import { useScreen } from "./rt/api";
 import { PoliciesList } from "./rt/PoliciesList";
@@ -31,7 +30,6 @@ export function RoutingView(props: ViewProps) {
     return (
       <>
         <PolicyEditor {...props} policyId={page.sub} screen={screen} back={() => go("")} />
-        <ToastHost />
       </>
     );
 
@@ -60,7 +58,6 @@ export function RoutingView(props: ViewProps) {
           )}
         </Page>
       )}
-      <ToastHost />
     </Section>
   );
 }

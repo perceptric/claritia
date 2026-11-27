@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Ic } from "./ic";
+import { toast } from "../Toaster";
 
 // Class strings ------------------------------------------------------------------------------------------------------
 
@@ -247,26 +248,10 @@ export function Dialog({ label, onClose, wide = false, alert = false, children }
   );
 }
 
-/** One line at the bottom of the screen that says what just happened, gone after two seconds. */
+/** One line at the bottom of the screen that says what just happened: the app's toast (src/components/app/Toaster.tsx). `node` stays for older callers and draws nothing. */
 export function useNote() {
-  const [text, setText] = useState<{ t: string; n: number } | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const show = useCallback((t: string) => {
-    if (timer.current) clearTimeout(timer.current);
-    setText({ t, n: Date.now() });
-    timer.current = setTimeout(() => setText(null), 1900);
-  }, []);
-  useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
-  const node = (
-    <div aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-[20px] z-[90] flex justify-center px-[16px]">
-      {text ? (
-        <span key={text.n} role="status" className="anim-rise-sm rounded-full bg-ink px-[14px] py-[8px] text-[12.5px] whitespace-nowrap text-card">
-          {text.t}
-        </span>
-      ) : null}
-    </div>
-  );
-  return { show, node };
+  const show = useCallback((t: string) => toast({ text: t, ms: 1900 }), []);
+  return { show, node: null as React.ReactNode };
 }
 
 /** Copy text, and say whether it worked. */

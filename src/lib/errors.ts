@@ -10,6 +10,24 @@ export class UserError extends Error {}
 
 export const GENERIC = "Something went wrong. Try again in a moment.";
 
+// "(Ref 7KQ2M)" at the end of a message: the code that finds this error in the logs. Older server answers said
+// "(Reference 1a2b3c4d)"; both read the same.
+const REF = /\s*\((?:Ref|Reference) ([A-Za-z0-9]{4,12})\)\s*$/;
+
+/** A short code to find an error in the logs: "7KQ2M". */
+export function newRef() {
+  const abc = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let out = "";
+  for (let i = 0; i < 5; i++) out += abc[Math.floor(Math.random() * abc.length)];
+  return out;
+}
+
+/** Split "words (Ref 7KQ2M)" into the words and the ref, for the error box. */
+export function splitRef(text: string): { words: string; ref: string | null } {
+  const m = REF.exec(text);
+  return m ? { words: text.replace(REF, ""), ref: m[1]! } : { words: text, ref: null };
+}
+
 // Postgres and PostgREST codes that have a plain meaning a person can act on.
 const PLAIN: Record<string, string> = {
   "23505": "That already exists.",

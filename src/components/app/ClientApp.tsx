@@ -14,7 +14,8 @@ import { Dots } from "./Ai";
 import { CommandBar, type Command } from "./CommandBar";
 import { DialogHost, tell } from "./Dialogs";
 import { bookingOrigin, bookingUrl } from "@/lib/meetings/handles";
-import { cache, ErrorNote, errorText, Loading, mayLeave, must, postJson, type Role, type Route, type ViewProps, type Workspace } from "./ui";
+import { cache, ErrorBoundary, ErrorNote, errorText, Loading, mayLeave, must, postJson, type Role, type Route, type ViewProps, type Workspace } from "./ui";
+import { ToastHost } from "./Toaster";
 import { NAV_ICONS, Sidebar, type CreateItem, type WorkspaceChoice } from "./Sidebar";
 import { GetStarted } from "./GetStarted";
 import { readSetup, Welcome } from "./Welcome";
@@ -330,8 +331,12 @@ export function ClientApp({ config, turnstileSiteKey = null }: { config: SupaCon
             <ErrorNote message={error} />
           </div>
         ) : null}
-        <OpenView route={route} {...props} />
+        {/* A crash in one section shows the error box in its place; moving to another section starts it over. */}
+        <ErrorBoundary key={route}>
+          <OpenView route={route} {...props} />
+        </ErrorBoundary>
       </main>
+      <ToastHost />
     </div>
   );
 }

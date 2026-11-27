@@ -1,13 +1,17 @@
 // How the app's screens run an action and show its error. Kept apart from ui.tsx so it can be tested in node.
 
-import { GENERIC, userMessage } from "./errors.ts";
+import { GENERIC, newRef, userMessage } from "./errors.ts";
 
-/** What a screen shows for an error: our own message, or GENERIC with the details in the browser console. */
+/**
+ * What a screen shows for an error: our own message, or GENERIC with a short ref ("(Ref 7KQ2M)") while the details
+ * go to the browser console under the same ref, so a person can send it to support and we can find it.
+ */
 export function errorText(e: unknown): string {
   const known = userMessage(e);
   if (known) return known;
-  console.error(e);
-  return GENERIC;
+  const ref = newRef();
+  console.error(`[error ${ref}]`, e);
+  return `${GENERIC} (Ref ${ref})`;
 }
 
 /**

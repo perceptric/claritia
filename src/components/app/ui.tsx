@@ -1,13 +1,13 @@
 "use client";
 
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
-import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Component, createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { cache, type Snap } from "@/lib/queryCache";
 import { Dots } from "./Ai";
 import { Check, Minus, Plus } from "../Icons";
 
 import type { Route } from "@/lib/nav";
-import { dbError, GENERIC, UserError } from "@/lib/errors";
+import { dbError, GENERIC, newRef, splitRef, UserError } from "@/lib/errors";
 export type { Route };
 export type Workspace = { id: string; name: string; features: string[] };
 export type Project = { id: string; name: string; workspace_id: string; created_at: string };
@@ -245,7 +245,13 @@ async function callApi<T>(session: Session, method: "GET" | "POST", path: string
   const headers: Record<string, string> = { Authorization: `Bearer ${session.access_token}`, ...(body ? { "Content-Type": "application/json" } : {}) };
   const res = await fetch(path, { method, headers, body: body ? JSON.stringify(body) : undefined });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new UserError(typeof data.error === "string" ? data.error : GENERIC);
+  if (!res.ok) {
+    if (typeof data.error === "string" && data.error.trim()) throw new UserError(data.error);
+    // No answer we wrote (a proxy's page, a dropped connection): the plain line, with a ref to find it in the console.
+    const ref = newRef();
+    console.error(`[error ${ref}]`, method, path, res.status);
+    throw new UserError(`${GENERIC} (Ref ${ref})`);
+  }
   return data as T;
 }
 
@@ -258,6 +264,7 @@ export function must<T>(res: { data: T | null; error: { message: string; code?: 
   return res.data as T;
 }
 
+import { errorText } from "@/lib/attempt";
 export { attempt, errorText } from "@/lib/attempt";
 
 export function timeAgo(iso: string | null) {
@@ -423,12 +430,75 @@ export function Empty({ icon, sketch, title, children }: { icon?: React.ReactNod
   );
 }
 
-export function ErrorNote({ message }: { message: string }) {
-  return message ? (
-    <p role="alert" className="rounded-lg bg-rose-wash px-3.5 py-2.5 text-[13px] text-rose">
-      {message}
-    </p>
-  ) : null;
+/**
+ * An error, calm (docs/brand.md, Errors): a white card on the rest shadow, a small amber "!", the words, and the ref on
+ * its own line when there is one (a click copies it for support). `onRetry` adds Try again when the work can run
+ * again; `onClose` adds Close. Red stays for warnings before deleting something.
+ */
+export function ErrorNote({ message, onRetry, onClose, className = "" }: { message: string; onRetry?: () => void; onClose?: () => void; className?: string }) {
+  const [copied, setCopied] = useState(false);
+  if (!message) return null;
+  const { words, ref } = splitRef(message);
+  return (
+    <div role="alert" className={`anim-rise-sm flex min-w-0 items-start gap-2.5 rounded-[10px] bg-card px-3 py-2.5 text-[13px] leading-5 text-body shadow-rest ${className}`}>
+      <span aria-hidden="true" className="mt-px grid size-[18px] shrink-0 place-items-center rounded-full bg-warning-soft text-warning">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round">
+          <path d="M12 7v6M12 17h.01" />
+        </svg>
+      </span>
+      <span className="min-w-0 flex-1 wrap-break-word">
+        {words}
+        {ref ? (
+          <button
+            type="button"
+            title="Copy the ref to send to support"
+            onClick={() => {
+              void navigator.clipboard?.writeText(`Ref ${ref}`).catch(() => {});
+              setCopied(true);
+            }}
+            className="block rounded-sm text-[12px] text-faint tabular-nums hover:text-ink hover:underline"
+          >
+            {copied ? "Copied" : `Ref ${ref}`}
+          </button>
+        ) : null}
+      </span>
+      {onRetry || onClose ? (
+        <span className="flex shrink-0 flex-wrap items-center gap-1.5 self-center">
+          {onRetry ? (
+            <Button variant="ghost" size="sm" onClick={onRetry}>
+              Try again
+            </Button>
+          ) : null}
+          {onClose ? (
+            <Button variant="ghost" size="sm" onClick={onClose}>
+              Close
+            </Button>
+          ) : null}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+/** A crash inside one panel shows the error box in its place, so the rest of the page keeps working. */
+export class ErrorBoundary extends Component<{ children: React.ReactNode; className?: string }, { error: string }> {
+  state = { error: "" };
+  static getDerivedStateFromError(e: unknown) {
+    return { error: errorText(e) };
+  }
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <div className={this.props.className ?? "p-4"}>
+        <ErrorNote message={this.state.error} onRetry={() => this.setState({ error: "" })} />
+      </div>
+    );
+  }
+}
+
+/** A small spinner that takes the text color, for a button or a row that's working. Still under reduced motion. */
+export function Spinner({ size = 14, className = "" }: { size?: number; className?: string }) {
+  return <span aria-hidden="true" className={`anim-spin inline-block shrink-0 rounded-full border-2 border-current border-r-transparent opacity-70 ${className}`} style={{ width: size, height: size }} />;
 }
 
 /** Loading: dots over soft rows that shimmer. */
@@ -443,7 +513,7 @@ export function Loading() {
   );
 }
 
-export function Button({ variant = "primary", size = "md", className = "", ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "ghost" | "plain" | "danger"; size?: "sm" | "md" }) {
+export function Button({ variant = "primary", size = "md", className = "", busy = false, children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "ghost" | "plain" | "danger"; size?: "sm" | "md"; /** Working: a spinner before the label, and no second click. */ busy?: boolean }) {
   const look =
     variant === "primary"
       ? "bg-brand text-on-brand shadow-primary hover:bg-brand-hover"
@@ -455,8 +525,13 @@ export function Button({ variant = "primary", size = "md", className = "", ...pr
   return (
     <button
       {...props}
-      className={`press inline-flex max-w-full min-w-0 items-center justify-center gap-1.5 rounded-full font-medium whitespace-nowrap transition-[background-color,box-shadow,transform] duration-[150ms] disabled:pointer-events-none disabled:opacity-45 ${size === "sm" ? "h-7 px-3 text-[12.5px]" : "h-[34px] px-4 text-[13.5px]"} ${look} ${className}`}
-    />
+      disabled={props.disabled || busy}
+      aria-busy={busy || undefined}
+      className={`press inline-flex max-w-full min-w-0 items-center justify-center gap-1.5 rounded-full font-medium whitespace-nowrap transition-[background-color,box-shadow,transform] duration-[150ms] disabled:pointer-events-none ${busy ? "cursor-progress" : "disabled:opacity-45"} ${size === "sm" ? "h-7 px-3 text-[12.5px]" : "h-[34px] px-4 text-[13.5px]"} ${look} ${className}`}
+    >
+      {busy ? <Spinner size={size === "sm" ? 12 : 14} /> : null}
+      {children}
+    </button>
   );
 }
 

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { GENERIC, UserError } from "../src/lib/errors.ts";
+import { GENERIC, splitRef, UserError } from "../src/lib/errors.ts";
 import { matches, QueryCache } from "../src/lib/queryCache.ts";
 
 const later = <T>(value: T, ms = 5) => new Promise<T>((r) => setTimeout(() => r(value), ms));
@@ -58,7 +58,8 @@ test("a failed fetch shows only a message written for people", async () => {
   } finally {
     console.error = log;
   }
-  assert.equal(c.get("k").error, GENERIC);
+  assert.equal(splitRef(c.get("k").error ?? "").words, GENERIC);
+  assert.match(c.get("k").error ?? "", /\(Ref [A-Z2-9]{5}\)$/);
 });
 
 test("optimistic update shows at once and stays when the write works", async () => {

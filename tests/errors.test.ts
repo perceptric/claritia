@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { errorText } from "../src/lib/attempt.ts";
-import { dbError, GENERIC, UserError, userMessage } from "../src/lib/errors.ts";
+import { dbError, GENERIC, splitRef, UserError, userMessage } from "../src/lib/errors.ts";
 import { fail, publicMessage } from "../src/lib/http.ts";
 import { call } from "../src/lib/jobs.ts";
 
@@ -31,7 +31,11 @@ test("common database errors get a plain sentence, and nothing else from the dat
 
 test("a screen shows our words, or GENERIC for anything else", () => {
   assert.equal(errorText(new UserError("The file is empty.")), "The file is empty.");
-  assert.equal(quiet(() => errorText(new Error("relation \"x\" does not exist"))), GENERIC);
+  const generic = quiet(() => errorText(new Error("relation \"x\" does not exist")));
+  assert.match(generic, /^Something went wrong\. Try again in a moment\. \(Ref [A-Z2-9]{5}\)$/);
+  assert.equal(splitRef(generic).words, GENERIC);
+  assert.equal(splitRef("Old answer. (Reference 1a2b3c4d)").ref, "1a2b3c4d");
+  assert.deepEqual(splitRef("The file is empty."), { words: "The file is empty.", ref: null });
   assert.equal(errorText(new TypeError("Failed to fetch")), "Can't reach Claritia. Check your connection and try again.");
 });
 
@@ -42,7 +46,7 @@ test("a route answers with our words and its status, or GENERIC with a reference
   const raw = quiet(() => fail(new Error("password authentication failed for user postgres"), 400));
   assert.equal(raw.status, 500);
   const { error } = (await raw.json()) as { error: string };
-  assert.match(error, /^Something went wrong\. Try again in a moment\. \(Reference [0-9a-f]{8}\)$/);
+  assert.match(error, /^Something went wrong\. Try again in a moment\. \(Ref [A-Z2-9]{5}\)$/);
   assert.ok(!error.includes("password"));
   assert.notEqual(quiet(() => publicMessage(new Error("a"))), quiet(() => publicMessage(new Error("a"))), "each reference is new");
 });

@@ -1,5 +1,4 @@
-import { randomBytes } from "node:crypto";
-import { GENERIC, userMessage } from "./errors.ts";
+import { GENERIC, newRef, userMessage } from "./errors.ts";
 
 /** A JSON error answer for an API route: { error } with a 400 unless another status is given. */
 export const bad = (error: string, status = 400) => Response.json({ error }, { status });
@@ -11,9 +10,9 @@ export const bad = (error: string, status = 400) => Response.json({ error }, { s
 export function publicMessage(e: unknown): string {
   const known = userMessage(e);
   if (known) return known;
-  const ref = randomBytes(4).toString("hex");
+  const ref = newRef();
   console.error(`[error ${ref}]`, e);
-  return `${GENERIC} (Reference ${ref})`;
+  return `${GENERIC} (Ref ${ref})`;
 }
 
 /** The JSON answer for an error a route caught: our own message with `status`, or publicMessage's with a 500. */

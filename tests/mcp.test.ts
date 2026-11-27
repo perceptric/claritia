@@ -189,7 +189,7 @@ test("a tool that throws comes back as an error result: its own words for the ag
   const call = async (name: string) => ((await server(null, JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name } }))) as Row).result as { content: { text: string }[]; isError: boolean };
   const raw = await call("boom");
   assert.equal(raw.isError, true);
-  assert.match(raw.content[0]!.text, /^Something went wrong\. Try again in a moment\. \(Reference [0-9a-f]{8}\)$/);
+  assert.match(raw.content[0]!.text, /^Something went wrong\. Try again in a moment\. \(Ref [A-Z2-9]{5}\)$/);
   assert.ok(!raw.content[0]!.text.includes("10.0.0.5"), "no internal detail reaches the agent");
   assert.deepEqual(await call("said"), { content: [{ type: "text", text: "Pass yaml: the test file." }], isError: true });
 });
