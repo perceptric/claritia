@@ -27,6 +27,20 @@ const Lines = ({ items }: { items: string[] }) => (
   </ul>
 );
 
+/** What a tool is and what people use it for: the sheet's two plain parts, also shown on a form's Sync tab before the tool is connected. */
+export function ToolAbout({ detail }: { detail: ToolDetail }) {
+  return (
+    <>
+      <Part title="What it is">
+        <p className="text-[13px] leading-[1.55] text-body wrap-break-word">{detail.about}</p>
+      </Part>
+      <Part title="Use cases">
+        <Lines items={detail.useCases} />
+      </Part>
+    </>
+  );
+}
+
 export function ToolSheet({
   name,
   logo,

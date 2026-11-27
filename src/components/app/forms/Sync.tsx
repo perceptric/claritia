@@ -11,6 +11,8 @@ import { Fragment, useState } from "react";
 import { DUPLICATE, listOf, NEW_RULES, rulesOf, targetOf, type SyncRules } from "@/lib/delivery/rules";
 import { allFields, type Form } from "@/lib/forms/schema";
 import { CATALOG, entryOf, GROUPS } from "@/lib/sources/catalog";
+import { detailsOf } from "@/lib/sources/details";
+import { ToolAbout } from "../ToolSheet";
 import { toolFeature } from "@/lib/plans";
 import { PlanLock, planHas, usePlan } from "../PlanLock";
 import { BrandLogo } from "../BrandLogo";
@@ -105,9 +107,10 @@ export function Sync(props: Props) {
                 <H3>{cur.title}</H3>
               </div>
               <PlanLock feature={lockedBy} owner={props.role === "owner"} onUpgrade={() => props.navigate("settings", "billing")} />
+              <About kind={curKind} />
             </>
           ) : cur.key.startsWith("connect:") ? (
-            <Start logo={cur.logo} name={cur.title} button={`Connect ${cur.title}`} onClick={() => props.navigate("settings", "sources", `connect=${curKind}`)} />
+            <Start logo={cur.logo} name={cur.title} kind={curKind} button={`Connect ${cur.title}`} onClick={() => props.navigate("settings", "sources", `connect=${curKind}`)} />
           ) : entryOf(tools.find((s) => s.id === cur.key)!.kind)?.lists ? (
             <ListPane {...props} source={tools.find((s) => s.id === cur.key)!} logo={cur.logo} />
           ) : entryOf(tools.find((s) => s.id === cur.key)!.kind)?.docs ? (
@@ -132,7 +135,17 @@ export function Sync(props: Props) {
 const H3 = ({ children }: { children: React.ReactNode }) => <h3 className="m-0 flex-1 text-[15px] font-semibold tracking-[-0.01em] text-ink">{children}</h3>;
 const Sub = ({ children }: { children: React.ReactNode }) => <p className="-mt-[10px] mb-0 text-[12.5px] text-muted">{children}</p>;
 
-function Start({ logo, name, button, onClick, busy = false }: { logo: React.ReactNode; name: string; button: string; onClick: () => void; busy?: boolean }) {
+/** What a tool that isn't sending this form's leads yet is, and what people do with it (src/lib/sources/details.ts). */
+function About({ kind }: { kind: string | null }) {
+  const detail = kind ? detailsOf(kind) : null;
+  return detail ? (
+    <div className="mt-[8px] flex min-w-0 flex-col gap-[20px]">
+      <ToolAbout detail={detail} />
+    </div>
+  ) : null;
+}
+
+function Start({ logo, name, kind = null, button, onClick, busy = false }: { logo: React.ReactNode; name: string; kind?: string | null; button: string; onClick: () => void; busy?: boolean }) {
   return (
     <>
       <div className="flex items-center gap-[10px]">
@@ -143,6 +156,7 @@ function Start({ logo, name, button, onClick, busy = false }: { logo: React.Reac
       <button type="button" className={`${BTN} self-start`} onClick={onClick} disabled={busy}>
         {button}
       </button>
+      <About kind={kind} />
     </>
   );
 }
@@ -177,7 +191,7 @@ function CrmPane({ sb, session, ws, form, formId, dests, failed, reload, patchDe
   };
   const save = (body: object) => postJson(session, "/api/forms/destination", { workspaceId: ws.id, formId, ...body });
   const fails = useQuery(`form:${formId}:fails:${d?.id ?? ""}:${failed[d?.id ?? ""] ?? 0}`, async () => (d ? ((must(await sb.from("deliveries").select("id, error").eq("destination_id", d.id).eq("status", "failed").order("created_at", { ascending: false }).limit(200)) ?? []) as { id: string; error: string | null }[]) : []));
-  if (!d) return <Start logo={logo} name={source.name} button={`Send leads to ${source.name}`} busy={busy} onClick={() => void run(() => save({ kind: "source", sourceId: source.id, name: source.name }), `Leads go to ${source.name} now`)} />;
+  if (!d) return <Start logo={logo} name={source.name} kind={source.kind} button={`Send leads to ${source.name}`} busy={busy} onClick={() => void run(() => save({ kind: "source", sourceId: source.id, name: source.name }), `Leads go to ${source.name} now`)} />;
   const r: SyncRules = rulesOf(d.config) ?? BEFORE;
   const set = (patch: Partial<SyncRules>) => void run(() => save({ id: d.id, kind: "source", sourceId: d.source_id, name: d.name, rules: { ...r, ...patch } }));
   const list = fails.data ?? [];
